@@ -90,6 +90,30 @@ async function responseToObjectURLStrict(res) {
   return URL.createObjectURL(blob);
 }
 
+async function copyToClipboard(text) {
+  const t = String(text ?? "");
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch {
+    // Fallback for older / restricted contexts
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = t;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState(
     "a cinematic photograph of a futuristic city at sunset"
@@ -107,7 +131,8 @@ export default function App() {
   const [seedMode, setSeedMode] = useState("random"); // random | fixed
   const [seed, setSeed] = useState(() => String(eightDigitSeed()));
 
-  const [srEnabled, setSrEnabled] = useState(false);
+  // Super-Resolution level: 0=off, 1..4=on (UI). Backend magnitude max is 3.
+  const [srLevel, setSrLevel] = useState(0); // 0..4
 
   // Chat messages
   const [messages, setMessages] = useState(() => [
@@ -127,6 +152,11 @@ export default function App() {
 
   // Track blob: URLs so we can revoke them deterministically
   const blobUrlsRef = useRef(new Set());
+
+  // Options scroll hint refs/state
+  const optionsScrollRef = useRef(null);
+  const [optionsCanScrollDown, setOptionsCanScrollDown] = useState(false);
+  const [optionsCanScrollUp, setOptionsCanScrollUp] = useState(false);
 
   // Revoke object URLs on unmount
   useEffect(() => {
@@ -189,14 +219,39 @@ export default function App() {
     }
     if (Number.isFinite(meta.steps)) setSteps(clampInt(Number(meta.steps), 1, 50));
     if (Number.isFinite(meta.cfg)) setCfg(Number(meta.cfg));
-    if (typeof meta.superres === "boolean") setSrEnabled(!!meta.superres);
+    // If meta indicates SR, try to restore a level (prefer stored magnitude/pass count if present)
+    if (meta?.superres) {
+      const mag =
+        Number(meta?.srMagnitude) ||
+        Number(meta?.srPasses) ||
+        (meta?.srScale ? 2 : 1);
+      setSrLevel(clampInt(mag, 1, 4));
+    } else if (typeof meta?.superres === "boolean") {
+      setSrLevel(meta.superres ? 2 : 0);
+    }
 
-    // Clicking an image should usually lock to that seed (if present)
     if (meta.seed !== undefined && meta.seed !== null) {
       setSeedMode("fixed");
       setSeed(String(meta.seed));
     }
   }, []);
+
+  // (3) options scroll hint updater
+  const updateOptionsScrollHints = useCallback(() => {
+    const el = optionsScrollRef.current;
+    if (!el) return;
+
+    const canDown = el.scrollHeight - el.scrollTop - el.clientHeight > 6;
+    const canUp = el.scrollTop > 6;
+
+    setOptionsCanScrollDown(canDown);
+    setOptionsCanScrollUp(canUp);
+  }, []);
+
+  useEffect(() => {
+    // initial + whenever layout changes (messages might change height)
+    updateOptionsScrollHints();
+  }, [updateOptionsScrollHints, messages.length]);
 
   const onSendSuperResUpload = useCallback(async () => {
     if (!uploadFile) return;
@@ -306,7 +361,8 @@ export default function App() {
       cfg,
       seedMode,
       seed: reqSeed,
-      superres: srEnabled,
+      superres: srLevel > 0,
+      srLevel,
     };
 
     const userMsg = {
@@ -340,6 +396,8 @@ export default function App() {
     const controller = new AbortController();
     inflightRef.current.set(assistantId, controller);
 
+      const superresOn = srLevel > 0;
+
     try {
       const body = {
         prompt: p,
@@ -347,11 +405,10 @@ export default function App() {
         num_inference_steps: clampInt(opts.steps, 1, 50),
         guidance_scale: Math.max(0, Math.min(20, Number(opts.cfg) || 0)),
         seed: reqSeed,
-        superres: !!opts.superres,
+        superres: superresOn,
         superres_format: "png",
-        superres_quality: 92,
-        // if your backend supports it, you can add:
-        // superres_magnitude: 2,
+        superres_quality: 92,      
+        superres_magnitude: srLevel > 0 ? clampInt(Number(srLevel), 1, 3) : 1,
       };
 
       const res = await fetch(`${apiBaseForThisRequest}/generate`, {
@@ -380,18 +437,20 @@ export default function App() {
       updateMessage(assistantId, {
         kind: "image",
         text: opts.superres
-          ? `Done (SR). Seed: ${seedHdr ?? reqSeed}`
+          ? `Done (SR ${srLevel}). Seed: ${seedHdr ?? reqSeed}`
           : `Done. Seed: ${seedHdr ?? reqSeed}`,
-        imageUrl: url,
+          imageUrl: url,
         meta: {
           seed: seedHdr ?? reqSeed,
           superres: srHdr === "1" || !!opts.superres,
           srScale: srScale ?? null,
+          srMagnitude: clampInt(Number(srLevel), 1, 3),
+          srLevel: Number(srLevel),
           size: opts.size,
           steps: opts.steps,
           cfg: opts.cfg,
           apiBase: apiBaseForThisRequest || "",
-          backend,
+          backend
         },
       });
 
@@ -410,7 +469,7 @@ export default function App() {
     size,
     steps,
     cfg,
-    srEnabled,
+    srLevel,
     pickApiBaseForRequest,
     updateMessage,
   ]);
@@ -434,6 +493,30 @@ export default function App() {
     [onSend]
   );
 
+  // (4) Copy prompt badge/button
+  const [copied, setCopied] = useState(false);
+  const onCopyPrompt = useCallback(async () => {
+    const text = safeJsonString(prompt).trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 900);
+    } catch {
+      // fallback
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 900);
+      } catch {}
+    }
+  }, [prompt]);
+
   const serverLabel =
     apiConfig.bases.length > 0
       ? `RR (${apiConfig.bases.length} backends)`
@@ -441,36 +524,64 @@ export default function App() {
       ? apiConfig.single
       : "(same origin)";
 
+  // ---- style helpers ----
+  const selectTriggerClass =
+    "rounded-2xl bg-background text-foreground shadow-sm border";
+  // (2) Force opaque dropdown surface (white) so background never shows through
+  const selectContentClass =
+    "!bg-white !text-black !opacity-100 shadow-xl border border-black/10";
+  const selectItemClass =
+    "!bg-white !text-black data-[highlighted]:!bg-black/5";
+  const inputClass = "rounded-2xl bg-background text-foreground shadow-sm border";
+
+  const sliderClass =
+    "[&_[data-orientation=horizontal]]:bg-muted " +
+    "[&_[role=slider]]:bg-foreground " +
+    "[&_[role=slider]]:border-foreground " +
+    "[&_[role=slider]]:shadow";
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-6xl p-4 md:p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
+    <div className="h-screen overflow-hidden bg-background text-foreground">
+      <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
+        <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
           {/* Main chat */}
-          <Card className="overflow-hidden rounded-2xl shadow-sm">
+          <Card className="overflow-hidden rounded-2xl shadow-sm h-full flex flex-col">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-xl">LCM + SR Chat</CardTitle>
+
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Badge variant="secondary">/generate</Badge>
                   <Badge variant="secondary">PNG</Badge>
-                  {srEnabled ? (
-                    <Badge>SR</Badge>
-                  ) : (
-                    <Badge variant="outline">SR off</Badge>
-                  )}
+
+                  {/* (4) Copy prompt badge */}
+                  <button
+                    type="button"
+                    onClick={onCopyPrompt}
+                    className="inline-flex"
+                    title="Copy current prompt to clipboard"
+                  >
+                    <Badge variant="outline" className="bg-background">
+                      {copied ? "Copied!" : "Copy prompt"}
+                    </Badge>
+                  </button>
+
+                  {srLevel > 0 ? <Badge>SR {srLevel}</Badge> : <Badge variant="outline">SR off</Badge>}
                   {inflightCount > 0 ? (
                     <Badge variant="secondary">{inflightCount} running</Badge>
                   ) : null}
                 </div>
               </div>
+
               <div className="text-sm text-muted-foreground">
                 Tip: press <span className="font-medium">Ctrl/⌘ + Enter</span> to send.
               </div>
             </CardHeader>
 
-            <CardContent className="flex h-[72vh] flex-col p-0">
+            {/* (1) chat uses h-full */}
+            <CardContent className="flex flex-1 flex-col p-0 min-h-0">
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
                 <div className="space-y-4">
                   {messages.map((m) => (
                     <MessageBubble
@@ -496,11 +607,7 @@ export default function App() {
                     className="min-h-[52px] resize-none rounded-2xl"
                   />
                   <div className="flex flex-col gap-2">
-                    <Button
-                      className="rounded-2xl"
-                      onClick={onSend}
-                      disabled={!prompt.trim()}
-                    >
+                    <Button className="rounded-2xl" onClick={onSend} disabled={!prompt.trim()}>
                       <Send className="mr-2 h-4 w-4" />
                       Send
                     </Button>
@@ -521,195 +628,238 @@ export default function App() {
                 <div className="mt-2 text-xs text-muted-foreground">
                   Current: size {size} · steps {steps} · CFG {cfg.toFixed(1)} · seed{" "}
                   {seedMode === "random" ? "random" : seed}
-                  {srEnabled ? " · SR on" : ""} · {serverLabel}
+                  {srLevel > 0 ? ` · SR ${srLevel}` : ""} · {serverLabel}
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Right-side options */}
-          <Card className="rounded-2xl shadow-sm">
+          <Card className="rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
             <CardHeader className="border-b">
               <CardTitle className="text-lg">Options</CardTitle>
               <div className="text-sm text-muted-foreground">Generation parameters</div>
             </CardHeader>
 
-            <CardContent className="space-y-5 p-4 md:p-5">
-              <div className="space-y-2">
-                <Label>Size</Label>
-                <Select value={size} onValueChange={setSize}>
-                  <SelectTrigger className="rounded-2xl">
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="256x256">256×256</SelectItem>
-                    <SelectItem value="512x512">512×512</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Steps</Label>
-                  <span className="text-sm text-muted-foreground">{steps}</span>
+            {/* (3) scroll hint overlay */}
+            <div className="relative flex-1 min-h-0">
+              {(optionsCanScrollDown || optionsCanScrollUp) ? (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  More {optionsCanScrollUp ? "↑" : "↓"} (scroll)
                 </div>
-                <Slider
-                  value={[steps]}
-                  min={1}
-                  max={12}
-                  step={1}
-                  onValueChange={(v) => setSteps(v[0] ?? 4)}
-                />
-                <div className="text-xs text-muted-foreground">
-                  Server allows up to 50; typical LCM is 2–8.
+              ) : null}
+              <CardContent
+                ref={optionsScrollRef}
+                onScroll={updateOptionsScrollHints}
+                className="h-full overflow-y-auto space-y-5 p-4 md:p-5 pt-10"
+              >
+                <div className="space-y-2">
+                  <Label>Size</Label>
+                  <Select value={size} onValueChange={setSize}>
+                    <SelectTrigger className={selectTriggerClass}>
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent className={selectContentClass}>
+                      <SelectItem className={selectItemClass} value="256x256">
+                        256×256
+                      </SelectItem>
+                      <SelectItem className={selectItemClass} value="512x512">
+                        512×512
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>CFG</Label>
-                  <span className="text-sm text-muted-foreground">{cfg.toFixed(1)}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Steps</Label>
+                    <span className="text-sm text-muted-foreground">{steps}</span>
+                  </div>
+                  <Slider
+                    className={sliderClass}
+                    value={[steps]}
+                    min={1}
+                    max={12}
+                    step={1}
+                    onValueChange={(v) => setSteps(v[0] ?? 4)}
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Server allows up to 50; typical LCM is 2–8.
+                  </div>
                 </div>
-                <Slider
-                  value={[cfg]}
-                  min={0}
-                  max={5}
-                  step={0.1}
-                  onValueChange={(v) => setCfg(Number(v[0] ?? 1.0))}
-                />
-                <div className="text-xs text-muted-foreground">LCM commonly uses ~1.0.</div>
-              </div>
 
-              <Separator />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>CFG</Label>
+                    <span className="text-sm text-muted-foreground">{cfg.toFixed(1)}</span>
+                  </div>
+                  <Slider
+                    className={sliderClass}
+                    value={[cfg]}
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    onValueChange={(v) => setCfg(Number(v[0] ?? 1.0))}
+                  />
+                  <div className="text-xs text-muted-foreground">LCM commonly uses ~1.0.</div>
+                </div>
 
-              <div className="space-y-3">
-                <Label>Seed</Label>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Select value={seedMode} onValueChange={setSeedMode}>
-                      <SelectTrigger className="rounded-2xl">
+                <Separator />
+
+                <div className="space-y-3">
+                  <Label>Seed</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Select value={seedMode} onValueChange={setSeedMode}>
+                        <SelectTrigger className={selectTriggerClass}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className={selectContentClass}>
+                          <SelectItem className={selectItemClass} value="random">
+                            Random
+                          </SelectItem>
+                          <SelectItem className={selectItemClass} value="fixed">
+                            Fixed
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="rounded-2xl"
+                      onClick={() => setSeed(String(eightDigitSeed()))}
+                      title="Generate a new random seed"
+                    >
+                      Randomize
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={seed}
+                      onChange={(e) => {
+                        const v = (e.target.value || "").replace(/[^\d]/g, "").slice(0, 10);
+                        setSeed(v);
+                      }}
+                      disabled={seedMode !== "fixed"}
+                      className={inputClass}
+                      inputMode="numeric"
+                      placeholder="seed"
+                    />
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    When Random: a new seed is chosen per request. When Fixed: the seed field is used.
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* (6) toggle above upload section */}
+                <div className="space-y-2 rounded-2xl border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">Super-Resolution</div>
+                      <div className="text-xs text-muted-foreground">
+                        0 = off · 1–3 = passes
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground tabular-nums">
+                      {srLevel === 0 ? "Off" : `Level ${srLevel}`}
+                    </div>
+                  </div>
+
+                  <Slider
+                    className={sliderClass}
+                    value={[srLevel]}
+                    min={0}
+                    max={4}
+                    step={1}
+                    onValueChange={(v) => setSrLevel(v?.[0] ?? 0)}
+                  />
+
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="font-medium">Super-resolution an uploaded image</div>
+
+                  {/* (7) Magnitude above Image file */}
+                  <div className="space-y-2">
+                    <Label>Magnitude</Label>
+                    <Select
+                      value={String(srMagnitude)}
+                      onValueChange={(v) => setSrMagnitude(Number(v))}
+                    >
+                      <SelectTrigger className={selectTriggerClass}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="random">Random</SelectItem>
-                        <SelectItem value="fixed">Fixed</SelectItem>
+                      <SelectContent className={selectContentClass}>
+                        <SelectItem className={selectItemClass} value="1">
+                          1 (1 pass)
+                        </SelectItem>
+                        <SelectItem className={selectItemClass} value="2">
+                          2 (default)
+                        </SelectItem>
+                        <SelectItem className={selectItemClass} value="3">
+                          3 (3 passes)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    <div className="text-xs text-muted-foreground">
+                      Magnitude = number of SR passes. Default is 2.
+                    </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Image file</Label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className={inputClass}
+                      onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      {uploadFile ? `Selected: ${uploadFile.name}` : "Choose a JPG/PNG/WebP/etc."}
+                    </div>
+                  </div>
+
                   <Button
-                    variant="outline"
-                    className="rounded-2xl"
-                    onClick={() => setSeed(String(eightDigitSeed()))}
-                    title="Generate a new random seed"
+                    className="w-full rounded-2xl"
+                    onClick={onSendSuperResUpload}
+                    disabled={!uploadFile}
+                    title={!uploadFile ? "Pick an image first" : "Upload and super-resolve"}
                   >
-                    Randomize
+                    <Send className="mr-2 h-4 w-4" />
+                    Super-res uploaded image
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={seed}
-                    onChange={(e) => {
-                      const v = (e.target.value || "")
-                        .replace(/[^\d]/g, "")
-                        .slice(0, 10);
-                      setSeed(v);
-                    }}
-                    disabled={seedMode !== "fixed"}
-                    className="rounded-2xl"
-                    inputMode="numeric"
-                    placeholder="seed"
-                  />
-                </div>
+                <Separator />
 
-                <div className="text-xs text-muted-foreground">
-                  When Random: a new seed is chosen per request. When Fixed: the seed field is used.
-                </div>
-              </div>
+                <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground">
+                  <div className="font-medium text-foreground">Server base</div>
+                  <div className="mt-1 break-all">{serverLabel}</div>
+                  <div className="mt-2">Output: PNG only (per UI spec)</div>
 
-              <Separator />
-
-              <div className="space-y-3">
-                <div className="font-medium">Super-res an uploaded image</div>
-
-                <div className="space-y-2">
-                  <Label>Image file</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    className="rounded-2xl"
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  />
-                  <div className="text-xs text-muted-foreground">
-                    {uploadFile ? `Selected: ${uploadFile.name}` : "Choose a JPG/PNG/WebP/etc."}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Magnitude</Label>
-                  <Select
-                    value={String(srMagnitude)}
-                    onValueChange={(v) => setSrMagnitude(Number(v))}
-                  >
-                    <SelectTrigger className="rounded-2xl">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 (1 pass)</SelectItem>
-                      <SelectItem value="2">2 (default)</SelectItem>
-                      <SelectItem value="3">3 (3 passes)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="text-xs text-muted-foreground">
-                    Magnitude = number of SR passes. Default is 2.
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full rounded-2xl"
-                  onClick={onSendSuperResUpload}
-                  disabled={!uploadFile}
-                  title={!uploadFile ? "Pick an image first" : "Upload and super-resolve"}
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Super-res uploaded image
-                </Button>
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between rounded-2xl border p-3">
-                <div>
-                  <div className="font-medium">Super-Resolution</div>
-                  <div className="text-xs text-muted-foreground">
-                    Postprocess on /generate (PNG output)
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">SR_ENABLED</Label>
-                  <Switch checked={srEnabled} onCheckedChange={setSrEnabled} />
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground">
-                <div className="font-medium text-foreground">Server base</div>
-                <div className="mt-1 break-all">{serverLabel}</div>
-                <div className="mt-2">Output: PNG only (per UI spec)</div>
-
-                {apiConfig.bases.length > 0 ? (
-                  <div className="mt-2">
-                    <div className="font-medium text-foreground">Backends</div>
-                    <div className="mt-1 space-y-1">
-                      {apiConfig.bases.map((b) => (
-                        <div key={b} className="break-all">
-                          {b}
-                        </div>
-                      ))}
+                  {apiConfig.bases.length > 0 ? (
+                    <div className="mt-2">
+                      <div className="font-medium text-foreground">Backends</div>
+                      <div className="mt-1 space-y-1">
+                        {apiConfig.bases.map((b) => (
+                          <div key={b} className="break-all">
+                            {b}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
-            </CardContent>
+                  ) : null}
+                </div>
+              </CardContent>
+            </div>
           </Card>
         </div>
       </div>
@@ -773,21 +923,9 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
               <Pill label={`seed ${msg.meta?.seed ?? "?"}`} />
               <Pill label={msg.meta?.size ? `size ${msg.meta.size}` : ""} />
-              <Pill
-                label={
-                  Number.isFinite(msg.meta?.steps) ? `steps ${msg.meta.steps}` : ""
-                }
-              />
-              <Pill
-                label={
-                  Number.isFinite(msg.meta?.cfg)
-                    ? `cfg ${Number(msg.meta.cfg).toFixed(1)}`
-                    : ""
-                }
-              />
-              {msg.meta?.superres ? (
-                <Pill label={`SR ${msg.meta?.srScale ?? ""}`.trim()} />
-              ) : null}
+              <Pill label={Number.isFinite(msg.meta?.steps) ? `steps ${msg.meta.steps}` : ""} />
+              <Pill label={Number.isFinite(msg.meta?.cfg) ? `cfg ${Number(msg.meta.cfg).toFixed(1)}` : ""} />
+              {msg.meta?.superres ? <Pill label={`SR ${msg.meta?.srScale ?? ""}`.trim()} /> : null}
               {msg.meta?.backend ? <Pill label={`backend ${msg.meta.backend}`} /> : null}
 
               <a
@@ -802,19 +940,29 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
         )}
 
         {msg.role === "user" && msg.meta && (
-          <div className="mt-2 flex flex-wrap gap-2 text-xs opacity-85">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs opacity-90">
             <Pill label={`size ${msg.meta.size}`} dark />
             <Pill label={`steps ${msg.meta.steps}`} dark />
             <Pill label={`cfg ${Number(msg.meta.cfg).toFixed(1)}`} dark />
             <Pill
-              label={
-                msg.meta.seedMode === "random"
-                  ? "seed random"
-                  : `seed ${msg.meta.seed}`
-              }
+              label={msg.meta.seedMode === "random" ? "seed random" : `seed ${msg.meta.seed}`}
               dark
             />
             {msg.meta.superres ? <Pill label="SR on" dark /> : <Pill label="SR off" dark />}
+
+            <button
+              type="button"
+              className="ml-auto rounded-full border border-white/20 bg-black/20 px-2 py-0.5 text-white/90 hover:bg-black/30"
+              onClick={async () => {
+                const ok = await copyToClipboard(msg.text);
+                // optional: tiny feedback without adding state
+                if (!ok) alert("Copy failed (clipboard permission).");
+              }}
+              title="Copy this prompt"
+              aria-label="Copy prompt"
+            >
+              Copy prompt
+            </button>
           </div>
         )}
       </div>

@@ -33,25 +33,17 @@ RUN  pip install --no-cache-dir --upgrade pip
 # Install python deps
 # (Put your real requirements in requirements.txt)
 COPY requirements.txt /app/requirements.txt
+COPY librknnrt.so /usr/lib/librknnrt.so
+
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy server code
-COPY lcm_sr_server.py /app/lcm_sr_server.py
-COPY rknnlcm.py /app/rknnlcm.py
-COPY librknnrt.so /usr/lib/librknnrt.so
+COPY *.py /app
 
 # Copy built UI into where FastAPI will serve it
 RUN mkdir -p /opt/lcm-sr-server/ui-dist
 COPY --from=ui-build /ui/dist/ /opt/lcm-sr-server/ui-dist/
 
-# Env defaults (override in docker run / compose)
-ENV PORT=4200 \
-    MODEL_ROOT=/models/lcm_rknn \
-    NUM_WORKERS=1 \
-    QUEUE_MAX=64 \
-    DEFAULT_TIMEOUT=240 \
-    SR_ENABLED=true 
-
 EXPOSE 4200
 
-CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200"]
+CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--no-access-log"]

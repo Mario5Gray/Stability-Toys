@@ -1,5 +1,5 @@
 services:
-  lcn-sd:
+  lcm-sd:
     platform: linux/arm64
     container_name: rknn-lcm-sd-ui
     build:
@@ -7,25 +7,16 @@ services:
       dockerfile: ./Dockerfile
     image: darkbit1001/rknn-lcm-sd-ui:latest
 
-    # Most reliable way to access RK3588 NPU + related devices
     privileged: true
 
-    # Expose API
     ports:
       - "4200:4200"
 
-    environment:
-      PORT: "4200"
-      NUM_WORKERS: "1"
-      QUEUE_MAX: "8"
-      MODEL_ROOT: "/models"
-      SR_NUM_WORKERS: "1"
-      SR_QUEUE_MAX: "8"
-      SR_ENABLED: "1"
-
-    # Models live on host; keep image small
     volumes:
-      - ./model:/models:ro,Z
+      - ./model:/models:rw,Z
+
+    env_file:
+      - env.docker  # Load all
 
     restart: unless-stopped
 
@@ -34,3 +25,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
+
+volumes:
+  redis_data:

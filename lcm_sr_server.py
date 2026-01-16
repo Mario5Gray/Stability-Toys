@@ -46,7 +46,7 @@ from typing import Optional, List, Dict, Tuple
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -60,6 +60,10 @@ from rknnlcm import RKNN2Model, RKNN2LatentConsistencyPipeline
 
 # lcm_sr_server.py (add near imports)
 from compat_endpoints import CompatEndpoints
+from request_logger import RequestLogger  # and optionally RequestLoggerConfig
+
+from storage_provider import StorageProvider, InMemoryStorageProvider
+
 
 # -----------------------------
 # Request schema (HTTP)
@@ -534,6 +538,10 @@ SR_MAX_PIXELS = int(os.environ.get("SR_MAX_PIXELS", "24000000"))
 
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 
+STORAGE_MAX_ITEMS = int(os.environ.get("STORAGE_MAX_ITEMS", "512"))
+STORAGE_TTL_IMAGE = int(os.environ.get("STORAGE_TTL_IMAGE", "3600"))
+STORAGE_ENABLE_HTTP = os.environ.get("STORAGE_ENABLE_HTTP", "0") in ("1", "true", "True")
+
 paths = ModelPaths(root=MODEL_ROOT)
 
 
@@ -560,7 +568,15 @@ async def lifespan(app: FastAPI):
             output_size=SR_OUTPUT_SIZE,
         )
 
+    app.state.storage = StorageProvider.make_storage_provider_from_env()
+
     yield
+
+    # shutdown
+    try:
+        app.state.storage.close()
+    except Exception:
+        pass
 
     app.state.service.shutdown()
     if app.state.sr_service is not None:
@@ -568,6 +584,40 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="LCM_Stable_Diffusion and Super_Resolution Service")
+
+RequestLogger.install(app)
+
+def _store_image_blob(
+    storage: Optional[StorageProvider],
+    *,
+    out_bytes: bytes,
+    media_type: str,
+    req: GenerateRequest,
+    seed: int,
+    did_superres: bool,
+    sr_mag: int,
+    ttl_s: int,
+) -> Optional[str]:
+    if storage is None:
+        return None
+
+    image_key = StorageProvider._new_key("lcm_image")
+    storage.put(
+        image_key,
+        out_bytes,
+        content_type=media_type,
+        meta={
+            "prompt": req.prompt,
+            "seed": seed,
+            "size": req.size,
+            "steps": req.num_inference_steps,
+            "cfg": req.guidance_scale,
+            "superres": bool(did_superres),
+            "sr_magnitude": int(sr_mag) if did_superres else 0,
+        },
+        ttl_s=ttl_s,
+    )
+    return image_key
 
 
 @app.post("/generate", responses={200: {"content": {"image/png": {}, "image/jpeg": {}}}})
@@ -586,6 +636,8 @@ def generate(req: GenerateRequest):
     did_superres = False
     out_bytes = png_bytes
     media_type = "image/png"
+
+    storage = getattr(app.state, "storage", None)
 
     sr_mag = int(req.superres_magnitude or 2)
     if sr_mag < 1 or sr_mag > 3:
@@ -607,17 +659,34 @@ def generate(req: GenerateRequest):
             out_bytes = sr_fut.result(timeout=SR_REQUEST_TIMEOUT)
             did_superres = True
             media_type = "image/jpeg" if req.superres_format == "jpeg" else "image/png"
+
         except Exception as e:
             msg = str(e)
             if "Queue full" in msg:
                 raise HTTPException(status_code=429, detail="Too many requests (SR queue full). Try again.")
             raise HTTPException(status_code=500, detail=f"Super-resolution failed: {msg}")
 
+
+    image_key = _store_image_blob(
+        storage,
+        out_bytes=out_bytes,
+        media_type=media_type,
+        req=req,
+        seed=int(seed),
+        did_superres=did_superres,
+        sr_mag=sr_mag,
+        ttl_s=STORAGE_TTL_IMAGE,
+    )    
+
     headers = {
         "Cache-Control": "no-store",
         "X-Seed": str(seed),
         "X-SuperRes": "1" if did_superres else "0",
     }
+
+    if image_key:
+        headers["X-LCM-Image-Key"] = image_key
+
     if did_superres:
         headers.update(
             {
@@ -685,20 +754,45 @@ async def superres(
         raise HTTPException(status_code=500, detail=f"Super-resolution failed: {msg}")
 
     media_type = "image/jpeg" if out_format == "jpeg" else "image/png"
+
+    storage = getattr(app.state, "storage", None)
+    image_key = None
+
+    if storage is not None:
+        image_key = StorageProvider._new_key("lcm_image")
+        storage.put(
+            image_key,
+            out_bytes,
+            content_type=media_type,
+            meta={
+                "source_upload": file.filename,
+                "sr_only": True,
+                "sr_magnitude": magnitude,
+                "out_format": out_format,
+                "quality": quality,
+            },
+            ttl_s=STORAGE_TTL_IMAGE,
+        )
+
+    headers = {
+        "Cache-Control": "no-store",
+        "X-SR-Model": os.path.basename(SR_MODEL_PATH),
+        "X-SR-Magnitude": str(magnitude),
+        "X-SR-Passes": str(magnitude),
+        "X-SR-Scale-Per-Pass": (
+            str(SR_OUTPUT_SIZE // SR_INPUT_SIZE)
+            if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
+            else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
+        ),
+    }      
+
+    if image_key:  
+        headers["X-LCM-Image-Key"] = image_key
+
     return Response(
         content=out_bytes,
         media_type=media_type,
-        headers={
-            "Cache-Control": "no-store",
-            "X-SR-Model": os.path.basename(SR_MODEL_PATH),
-            "X-SR-Magnitude": str(magnitude),
-            "X-SR-Passes": str(magnitude),
-            "X-SR-Scale-Per-Pass": (
-                str(SR_OUTPUT_SIZE // SR_INPUT_SIZE)
-                if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
-                else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
-            ),
-        },
+        headers=headers,
     )
 
 
@@ -766,7 +860,41 @@ def _run_generate_from_dict(gen_req: dict):
             }
         )
 
-    return out_bytes, seed, meta_headers
+    return out_bytes, seed, meta_headers    
+
+@app.get("/storage/health")
+def storage_health():
+    st: StorageProvider = app.state.storage
+    return st.health()
+
+@app.put("/storage/{key}")
+def storage_put(key: str, payload: str = Body(..., embed=True)):
+    st: StorageProvider = app.state.storage
+    st.put(key, payload.encode("utf-8"), content_type="text/plain", ttl_s=300)
+    return {"ok": True, "key": key}
+
+@app.get("/storage/{key}")
+def storage_get(key: str):
+    if not STORAGE_ENABLE_HTTP:
+        raise HTTPException(404, detail="storage http disabled")
+
+    st = getattr(app.state, "storage", None)
+    if st is None:
+        raise HTTPException(503, detail="storage unavailable")
+
+    item = st.get(key)
+    if not item:
+        raise HTTPException(404, detail="not found")
+
+    return Response(
+        content=item.value,
+        media_type=item.content_type,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Storage-Key": item.key,
+            "X-Storage-Created-At": str(item.created_at),
+        },
+    )
 
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
 
@@ -776,7 +904,6 @@ app.mount(
     StaticFiles(directory="/opt/lcm-sr-server/ui-dist", html=True),
     name="ui",
 )
-
 
 if __name__ == "__main__":
     import uvicorn

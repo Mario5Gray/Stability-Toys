@@ -68,6 +68,15 @@ def _b64_png(png_bytes: bytes) -> str:
     return base64.b64encode(png_bytes).decode("ascii")
 
 
+
+def get_rknn_model_paths() -> str:
+    """
+    Best-effort model name extraction.
+    Uses MODEL_ROOT folder name as the canonical model identifier.
+    """
+    return "RKNN_LCM"
+
+
 # -----------------------------
 # Public class
 # -----------------------------
@@ -92,6 +101,39 @@ class CompatEndpoints:
     def mount(self) -> None:
         r = APIRouter(prefix=self.router_prefix)
 
+        @r.get("/sdapi/v1/sd-models")
+        def sdapi_v1_sd_models():
+            """
+            Automatic1111-compatible model listing.
+            Returns the currently loaded LCM model.
+            """
+            model_name = get_rknn_model_paths()
+
+            return [
+                {
+                    "title": model_name,
+                    "model_name": model_name,
+                    "filename": model_name,
+                    "hash": None,
+                    "sha256": None,
+                    "config": None,
+                }
+            ]
+            
+        @r.get("/sdapi/v1/options")
+        def sdapi_v1_options():
+            return {
+                "sd_model_checkpoint": get_rknn_model_paths(),
+                "sd_checkpoint_hash": "",
+                "sd_model_hash": "",                
+            }
+
+        # Optional probes (some clients ask these)
+        @r.get("/sdapi/v1/samplers")
+        def sdapi_samplers():
+            # LCM scheduler only; return a minimal "sampler list"
+            return [{"name": "LCM", "aliases": ["lcm"], "options": {}}]
+            
         @r.post("/sdapi/v1/txt2img")
         def sdapi_txt2img(req: A1111Txt2ImgRequest):
             # A1111 semantics:
@@ -170,20 +212,6 @@ class CompatEndpoints:
                     "cfg": req.cfg,
                     "headers": dict(meta or {}),
                 },
-            }
-
-        # Optional probes (some clients ask these)
-        @r.get("/sdapi/v1/samplers")
-        def sdapi_samplers():
-            # LCM scheduler only; return a minimal "sampler list"
-            return [{"name": "LCM", "aliases": ["lcm"], "options": {}}]
-
-        @r.get("/sdapi/v1/options")
-        def sdapi_options():
-            return {
-                "sd_model_checkpoint": "RKNN-LCM",
-                "sd_checkpoint_hash": "",
-                "sd_model_hash": "",
             }
 
         self.app.include_router(r)
