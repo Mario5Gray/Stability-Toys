@@ -8,6 +8,10 @@ import threading
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
 
+STORAGE_MAX_ITEMS = int(os.environ.get("STORAGE_MAX_ITEMS", "512"))
+STORAGE_TTL_IMAGE = int(os.environ.get("STORAGE_TTL_IMAGE", "3600"))
+STORAGE_ENABLE_HTTP = os.environ.get("STORAGE_ENABLE_HTTP", "0") in ("1", "true", "True")
+
 
 @dataclass
 class StorageItem:
@@ -42,16 +46,16 @@ class StorageProvider:
 
     @staticmethod
     def make_storage_provider_from_env() -> StorageProvider:
-    provider = os.environ.get("STORAGE_PROVIDER", "DISABLED").upper()
-
-    if provider == "MEMORY":
-        app.state.storage = InMemoryStorageProvider(max_items=STORAGE_MAX_ITEMS)
-    if provider == "DISABLED":
-        app.state.storage = None
-    elif provider == "REDIS":
-        from redis_provider import RedisStorageProvider
-        return RedisStorageProvider()
-    else:  raise RuntimeError(f"Unknown STORAGE_PROVIDER={kind}")
+        provider = os.environ.get("STORAGE_PROVIDER", "DISABLED").upper()
+        print("storage, ",provider)
+        if provider == "MEMORY":
+            return InMemoryStorageProvider(max_items=STORAGE_MAX_ITEMS)
+        if provider == "DISABLED":
+            return None
+        elif provider == "REDIS":
+            from redis_provider import RedisStorageProvider
+            return RedisStorageProvider()
+        else:  raise RuntimeError(f"Unknown STORAGE_PROVIDER={kind}")
         
 
     @staticmethod

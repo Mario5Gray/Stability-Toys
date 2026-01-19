@@ -114,27 +114,32 @@ async function copyToClipboard(text) {
   }
 }
 
+
+
 export default function App() {
+  // Chat auto-scroll refs
+  const chatScrollRef = useRef(null);
+  const chatBottomRef = useRef(null);
+  const autoScrollRef = useRef(true);
+
+  function isNearBottom(el, thresholdPx = 80) {
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
+  }
+
+  const onChatScroll = useCallback(() => {
+    const el = chatScrollRef.current;
+    autoScrollRef.current = isNearBottom(el);
+  }, []);
+  
   const [prompt, setPrompt] = useState(
     "a cinematic photograph of a futuristic city at sunset"
   );
 
-  // Upload/SR ingest
-  const [uploadFile, setUploadFile] = useState(null); // File | null
-  const [srMagnitude, setSrMagnitude] = useState(2); // 1..3
-
-  // Right panel options
-  const [size, setSize] = useState("512x512");
-  const [steps, setSteps] = useState(4);
-  const [cfg, setCfg] = useState(1.0);
-
-  const [seedMode, setSeedMode] = useState("random"); // random | fixed
-  const [seed, setSeed] = useState(() => String(eightDigitSeed()));
-
-  // Super-Resolution level: 0=off, 1..4=on (UI). Backend magnitude max is 3.
-  const [srLevel, setSrLevel] = useState(0); // 0..4
-
-  // Chat messages
+  // Track "selected image message"
+  const [selectedMsgId, setSelectedMsgId] = useState(null);
+  
+    // Chat messages
   const [messages, setMessages] = useState(() => [
     {
       id: nowId(),
@@ -144,6 +149,85 @@ export default function App() {
       ts: Date.now(),
     },
   ]);
+
+  useEffect(() => {
+    if (autoScrollRef.current) {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages]);
+
+  const selectedMsg = useMemo(() => {
+    return messages.find((m) => m.id === selectedMsgId) || null;
+  }, [messages, selectedMsgId]);
+
+  const selectedParams = selectedMsg?.kind === "image" ? selectedMsg?.params : null;
+
+  const patchSelectedParams = useCallback((patch) => {
+    if (!selectedMsg || selectedMsg.kind !== "image") return;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === selectedMsg.id
+          ? { ...m, params: { ...(m.params || {}), ...patch } }
+          : m
+      )
+    );
+  }, [selectedMsg]);
+
+  // Super-Resolution level: 0=off, 1..4=on (UI). Backend magnitude max is 3.
+  const [srLevel, setSrLevel] = useState(0); // 0..4
+
+  // Upload/SR ingest
+  const [uploadFile, setUploadFile] = useState(null); // File | null
+  const [srMagnitude, setSrMagnitude] = useState(2); // 1..3
+
+
+  // Right panel options
+  const [size, setSize] = useState("512x512");
+  const [steps, setSteps] = useState(4);
+  const [cfg, setCfg] = useState(1.0);
+
+  const [seedMode, setSeedMode] = useState("random"); // random | fixed
+  const [seed, setSeed] = useState(() => String(eightDigitSeed()));
+
+
+  // SR upload drafts
+  const effective = useMemo(() => {
+    if (selectedParams) return { ...selectedParams };
+    return {
+      prompt,
+      size,
+      steps,
+      cfg,
+      seedMode,
+      seed:
+        seedMode === "fixed" && seed !== ""
+          ? Number(seed)
+          : null,
+      superresLevel: srLevel,
+    };
+  }, [selectedParams, prompt, size, steps, cfg, seedMode, seed, srLevel]);
+
+
+  const setSizeEffective = useCallback((v) => {
+    if (selectedParams) patchSelectedParams({ size: v });
+    else setSize(v);
+  }, [selectedParams, patchSelectedParams]);
+
+  const setStepsEffective = useCallback((v) => {
+    if (selectedParams) patchSelectedParams({ steps: v });
+    else setSteps(v);
+  }, [selectedParams, patchSelectedParams]);
+
+  const setCfgEffective = useCallback((v) => {
+    if (selectedParams) patchSelectedParams({ cfg: v });
+    else setCfg(v);
+  }, [selectedParams, patchSelectedParams]);
+
+  const setPromptEffective = useCallback((v) => {
+    if (selectedParams) patchSelectedParams({ prompt: v });
+    else setPrompt(v);
+  }, [selectedParams, patchSelectedParams]);  
+  // ////
 
   // Map<assistantMsgId, AbortController>
   const inflightRef = useRef(new Map());
@@ -323,20 +407,18 @@ export default function App() {
 
       updateMessage(assistantId, {
         kind: "image",
-        text: `Done (SR upload). Passes: ${passesHdr}${
-          scaleHdr ? ` · scale/pass: ${scaleHdr}` : ""
-        }`,
+        text: superresOn
+          ? `Done (SR ${useSrLevel}). Seed: ${seedHdr ?? reqSeed}`
+          : `Done. Seed: ${seedHdr ?? reqSeed}`,
         imageUrl: url,
+        // optional debug/headers
         meta: {
-          superres: true,
-          srMagnitude: Number(magHdr),
-          srPasses: Number(passesHdr),
-          srScale: scaleHdr,
-          apiBase: apiBaseForThisRequest || "",
           backend,
-          sourceUpload: uploadFile.name,
+          apiBase: apiBaseForThisRequest || "",
+          superres: srHdr === "1",
+          srScale,
         },
-      });
+    });
     } catch (err) {
       const msg =
         err?.name === "AbortError" ? "Canceled." : err?.message || String(err);
@@ -346,134 +428,193 @@ export default function App() {
     }
   }, [uploadFile, srMagnitude, pickApiBaseForRequest, updateMessage]);
 
-  const onSend = useCallback(async () => {
-    const p = safeJsonString(prompt).trim();
-    if (!p) return;
+  //above
+  const runGenerate = useCallback(
+    async (override = null) => {
+      // ---- resolve params (override wins) ----
+      const p = safeJsonString(override?.prompt ?? prompt).trim();
+      if (!p) return;
 
-    const reqSeed =
-      seedMode === "random"
-        ? eightDigitSeed()
-        : clampInt(parseInt(seed || "0", 10), 0, 2 ** 31 - 1);
+      const useSize = override?.size ?? size;
+      const useSteps = clampInt(Number(override?.steps ?? steps), 1, 20); // UI limit: 20
+      const useCfg = Math.max(0, Math.min(20, Number(override?.cfg ?? cfg) || 0));
+      const useSrLevel = clampInt(Number(override?.superresLevel ?? srLevel), 0, 3); // backend mag max 3
 
-    const opts = {
+      const useSeedMode = override?.seedMode ?? seedMode; // "random" | "fixed"
+      const useSeedValue = override?.seed ?? seed;
+
+      const reqSeed =
+        useSeedMode === "random"
+          ? eightDigitSeed()
+          : clampInt(parseInt(String(useSeedValue ?? "0"), 10), 0, 2 ** 31 - 1);
+
+      const superresOn = useSrLevel > 0;
+
+      // ---- construct chat messages ----
+      const userMsg = {
+        id: nowId(),
+        role: "user",
+        kind: "text",
+        text: p,
+        meta: {
+          size: useSize,
+          steps: useSteps,
+          cfg: useCfg,
+          seedMode: useSeedMode,
+          seed: reqSeed,
+          superres: superresOn,
+          srLevel: useSrLevel,
+        },
+        ts: Date.now(),
+      };
+
+      const assistantId = nowId();
+      const apiBaseForThisRequest = pickApiBaseForRequest();
+
+      const pendingMsg = {
+        id: assistantId,
+        role: "assistant",
+        kind: "pending",
+        text: "Generating…",
+        meta: {
+          request: {
+            apiBase: apiBaseForThisRequest || "(same origin)",
+            endpoint: "/generate",
+            size: useSize,
+            steps: useSteps,
+            cfg: useCfg,
+            seed: reqSeed,
+            superres: superresOn,
+            superres_magnitude: superresOn ? useSrLevel : 1,
+          },
+        },
+        ts: Date.now(),
+      };
+
+      setMessages((m) => [...m, userMsg, pendingMsg]);
+
+      // ---- abort controller ----
+      const controller = new AbortController();
+      inflightRef.current.set(assistantId, controller);
+
+      try {
+        // ---- request body to your FastAPI /generate ----
+        const body = {
+          prompt: p,
+          size: useSize,
+          num_inference_steps: useSteps,
+          guidance_scale: useCfg,
+          seed: reqSeed,
+          superres: superresOn,
+          superres_format: "png",
+          superres_quality: 92,
+          superres_magnitude: superresOn ? useSrLevel : 1,
+        };
+
+        const res = await fetch(`${apiBaseForThisRequest}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        const url = await responseToObjectURLStrict(res);
+        blobUrlsRef.current.add(url);
+
+        // ---- headers ----
+        const seedHdr = res.headers.get("X-Seed");
+        const srHdr = res.headers.get("X-SuperRes");
+        const srPasses = res.headers.get("X-SR-Passes") || null;
+        const srScale =
+          res.headers.get("X-SR-Scale") ||
+          res.headers.get("X-SR-Scale-Per-Pass") ||
+          null;
+
+        const backend =
+          res.headers.get("X-LCM-Backend") ||
+          res.headers.get("X-Backend") ||
+          res.headers.get("X-Host") ||
+          null;
+
+        const seedUsed = Number(seedHdr ?? reqSeed);
+
+        updateMessage(assistantId, {
+          kind: "image",
+          text: superresOn
+            ? `Done (SR ${useSrLevel}). Seed: ${seedHdr ?? reqSeed}`
+            : `Done. Seed: ${seedHdr ?? reqSeed}`,
+          imageUrl: url,
+
+          // selection edits this
+          params: {
+            prompt: p,
+            size: useSize,
+            steps: useSteps,
+            cfg: useCfg,
+            seedMode: "fixed",
+            seed: Number(seedHdr ?? reqSeed),
+            superresLevel: useSrLevel,
+          },
+
+          meta: {
+            backend,
+            apiBase: apiBaseForThisRequest || "",
+            superres: srHdr === "1",
+            srScale,
+          },
+        });
+
+        // if you want: after successful generation, auto-select the new image
+        setSelectedMsgId(assistantId);
+
+        // keep your existing behavior
+        if (useSeedMode === "random") setSeed(String(eightDigitSeed()));
+      } catch (err) {
+        const msg =
+          err?.name === "AbortError" ? "Canceled." : err?.message || String(err);
+        updateMessage(assistantId, { kind: "error", text: msg });
+      } finally {
+        inflightRef.current.delete(assistantId);
+      }
+    },
+    [
+      prompt,
       size,
       steps,
       cfg,
-      seedMode,
-      seed: reqSeed,
-      superres: srLevel > 0,
       srLevel,
-    };
+      seedMode,
+      seed,
+      pickApiBaseForRequest,
+      updateMessage,
+      setMessages,
+      setSelectedMsgId,
+      setSeed,
+    ]
+  );
 
-    const userMsg = {
-      id: nowId(),
-      role: "user",
-      kind: "text",
-      text: p,
-      meta: opts,
-      ts: Date.now(),
-    };
+  const rerunSelected = useCallback(() => {
+    if (!selectedParams) return;
+    runGenerate({
+      prompt: selectedParams.prompt,
+      size: selectedParams.size,
+      steps: selectedParams.steps,
+      cfg: selectedParams.cfg,
+      seedMode: "fixed",
+      seed: selectedParams.seed,
+      superresLevel: selectedParams.superresLevel ?? 0,
+    });
+  }, [selectedParams, runGenerate]);
 
-    const assistantId = nowId();
-    const apiBaseForThisRequest = pickApiBaseForRequest();
+  const applyPromptDelta = useCallback((delta) => {
+    if (!selectedParams) return;
+    const base = String(selectedParams.prompt || "").trim();
+    const next = base ? `${base}, ${delta}` : delta;
+    patchSelectedParams({ prompt: next });
+  }, [selectedParams, patchSelectedParams]);
 
-    const pendingMsg = {
-      id: assistantId,
-      role: "assistant",
-      kind: "pending",
-      text: "Generating…",
-      meta: {
-        request: {
-          apiBase: apiBaseForThisRequest || "(same origin)",
-          ...opts,
-        },
-      },
-      ts: Date.now(),
-    };
-
-    setMessages((m) => [...m, userMsg, pendingMsg]);
-
-    const controller = new AbortController();
-    inflightRef.current.set(assistantId, controller);
-
-      const superresOn = srLevel > 0;
-
-    try {
-      const body = {
-        prompt: p,
-        size: opts.size,
-        num_inference_steps: clampInt(opts.steps, 1, 50),
-        guidance_scale: Math.max(0, Math.min(20, Number(opts.cfg) || 0)),
-        seed: reqSeed,
-        superres: superresOn,
-        superres_format: "png",
-        superres_quality: 92,      
-        superres_magnitude: srLevel > 0 ? clampInt(Number(srLevel), 1, 3) : 1,
-      };
-
-      const res = await fetch(`${apiBaseForThisRequest}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      const url = await responseToObjectURLStrict(res);
-      blobUrlsRef.current.add(url);
-
-      const seedHdr = res.headers.get("X-Seed");
-      const srHdr = res.headers.get("X-SuperRes");
-      const srScale =
-        res.headers.get("X-SR-Scale") ||
-        res.headers.get("X-SR-Scale-Per-Pass") ||
-        null;
-
-      const backend =
-        res.headers.get("X-LCM-Backend") ||
-        res.headers.get("X-Backend") ||
-        res.headers.get("X-Host") ||
-        null;
-
-      updateMessage(assistantId, {
-        kind: "image",
-        text: opts.superres
-          ? `Done (SR ${srLevel}). Seed: ${seedHdr ?? reqSeed}`
-          : `Done. Seed: ${seedHdr ?? reqSeed}`,
-          imageUrl: url,
-        meta: {
-          seed: seedHdr ?? reqSeed,
-          superres: srHdr === "1" || !!opts.superres,
-          srScale: srScale ?? null,
-          srMagnitude: clampInt(Number(srLevel), 1, 3),
-          srLevel: Number(srLevel),
-          size: opts.size,
-          steps: opts.steps,
-          cfg: opts.cfg,
-          apiBase: apiBaseForThisRequest || "",
-          backend
-        },
-      });
-
-      if (seedMode === "random") setSeed(String(eightDigitSeed()));
-    } catch (err) {
-      const msg =
-        err?.name === "AbortError" ? "Canceled." : err?.message || String(err);
-      updateMessage(assistantId, { kind: "error", text: msg });
-    } finally {
-      inflightRef.current.delete(assistantId);
-    }
-  }, [
-    prompt,
-    seedMode,
-    seed,
-    size,
-    steps,
-    cfg,
-    srLevel,
-    pickApiBaseForRequest,
-    updateMessage,
-  ]);
-
+  const onSend = useCallback(() => runGenerate(null), [runGenerate]);
+  // end new stuff
   const cancelRequest = useCallback((id) => {
     const ctl = inflightRef.current.get(id);
     if (ctl) ctl.abort();
@@ -493,7 +634,7 @@ export default function App() {
     [onSend]
   );
 
-  // (4) Copy prompt badge/button
+  //(4) Copy prompt badge/button
   const [copied, setCopied] = useState(false);
   const onCopyPrompt = useCallback(async () => {
     const text = safeJsonString(prompt).trim();
@@ -545,7 +686,7 @@ export default function App() {
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
           {/* Main chat */}
-          <Card className="overflow-hidden rounded-2xl shadow-sm h-full flex flex-col">
+          <Card className="overflow-hidden rounded-2xl shadow-sm h-full flex flex-col">            
             <CardHeader className="border-b">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-xl">LCM + SR Chat</CardTitle>
@@ -580,20 +721,25 @@ export default function App() {
 
             {/* (1) chat uses h-full */}
             <CardContent className="flex flex-1 flex-col p-0 min-h-0">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
+              {/* Scrollable messages (single scroll container) */}
+              <div
+                ref={chatScrollRef}
+                onScroll={onChatScroll}
+                className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0"
+              >
                 <div className="space-y-4">
                   {messages.map((m) => (
                     <MessageBubble
                       key={m.id}
                       msg={m}
-                      onCancel={m.kind === "pending" ? () => cancelRequest(m.id) : null}
-                      onPickMeta={m.kind === "image" ? () => applyMessageMeta(m.meta) : null}
+                      isSelected={m.id === selectedMsgId}
+                      onSelect={() => setSelectedMsgId(m.id)}
+                      onCancel={m.kind === "pending" ? () => cancelRequest(m.id) : null}                      
                     />
                   ))}
+                  <div ref={chatBottomRef} />
                 </div>
-              </div>
-
+              </div>              
               <Separator />
 
               {/* Composer */}
@@ -653,35 +799,82 @@ export default function App() {
                 onScroll={updateOptionsScrollHints}
                 className="h-full overflow-y-auto space-y-5 p-4 md:p-5 pt-10"
               >
+                {selectedParams ? (
+                  <div className="space-y-2 rounded-2xl border p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">Selected image</div>
+                      <Button variant="ghost" className="rounded-2xl" onClick={() => setSelectedMsgId(null)}>
+                        Clear
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "more cinematic",
+                        "shallow depth of field",
+                        "soft rim light",
+                        "film grain",
+                        "wider shot",
+                        "more detail",
+                        "simpler background",
+                      ].map((d) => (
+                        <Button
+                          key={d}
+                          variant="outline"
+                          className="rounded-2xl"
+                          onClick={() => applyPromptDelta(d)}
+                        >
+                          + {d}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <Button className="w-full rounded-2xl" onClick={rerunSelected}>
+                      Re-run Selected
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    Tip: click an image to select it. Sliders will edit that image’s settings.
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Size</Label>
-                  <Select value={size} onValueChange={setSize}>
+                  <Select value={effective.size} onValueChange={setSizeEffective}>
                     <SelectTrigger className={selectTriggerClass}>
                       <SelectValue placeholder="Select size" />
                     </SelectTrigger>
-                    <SelectContent className={selectContentClass}>
-                      <SelectItem className={selectItemClass} value="256x256">
-                        256×256
-                      </SelectItem>
-                      <SelectItem className={selectItemClass} value="512x512">
-                        512×512
-                      </SelectItem>
-                    </SelectContent>
+                      <SelectContent className={selectContentClass}>
+                        {[
+                          "256x256",
+                          "512x512",
+                          "640x360",
+                          "768x768",
+                          "960x540",
+                          "1024x1024",
+                          "512x768",
+                          "768x512",
+                        ].map((s) => (
+                          <SelectItem key={s} className={selectItemClass} value={s}>
+                            {s.replace("x", "×")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Steps</Label>
-                    <span className="text-sm text-muted-foreground">{steps}</span>
+                    <span className="text-sm text-muted-foreground">{effective.steps}</span>
                   </div>
                   <Slider
                     className={sliderClass}
-                    value={[steps]}
+                    value={[effective.steps]}
                     min={1}
-                    max={12}
+                    max={20}
                     step={1}
-                    onValueChange={(v) => setSteps(v[0] ?? 4)}
+                    onValueChange={(v) => setStepsEffective(v[0] ?? 4)}
                   />
                   <div className="text-xs text-muted-foreground">
                     Server allows up to 50; typical LCM is 2–8.
@@ -691,19 +884,27 @@ export default function App() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>CFG</Label>
-                    <span className="text-sm text-muted-foreground">{cfg.toFixed(1)}</span>
+                    <span className="text-sm text-muted-foreground">{Number(effective.cfg).toFixed(1)}</span>
                   </div>
                   <Slider
                     className={sliderClass}
-                    value={[cfg]}
+                    value={[Number.isFinite(effective.cfg) ? effective.cfg : 1.0]}
                     min={0}
                     max={5}
                     step={0.1}
-                    onValueChange={(v) => setCfg(Number(v[0] ?? 1.0))}
+                    onValueChange={(v) => setCfgEffective(Number(v[0] ?? 1.0))}
                   />
                   <div className="text-xs text-muted-foreground">LCM commonly uses ~1.0.</div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>{selectedParams ? "Selected image prompt" : "Draft prompt"}</Label>
+                  <Textarea
+                    value={effective.prompt}
+                    onChange={(e) => setPromptEffective(e.target.value)}
+                    className="min-h-[90px] resize-none rounded-2xl"
+                  />
+                </div>
                 <Separator />
 
                 <div className="space-y-3">
@@ -865,19 +1066,37 @@ export default function App() {
       </div>
     </div>
   );
-}
 
-function MessageBubble({ msg, onCancel, onPickMeta }) {
+function MessageBubble({ msg, onCancel, isSelected, onSelect, onPickMeta }) {
   const isUser = msg.role === "user";
-  const bubble = isUser
-    ? "bg-primary text-primary-foreground"
-    : msg.kind === "error"
-    ? "bg-destructive text-destructive-foreground"
-    : "bg-muted";
+
+  const bubble =
+    isUser
+      ? "bg-primary text-primary-foreground"
+      : msg.kind === "error"
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-muted";
+
+  const selectedRing = isSelected ? "ring-2 ring-foreground/60" : "ring-0";
+  const clickable = msg.kind === "image" ? "cursor-pointer" : "";
 
   return (
     <div className={"flex w-full " + (isUser ? "justify-end" : "justify-start")}>
-      <div className={"max-w-[92%] rounded-2xl px-4 py-3 shadow-sm " + bubble}>
+      <div
+        className={
+          "max-w-[92%] rounded-2xl px-4 py-3 shadow-sm transition " +
+          bubble +
+          " " +
+          selectedRing +
+          " " +
+          clickable
+        }
+        onClick={() => {
+          if (msg.kind === "image") onSelect?.();
+        }}
+        title={msg.kind === "image" ? "Click to select" : undefined}
+      >
+        {/* Top row: text + optional cancel */}
         <div className="flex items-start gap-3">
           <div className="flex-1 whitespace-pre-wrap text-sm leading-relaxed">
             {msg.text}
@@ -886,7 +1105,10 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
           {msg.kind === "pending" && onCancel ? (
             <button
               className="opacity-80 hover:opacity-100 transition"
-              onClick={onCancel}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancel();
+              }}
               title="Cancel this request"
               aria-label="Cancel"
               type="button"
@@ -896,7 +1118,8 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
           ) : null}
         </div>
 
-        {msg.kind === "pending" && (
+        {/* Pending footer */}
+        {msg.kind === "pending" ? (
           <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Working…
@@ -904,9 +1127,10 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
               <span className="ml-auto opacity-70">{msg.meta.request.apiBase}</span>
             ) : null}
           </div>
-        )}
+        ) : null}
 
-        {msg.kind === "image" && msg.imageUrl && (
+        {/* Image */}
+        {msg.kind === "image" && msg.imageUrl ? (
           <div className="mt-3">
             <img
               src={msg.imageUrl}
@@ -916,58 +1140,72 @@ function MessageBubble({ msg, onCancel, onPickMeta }) {
                 (onPickMeta ? "cursor-pointer hover:opacity-95" : "")
               }
               loading="lazy"
-              onClick={() => onPickMeta?.()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect?.();
+                onPickMeta?.(); // optional: load settings
+              }}
               title={onPickMeta ? "Click to load these settings" : undefined}
             />
 
+            {/* Pills + download */}
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <Pill label={`seed ${msg.meta?.seed ?? "?"}`} />
-              <Pill label={msg.meta?.size ? `size ${msg.meta.size}` : ""} />
-              <Pill label={Number.isFinite(msg.meta?.steps) ? `steps ${msg.meta.steps}` : ""} />
-              <Pill label={Number.isFinite(msg.meta?.cfg) ? `cfg ${Number(msg.meta.cfg).toFixed(1)}` : ""} />
-              {msg.meta?.superres ? <Pill label={`SR ${msg.meta?.srScale ?? ""}`.trim()} /> : null}
+              <Pill label={`seed ${msg.params?.seed ?? msg.meta?.seed ?? "?"}`} />
+              <Pill label={msg.params?.size ? `size ${msg.params.size}` : ""} />
+              <Pill
+                label={
+                  Number.isFinite(msg.params?.steps) ? `steps ${msg.params.steps}` : ""
+                }
+              />
+              <Pill
+                label={
+                  Number.isFinite(msg.params?.cfg)
+                    ? `cfg ${Number(msg.params.cfg).toFixed(1)}`
+                    : ""
+                }
+              />
+              {msg.params?.superresLevel ? (
+                <Pill label={`SR ${msg.params.superresLevel}`} />
+              ) : null}
               {msg.meta?.backend ? <Pill label={`backend ${msg.meta.backend}`} /> : null}
 
               <a
                 className="ml-auto underline"
                 href={msg.imageUrl}
-                download={`lcm_${msg.meta?.seed ?? "image"}.png`}
+                download={`lcm_${msg.params?.seed ?? "image"}.png`}
+                onClick={(e) => e.stopPropagation()}
               >
                 Download
               </a>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {msg.role === "user" && msg.meta && (
+        {/* User meta pills (optional) */}
+        {isUser && msg.meta ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs opacity-90">
-            <Pill label={`size ${msg.meta.size}`} dark />
-            <Pill label={`steps ${msg.meta.steps}`} dark />
-            <Pill label={`cfg ${Number(msg.meta.cfg).toFixed(1)}`} dark />
+            {msg.meta.size ? <Pill label={`size ${msg.meta.size}`} dark /> : null}
+            {Number.isFinite(msg.meta.steps) ? (
+              <Pill label={`steps ${msg.meta.steps}`} dark />
+            ) : null}
+            {Number.isFinite(msg.meta.cfg) ? (
+              <Pill label={`cfg ${Number(msg.meta.cfg).toFixed(1)}`} dark />
+            ) : null}
             <Pill
-              label={msg.meta.seedMode === "random" ? "seed random" : `seed ${msg.meta.seed}`}
+              label={
+                msg.meta.seedMode === "random"
+                  ? "seed random"
+                  : `seed ${msg.meta.seed ?? "?"}`
+              }
               dark
             />
-            {msg.meta.superres ? <Pill label="SR on" dark /> : <Pill label="SR off" dark />}
-
-            <button
-              type="button"
-              className="ml-auto rounded-full border border-white/20 bg-black/20 px-2 py-0.5 text-white/90 hover:bg-black/30"
-              onClick={async () => {
-                const ok = await copyToClipboard(msg.text);
-                // optional: tiny feedback without adding state
-                if (!ok) alert("Copy failed (clipboard permission).");
-              }}
-              title="Copy this prompt"
-              aria-label="Copy prompt"
-            >
-              Copy prompt
-            </button>
+            <Pill label={msg.meta.superres ? "SR on" : "SR off"} dark />
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
+}
 }
 
 function Pill({ label, dark }) {

@@ -55,16 +55,20 @@ from diffusers import LCMScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
 
-from rknnlite.api import RKNNLite
-from rknnlcm import RKNN2Model, RKNN2LatentConsistencyPipeline
-
 # lcm_sr_server.py (add near imports)
 from compat_endpoints import CompatEndpoints
 from request_logger import RequestLogger  # and optionally RequestLoggerConfig
 
 from storage_provider import StorageProvider, InMemoryStorageProvider
 
+BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
 
+# Backend Worker Wrapper
+import io
+import numpy as np
+from PIL import Image
+
+        
 # -----------------------------
 # Request schema (HTTP)
 # -----------------------------
@@ -144,69 +148,6 @@ def parse_size(size_str: str) -> Tuple[int, int]:
 def gen_seed_8_digits() -> int:
     return int(np.random.randint(0, 100_000_000))
 
-
-# -----------------------------
-# Pipeline Worker
-# -----------------------------
-class PipelineWorker:
-    """
-    Owns ONE pipeline instance. Execute jobs sequentially on this worker.
-    """
-
-    def __init__(
-        self,
-        worker_id: int,
-        paths: ModelPaths,
-        scheduler_config: Dict,
-        tokenizer: CLIPTokenizer,
-        rknn_context_cfg: Optional[dict] = None,
-        use_rknn_context_cfgs: bool = True,
-    ):
-        self.worker_id = worker_id
-        self.paths = paths
-        self.scheduler_config = scheduler_config
-        self.tokenizer = tokenizer
-        self.rknn_context_cfg = rknn_context_cfg or {}
-        self.use_rknn_context_cfgs = use_rknn_context_cfgs
-
-        self.pipe = None
-        self._init_pipeline()
-
-    def _mk_model(self, model_path: str, *, data_format: str) -> RKNN2Model:
-        if self.use_rknn_context_cfgs:
-            return RKNN2Model(model_path, data_format=data_format, **self.rknn_context_cfg)
-        return RKNN2Model(model_path, data_format=data_format)
-
-    def _init_pipeline(self):
-        scheduler = LCMScheduler.from_config(self.scheduler_config)
-        self.pipe = RKNN2LatentConsistencyPipeline(
-            text_encoder=self._mk_model(self.paths.text_encoder, data_format="nchw"),
-            unet=self._mk_model(self.paths.unet, data_format="nhwc"),
-            vae_decoder=self._mk_model(self.paths.vae_decoder, data_format="nhwc"),
-            scheduler=scheduler,
-            tokenizer=self.tokenizer,
-        )
-
-    def run_job(self, job: Job) -> Tuple[bytes, int]:
-        width, height = parse_size(job.req.size)
-        seed = job.req.seed if job.req.seed is not None else gen_seed_8_digits()
-        rng = np.random.RandomState(seed)
-
-        result = self.pipe(
-            prompt=job.req.prompt,
-            height=height,
-            width=width,
-            num_inference_steps=job.req.num_inference_steps,
-            guidance_scale=job.req.guidance_scale,
-            generator=rng,
-        )
-
-        pil_image = result["images"][0]
-        buf = io.BytesIO()
-        pil_image.save(buf, format="PNG")
-        return buf.getvalue(), seed
-
-
 # -----------------------------
 # Singleton Service (LCM generation)
 # -----------------------------
@@ -222,35 +163,66 @@ class PipelineService:
         rknn_context_cfgs: Optional[List[dict]] = None,
         use_rknn_context_cfgs: bool = True,
     ):
-        self.paths = paths
-        self.num_workers = max(1, int(num_workers))
-        self.q: "queue.Queue[Job]" = queue.Queue(maxsize=int(queue_max))
-
-        with open(self.paths.scheduler_config, "r") as f:
-            self.scheduler_config = json.load(f)
-
-        self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16")
-
-        if rknn_context_cfgs is None:
-            rknn_context_cfgs = build_rknn_context_cfgs_for_rk3588(self.num_workers)
-        if len(rknn_context_cfgs) != self.num_workers:
-            raise ValueError("rknn_context_cfgs must match num_workers length")
-
         self.workers: List[PipelineWorker] = []
         self.threads: List[threading.Thread] = []
         self._stop = threading.Event()
 
+        self.paths = paths
+        self.num_workers = max(1, int(num_workers))
+        self.q: "queue.Queue[Job]" = queue.Queue(maxsize=int(queue_max))
+
+        # decide backend
+        use_cuda = False
+        if BACKEND == "cuda":
+            use_cuda = True
+        elif BACKEND == "rknn":
+            use_cuda = False
+        else:
+            try:
+                import torch
+                use_cuda = torch.cuda.is_available()
+            except Exception:
+                use_cuda = False
+
+        # 1) enforce sweet-spot policy
+        if use_cuda and self.num_workers != 1:
+            print(f"[PipelineService] CUDA detected; forcing NUM_WORKERS {self.num_workers} -> 1")
+            self.num_workers = 1
+
+        print(f"[PipelineService] BACKEND={BACKEND} use_cuda={use_cuda} workers={self.num_workers} queue_max={queue_max}")
+
+        # 2) only init RKNN assets if needed
+        if not use_cuda:
+            with open(self.paths.scheduler_config, "r") as f:
+                self.scheduler_config = json.load(f)
+            self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16")
+
+            if rknn_context_cfgs is None:
+                rknn_context_cfgs = build_rknn_context_cfgs_for_rk3588(self.num_workers)
+            if len(rknn_context_cfgs) != self.num_workers:
+                raise ValueError("rknn_context_cfgs must match num_workers length")
+        else:
+            self.scheduler_config = None
+            self.tokenizer = None
+            rknn_context_cfgs = None
+
+        # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
-            w = PipelineWorker(
-                worker_id=i,
-                paths=self.paths,
-                scheduler_config=self.scheduler_config,
-                tokenizer=self.tokenizer,
-                rknn_context_cfg=rknn_context_cfgs[i],
-                use_rknn_context_cfgs=use_rknn_context_cfgs,
-            )
+            if use_cuda:
+                from backends.cuda_worker import DiffusersCudaWorker
+                w = DiffusersCudaWorker(worker_id=i)  # i will always be 0
+            else:
+                w = RKNNPipelineWorker(
+                    worker_id=i,
+                    paths=self.paths,
+                    scheduler_config=self.scheduler_config,
+                    tokenizer=self.tokenizer,
+                    rknn_context_cfg=rknn_context_cfgs[i],
+                    use_rknn_context_cfgs=use_rknn_context_cfgs,
+                )
             self.workers.append(w)
 
+        # 4) thread loop stays the same
         for i in range(self.num_workers):
             t = threading.Thread(target=self._worker_loop, args=(i,), daemon=True)
             t.start()
@@ -538,10 +510,6 @@ SR_MAX_PIXELS = int(os.environ.get("SR_MAX_PIXELS", "24000000"))
 
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 
-STORAGE_MAX_ITEMS = int(os.environ.get("STORAGE_MAX_ITEMS", "512"))
-STORAGE_TTL_IMAGE = int(os.environ.get("STORAGE_TTL_IMAGE", "3600"))
-STORAGE_ENABLE_HTTP = os.environ.get("STORAGE_ENABLE_HTTP", "0") in ("1", "true", "True")
-
 paths = ModelPaths(root=MODEL_ROOT)
 
 
@@ -596,7 +564,6 @@ def _store_image_blob(
     seed: int,
     did_superres: bool,
     sr_mag: int,
-    ttl_s: int,
 ) -> Optional[str]:
     if storage is None:
         return None
@@ -615,7 +582,6 @@ def _store_image_blob(
             "superres": bool(did_superres),
             "sr_magnitude": int(sr_mag) if did_superres else 0,
         },
-        ttl_s=ttl_s,
     )
     return image_key
 
@@ -674,8 +640,7 @@ def generate(req: GenerateRequest):
         req=req,
         seed=int(seed),
         did_superres=did_superres,
-        sr_mag=sr_mag,
-        ttl_s=STORAGE_TTL_IMAGE,
+        sr_mag=sr_mag
     )    
 
     headers = {
@@ -770,8 +735,7 @@ async def superres(
                 "sr_magnitude": magnitude,
                 "out_format": out_format,
                 "quality": quality,
-            },
-            ttl_s=STORAGE_TTL_IMAGE,
+            }
         )
 
     headers = {

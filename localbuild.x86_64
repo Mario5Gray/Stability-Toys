@@ -1,0 +1,6 @@
+docker build -f Dockerfile.CUDA --platform=linux/amd64 -t darkbit1001/cuda-lcm-sd-ui:latest . 
+docker tag darkbit1001/cuda-lcm-sd-ui:latest harbor:443/cuda-lcm-sd-ui:latest
+
+if [[ "$0" == *push* ]]; then
+  docker push harbor:443/cuda-lcm-sd-ui:latest
+fi

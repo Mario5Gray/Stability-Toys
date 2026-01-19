@@ -19,3 +19,6 @@ build
 localbuild
 model
 
+docker pull harbor:443/rknn-lcm-sd-ui:latest
+docker tag harbor:443/rknn-lcm-sd-ui:latest darkbit1001/rknn-lcm-sd-ui:latest
+.envrc

@@ -94,7 +94,10 @@ class RedisStorageProvider(StorageProvider):
         if not isinstance(value, (bytes, bytearray, memoryview)):
             raise TypeError("value must be bytes-like")
 
-        ttl = int(ttl_s) if ttl_s is not None else None
+        if ttl is None
+          ttl = STORAGE_TTL_IMAGE
+
+        ttl = int(ttl_s)
         if ttl is not None and ttl <= 0:
             # treat non-positive TTL as "expire immediately"
             ttl = 1
