@@ -182,14 +182,7 @@ export default function App() {
               onCancelAll: cancelAll,
               onKeyDown,
               disabled: !params.effective.prompt.trim(),
-              currentParams: {
-                size: params.effective.size,
-                steps: params.effective.steps,
-                cfg: params.effective.cfg,
-                seedMode: params.draft.seedMode,
-                seed: params.draft.seed,
-                superresLevel: params.effective.superresLevel,
-              },
+              currentParams: params.effective,
             }}
             inflightCount={inflightCount}
             isDreaming={isDreaming}
