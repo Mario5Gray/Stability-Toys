@@ -151,6 +151,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         seedMode: seedModeParam,
         seed: seedParam,
         targetMessageId,
+        skipAutoSelect = false, // Don't auto-select after generation (used by dream mode)
       } = params;
 
       // Validate prompt
@@ -180,35 +181,18 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       const assistantId = targetMessageId ?? nowId();
 
       if (targetMessageId) {
-        // In-place regeneration
+        // In-place regeneration - keep the image visible with regenerating flag
         updateMessage(targetMessageId, {
-          kind: MESSAGE_KINDS.PENDING,
+          isRegenerating: true,
           text: UI_MESSAGES.REGENERATING,
         });
       } else {
-        // New generation - add user + pending messages
-        const userMsg = {
-          id: nowId(),
-          role: MESSAGE_ROLES.USER,
-          kind: MESSAGE_KINDS.TEXT,
-          text: p,
-          meta: {
-            size: useSize,
-            steps: useSteps,
-            cfg: useCfg,
-            seedMode: useSeedMode,
-            seed: reqSeed,
-            superres: superresOn,
-            srLevel: useSrLevel,
-          },
-          ts: Date.now(),
-        };
-
+        // New generation - add pending message only (no user text bubble)
         const pendingMsg = {
           id: assistantId,
           role: MESSAGE_ROLES.ASSISTANT,
           kind: MESSAGE_KINDS.PENDING,
-          text: UI_MESSAGES.GENERATING,
+          text: null, // No text - just show placeholder
           meta: {
             request: {
               apiBase: '(pending)',
@@ -224,7 +208,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           ts: Date.now(),
         };
 
-        addMessage([userMsg, pendingMsg]);
+        addMessage(pendingMsg);
       }
 
       try {
@@ -241,12 +225,11 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           assistantId
         );
 
-        // Update message with result
+        // Update message with result (no text - just the image)
         updateMessage(assistantId, {
           kind: MESSAGE_KINDS.IMAGE,
-          text: superresOn
-            ? `Done (SR ${useSrLevel}). Seed: ${result.metadata.seed}`
-            : `Done. Seed: ${result.metadata.seed}`,
+          isRegenerating: false,
+          text: null,
           imageUrl: result.imageUrl,
           params: {
             prompt: p,
@@ -265,18 +248,21 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           },
         });
 
-        // Auto-select the new image
-        setSelectedMsgId(assistantId);
+        // Auto-select the new image (unless suppressed, e.g., during dream mode)
+        if (!skipAutoSelect) {
+          setSelectedMsgId(assistantId);
+        }
 
         return assistantId; // Return message ID for dream mode
       } catch (err) {
-        const msg =
+        const errMsg =
           err?.name === ABORT_ERROR_NAME
             ? UI_MESSAGES.CANCELED
             : err?.message || String(err);
         updateMessage(assistantId, {
           kind: MESSAGE_KINDS.ERROR,
-          text: msg,
+          isRegenerating: false,
+          text: errMsg,
         });
         return null;
       }
@@ -365,9 +351,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       dreamParamsRef.current = { ...baseParams };
       setIsDreaming(true);
 
-      // Generate first dream immediately
+      // Generate first dream immediately (skip auto-select to not disturb user's view)
       const dreamParams = mutateParams(baseParams, dreamTemperature);
       dreamParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
+      dreamParams.skipAutoSelect = true;
       runGenerate(dreamParams);
 
       // Schedule recurring dreams
@@ -377,6 +364,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           dreamParamsRef.current.prompt,
           dreamTemperature
         );
+        nextParams.skipAutoSelect = true; // Don't yank the view
         runGenerate(nextParams);
       }, dreamInterval);
     },

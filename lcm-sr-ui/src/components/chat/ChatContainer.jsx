@@ -1,7 +1,8 @@
 // src/components/chat/ChatContainer.jsx
 
 import React from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import ScrollToBottom from 'react-scroll-to-bottom';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ChatHeader } from './ChatHeader';
 import { MessageComposer } from './MessageComposer';
@@ -9,7 +10,7 @@ import { MessageBubble } from './MessageBubble';
 
 /**
  * Main chat container component.
- * Displays messages, handles scrolling, and provides composition UI.
+ * Uses react-scroll-to-bottom for automatic sticky-bottom behavior.
  */
 export function ChatContainer({
   messages,
@@ -17,7 +18,6 @@ export function ChatContainer({
   onToggleSelect,
   onCancelRequest,
   setMsgRef,
-  scroll,
   composer,
   inflightCount,
   isDreaming,
@@ -37,11 +37,11 @@ export function ChatContainer({
       />
 
       <CardContent className="flex flex-1 flex-col p-0 min-h-0">
-        {/* Scrollable messages */}
-        <div
-          ref={scroll.chatScrollRef}
-          onScroll={scroll.onChatScroll}
-          className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0"
+        {/* Scrollable messages with sticky-bottom behavior */}
+        <ScrollToBottom
+          className="flex-1 min-h-0"
+          scrollViewClassName="p-4 md:p-6"
+          followButtonClassName="scroll-to-bottom-button"
         >
           <div className="space-y-4">
             {messages.map((msg) => (
@@ -58,13 +58,12 @@ export function ChatContainer({
                 />
               </div>
             ))}
-            <div ref={scroll.chatBottomRef} />
           </div>
-        </div>
+        </ScrollToBottom>
 
         <Separator />
 
-        {/* Message composer - THIS IS THE SEND BUTTON SECTION */}
+        {/* Message composer */}
         <MessageComposer
           prompt={composer.prompt}
           onPromptChange={composer.onPromptChange}

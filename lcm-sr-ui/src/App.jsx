@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback } from 'react';
 import { useChatMessages } from './hooks/useChatMessages';
-import { useScrollManagement } from './hooks/useScrollManagement';
 import { useGenerationParams } from './hooks/useGenerationParams';
 import { useImageGeneration } from './hooks/useImageGeneration';
 import { ChatContainer } from './components/chat/ChatContainer';
@@ -57,9 +56,6 @@ export default function App() {
     runGenerate,
     selectedMsgId
   );
-
-  // Auto-scroll management
-  const scroll = useScrollManagement(messages, selectedMsgId, chatState.msgRefs);
 
   // ============================================================================
   // LOCAL UI STATE
@@ -174,7 +170,6 @@ export default function App() {
             onToggleSelect={toggleSelectMsg}
             onCancelRequest={cancelRequest}
             setMsgRef={setMsgRef}
-            scroll={scroll}
             composer={{
               prompt: params.draft.prompt,
               onPromptChange: params.setPromptDirect,
