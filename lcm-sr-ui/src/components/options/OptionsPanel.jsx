@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { useDebounceValue } from 'usehooks-ts';
 import {
   Select,
   SelectContent,
@@ -50,6 +50,7 @@ import { formatSizeDisplay, sanitizeSeedInput } from '../../utils/helpers';
 export function OptionsPanel({
   params,
   selectedParams,
+  selectedMsgId,
   onClearSelection,
   onApplyPromptDelta,
   onRerunSelected,
@@ -64,6 +65,63 @@ export function OptionsPanel({
   const optionsScrollRef = useRef(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [canScrollUp, setCanScrollUp] = useState(false);
+
+  // Track selected image ID to sync only on selection change
+  const prevSelectedId = useRef(null);
+
+  // Local state for prompt
+  const [localPrompt, setLocalPrompt] = useState(params.draft.prompt);
+  const [debouncedPrompt] = useDebounceValue(localPrompt, 500);
+
+  // Local state for controls (no debounce - immediate feedback, push on change)
+  const [localSteps, setLocalSteps] = useState(params.effective.steps);
+  const [localCfg, setLocalCfg] = useState(params.effective.cfg);
+  const [localSrLevel, setLocalSrLevel] = useState(params.effective.superresLevel);
+
+  // Sync local state when selection changes (including select/deselect)
+  useEffect(() => {
+    const currentId = selectedMsgId ?? null;
+    if (currentId !== prevSelectedId.current) {
+      prevSelectedId.current = currentId;
+
+      if (selectedParams) {
+        // Selected an image - sync from its params
+        setLocalPrompt(selectedParams.prompt ?? params.draft.prompt);
+        setLocalSteps(selectedParams.steps ?? params.effective.steps);
+        setLocalCfg(selectedParams.cfg ?? params.effective.cfg);
+        setLocalSrLevel(selectedParams.superresLevel ?? params.effective.superresLevel);
+      } else {
+        // Deselected - sync from draft params
+        setLocalPrompt(params.draft.prompt);
+        setLocalSteps(params.effective.steps);
+        setLocalCfg(params.effective.cfg);
+        setLocalSrLevel(params.effective.superresLevel);
+      }
+    }
+  }, [selectedMsgId, selectedParams, params.draft.prompt, params.effective.steps, params.effective.cfg, params.effective.superresLevel]);
+
+  // Push debounced prompt to parent
+  useEffect(() => {
+    if (debouncedPrompt !== params.draft.prompt) {
+      params.setPrompt(debouncedPrompt);
+    }
+  }, [debouncedPrompt]);
+
+  // Handlers that update local state AND push to parent
+  const handleStepsChange = (v) => {
+    setLocalSteps(v);
+    params.setSteps(v);
+  };
+
+  const handleCfgChange = (v) => {
+    setLocalCfg(v);
+    params.setCfg(v);
+  };
+
+  const handleSrLevelChange = (v) => {
+    setLocalSrLevel(v);
+    params.setSrLevel(v);
+  };
 
   const updateScrollHints = useCallback(() => {
     const el = optionsScrollRef.current;
@@ -104,7 +162,7 @@ export function OptionsPanel({
         <CardContent
           ref={optionsScrollRef}
           onScroll={updateScrollHints}
-          className="h-full overflow-y-auto space-y-5 p-4 md:p-5"
+          className="h-full overflow-y-auto space-y-2 p-4 md:p-5"
         >
 
           {/* Dream Mode */}
@@ -124,65 +182,78 @@ export function OptionsPanel({
           <Separator />
 
           {/* Prompt */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>
               {selectedParams ? 'Selected image prompt' : 'Draft prompt'}
             </Label>
             <Textarea
-              value={params.effective.prompt}
-              onChange={(e) => params.setPrompt(e.target.value)}
+              value={localPrompt}
+              onChange={(e) => setLocalPrompt(e.target.value)}
               className="min-h-[90px] resize-none rounded-2xl"
               placeholder="Describe what you want to generate…"
             />
           </div>
 
-          {/* Steps */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label>Steps</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">
-                {params.effective.steps}
-              </span>
+          {/* Steps - Segmented Control */}
+          <div className="space-y-2">
+            <Label>Steps</Label>
+            <div
+              className="relative flex rounded-xl p-0.5 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%)' }}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => handleStepsChange(v)}
+                  className={
+                    'flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ' +
+                    (localSteps === v
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-white/90 hover:bg-white/20')
+                  }
+                >
+                  {v}
+                </button>
+              ))}
             </div>
-            <Slider
-              value={[params.effective.steps]}
-              min={STEPS_CONFIG.MIN}
-              max={STEPS_CONFIG.MAX}
-              step={1}
-              onValueChange={([v]) => params.setSteps(v)}
-              className={CSS_CLASSES.SLIDER}
-            />
             <div className="text-xs text-muted-foreground">
-              Server allows up to {STEPS_CONFIG.SERVER_MAX}; typical LCM is{' '}
-              {STEPS_CONFIG.LCM_TYPICAL_MIN}–{STEPS_CONFIG.LCM_TYPICAL_MAX}.
+              LCM typical: {STEPS_CONFIG.LCM_TYPICAL_MIN}–{STEPS_CONFIG.LCM_TYPICAL_MAX}. 0 = latent lock.
             </div>
           </div>
 
-          {/* CFG */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <Label>CFG (Guidance Scale)</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">
-                {Number(params.effective.cfg).toFixed(1)}
-              </span>
+          {/* CFG - Segmented Control */}
+          <div className="space-y-2">
+            <Label>CFG (Guidance)</Label>
+            <div
+              className="relative flex rounded-xl p-0.5 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%)' }}
+            >
+              {[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => handleCfgChange(v)}
+                  className={
+                    'flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ' +
+                    (localCfg === v
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-white/90 hover:bg-white/20')
+                  }
+                >
+                  {v.toFixed(1)}
+                </button>
+              ))}
             </div>
-            <Slider
-              value={[params.effective.cfg]}
-              min={CFG_CONFIG.MIN}
-              max={CFG_CONFIG.MAX}
-              step={CFG_CONFIG.STEP}
-              onValueChange={([v]) => params.setCfg(v)}
-              className={CSS_CLASSES.SLIDER}
-            />
             <div className="text-xs text-muted-foreground">
-              LCM commonly uses ~{CFG_CONFIG.LCM_TYPICAL}.
+              LCM typical: ~{CFG_CONFIG.LCM_TYPICAL}. Higher = stronger prompt adherence.
             </div>
           </div>
 
           <Separator />
 
           {/* Seed */}
-          <div className="space-y-3">
+          <div className="space-y-1">
             <Label>Seed</Label>
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -236,6 +307,26 @@ export function OptionsPanel({
               field is used.
             </div>
           </div>
+          {/* Size */}
+          <div className="space-y-1">
+            <Label>Size</Label>
+            <Select value={params.effective.size} onValueChange={params.setSize}>
+              <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
+                <SelectValue placeholder="Select size" />
+              </SelectTrigger>
+              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
+                {SIZE_OPTIONS.map((s) => (
+                  <SelectItem
+                    key={s}
+                    className={CSS_CLASSES.SELECT_ITEM}
+                    value={s}
+                  >
+                    {formatSizeDisplay(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <Separator />
 
@@ -256,37 +347,37 @@ export function OptionsPanel({
 
           <Separator />
 
-          {/* Super-Resolution Toggle */}
-          <div className="space-y-2 rounded-2xl border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-medium">Super-Resolution</div>
-                <div className="text-xs text-muted-foreground">
-                  0 = off · 1–3 = passes
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground tabular-nums">
-                {params.effective.superresLevel === 0
-                  ? 'Off'
-                  : `Level ${params.effective.superresLevel}`}
-              </div>
+          {/* Super-Resolution - Segmented Control */}
+          <div className="space-y-2">
+            <Label>Super-Resolution</Label>
+            <div
+              className="relative flex rounded-xl p-0.5 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%)' }}
+            >
+              {[
+                { v: 0, label: 'Off' },
+                { v: 1, label: '1×' },
+                { v: 2, label: '2×' },
+                { v: 3, label: '3×' },
+                { v: 4, label: '4×' },
+              ].map(({ v, label }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => handleSrLevelChange(v)}
+                  className={
+                    'flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ' +
+                    (localSrLevel === v
+                      ? 'bg-white text-purple-700 shadow-sm'
+                      : 'text-white/90 hover:bg-white/20')
+                  }
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-
-            <Slider
-              className={CSS_CLASSES.SLIDER}
-              value={[params.effective.superresLevel]}
-              min={SR_CONFIG.MIN}
-              max={SR_CONFIG.MAX}
-              step={1}
-              onValueChange={([v]) => params.setSrLevel(v)}
-            />
-
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>0</span>
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
-              <span>4</span>
+            <div className="text-xs text-muted-foreground">
+              Number of upscale passes. Higher = more detail, slower.
             </div>
           </div>
 
@@ -346,27 +437,6 @@ export function OptionsPanel({
               <Send className="mr-2 h-4 w-4" />
               Super-res uploaded image
             </Button>
-          </div>
-
-          {/* Size */}
-          <div className="space-y-2">
-            <Label>Size</Label>
-            <Select value={params.effective.size} onValueChange={params.setSize}>
-              <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
-                <SelectValue placeholder="Select size" />
-              </SelectTrigger>
-              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
-                {SIZE_OPTIONS.map((s) => (
-                  <SelectItem
-                    key={s}
-                    className={CSS_CLASSES.SELECT_ITEM}
-                    value={s}
-                  >
-                    {formatSizeDisplay(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <Separator />

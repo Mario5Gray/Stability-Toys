@@ -182,9 +182,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
       if (targetMessageId) {
         // In-place regeneration - keep the image visible with regenerating flag
+        // Don't set text - use overlay indicator instead to avoid layout shift
         updateMessage(targetMessageId, {
           isRegenerating: true,
-          text: UI_MESSAGES.REGENERATING,
+          text: null,
         });
       } else {
         // New generation - add pending message only (no user text bubble)

@@ -144,14 +144,15 @@ export function MessageBubble({ msg, isSelected, onSelect, onCancel }) {
 
         {/* Image */}
         {(msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && msg.imageUrl ? (
+
           <div className={msg.text ? 'mt-3' : ''}>
-            <div className={msg.isRegenerating ? 'regenerating-border inline-block' : 'inline-block'}>
+            <div className="inline-block relative">
               <img
                 src={msg.imageUrl}
                 alt="generation"
                 className={
                   'max-h-[520px] w-auto rounded-xl border bg-background shadow-sm' +
-                  (msg.isRegenerating ? ' opacity-80' : '')
+                  (msg.isRegenerating ? ' opacity-60' : '')
                 }
                 loading="lazy"
                 onClick={(e) => {
@@ -159,13 +160,17 @@ export function MessageBubble({ msg, isSelected, onSelect, onCancel }) {
                   onSelect?.();
                 }}
               />
+              {/* Regenerating overlay - floats above image, no layout shift */}
+              {msg.isRegenerating && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="flex items-center gap-2 bg-black/60 text-white text-sm px-3 py-1.5 rounded-full backdrop-blur-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Regenerating</span>
+                  </div>
+                </div>
+              )}
             </div>
-            {msg.isRegenerating ? (
-              <div className="mt-2 flex items-center gap-2 text-xs opacity-80">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Regenerating…</span>
-              </div>
-            ) : null}
+          
 
             {/* Metadata pills + download */}
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">

@@ -198,6 +198,7 @@ export default function App() {
           <OptionsPanel
             params={params}
             selectedParams={selectedParams}
+            selectedMsgId={selectedMsgId}
             onClearSelection={clearSelection}
             onApplyPromptDelta={onApplyPromptDelta}
             onRerunSelected={onRerunSelected}
