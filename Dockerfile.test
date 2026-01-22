@@ -1,0 +1,52 @@
+# Dockerfile for running Yume tests only
+# Lightweight Python environment with test dependencies
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Prevent Python from writing bytecode and buffering stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
+
+# Install minimal system dependencies (for opencv, pillow, etc.)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    vim \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Copy requirements files
+COPY requirements.txt /app/requirements.txt
+COPY requirements-test.txt /app/requirements-test.txt
+
+# Install production dependencies
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Install test dependencies
+RUN pip install --no-cache-dir -r /app/requirements-test.txt
+
+# Copy source code
+COPY yume/ /app/yume/
+COPY backends/ /app/backends/
+
+# Copy test files
+COPY tests/ /app/tests/
+COPY setup.py /app/setup.py
+COPY pytest.ini /app/pytest.ini
+
+# Install package in development mode
+RUN pip install -e .
+
+# Set working directory to app root
+WORKDIR /app
+
+# Default command: run all tests with coverage
+CMD ["pytest", "tests/", "-v", "--cov=yume", "--cov-report=term-missing", "--cov-report=html"]

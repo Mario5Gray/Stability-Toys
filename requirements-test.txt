@@ -1,0 +1,43 @@
+# Testing dependencies for Yume library
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+pytest-mock>=3.11.0
+
+# Async testing
+asyncio>=3.4.3
+
+# Mocking and fixtures
+pytest-fixtures>=0.1.0
+
+# For Redis testing
+redis>=4.6.0
+fakeredis>=2.19.0
+
+# Core dependencies (should match main project)
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+Pillow>=9.5.0
+opencv-python>=4.8.0
+
+# Transformers for CLIP
+transformers>=4.30.0
+
+# Optional: OpenAI CLIP (if testing both implementations)
+git+https://github.com/openai/CLIP.git
+
+# Code quality
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.4.0
+
+# Coverage visualization
+coverage[toml]>=7.2.0
+
+# Performance testing
+pytest-benchmark>=4.0.0

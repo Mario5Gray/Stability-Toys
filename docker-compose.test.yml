@@ -1,0 +1,38 @@
+# Docker Compose for running Yume tests
+version: '3.8'
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: yume-test:latest
+    container_name: yume-test
+    volumes:
+      # Mount source code for live testing during development
+      - ./yume:/app/yume
+      - ./tests:/app/tests
+      # Mount coverage output
+      - ./htmlcov:/app/htmlcov
+    command: pytest tests/ -v --cov=yume --cov-report=html --cov-report=term-missing
+    
+  # Run specific test suites
+  test-unit:
+    extends: test
+    container_name: yume-test-unit
+    command: pytest tests/ -v -m unit
+    
+  test-integration:
+    extends: test
+    container_name: yume-test-integration
+    command: pytest tests/ -v -m integration
+    
+  test-fast:
+    extends: test
+    container_name: yume-test-fast
+    command: pytest tests/ -v -m "not slow"
+    
+  test-watch:
+    extends: test
+    container_name: yume-test-watch
+    command: ptw tests/ -- -v

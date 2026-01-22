@@ -1,0 +1,64 @@
+# Makefile for Yume test commands
+# Run tests in Docker containers
+
+.PHONY: help test test-build test-unit test-integration test-fast test-coverage test-watch test-clean test-shell
+
+help: ## Show this help message
+	@echo "Yume Test Commands:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# Build test image
+test-build: ## Build the test Docker image
+	docker build -f Dockerfile.test -t yume-test:latest .
+
+# Run tests
+test: ## Run all tests in Docker
+	docker-compose -f docker-compose.test.yml run --rm test
+
+test-unit: ## Run unit tests only
+	docker-compose -f docker-compose.test.yml run --rm test-unit
+
+test-integration: ## Run integration tests only
+	docker-compose -f docker-compose.test.yml run --rm test-integration
+
+test-fast: ## Run fast tests (skip slow tests)
+	docker-compose -f docker-compose.test.yml run --rm test-fast
+
+test-coverage: ## Run tests with coverage report
+	docker-compose -f docker-compose.test.yml run --rm test
+	@echo ""
+	@echo "Coverage report generated in htmlcov/"
+	@echo "Open htmlcov/index.html to view"
+
+test-watch: ## Run tests in watch mode (re-run on file changes)
+	docker-compose -f docker-compose.test.yml run --rm test-watch
+
+# Utilities
+test-shell: ## Open a shell in the test container
+	docker-compose -f docker-compose.test.yml run --rm test /bin/bash
+
+test-clean: ## Clean up test containers and images
+	docker-compose -f docker-compose.test.yml down
+	docker rmi yume-test:latest || true
+	rm -rf htmlcov/ .pytest_cache/ .coverage
+
+test-clean-all: test-clean ## Clean everything including volumes
+	docker-compose -f docker-compose.test.yml down -v
+
+# Local testing (without Docker)
+local-test: ## Run tests locally (not in Docker)
+	pytest tests/ -v
+
+local-test-coverage: ## Run tests locally with coverage
+	pytest tests/ -v --cov=yume --cov-report=html --cov-report=term-missing
+
+# Continuous Integration
+ci-test: test-build test ## Build and run tests (for CI)
+
+# Development
+dev-test: ## Quick test during development
+	docker-compose -f docker-compose.test.yml run --rm test pytest tests/ -x -v
+
+dev-test-file: ## Run specific test file (usage: make dev-test-file FILE=test_dream_worker.py)
+	docker-compose -f docker-compose.test.yml run --rm test pytest tests/$(FILE) -v
