@@ -14,52 +14,79 @@ class CLIPScorer:
     """
     Score image-text similarity using CLIP.
     Fast evaluation for latent space exploration.
+    Supports both OpenAI CLIP and Hugging Face transformers CLIP.
     """
-    
-    def __init__(self, clip_model, device="cuda"):
+
+    def __init__(self, clip_model, clip_processor=None, device="cuda"):
         self.model = clip_model
+        self.clip_processor = clip_processor
         self.device = device
         self.model.to(device)
         self.model.eval()
-        
+
+        # Detect CLIP type based on model class name
+        model_class = clip_model.__class__.__name__
+        if model_class in ("CLIPModel", "CLIPVisionModel"):
+            # Hugging Face transformers CLIP
+            self.clip_type = "huggingface"
+            if clip_processor is None:
+                raise ValueError("Hugging Face CLIP requires clip_processor parameter")
+        elif model_class == "CLIP":
+            # OpenAI CLIP
+            self.clip_type = "openai"
+        else:
+            raise ValueError(f"Unknown CLIP model type: {model_class}")
+
         # Cache for text embeddings (avoid recomputing)
         self.text_cache = {}
-    
+
     def encode_text(self, text: str) -> torch.Tensor:
         """Encode text to CLIP embedding (with caching)."""
         if text in self.text_cache:
             return self.text_cache[text]
-        
+
         with torch.no_grad():
-            text_tokens = self.model.tokenize([text]).to(self.device)
-            text_features = self.model.encode_text(text_tokens)
+            if self.clip_type == "huggingface":
+                inputs = self.clip_processor(text=[text], return_tensors="pt", padding=True)
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                text_features = self.model.get_text_features(**inputs)
+            else:
+                # OpenAI CLIP
+                import clip
+                text_tokens = clip.tokenize([text]).to(self.device)
+                text_features = self.model.encode_text(text_tokens)
+
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        
+
         self.text_cache[text] = text_features
         return text_features
-    
+
     def encode_image(self, image: Image.Image) -> torch.Tensor:
         """Encode image to CLIP embedding."""
-        # Resize to CLIP input size
-        image = image.convert('RGB').resize((224, 224))
-        
-        # Preprocess (normalize)
-        image_tensor = torch.from_numpy(np.array(image)).float()
-        image_tensor = image_tensor.permute(2, 0, 1).unsqueeze(0)
-        image_tensor = image_tensor / 255.0
-        
-        # Normalize with CLIP stats
-        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
-        std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1)
-        image_tensor = (image_tensor - mean) / std
-        image_tensor = image_tensor.to(self.device)
-        
         with torch.no_grad():
-            image_features = self.model.encode_image(image_tensor)
+            if self.clip_type == "huggingface":
+                inputs = self.clip_processor(images=image, return_tensors="pt")
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                image_features = self.model.get_image_features(**inputs)
+            else:
+                # OpenAI CLIP - manual preprocessing
+                image = image.convert('RGB').resize((224, 224))
+                image_tensor = torch.from_numpy(np.array(image)).float()
+                image_tensor = image_tensor.permute(2, 0, 1).unsqueeze(0)
+                image_tensor = image_tensor / 255.0
+
+                # Normalize with CLIP stats
+                mean = torch.tensor([0.48145466, 0.4578275, 0.40821073]).view(1, 3, 1, 1)
+                std = torch.tensor([0.26862954, 0.26130258, 0.27577711]).view(1, 3, 1, 1)
+                image_tensor = (image_tensor - mean) / std
+                image_tensor = image_tensor.to(self.device)
+
+                image_features = self.model.encode_image(image_tensor)
+
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        
+
         return image_features
-    
+
     def score(self, image: Image.Image, text: str) -> float:
         """
         Compute CLIP similarity score between image and text.
@@ -67,32 +94,32 @@ class CLIPScorer:
         """
         image_features = self.encode_image(image)
         text_features = self.encode_text(text)
-        
+
         # Cosine similarity
         similarity = torch.cosine_similarity(
-            image_features, 
-            text_features, 
+            image_features,
+            text_features,
             dim=-1
         ).item()
-        
+
         # Normalize to [0, 1]
         # CLIP similarity is typically in [-1, 1] but usually [0, 1] range
         return max(0.0, min(1.0, similarity))
-    
+
     def batch_score(self, images: list[Image.Image], text: str) -> list[float]:
         """Score multiple images against single text (faster)."""
         text_features = self.encode_text(text)
-        
+
         scores = []
         for image in images:
             image_features = self.encode_image(image)
             similarity = torch.cosine_similarity(
-                image_features, 
-                text_features, 
+                image_features,
+                text_features,
                 dim=-1
             ).item()
             scores.append(max(0.0, min(1.0, similarity)))
-        
+
         return scores
 
 
