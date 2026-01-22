@@ -106,20 +106,6 @@ export function OptionsPanel({
           onScroll={updateScrollHints}
           className="h-full overflow-y-auto space-y-5 p-4 md:p-5"
         >
-          {/* Selected Image Controls */}
-          {selectedParams ? (
-            <SelectedImageControls
-              selectedParams={selectedParams}
-              onClear={onClearSelection}
-              onApplyDelta={onApplyPromptDelta}
-              onRerun={onRerunSelected}
-            />
-          ) : (
-            <div className="text-xs text-muted-foreground rounded-lg bg-muted/50 p-3">
-              💡 Tip: Click an image to select it. Sliders will edit that image's
-              settings and regenerate live.
-            </div>
-          )}
 
           {/* Dream Mode */}
           <DreamControls
@@ -134,7 +120,7 @@ export function OptionsPanel({
             selectedParams={selectedParams}
             baseParams={params.effective}
           />
-
+          
           <Separator />
 
           {/* Prompt */}
@@ -150,29 +136,8 @@ export function OptionsPanel({
             />
           </div>
 
-          {/* Size */}
-          <div className="space-y-2">
-            <Label>Size</Label>
-            <Select value={params.effective.size} onValueChange={params.setSize}>
-              <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
-                <SelectValue placeholder="Select size" />
-              </SelectTrigger>
-              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
-                {SIZE_OPTIONS.map((s) => (
-                  <SelectItem
-                    key={s}
-                    className={CSS_CLASSES.SELECT_ITEM}
-                    value={s}
-                  >
-                    {formatSizeDisplay(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Steps */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label>Steps</Label>
               <span className="text-sm text-muted-foreground tabular-nums">
@@ -194,7 +159,7 @@ export function OptionsPanel({
           </div>
 
           {/* CFG */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label>CFG (Guidance Scale)</Label>
               <span className="text-sm text-muted-foreground tabular-nums">
@@ -271,6 +236,23 @@ export function OptionsPanel({
               field is used.
             </div>
           </div>
+
+          <Separator />
+
+          {/* Selected Image Controls */}
+          {selectedParams ? (
+            <SelectedImageControls
+              selectedParams={selectedParams}
+              onClear={onClearSelection}
+              onApplyDelta={onApplyPromptDelta}
+              onRerun={onRerunSelected}
+            />
+          ) : (
+            <div className="text-xs text-muted-foreground rounded-lg bg-muted/50 p-3">
+              💡 Tip: Click an image to select it. Sliders will edit that image's
+              settings and regenerate live.
+            </div>
+          )}
 
           <Separator />
 
@@ -364,6 +346,27 @@ export function OptionsPanel({
               <Send className="mr-2 h-4 w-4" />
               Super-res uploaded image
             </Button>
+          </div>
+
+          {/* Size */}
+          <div className="space-y-2">
+            <Label>Size</Label>
+            <Select value={params.effective.size} onValueChange={params.setSize}>
+              <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
+                <SelectValue placeholder="Select size" />
+              </SelectTrigger>
+              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
+                {SIZE_OPTIONS.map((s) => (
+                  <SelectItem
+                    key={s}
+                    className={CSS_CLASSES.SELECT_ITEM}
+                    value={s}
+                  >
+                    {formatSizeDisplay(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <Separator />

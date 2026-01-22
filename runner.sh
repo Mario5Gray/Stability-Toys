@@ -19,7 +19,8 @@ fi
 set -x
 docker run --rm -it \
   --gpus all \
-  --network host \
+  --network appnet \
+  -p 4200:4200 \
   --privileged \
   -e CUDA_CKPT_PATH=${CUDA_CKPT_PATH} \
   $@ \

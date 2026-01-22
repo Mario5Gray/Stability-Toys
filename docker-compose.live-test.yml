@@ -1,0 +1,98 @@
+# docker-compose.live-test.yml - Development environment with hot-reload
+#
+# Usage:
+#   # Start all services (backend + redis):
+#   docker compose -f docker-compose.live-test.yml up --build
+#
+#   # Start with Vite dev server for UI hot-reload:
+#   docker compose -f docker-compose.live-test.yml --profile ui-dev up --build
+#
+#   # Backend only (serve pre-built UI):
+#   docker compose -f docker-compose.live-test.yml up backend redis
+#
+# Note: Run 'cd lcm-sr-ui && yarn build' first if not using ui-dev profile
+
+services:
+  # Python backend server
+  backend:
+    container_name: lcm-live-test
+    build:
+      context: .
+      dockerfile: Dockerfile.live-test
+    ports:
+      - "4200:4200"
+    volumes:
+      # Mount Python source for hot-reload
+      - ./lcm_sr_server.py:/app/lcm_sr_server.py:ro
+      - ./lcm_server.py:/app/lcm_server.py:ro
+      - ./rknnlcm.py:/app/rknnlcm.py:ro
+      - ./redis_provider.py:/app/redis_provider.py:ro
+      - ./storage_provider.py:/app/storage_provider.py:ro
+      - ./request_logger.py:/app/request_logger.py:ro
+      - ./compat_endpoints.py:/app/compat_endpoints.py:ro
+      - ./backends:/app/backends:ro
+      - ./yume:/app/yume:ro
+      # Mount pre-built UI dist (run yarn build first, or use ui-dev profile)
+      - ./lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist:ro
+      # Mount models directory
+      - ./model:/models:rw
+    env_file:
+      - env.live-test
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - live-test-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4200/docs || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Redis for storage/caching
+  redis:
+    image: redis:7-alpine
+    container_name: lcm-live-test-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - live-test-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # Vite dev server for UI hot-reload (optional profile)
+  ui-dev:
+    image: node:20-slim
+    container_name: lcm-live-test-ui
+    profiles:
+      - ui-dev
+    working_dir: /ui
+    command: sh -c "corepack enable && yarn install && yarn dev --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./lcm-sr-ui:/ui:rw
+      - ui-node-modules:/ui/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:4200
+    networks:
+      - live-test-net
+    restart: unless-stopped
+
+networks:
+  live-test-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  ui-node-modules:
