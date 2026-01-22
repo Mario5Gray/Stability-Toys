@@ -2,14 +2,13 @@
 import os
 import io
 import torch
-from dataclasses import dataclass
-from typing import Optional
+import numpy as np
+from typing import Optional, Tuple
 
 from diffusers import StableDiffusionPipeline, LCMScheduler
 from PIL import Image
 
 from .base import PipelineWorker, GenSpec
-
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
@@ -52,38 +51,26 @@ class DiffusersCudaWorker(PipelineWorker):
         enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
         attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
 
-        # ---- Load from single-file checkpoint (.safetensors) ----
-        # This uses Diffusers' "from_single_file" path (recommended for ckpt/safetensors).
-        # It will download/config the SD1.5 pipeline components as needed.
         pipe = StableDiffusionPipeline.from_single_file(
             ckpt_path,
             torch_dtype=dtype,
-            safety_checker=None,          # local service: remove safety checker overhead
+            safety_checker=None,
             requires_safety_checker=False,
         )
 
-        # ---- Force LCM scheduler ----
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-
-        # ---- Move to CUDA ----
         pipe = pipe.to(device)
 
-        # ---- Optional performance toggles ----
-        # NOTE: LCM is already fast; these just reduce memory / sometimes boost speed.
-        pipe.enable_vae_tiling()  # helps large outputs without huge VRAM spikes
+        pipe.enable_vae_tiling()
 
         if attention_slicing:
             pipe.enable_attention_slicing()
 
         if enable_xformers:
-            # Only works if xformers is installed in the container
             try:
                 pipe.enable_xformers_memory_efficient_attention()
             except Exception as e:
                 print(f"[cuda] worker {worker_id}: xformers enable failed: {e}")
-
-        # You can also optionally do:
-        # pipe.unet.to(memory_format=torch.channels_last)
 
         self.pipe = pipe
         self.device = device
@@ -107,23 +94,17 @@ class DiffusersCudaWorker(PipelineWorker):
         """
         req = job.req
 
-        # Parse WxH
         try:
             w_str, h_str = str(req.size).lower().split("x")
             width, height = int(w_str), int(h_str)
         except Exception:
             raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
 
-        # Choose seed
         seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
 
-        # Torch generator for determinism
-        # (LCM is fast, but still benefits from explicit generator)
         gen = torch.Generator(device=self.device)
         gen.manual_seed(seed)
 
-        # Run pipeline
-        # LCM typically likes low cfg (~1-2) and steps (~5-15)
         with torch.inference_mode():
             out = self.pipe(
                 prompt=req.prompt,
@@ -138,3 +119,63 @@ class DiffusersCudaWorker(PipelineWorker):
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return buf.getvalue(), seed
+
+    def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
+        """
+        Returns:
+          (png_bytes, seed_used, latents_bytes)
+
+        latents_bytes:
+          - raw tensor bytes for NCHW float16 with shape [1,4,8,8]
+          - intended for hashing / similarity bookkeeping
+
+        Implementation:
+          - preserves existing image-generation logic by calling run_job()
+          - runs a second pass ONLY to obtain latents (output_type="latent")
+        """
+        req = job.req
+
+        png_bytes, seed = self.run_job(job)
+
+        try:
+            w_str, h_str = str(req.size).lower().split("x")
+            width, height = int(w_str), int(h_str)
+        except Exception:
+            raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
+
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(int(seed))
+
+        with torch.inference_mode():
+            out_lat = self.pipe(
+                prompt=req.prompt,
+                width=width,
+                height=height,
+                num_inference_steps=int(req.num_inference_steps),
+                guidance_scale=float(req.guidance_scale),
+                generator=gen,
+                output_type="latent",
+                return_dict=True,
+            )
+
+        # Diffusers returns latents in out_lat.images when output_type="latent"
+        lat = out_lat.images
+        if isinstance(lat, (list, tuple)):
+            lat = lat[0]
+
+        # Ensure torch tensor
+        if not torch.is_tensor(lat):
+            lat = torch.as_tensor(lat)
+
+        # lat expected: [1,4,H/8,W/8] (NCHW)
+        if lat.ndim != 4:
+            raise RuntimeError(f"Unexpected latent rank {lat.ndim}, shape={tuple(lat.shape)}")
+
+        # Downsample to [1,4,8,8]
+        lat = lat.to(dtype=torch.float32)
+        lat_8 = torch.nn.functional.adaptive_avg_pool2d(lat, (8, 8))
+
+        lat_8 = lat_8.to(dtype=torch.float16).contiguous()
+        lat_np = lat_8.detach().cpu().numpy().astype(np.float16, copy=False)
+
+        return png_bytes, seed, lat_np.tobytes(order="C")
