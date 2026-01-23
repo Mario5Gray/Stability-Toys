@@ -8,6 +8,8 @@ const STORAGE_KEY = 'lcm-chat-messages';
 
 /**
  * Load messages from localStorage.
+ * Server URLs are persistent and don't need reload.
+ * Blob URLs need reload from cache.
  * Returns null if not found or invalid.
  */
 function loadPersistedMessages() {
@@ -16,9 +18,18 @@ function loadPersistedMessages() {
     if (!saved) return null;
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    // Mark image messages as needing reload (blob URLs don't persist)
+
     return parsed.map((msg) => {
-      if (msg.kind === MESSAGE_KINDS.IMAGE && msg.imageUrl) {
+      if (msg.kind === MESSAGE_KINDS.IMAGE) {
+        // Server URLs (http/https) are persistent - use directly
+        if (msg.imageUrl?.startsWith('http')) {
+          return msg;
+        }
+        // Server URL stored separately - use it
+        if (msg.serverImageUrl) {
+          return { ...msg, imageUrl: msg.serverImageUrl };
+        }
+        // Blob URLs or missing - need reload from client cache
         return { ...msg, imageUrl: null, needsReload: true };
       }
       return msg;
@@ -31,14 +42,20 @@ function loadPersistedMessages() {
 
 /**
  * Save messages to localStorage.
- * Strips blob URLs (they don't persist).
+ * Server URLs persist, blob URLs are stripped.
  */
 function persistMessages(messages) {
   try {
-    // Don't persist blob URLs - they're session-only
     const toSave = messages.map((msg) => {
-      if (msg.imageUrl?.startsWith('blob:')) {
-        return { ...msg, imageUrl: null, needsReload: true };
+      if (msg.kind === MESSAGE_KINDS.IMAGE) {
+        // Server URLs are persistent - use as primary imageUrl
+        if (msg.serverImageUrl) {
+          return { ...msg, imageUrl: msg.serverImageUrl };
+        }
+        // Blob URLs don't persist - mark for reload
+        if (msg.imageUrl?.startsWith('blob:')) {
+          return { ...msg, imageUrl: null, needsReload: true };
+        }
       }
       return msg;
     });

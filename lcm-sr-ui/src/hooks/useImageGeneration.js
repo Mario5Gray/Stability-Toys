@@ -242,6 +242,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           errorText: null,
           text: null,
           imageUrl: result.imageUrl,
+          serverImageUrl: result.serverImageUrl || null,
+          serverImageKey: result.serverImageKey || null,
           params: {
             prompt: p,
             size: useSize,

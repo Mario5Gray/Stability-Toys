@@ -192,11 +192,29 @@ export async function generateImage(apiBase, params, signal = null) {
     signal,
   });
 
-  const imageUrl = await responseToObjectURLStrict(res);
+  // Extract server storage key if server-side caching is enabled
+  const serverImageKey = res.headers.get("X-LCM-Image-Key");
+
+  let imageUrl;
+  let serverImageUrl = null;
+
+  if (serverImageKey) {
+    // Server-side caching enabled - use persistent server URL
+    serverImageUrl = `${apiBase}/storage/${serverImageKey}`;
+    imageUrl = serverImageUrl;
+    // Consume response body to prevent connection issues
+    await res.arrayBuffer();
+  } else {
+    // No server caching - use blob URL (session-only)
+    imageUrl = await responseToObjectURLStrict(res);
+  }
+
   const metadata = extractGenerationMetadata(res, seed);
 
   return {
     imageUrl,
+    serverImageKey,
+    serverImageUrl,
     metadata: {
       ...metadata,
       apiBase: apiBase || "",
@@ -498,17 +516,32 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
           cacheHits++;
           console.log(`[Cache] HIT for ${cacheKey.slice(0, 8)}... (${cacheHits}/${cacheHits + cacheMisses})`);
 
-          // Create fresh blob URL from cached blob
-          const imageUrl = URL.createObjectURL(cached.blob);
-          blobManager.add(imageUrl);
+          // Prefer server URL (persistent) over blob URL (session-only)
+          let imageUrl;
+          if (cached.metadata?.serverImageUrl) {
+            imageUrl = cached.metadata.serverImageUrl;
+          } else if (cached.blob?.size > 0) {
+            imageUrl = URL.createObjectURL(cached.blob);
+            blobManager.add(imageUrl);
+          } else {
+            // Cache entry invalid, skip cache
+            cacheMisses++;
+            cacheHits--;
+            console.log(`[Cache] Invalid entry for ${cacheKey.slice(0, 8)}..., fetching fresh`);
+          }
 
-          return {
-            imageUrl,
-            metadata: cached.metadata,
-            fromCache: true,
-          };
+          if (imageUrl) {
+            return {
+              imageUrl,
+              serverImageUrl: cached.metadata?.serverImageUrl || null,
+              serverImageKey: cached.metadata?.serverImageKey || null,
+              metadata: cached.metadata,
+              fromCache: true,
+            };
+          }
+        } else {
+          cacheMisses++;
         }
-        cacheMisses++;
       }
 
       const apiBase = pickApiBase();
@@ -520,18 +553,32 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
 
       try {
         const result = await generateImage(apiBase, params, controller.signal);
-        blobManager.add(result.imageUrl);
+
+        // Only track blob URLs (not server URLs) for cleanup
+        if (!result.serverImageUrl) {
+          blobManager.add(result.imageUrl);
+        }
 
         // Store in cache (async, don't block)
         if (cache) {
-          // Fetch the blob from the object URL to store
-          fetch(result.imageUrl)
-            .then((res) => res.blob())
-            .then((blob) => {
-              cache.set(cacheKey, blob, result.metadata);
-              console.log(`[Cache] STORED ${cacheKey.slice(0, 8)}... (${blob.size} bytes)`);
-            })
-            .catch((err) => console.warn('[Cache] Failed to store:', err));
+          if (result.serverImageUrl) {
+            // Server-side caching: store URL reference with metadata
+            cache.set(cacheKey, new Blob([]), {
+              ...result.metadata,
+              serverImageUrl: result.serverImageUrl,
+              serverImageKey: result.serverImageKey,
+            });
+            console.log(`[Cache] STORED server URL ref ${cacheKey.slice(0, 8)}...`);
+          } else {
+            // No server caching: fetch blob and store
+            fetch(result.imageUrl)
+              .then((res) => res.blob())
+              .then((blob) => {
+                cache.set(cacheKey, blob, result.metadata);
+                console.log(`[Cache] STORED blob ${cacheKey.slice(0, 8)}... (${blob.size} bytes)`);
+              })
+              .catch((err) => console.warn('[Cache] Failed to store:', err));
+          }
         }
 
         return { ...result, fromCache: false };

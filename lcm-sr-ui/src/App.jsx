@@ -53,15 +53,20 @@ export default function App() {
     clearCache,
   } = generation;
 
-  // Reload cached images on startup
+  // Reload cached images on startup (only for blob URLs without server URL)
   useEffect(() => {
     const reloadCachedImages = async () => {
+      // Only reload messages that need it AND don't have a server URL
       const needsReload = messages.filter(
-        (m) => m.kind === 'image' && m.needsReload && m.params
+        (m) =>
+          m.kind === 'image' &&
+          m.needsReload &&
+          m.params &&
+          !m.serverImageUrl
       );
       if (needsReload.length === 0) return;
 
-      console.log(`[App] Reloading ${needsReload.length} images from cache...`);
+      console.log(`[App] Reloading ${needsReload.length} images from local cache...`);
 
       for (const msg of needsReload) {
         const imageUrl = await getImageFromCache(msg.params);

@@ -47,15 +47,19 @@ class StorageProvider:
     @staticmethod
     def make_storage_provider_from_env() -> StorageProvider:
         provider = os.environ.get("STORAGE_PROVIDER", "DISABLED").upper()
-        print("storage, ",provider)
+        print("storage:", provider)
         if provider == "MEMORY":
             return InMemoryStorageProvider(max_items=STORAGE_MAX_ITEMS)
-        if provider == "DISABLED":
+        elif provider == "DISABLED":
             return None
         elif provider == "REDIS":
             from redis_provider import RedisStorageProvider
             return RedisStorageProvider()
-        else:  raise RuntimeError(f"Unknown STORAGE_PROVIDER={kind}")
+        elif provider in ("FILESYSTEM", "FS"):
+            from filesystem_provider import FilesystemStorageProvider
+            return FilesystemStorageProvider()
+        else:
+            raise RuntimeError(f"Unknown STORAGE_PROVIDER={provider}")
         
 
     @staticmethod
