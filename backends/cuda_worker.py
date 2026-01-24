@@ -39,6 +39,7 @@ class DiffusersCudaWorker(PipelineWorker):
         self.worker_id = worker_id
         
         ckpt_path = os.path.join(os.environ.get('MODEL_ROOT'), os.environ.get('MODEL'))
+        print(ckpt_path)
         
         if not ckpt_path:
             raise RuntimeError("MODEL_ROOT is required for BACKEND=cuda")

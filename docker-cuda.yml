@@ -13,11 +13,12 @@ services:
     ports:
       - "4200:4200"
     volumes:
-      - ${MODEL_ROOT}:/models:rw,Z
+      - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
       - ${FS_HOST_PATH:-./store}:/storage:rw,Z
     env_file:
-      - env.docker  # Load all
+      - env.prod  # Load all
       - env.cuda
+
     restart: unless-stopped
 
     healthcheck:
