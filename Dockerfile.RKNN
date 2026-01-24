@@ -38,21 +38,18 @@ COPY librknnrt.so /usr/lib/librknnrt.so
 # Copy source code
 COPY yume/ /app/yume/
 COPY backends/ /app/backends/
+COPY *.py /app
+COPY start.sh /app
 
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy server code
-COPY *.py /app
-COPY start.sh /app
-
 RUN chmod +x /app/start.sh
-
-EXPOSE 4200
 
 # Copy built UI into where FastAPI will serve it
 RUN mkdir -p /opt/lcm-sr-server/ui-dist
 COPY --from=ui-build /ui/dist/ /opt/lcm-sr-server/ui-dist/
 
+#
 EXPOSE 4200
-
-CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--no-access-log"]
+CMD ["/bin/bash", "-c", "/app/start.sh"]

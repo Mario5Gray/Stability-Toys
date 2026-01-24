@@ -1,28 +1,23 @@
 # runner.sh
-if [ -z ${MODEL_ROOT} ]; then 
-  echo set MODEL_ROOT
-  exit 1
-fi
-if [ -z ${CUDA_CKPT_PATH} ]; then
-  echo set CUDA_CKPT_PATH
+PLATFORM=$(uname -m)
+if [ -z ${MODELS_HOST_PATH} ]; then
+  echo set MODELS_HOST_PATH
   exit 1
 fi
 
-if [[ "$(uname -m)" == "x86_64" ]]; then
-  export EXTRA_ARGS='--env-file env.cuda --env-file env.lcm --name cuda-lcm-sd-ui darkbit1001/cuda-lcm-sd-ui:latest'
+if [[ "$PLATFORM" == "x86_64" ]]; then
+  export EXTRA_ARGS='--env-file env.cuda --env-file env.dev --name lcm-sd-ui --gpus=all darkbit1001/lcm-sd-ui:latest'
+
 else 
-  export EXTRA_ARGS='---env-file env.lcm --name rknn-lcm-sd-ui darkbit1001/rknn-lcm-sd-ui:latest'
+  export EXTRA_ARGS='--env-file env.dev --env-file env.rknn --name lcm-sd-ui darkbit1001/lcm-sd-ui:latest'
 fi
-echo $MODEL_ROOT
-echo $CUDA_CKPT_PATH
+
 set -x
 docker run --rm -it \
-  --gpus all \
   --network appnet \
   -p 4200:4200 \
   --privileged \
-  -e CUDA_CKPT_PATH=${CUDA_CKPT_PATH} \
   $@ \
   -v ./store:/app/store:rw,Z \
-  -v "${MODEL_ROOT}:/models:ro,Z" ${EXTRA_ARGS} bash  
+  -v "${MODELS_HOST_PATH}:/models:ro,Z" ${EXTRA_ARGS} bash  
 set +x

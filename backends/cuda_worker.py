@@ -24,7 +24,7 @@ class DiffusersCudaWorker(PipelineWorker):
       - Diffusers layout: directory with model_index.json
 
     Env:
-      CUDA_CKPT_PATH=/path/to/model.safetensors  (or /path/to/model_dir/)
+      MODEL_ROOT=/path/to/model.safetensors  (or /path/to/model_dir/)
       CUDA_DTYPE=fp16|bf16|fp32   (default fp16)
       CUDA_DEVICE=cuda:0         (default cuda:0)
       CUDA_ENABLE_XFORMERS=1     (default 0)
@@ -37,10 +37,11 @@ class DiffusersCudaWorker(PipelineWorker):
         from diffusers import StableDiffusionPipeline, LCMScheduler
 
         self.worker_id = worker_id
-
-        ckpt_path = os.environ.get("CUDA_CKPT_PATH", "").strip()
+        
+        ckpt_path = os.path.join(os.environ.get('MODEL_ROOT'), os.environ.get('MODEL'))
+        
         if not ckpt_path:
-            raise RuntimeError("CUDA_CKPT_PATH is required for BACKEND=cuda")
+            raise RuntimeError("MODEL_ROOT is required for BACKEND=cuda")
 
         device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
 

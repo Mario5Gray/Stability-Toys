@@ -1,11 +1,11 @@
 services:
   lcm-sd:
     platform: linux/arm64
-    container_name: rknn-lcm-sd-ui
+    container_name: lcm-sd-ui
     build:
       context: .
-      dockerfile: ./Dockerfile.RKNN
-    image: darkbit1001/rknn-lcm-sd-ui:latest
+      dockerfile: ./Dockerfile
+    image: darkbit1001/lcm-sd-ui:latest
 
     privileged: true
 
@@ -13,10 +13,12 @@ services:
       - "4200:4200"
 
     volumes:
-      - ./model:/models:rw,Z
+      - ${MODELS_HOST_PATH}:/models:rw,Z
+      - ${FS_HOST_PATH:-./store}:/storage:rw,Z
 
     env_file:
-      - env.docker  # Load all
+      - env.prod  # Load all
+      - env.rknn
 
     restart: unless-stopped
 

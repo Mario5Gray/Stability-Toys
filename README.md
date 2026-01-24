@@ -141,31 +141,39 @@ The server expects an RKNN-converted super-resolution model:
 
 ```bash
 # LCM-SD model root
-export MODEL_ROOT=/models/lcm_rknn
-export PORT=4200
+PORT=4200
 
 # LCM worker configuration
-export NUM_WORKERS=3
-export QUEUE_MAX=64
-export DEFAULT_SIZE=512x512
-export DEFAULT_STEPS=4
-export DEFAULT_GUIDANCE=1.0
-export DEFAULT_TIMEOUT=120
+NUM_WORKERS=3
+QUEUE_MAX=64
+DEFAULT_SIZE=512x512
+DEFAULT_STEPS=4
+DEFAULT_GUIDANCE=1.0
+DEFAULT_TIMEOUT=120
 
 # RKNN multi-context (if supported by your RKNN2Model wrapper)
-export USE_RKNN_CONTEXT_CFGS=1
+USE_RKNN_CONTEXT_CFGS=1
 
 # --- Super-resolution ---
-export SR_ENABLED=1
-export SR_MODEL_PATH=/models/lcm_rknn/super-resolution-10.rknn
-export SR_INPUT_SIZE=224
-export SR_OUTPUT_SIZE=672
+SR_ENABLED=1
+SR_MODEL_PATH=/models/lcm_rknn/super-resolution-10.rknn
+SR_INPUT_SIZE=224
+SR_OUTPUT_SIZE=672
 
-export SR_NUM_WORKERS=1
-export SR_QUEUE_MAX=32
-export SR_MAX_PIXELS=24000000
-export SR_REQUEST_TIMEOUT=120
+SR_NUM_WORKERS=1
+SR_QUEUE_MAX=32
+SR_MAX_PIXELS=24000000
+SR_REQUEST_TIMEOUT=120
+
+MODELS_HOST_PATH=/path_to_your_models_folder
+FS_HOST_PATH=/path_to_a_empty_folder_for_cache
 ```
+
+### Model Root
+
+Since pretrained diffusers or safetensors can be used,
+set MODEL_ROOT the name of your safetensor file, or the name of the 
+diffusers basedir.
 
 ## Start the server
 

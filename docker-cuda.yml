@@ -1,19 +1,19 @@
 services:
   lcm-sd:
     platform: linux/amd64
-    container_name: cuda-lcm-sd-ui
+    container_name: lcm-sd-ui
     runtime: nvidia
     build:
       context: .
-      dockerfile: ./Dockerfile.CUDA
-    image: darkbit1001/cuda-lcm-sd-ui:latest
+      dockerfile: ./Dockerfile
+    image: darkbit1001/lcm-sd-ui:latest
     security_opt:
       - label:disable
     privileged: true
     ports:
       - "4200:4200"
     volumes:
-      - /home/hdd/workspace/ComfyUI/models:/models:rw,Z
+      - ${MODEL_ROOT}:/models:rw,Z
       - ${FS_HOST_PATH:-./store}:/storage:rw,Z
     env_file:
       - env.docker  # Load all

@@ -61,6 +61,7 @@ from request_logger import RequestLogger  # and optionally RequestLoggerConfig
 
 from storage_provider import StorageProvider, InMemoryStorageProvider
 
+from backends.base import ModelPaths, Job
 BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
 
 # Backend Worker Wrapper
@@ -90,35 +91,6 @@ class GenerateRequest(BaseModel):
         description="SR magnitude (1..3). Interpreted as number of SR passes. Default=2.",
     )
 
-
-@dataclass(frozen=True)
-class ModelPaths:
-    root: str
-
-    @property
-    def scheduler_config(self) -> str:
-        return os.path.join(self.root, "scheduler", "scheduler_config.json")
-
-    @property
-    def text_encoder(self) -> str:
-        return os.path.join(self.root, "text_encoder")
-
-    @property
-    def unet(self) -> str:
-        return os.path.join(self.root, "unet")
-
-    @property
-    def vae_decoder(self) -> str:
-        return os.path.join(self.root, "vae_decoder")
-
-
-@dataclass
-class Job:
-    req: GenerateRequest
-    fut: Future
-    submitted_at: float
-
-
 # -----------------------------
 # RKNN multi-context configuration
 # -----------------------------
@@ -135,18 +107,6 @@ def build_rknn_context_cfgs_for_rk3588(num_workers: int) -> List[dict]:
             }
         )
     return cfgs
-
-
-def parse_size(size_str: str) -> Tuple[int, int]:
-    w_str, h_str = size_str.lower().split("x")
-    w, h = int(w_str), int(h_str)
-    if w <= 0 or h <= 0:
-        raise ValueError("size must be positive")
-    return w, h
-
-
-def gen_seed_8_digits() -> int:
-    return int(np.random.randint(0, 100_000_000))
 
 # -----------------------------
 # Singleton Service (LCM generation)
@@ -209,9 +169,10 @@ class PipelineService:
         # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
             if use_cuda:
-                from backends.cuda_worker import DiffusersCudaWorker
+                from backends.cuda_worker import DiffusersCudaWorker                
                 w = DiffusersCudaWorker(worker_id=i)  # i will always be 0
             else:
+                from backends.rknn_worker import RKNNPipelineWorker
                 w = RKNNPipelineWorker(
                     worker_id=i,
                     paths=self.paths,
@@ -493,14 +454,15 @@ class SuperResService:
 # -----------------------------
 # FastAPI server config
 # -----------------------------
-MODEL_ROOT = os.environ.get("MODEL_ROOT", "/models/lcm_rknn")
+MODEL_ROOT = os.path.join(os.environ.get('MODEL_ROOT'), os.environ.get('MODEL'))
+
 NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "1"))
 QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
 PORT = int(os.environ.get("PORT", "4200"))
 REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
 
 SR_ENABLED = os.environ.get("SR_ENABLED", "1") not in ("0", "false", "False")
-SR_MODEL_PATH = os.environ.get("SR_MODEL_PATH", os.path.join(MODEL_ROOT, "super-resolution-10.rknn"))
+SR_MODEL_PATH = os.environ.get("SR_MODEL_PATH", os.path.join(os.environ.get('MODEL_ROOT'), "super-resolution-10.rknn"))
 SR_INPUT_SIZE = int(os.environ.get("SR_INPUT_SIZE", "224"))
 SR_OUTPUT_SIZE = int(os.environ.get("SR_OUTPUT_SIZE", "672"))
 SR_NUM_WORKERS = int(os.environ.get("SR_NUM_WORKERS", "1"))
