@@ -19,5 +19,6 @@ docker run --rm -it \
   --privileged \
   $@ \
   -v ./store:/app/store:rw,Z \
+  -v ./workflows:/workflows:ro,Z \
   -v "${MODELS_HOST_PATH}:/models:ro,Z" ${EXTRA_ARGS} bash  
 set +x

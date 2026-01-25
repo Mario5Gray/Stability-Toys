@@ -15,6 +15,7 @@ services:
     volumes:
       - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
       - ${FS_HOST_PATH:-./store}:/storage:rw,Z
+      - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
     env_file:
       - env.prod  # Load all
       - env.cuda

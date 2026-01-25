@@ -2,7 +2,7 @@ ARG TARGETPLATFORM
 ARG BACKEND
 
 # CERTS
-FROM darkbit1001/certificate-base:latest AS certs
+FROM harbor:443/certificate-base:latest AS certs
 
 # ---------- UI build stage ----------
 FROM node:20-trixie-slim AS ui-build
@@ -31,15 +31,15 @@ FROM python:3.12-slim AS server
 WORKDIR /app
 
 COPY librknnrt.so /tmp/librknnrt.so
-RUN if [ $BACKEND = "rknn" ]; then \
+RUN if [ "$BACKEND" = "rknn" ]; then \
    apt-get update && apt-get install -y --no-install-recommends \    
-    ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg vim \
-    && rm -rf /var/lib/apt/lists/* ; \
-  fi && cp /tmp/librknnrt.so /usr/lib/librknnrt.so
+    ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg vim curl\
+    #&& rm -rf /var/lib/apt/lists/* ; \
+  ;fi && cp /tmp/librknnrt.so /usr/lib/librknnrt.so
 
 RUN if [ "$BACKEND" = "cuda" ]; then \
     apt-get update && apt-get install -y \
-     ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
+     ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg vim curl\
      && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
      && dpkg -i cuda-keyring_1.1-1_all.deb \
      && apt-get update && apt-get install -y \
@@ -49,11 +49,16 @@ RUN if [ "$BACKEND" = "cuda" ]; then \
      libcurand-12-8 \
      libcusolver-12-8 \
      libcusparse-12-8; \
-    fi
+     fi
 
 # Install certs
-COPY --from=certs /usr/local/share/ca-certificates/*.crt /etc/ssl/certs/
-RUN update-ca-certificates
+COPY --from=certs /usr/local/share/ca-certificates/ChatRoot-rootCA.crt /usr/local/share/ca-certificates/chatroot.crt
+
+# update-ca-certificates & verify contact
+RUN update-ca-certificates && \
+    openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
+        /usr/local/share/ca-certificates/chatroot.crt
+
 
 # Install python deps
 # (Put your real requirements in requirements.txt)

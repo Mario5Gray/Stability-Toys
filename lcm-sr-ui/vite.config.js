@@ -10,7 +10,12 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ["enigma"],
+    allowedHosts: ["enigma", "node2"],
+    host: true,
+    watch: {
+      usePolling: true,
+      interval: 300, // 100–300 is typical
+    },    
     proxy: {
       "/generate": "http://localhost:4200",
       "/superres": "http://localhost:4200",

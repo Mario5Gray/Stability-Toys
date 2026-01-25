@@ -822,6 +822,10 @@ def storage_get(key: str):
         },
     )
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
 
 # Comfyui invoker
@@ -836,7 +840,7 @@ app.mount(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://enigma:5173","http://enigma.lan:4200", "https://enigma4201", "http://enigma:4200", "https://node2:4201"],
+    allow_origins=["https://node2:4205", "https://node2.lan:4205","http://enigma:5173", "http://enigma.lan:4200", "https://enigma4201", "http://enigma:4200", "https://node2:4201"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
