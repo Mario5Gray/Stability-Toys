@@ -47,7 +47,8 @@ export function useComfyJob({ api, pollMs = 750, autoPoll = true } = {}) {
 
       try {
         const started = await api.startJob(payload, { signal: ac.signal });
-        const newJobId = started.jobId;
+        const newJobId = started.jobId ?? started.job_id ?? started.id;
+        if (!newJobId) throw new Error(`startJob: missing job id in response: ${JSON.stringify(started)}`);
         setJobId(newJobId);
         setState("running");
 

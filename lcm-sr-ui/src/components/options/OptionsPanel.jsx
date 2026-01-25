@@ -521,7 +521,7 @@ export function OptionsPanel({
           
           <Separator />
 
-          <ComfyOptions workflowId="IMG2IMG-5" />
+          <ComfyOptions  />
           
           <Separator />
 
