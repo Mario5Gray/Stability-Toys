@@ -14,12 +14,13 @@ services:
       - "4200:4200"
     volumes:
       - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
-      - ${FS_HOST_PATH:-./store}:/storage:rw,Z
+      - ${FS_HOST_PATH:-./store}:/store:rw,Z
       - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
       - ${YUME_CLIP_HOST_PATH:-./}:/clip:ro, Z
     env_file:
       - env.prod  # Load all
       - env.cuda
+      - env.custom
 
     restart: unless-stopped
 
