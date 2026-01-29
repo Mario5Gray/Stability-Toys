@@ -879,10 +879,12 @@ app.mount(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+    "enigma:5173",
     "http://mindgate:5173",
     "http://enigma:5173", 
     "https://node2.lan:4205",
-    "https://node2:4201"],
+    "https://node2:4201",
+    "https://node2:4205"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

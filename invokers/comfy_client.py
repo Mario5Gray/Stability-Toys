@@ -1,14 +1,14 @@
 # invokers/comfy_client.py
 from __future__ import annotations
 
+import json
 import time
 import uuid
+import requests
+import websocket  # websocket-client
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import requests
-
-Json = Dict[str, Any]
 
 
 class ComfyUIError(RuntimeError):
@@ -35,21 +35,119 @@ class ComfyInvokeResult:
     outputs: List[ComfyFileRef]
 
 
+# invokers/comfy_client.py
+@dataclass
+class OutputRef:
+    filename: str
+    subfolder: str
+    type: str  # "output" typically
+
+import requests
+from typing import Optional, Dict
+
 class ComfyUIInvoker:
     def __init__(
         self,
         base_url: str,
-        timeout_s: float = 60.0,
-        session: Optional[requests.Session] = None,
-        verify_tls: Union[bool, str] = True,
+        verify_tls: bool = True,
+        timeout_s: float = 30.0,
         headers: Optional[Dict[str, str]] = None,
-    ) -> None:
+        session: Optional[requests.Session] = None,
+    ):
         self.base_url = base_url.rstrip("/")
-        self.timeout_s = timeout_s
         self.verify_tls = verify_tls
-        self.session = session or requests.Session()
-        self.headers = headers or {}
 
+        # Used by _get/_post
+        self.timeout_s = float(timeout_s)
+        self.headers = dict(headers or {})
+
+        # Restore session (connection pooling)
+        self.session = session or requests.Session()
+    # --- existing: upload_image(...) etc ---
+
+    def submit_prompt(self, prompt: Dict[str, Any], client_id: str) -> str:
+        """
+        POST /prompt => returns prompt_id
+        """
+        url = f"{self.base_url}/prompt"
+        r = requests.post(url, json={"prompt": prompt, "client_id": client_id}, verify=self.verify_tls, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        # ComfyUI returns {"prompt_id": "...", ...}
+        return data["prompt_id"]
+
+    def open_ws(self, client_id: str):
+        """
+        WS URL mirrors base_url scheme/host.
+        """
+        # base_url like https://node2:8189
+        if self.base_url.startswith("https://"):
+            ws_url = "wss://" + self.base_url[len("https://"):]
+        elif self.base_url.startswith("http://"):
+            ws_url = "ws://" + self.base_url[len("http://"):]
+        else:
+            ws_url = "ws://" + self.base_url
+
+        ws_url = f"{ws_url}/ws?clientId={client_id}"
+        return websocket.create_connection(ws_url, timeout=30)
+
+    def wait_with_node_progress(
+        self,
+        ws,
+        prompt_id: str,
+        on_node: callable,
+        max_wait_s: float = 900,
+    ) -> None:
+        """
+        Listen for 'executing' events until node == None for matching prompt_id.
+        Calls on_node(node_id_str_or_none) as events arrive.
+        """
+        deadline = time.time() + max_wait_s
+        while time.time() < deadline:
+            raw = ws.recv()
+            # WS may send binary preview frames; ignore those
+            if isinstance(raw, (bytes, bytearray)):
+                continue
+            msg = json.loads(raw)
+            if msg.get("type") != "executing":
+                continue
+
+            data = msg.get("data") or {}
+            if data.get("prompt_id") != prompt_id:
+                continue
+
+            node = data.get("node")  # string id or None
+            on_node(node)
+
+            if node is None:
+                return
+
+        raise TimeoutError(f"Timed out waiting for prompt_id={prompt_id}")
+
+    def get_history_outputs(self, prompt_id: str) -> List[OutputRef]:
+        """
+        GET /history/{prompt_id} and extract output image refs.
+        """
+        url = f"{self.base_url}/history/{prompt_id}"
+        r = requests.get(url, verify=self.verify_tls, timeout=30)
+        r.raise_for_status()
+        hist = r.json()
+
+        # Shape: {prompt_id: {outputs: {node_id: {images:[...]}}}}
+        item = hist.get(prompt_id) or {}
+        outputs = item.get("outputs") or {}
+        refs: List[OutputRef] = []
+
+        for _node_id, out in outputs.items():
+            for img in (out.get("images") or []):
+                refs.append(
+                    OutputRef(
+                        filename=img.get("filename", ""),
+                        subfolder=img.get("subfolder", ""),
+                        type=img.get("type", "output"),
+                    )
+                )
+        return refs
     # --- public API ---
 
     def upload_image(self, content: bytes, filename: str, image_type: str = "input") -> Json:

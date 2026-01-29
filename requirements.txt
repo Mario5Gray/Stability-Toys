@@ -22,4 +22,6 @@ transformers
 diffusers
 torch
 
+websocket-client
+
 #rknn-toolkit-lite2==2.3.2

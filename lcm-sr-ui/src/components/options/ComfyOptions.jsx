@@ -1,16 +1,16 @@
 // src/components/options/ComfyOptions.jsx
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Sparkles, Heart, Pause, Play } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import {CSS_CLASSES} from '../../utils/constants';
+import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
+
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Sparkles, Pause } from "lucide-react";
+
+import { CSS_CLASSES } from "../../utils/constants";
 import { createComfyInvokerApi } from "@/lib/comfyInvokerApi";
 import { useComfyJob } from "@/hooks/useComfyJob";
-import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
 import { urlToFile } from "@/utils/imageToFile";
+import { NumberStepper, NumberStepperDebounced } from "@/components/ui/NumberStepper";
 
 export function ComfyOptions({
   inputImage,
@@ -24,65 +24,103 @@ export function ComfyOptions({
   onError,
   onOutputs,
 }) {
-
+  // API + job hook
   const api = useMemo(() => createComfyInvokerApi(apiBase), [apiBase]);
   const comfy = useComfyJob({ api });
 
+  // Controls
   const [cfg, setCfg] = useState(defaultCfg);
   const [steps, setSteps] = useState(defaultSteps);
   const [denoise, setDenoise] = useState(defaultDenoise);
+
+  // Local file (either from selected chat image URL/file, or manual upload)
   const [file, setFile] = useState(null);
 
+  // (Unused in your snippet, keeping for compatibility if you later wire it)
+  const [pullComfyProgress, setPullComfyProgress] = useState(false);
+
+  // Derived progress values (must be after comfy is defined)
+  const rawFraction = comfy.job?.progress?.fraction;
+  const fraction = Math.max(0, Math.min(1, Number(rawFraction ?? 0)));
+  const showProgress =
+    comfy.state === "starting" ||
+    comfy.state === "running" ||
+    comfy.state === "done" ||
+    !!comfy.jobId;
+
+  // --- Run action ---
   const run = useCallback(async () => {
     onStart?.();
 
-    let inputImageFile = null;    
+    let inputImageFile = null;
 
+    // Prefer file already prepared by sync() effect (avoids refetching URL)
     if (inputImage?.kind === "file") {
       inputImageFile = inputImage.file;
     } else if (inputImage?.kind === "url") {
-      const res = await fetch(inputImage.url);
-      const blob = await res.blob();
-      inputImageFile = new File(
-        [blob],
-        inputImage.filename || "input.png",
-        { type: blob.type || "image/png" }
-      );
+      // If sync() already converted the URL to a File, use it
+      if (file) {
+        inputImageFile = file;
+      } else {
+        // Fallback: fetch and build File (only when file isn't ready yet)
+        const res = await fetch(inputImage.url);
+        const blob = await res.blob();
+        inputImageFile = new File([blob], inputImage.filename || "input.png", {
+          type: blob.type || "image/png",
+        });
+      }
     } else {
-      inputImageFile = file; // fallback to manual upload input
+      // Manual upload fallback
+      inputImageFile = file;
+    }
+
+    // If no image, the backend will error; surface cleanly client-side too
+    if (!inputImageFile) {
+      const err = new Error("No input image selected.");
+      onError?.(err);
+      throw err;
     }
 
     return comfy.start({
       workflowId,
       params: { cfg, steps, denoise },
       inputImageFile,
-    });    
-  }, [onStart, comfy, workflowId, cfg, steps, denoise, inputImage, file]);
-  
+    });
+  }, [onStart, onError, comfy, workflowId, cfg, steps, denoise, inputImage, file]);
+
+  // Debug mount/unmount (kept, harmless)
   useEffect(() => {
     console.log("ComfyOptions mounted");
     return () => console.log("ComfyOptions unmounted");
   }, []);
-  
-  // If you want a "done" callback when outputs arrive:
-  // (cheap + safe: just watch comfy.state)
-  React.useEffect(() => {
+
+  // done callback
+  useEffect(() => {
     if (comfy.state === "done") {
       onDone?.(comfy.job);
     }
   }, [comfy.state, comfy.job, onDone]);
 
+  // error callback
+  useEffect(() => {
+    if (comfy.state === "error" && comfy.error) {
+      onError?.(comfy.error);
+    }
+  }, [comfy.state, comfy.error, onError]);
+
+  // outputs callback (when outputs arrive)
   useEffect(() => {
     if (comfy.state === "done" && comfy.job?.outputs?.length) {
       onOutputs?.({
         workflowId,
         params: { cfg, steps, denoise },
-        outputs: comfy.job.outputs, // [{url, filename, ...}]
+        outputs: comfy.job.outputs,
         job: comfy.job,
       });
     }
-  }, [comfy.state, comfy.job, onOutputs]);
+  }, [comfy.state, comfy.job, onOutputs, workflowId, cfg, steps, denoise]);
 
+  // Keep file in sync with selected chat image (url/file)
   const lastKeyRef = useRef(null);
 
   useEffect(() => {
@@ -90,8 +128,8 @@ export function ComfyOptions({
 
     async function sync() {
       const key = inputImage?.key ?? null;
-  
-      // if selection changed, clear stale file immediately
+
+      // If selection changed, clear stale file immediately
       if (key !== lastKeyRef.current) {
         lastKeyRef.current = key;
         setFile(null);
@@ -106,97 +144,100 @@ export function ComfyOptions({
 
       if (inputImage.kind === "url") {
         try {
-          const f = await urlToFile(
-            inputImage.url,
-            inputImage.filename || "input.png"
-          );
+          // urlToFile likely uses fetch internally; do it once here.
+          const f = await urlToFile(inputImage.url, inputImage.filename || "input.png");
           if (!cancelled) setFile(f);
         } catch (err) {
           if (!cancelled) {
             console.error("Failed to load input image:", err);
-            setFile(null); // important: clear stale file
+            setFile(null);
           }
         }
       }
     }
 
     sync();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [inputImage]);
 
   return (
     <div className="option-panel-area space-y-3 rounded-2xl border p-4">
-      <Label className="text-base  items-centerfont-semibold">ComfyUI Workflow</Label>
-      <div className="flex items-center gap-2">
-        <Badge variant={comfy.state === "running" ? "default" : "secondary"}>
-          {comfy.state}
-        </Badge>
+      <Label className="text-base font-semibold">ComfyUI Workflow</Label>
+
+      {/* Progress */}
+      <div className="flex w-full gap-2 w-full bg-neutral-quaternary rounded-full h-2">
+        {showProgress ? (
+          rawFraction == null ? (
+            // Indeterminate (no value attr) => animated bar in DaisyUI
+            <progress className="progress-slim w-full" value={fraction} max={1}/>
+          ) : (
+            <progress className="progress-slim " value={fraction} max={1} />
+          )
+        ) : null}
       </div>
 
-      <div className="flex flex-col grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-2">
-        <label className="text-xs text-black-300">CFG</label>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setCfg(v => Math.max(0, +(v - 0.01).toFixed(2)))}
-            className="px-2 py-1 rounded bg-indigo-700 hover:bg-zinc-600 text-white"
-          >
-            –
-          </button>
-
-          <input
-            type="number"
-            step="0.01"
-            value={cfg}
-            onChange={e => setCfg(parseFloat(e.target.value))}
-            className="w-24 text-center px-2 py-1.5 rounded bg-violet-300 border border-zinc-700 text-black  text-sm font-mono"
-          />
-
-          <button
-            onClick={() => setCfg(v => +(v + 0.01).toFixed(2))}
-            className="px-2 py-1 rounded bg-indigo-700 hover:bg-zinc-600 text-white"
-          >
-            +
-          </button>
-        </div>
+{/*
+      <div className="text-xs opacity-70">
+        status={String(comfy.job?.status)} frac={String(comfy.job?.progress?.fraction)} seen=
+        {String(comfy.job?.progress?.nodes_seen)}/{String(comfy.job?.progress?.nodes_total)}
       </div>
+*/}
+      {/* CFG */}
 
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2">
+        <label className=" w-10 text-xs text-muted-foreground">cfg</label>
 
-      <div className="space-y-1">
-      <label>Steps</label>
-        <input
-          type="number"
-          value={steps}
-          step="1"
-          onChange={(e) => setSteps(parseInt(e.target.value, 10))}
+        <NumberStepper
+          value={cfg}
+          onChange={setCfg}
+          step={0.01}
+          min={0}
+          precision={2}
+        />      
+        <span className="text-xs opacity-60">0.0–2.0</span>
+
+      {/* Steps */}
+        <label className=" w-10 text-xs text-muted-foreground">steps</label>
+          <NumberStepper
+            value={steps}
+            onChange={setSteps}
+            step={1}
+            min={1}
+            precision={1}
+          /> 
+      <span className="text-xs opacity-60">0-20</span>
+
+      {/* Denoise */}
+      
+      <label className="w-10 text-xs text-muted-foreground">denoise</label>
+        <NumberStepper
+            value={denoise}
+            onChange={setDenoise}
+            step={0.01}
+            min={0.00}
+            precision={2}
+          /> 
+      <span className="text-xs opacity-60">0.0–0.5</span>
+      </div>
+      {/* Image selection */}
+      <div className="space-y-1">      
+        <Input
+          type="file"
+          accept="image/*"
+          className={CSS_CLASSES.INPUT}
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
+
+        {comfy.error ? (
+          <pre style={{ whiteSpace: "pre-wrap" }}>
+            {String(comfy.error.message || comfy.error)}
+          </pre>
+        ) : null}
       </div>
 
-      <label>
-        Denoise
-        <input
-          type="number"
-          value={denoise}
-          step="0.01"
-          onChange={(e) => setDenoise(parseFloat(e.target.value))}
-        />
-      </label>
-
-      <div className="space-y-1">
-          Use selected chat image
-              <Input
-                type="file"
-                accept="image/*"
-                className={CSS_CLASSES.INPUT}
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-      {comfy.error ? (
-        <pre style={{ whiteSpace: "pre-wrap" }}>
-          {String(comfy.error.message || comfy.error)}
-        </pre>
-       ) : null}
-      </div>
-
+      {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>
         <Button
           onClick={run}
@@ -228,11 +269,11 @@ export function ComfyOptions({
         >
           <Pause className="mr-2 h-4 w-4" />
           Stop
-        </Button>        
+        </Button>
       </div>
 
-
- {comfy.job?.outputs?.length ? (
+      {/* Outputs */}
+      {comfy.job?.outputs?.length ? (
         <div style={{ display: "grid", gap: 8 }}>
           {comfy.job.outputs.map((o) => (
             <img

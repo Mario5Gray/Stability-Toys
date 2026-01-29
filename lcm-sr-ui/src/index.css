@@ -17,6 +17,16 @@
   @apply bg-gradient-to-br from-purple-100/100 to-violet-100/100 dark:from-purple-950/20 dark:to-pink-950/20;
 }
 
+.progress-slim::-webkit-progress-bar {
+  background: rgb(161 161 170); /* zinc-400 */
+}
+.progress-slim::-webkit-progress-value {
+  background: rgb(244 244 245); /* zinc-100 */
+}
+.progress-slim::-moz-progress-bar {
+  background: rgb(244 244 245);
+}
+
 /* react-scroll-to-bottom button styling */
 .scroll-to-bottom-button {
   position: absolute;
