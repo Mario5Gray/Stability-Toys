@@ -1,5 +1,5 @@
 #!/bin/bash
-# Example usage of model_detector.py (extensible detection system)
+# Example usage of utils/model_detector.py (extensible detection system)
 
 echo "========================================="
 echo "Model Detection Examples"
@@ -9,33 +9,33 @@ echo ""
 # Example 1: Detect single model
 echo "Example 1: Detect single model"
 echo "-------------------------------"
-echo "Command: python model_detector.py /models/sdxl-model.safetensors"
+echo "Command: python -m utils.model_detector /models/sdxl-model.safetensors"
 echo ""
-# python model_detector.py /models/sdxl-model.safetensors
+# python -m utils.model_detector /models/sdxl-model.safetensors
 echo ""
 
 # Example 2: Detect LoRA
 echo "Example 2: Detect LoRA type"
 echo "-------------------------------"
-echo "Command: python model_detector.py /models/loras/anime.safetensors"
+echo "Command: python -m utils.model_detector /models/loras/anime.safetensors"
 echo ""
-# python model_detector.py /models/loras/anime.safetensors
+# python -m utils.model_detector /models/loras/anime.safetensors
 echo ""
 
 # Example 3: JSON output
 echo "Example 3: JSON output for automation"
 echo "-------------------------------"
-echo "Command: python model_detector.py model.safetensors --json"
+echo "Command: python -m utils.model_detector model.safetensors --json"
 echo ""
-# python model_detector.py model.safetensors --json
+# python -m utils.model_detector model.safetensors --json
 echo ""
 
 # Example 4: Pretty JSON
 echo "Example 4: Pretty JSON output"
 echo "-------------------------------"
-echo "Command: python model_detector.py model.safetensors --pretty"
+echo "Command: python -m utils.model_detector model.safetensors --pretty"
 echo ""
-# python model_detector.py model.safetensors --pretty
+# python -m utils.model_detector model.safetensors --pretty
 echo ""
 
 # Example 5: Integration with server config
@@ -44,18 +44,19 @@ echo "-------------------------------"
 cat << 'EOF'
 #!/bin/bash
 MODEL_PATH="/models/my-model.safetensors"
-RESULT=$(python model_detector.py "$MODEL_PATH" --json)
+RESULT=$(python -m utils.model_detector "$MODEL_PATH" --json)
 CROSS_ATTN=$(echo "$RESULT" | jq -r '.cross_attention_dim')
 VARIANT=$(echo "$RESULT" | jq -r '.variant')
 
 if [ "$CROSS_ATTN" = "2048" ]; then
     echo "Detected SDXL model (variant: $VARIANT)"
-    export USE_SDXL=1
-    export SDXL_MODEL="$MODEL_PATH"
+    export MODEL_ROOT=/models
+    export MODEL=$(basename "$MODEL_PATH")
     export DEFAULT_SIZE=1024x1024
 elif [ "$CROSS_ATTN" = "768" ]; then
     echo "Detected SD1.5 model (variant: $VARIANT)"
-    export MODEL="$MODEL_PATH"
+    export MODEL_ROOT=/models
+    export MODEL=$(basename "$MODEL_PATH")
     export DEFAULT_SIZE=512x512
 fi
 
@@ -71,7 +72,7 @@ cat << 'EOF'
 # Scan and organize models
 
 for model in /models/*.safetensors; do
-    RESULT=$(python model_detector.py "$model" --json)
+    RESULT=$(python -m utils.model_detector "$model" --json)
     VARIANT=$(echo "$RESULT" | jq -r '.variant')
     CROSS_ATTN=$(echo "$RESULT" | jq -r '.cross_attention_dim')
     IS_LORA=$(echo "$RESULT" | jq -r '.is_lora')
@@ -106,8 +107,8 @@ echo "Example 7: Using custom detectors (LCM, Turbo, etc.)"
 echo "-------------------------------"
 cat << 'EOF'
 #!/usr/bin/env python3
-from model_detector import ModelDetector
-from custom_detector_example import LCMDetector, TurboDetector
+from utils.model_detector import ModelDetector
+from utils.custom_detector_example import LCMDetector, TurboDetector
 
 # Create detector with custom logic
 detector = ModelDetector()
@@ -132,5 +133,5 @@ echo "Try these commands with your models!"
 echo "========================================="
 echo ""
 echo "For extensibility examples, see:"
-echo "  - custom_detector_example.py"
+echo "  - utils/custom_detector_example.py"
 echo "  - docs/MODEL_DETECTOR_EXTENSIBLE.md"

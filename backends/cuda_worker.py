@@ -316,8 +316,8 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
       - SDXL-compatible LoRAs (cross_attention_dim=2048)
 
     Env:
-      SDXL_MODEL_ROOT=/basepath/to/sdxl/    (or reuse MODEL_ROOT)
-      SDXL_MODEL=model.safetensors          (or model_dir/)
+      MODEL_ROOT=/basepath/to/models/
+      MODEL=model.safetensors               (or model_dir/)
       CUDA_DTYPE=fp16|bf16|fp32             (default fp16)
       CUDA_DEVICE=cuda:0                    (default cuda:0)
       CUDA_ENABLE_XFORMERS=1                (default 0)
@@ -337,14 +337,14 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
         self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
 
-        # Allow separate SDXL_MODEL_ROOT or fallback to MODEL_ROOT
-        model_root = (os.environ.get("SDXL_MODEL_ROOT") or os.environ.get("MODEL_ROOT") or "").strip()
-        model_name = (os.environ.get("SDXL_MODEL") or os.environ.get("MODEL") or "").strip()
+        # Use same MODEL_ROOT and MODEL as SD1.5 worker
+        model_root = (os.environ.get("MODEL_ROOT") or "").strip()
+        model_name = (os.environ.get("MODEL") or "").strip()
 
         if not model_root:
-            raise RuntimeError("SDXL_MODEL_ROOT (or MODEL_ROOT) is required for SDXL CUDA worker")
+            raise RuntimeError("MODEL_ROOT is required for SDXL CUDA worker")
         if not model_name:
-            raise RuntimeError("SDXL_MODEL (or MODEL) is required for SDXL CUDA worker")
+            raise RuntimeError("MODEL is required for SDXL CUDA worker")
 
         ckpt_path = os.path.join(model_root, model_name)
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")

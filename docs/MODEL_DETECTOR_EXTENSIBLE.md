@@ -47,7 +47,7 @@ The model detector uses a **stack of detection interceptors** (plugins) that ana
 ### Basic Usage
 
 ```python
-from model_detector import detect_model
+from utils.model_detector import detect_model
 
 # Detect model
 info = detect_model("/path/to/model.safetensors")
@@ -60,13 +60,13 @@ print(info.to_json())
 
 ```bash
 # JSON output (for automation)
-python model_detector.py model.safetensors --json
+python -m utils.model_detector model.safetensors --json
 
 # Pretty JSON
-python model_detector.py model.safetensors --pretty
+python -m utils.model_detector model.safetensors --pretty
 
 # Simple text
-python model_detector.py model.safetensors
+python -m utils.model_detector model.safetensors
 ```
 
 ## ModelInfo Output
@@ -112,7 +112,7 @@ python model_detector.py model.safetensors
 ### Step 1: Create Detector Class
 
 ```python
-from model_detector import BaseDetector, ModelInfo
+from utils.model_detector import BaseDetector, ModelInfo
 
 class MyCustomDetector(BaseDetector):
     def __init__(self):
@@ -135,7 +135,7 @@ class MyCustomDetector(BaseDetector):
 ### Step 2: Use Custom Detector
 
 ```python
-from model_detector import ModelDetector
+from utils.model_detector import ModelDetector
 
 # Create detector
 detector = ModelDetector()
@@ -191,14 +191,14 @@ class TurboDetector(BaseDetector):
         return info
 ```
 
-See `custom_detector_example.py` for more examples.
+See `utils/custom_detector_example.py` for more examples.
 
 ## Integration with Server
 
 ### Auto-Configure Worker
 
 ```python
-from model_detector import detect_model
+from utils.model_detector import detect_model
 
 def load_model_auto(model_path: str):
     """Automatically select worker based on detection."""
@@ -219,7 +219,7 @@ def load_model_auto(model_path: str):
 ```python
 def register_lora_auto(lora_path: str):
     """Automatically register LoRA with detected settings."""
-    from model_detector import detect_model
+    from utils.model_detector import detect_model
 
     info = detect_model(lora_path)
 
@@ -330,7 +330,7 @@ Detectors run in order added. Typical stack:
 
 ```python
 import pytest
-from model_detector import ModelDetector, ModelInfo
+from utils.model_detector import ModelDetector, ModelInfo
 
 def test_my_detector():
     detector = ModelDetector()
@@ -380,13 +380,14 @@ class ConditionalDetector(BaseDetector):
 
 **Main API**:
 ```python
-from model_detector import detect_model
+from utils.model_detector import detect_model
 info = detect_model(path)
 print(info.to_json())
 ```
 
 **Custom Detectors**:
 ```python
+from utils.model_detector import ModelDetector
 detector = ModelDetector()
 detector.add_detector(MyDetector())
 info = detector.detect(path)

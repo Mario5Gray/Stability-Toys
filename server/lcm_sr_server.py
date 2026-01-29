@@ -24,6 +24,12 @@ Env:
   DEFAULT_GUIDANCE=1.0
   DEFAULT_TIMEOUT=120
 
+  # CUDA Backend (auto-detects SD1.5 vs SDXL):
+  MODEL_ROOT=/path/to/models
+  MODEL=model.safetensors           (SD1.5 or SDXL - automatically detected)
+  CUDA_DEVICE=cuda:0
+  CUDA_DTYPE=fp16|fp32|bf16
+
   SR_ENABLED=true|false
   SR_MODEL_PATH=/models/lcm_rknn/super-resolution-10.rknn
   SR_INPUT_SIZE=224
@@ -198,8 +204,8 @@ class PipelineService:
         # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
             if use_cuda:
-                from backends.cuda_worker import DiffusersCudaWorker
-                w = DiffusersCudaWorker(worker_id=i)  # i will always be 0
+                from backends.worker_factory import create_cuda_worker
+                w = create_cuda_worker(worker_id=i)
             else:
                 from backends.rknn_worker import RKNNPipelineWorker
                 w = RKNNPipelineWorker(
