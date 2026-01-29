@@ -1,6 +1,6 @@
 import copy
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Tuple
 
 STALE_S = 60          # no heartbeat for 60s => stale
 HARD_S  = 15 * 60     # 15 min hard cap

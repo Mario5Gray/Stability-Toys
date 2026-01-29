@@ -9,11 +9,8 @@ import websocket  # websocket-client
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-
-
 class ComfyUIError(RuntimeError):
     pass
-
 
 @dataclass(frozen=True)
 class ComfyFileRef:

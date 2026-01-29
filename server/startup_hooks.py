@@ -1,6 +1,6 @@
 import threading
 import time
-from invokers.jobs import jobs_items_snapshot, jobs_mark_error_if_running, jobs_update_path
+from invokers.jobs import jobs_items_snapshot, jobs_mark_error_if_running
 
 STALE_S = 60
 HARD_S = 15 * 60

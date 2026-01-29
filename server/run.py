@@ -21,7 +21,7 @@ def main():
         access_log=True,
     )
 
-    start_jobs_reaper();
+    start_jobs_reaper()
 
 if __name__ == "__main__":
     main()

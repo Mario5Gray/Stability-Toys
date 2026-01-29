@@ -1,0 +1,6 @@
+[tool.ruff]
+line-length = 100
+
+[lint]
+select = ["E", "F", "W"]  # errors, flakes, warnings
+ignore = ["E501"]        # ignore line length if you want

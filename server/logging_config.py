@@ -12,7 +12,7 @@ LOGGING_CONFIG = {
         },
         "access": {
             "format": "%(asctime)s %(levelname)-7s [%(name)s] %(message)s",
-        },        
+        },
     },
     "handlers": {
         "default": {

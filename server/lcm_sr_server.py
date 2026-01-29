@@ -42,7 +42,7 @@ import queue
 import threading
 from dataclasses import dataclass
 from concurrent.futures import Future
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -53,7 +53,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel, Field
 
-from diffusers import LCMScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
 
@@ -64,11 +63,12 @@ from yume.dream_endpoints import dream_router
 from compat_endpoints import CompatEndpoints
 from request_logger import RequestLogger  # and optionally RequestLoggerConfig
 
-from storage_provider import StorageProvider, InMemoryStorageProvider
+from storage_provider import StorageProvider
 
 from backends.base import ModelPaths, Job
 
 from yume.dream_init import initialize_dream_system, shutdown_dream_system
+from backends.base import PipelineWorker
 
 import logging
 
@@ -198,7 +198,7 @@ class PipelineService:
         # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
             if use_cuda:
-                from backends.cuda_worker import DiffusersCudaWorker                
+                from backends.cuda_worker import DiffusersCudaWorker
                 w = DiffusersCudaWorker(worker_id=i)  # i will always be 0
             else:
                 from backends.rknn_worker import RKNNPipelineWorker
@@ -648,7 +648,6 @@ def generate(req: GenerateRequest):
             raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
         raise HTTPException(status_code=500, detail=f"Generation failed: {msg}")
 
-    did_superres = False
     out_bytes = png_bytes
     media_type = "image/png"
 
@@ -657,6 +656,8 @@ def generate(req: GenerateRequest):
     sr_mag = int(req.superres_magnitude or 2)
     if sr_mag < 1 or sr_mag > 3:
         raise HTTPException(status_code=400, detail="superres_magnitude must be 1..3")
+    
+    did_superres = False
 
     if req.superres:
         sr: Optional[SuperResService] = getattr(app.state, "sr_service", None)
@@ -682,7 +683,6 @@ def generate(req: GenerateRequest):
                 raise HTTPException(status_code=429, detail="Too many requests (SR queue full). Try again.")
             raise HTTPException(status_code=500, detail=f"Super-resolution failed: {msg}")
 
-
     image_key = _store_image_blob(
         storage,
         out_bytes=out_bytes,
@@ -691,7 +691,7 @@ def generate(req: GenerateRequest):
         seed=int(seed),
         did_superres=did_superres,
         sr_mag=sr_mag
-    )    
+    )
 
     headers = {
         "Cache-Control": "no-store",
@@ -799,9 +799,9 @@ async def superres(
             if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
             else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
         ),
-    }      
+    }
 
-    if image_key:  
+    if image_key:
         headers["X-LCM-Image-Key"] = image_key
 
     return Response(
@@ -835,7 +835,6 @@ def _run_generate_from_dict(gen_req: dict):
     png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
 
     # ---- optional SR postprocess ----
-    did_superres = False
     out_bytes = png_bytes
 
     meta_headers = {
@@ -860,7 +859,6 @@ def _run_generate_from_dict(gen_req: dict):
         )
         out_bytes = sr_fut.result(timeout=SR_REQUEST_TIMEOUT)
 
-        did_superres = True
         meta_headers.update(
             {
                 "X-SuperRes": "1",
@@ -875,7 +873,7 @@ def _run_generate_from_dict(gen_req: dict):
             }
         )
 
-    return out_bytes, seed, meta_headers    
+    return out_bytes, seed, meta_headers
 
 @app.get("/storage/health")
 def storage_health():
@@ -948,7 +946,7 @@ app.add_middleware(
     allow_origins=[
     "enigma:5173",
     "http://mindgate:5173",
-    "http://enigma:5173", 
+    "http://enigma:5173",
     "https://node2.lan:4205",
     "https://node2:4201",
     "https://node2:4205"],
