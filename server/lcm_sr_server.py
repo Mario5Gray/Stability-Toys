@@ -67,20 +67,29 @@ from request_logger import RequestLogger  # and optionally RequestLoggerConfig
 from storage_provider import StorageProvider, InMemoryStorageProvider
 
 from backends.base import ModelPaths, Job
-BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
-COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
-YUME_ENABLED = os.environ.get("YUME_ENABLED", "false").lower().strip()
 
 from yume.dream_init import initialize_dream_system, shutdown_dream_system
 
 import logging
+
+BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
+COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
+YUME_ENABLED = os.environ.get("YUME_ENABLED", "false").lower().strip()
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(filename='myapp.log', level=logging.INFO)
 
 # Backend Worker Wrapper
 
-        
+
+class StyleLoraRequest(BaseModel):
+    """
+    Exclusive style LoRA selector.
+    level: 0 => off, 1..N => preset strength index
+    """
+    style: Optional[str] = Field(default=None, description="Style id, e.g. 'papercut'. Null/None disables.")
+    level: int = Field(default=0, ge=0, le=8, description="0=off, 1..N=style strength preset index")
+
 # -----------------------------
 # Request schema (HTTP)
 # -----------------------------
@@ -90,7 +99,8 @@ class GenerateRequest(BaseModel):
     num_inference_steps: int = Field(default=int(os.environ.get("DEFAULT_STEPS", "4")), ge=1, le=50)
     guidance_scale: float = Field(default=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")), ge=0.0, le=20.0)
     seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
-
+    # ---- lora ----
+    style_lora: StyleLoraRequest = Field(default_factory=StyleLoraRequest)
     # ---- postprocess ----
     superres: bool = Field(default=False, description="If true, run RKNN super-resolution as a postprocess step.")
     superres_format: str = Field(default="png", pattern=r"^(png|jpeg)$")

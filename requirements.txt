@@ -1,6 +1,11 @@
 # base deps
 protobuf>=4.21.6,<=4.25.4
-accelerate
+
+# Newer models need this
+peft>=0.10
+accelerate>=0.30
+
+
 # utils
 psutil>=5.9.0
 ruamel.yaml>=0.17.21

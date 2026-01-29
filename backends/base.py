@@ -12,6 +12,11 @@ class Job:
     submitted_at: float
 
 
+dataclass(frozen=True)
+class StyleLora:
+    style: Optional[str] = None  # e.g. "papercut"
+    level: int = 0              # 0=off, 1..N preset index
+
 @dataclass
 class GenSpec:
     prompt: str
@@ -19,7 +24,7 @@ class GenSpec:
     steps: int
     cfg: float
     seed: Optional[int] = None
-
+    style_lora: StyleLora = StyleLora()
 
 class PipelineWorker(Protocol):
     worker_id: int
