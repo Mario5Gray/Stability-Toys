@@ -1,30 +1,50 @@
 # Dockerfile.test - For running SDXL worker tests in isolation
 # Usage:
 #   docker build -f Dockerfile.test -t lcm-sd-test .
-#   docker run --rm --gpus all -v /path/to/models:/models:ro lcm-sd-test
+#   docker run --rm --gpus all --privileged -v /path/to/models:/models:ro lcm-sd-test
 
 ARG BACKEND=cuda
-ARG BASE_IMAGE=nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
-FROM ${BASE_IMAGE}
+# ---------- Test stage ----------
+FROM python:3.12-slim AS test
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and CUDA libraries (following main Dockerfile pattern)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     build-essential \
+    libxext6 \
+    libxrender1 \
+    libsm6 \
     git \
-    python3.12 \
-    python3.12-dev \
-    python3.12-distutils \
-    python3-pip \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
     wget \
+    gnupg \
+    vim \
+    && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
+    && dpkg -i cuda-keyring_1.1-1_all.deb \
+    && apt-get update && apt-get install -y \
+    cuda-cudart-12-8 \
+    libcublas-12-8 \
+    libcufft-12-8 \
+    libcurand-12-8 \
+    libcusolver-12-8 \
+    libcusparse-12-8 \
+    cuda-nvcc-12-8 \
+    cuda-toolkit-12-8-config-common \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN python3.12 -m pip install --no-cache-dir --upgrade pip
+# Set CUDA environment variables for runtime
+ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+
+# Install python deps
+RUN pip install --no-cache-dir --upgrade pip
 
 # Copy requirements first (for better layer caching)
 COPY requirements.txt /app/requirements.txt
@@ -42,15 +62,19 @@ RUN pip install --no-cache-dir \
 COPY backends/ /app/backends/
 COPY server/ /app/server/
 COPY tests/ /app/tests/
+COPY yume/ /app/yume/
+COPY invokers/ /app/invokers/
 COPY *.py /app/
 
-# Copy test runner
+# Copy test runner and verification script
 COPY run_sdxl_tests.sh /app/run_sdxl_tests.sh
-RUN chmod +x /app/run_sdxl_tests.sh
+COPY verify_cuda.py /app/verify_cuda.py
+RUN chmod +x /app/run_sdxl_tests.sh /app/verify_cuda.py
 
 # Set environment defaults for testing
 ENV PYTHONPATH=/app
 ENV LOG_LEVEL=INFO
+ENV BACKEND=cuda
 
 # Default command runs the SDXL tests
 CMD ["pytest", "tests/test_sdxl_worker.py", "-v", "-s", "--tb=short", "-p", "no:cov"]

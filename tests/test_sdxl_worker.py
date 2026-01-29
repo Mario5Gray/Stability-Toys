@@ -104,6 +104,17 @@ def sdxl_worker():
     print(f"[test] SDXL worker cleaned up")
 
 
+def test_cuda_available():
+    """Test that CUDA is available in the container."""
+    assert torch.cuda.is_available(), "CUDA must be available for SDXL worker"
+    assert torch.cuda.device_count() > 0, "At least one CUDA device must be available"
+
+    device_name = torch.cuda.get_device_name(0)
+    print(f"[test] CUDA device: {device_name}")
+    print(f"[test] CUDA devices count: {torch.cuda.device_count()}")
+    print(f"[test] PyTorch CUDA version: {torch.version.cuda}")
+
+
 def test_worker_initialization(sdxl_worker):
     """Test that the worker initializes correctly."""
     assert sdxl_worker is not None
@@ -117,6 +128,9 @@ def test_worker_initialization(sdxl_worker):
     assert hasattr(sdxl_worker.pipe, 'text_encoder_2')
     assert hasattr(sdxl_worker.pipe, 'unet')
     assert hasattr(sdxl_worker.pipe, 'vae')
+
+    # Verify worker is on CUDA device
+    assert 'cuda' in str(sdxl_worker.device).lower(), "Worker must be on CUDA device"
 
     print(f"[test] Worker device: {sdxl_worker.device}")
     print(f"[test] Worker dtype: {sdxl_worker.dtype}")

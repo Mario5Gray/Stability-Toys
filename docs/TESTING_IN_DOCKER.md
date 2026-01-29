@@ -42,7 +42,7 @@ export SDXL_MODEL=sdxl-model.safetensors
 docker build -f Dockerfile.test -t lcm-sd-test:latest .
 
 # 2. Run tests
-docker run --rm --gpus all \
+docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
@@ -58,7 +58,7 @@ docker run --rm --gpus all \
 docker build -f Dockerfile.test -t lcm-sd-test:latest .
 
 # Run specific test
-docker run --rm --gpus all \
+docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
@@ -66,7 +66,7 @@ docker run --rm --gpus all \
   pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
 
 # Run with more verbose output
-docker run --rm --gpus all \
+docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \

@@ -104,7 +104,7 @@ vim backends/cuda_worker.py
 docker build -f Dockerfile.test -t lcm-sd-test:latest .
 
 # Run specific test
-docker run --rm --gpus all \
+docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
@@ -117,7 +117,7 @@ docker run --rm --gpus all \
 
 ```bash
 # Run with verbose logging
-docker run --rm --gpus all \
+docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
@@ -129,7 +129,7 @@ docker run --rm --gpus all \
 
 ```bash
 # Start container with bash
-docker run --rm -it --gpus all \
+docker run --rm -it --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
