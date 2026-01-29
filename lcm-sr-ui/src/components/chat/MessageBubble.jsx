@@ -150,7 +150,7 @@ export function MessageBubble({
       flex items-start gap-0 max-w-[100%]
       rounded-2xl items-center justify-center 
       px-2 py-0
-      ${isSelected ? "bg-zinc-600 dark:bg-white/9" : ""}
+      ${isSelected ? "bg-violet-200 dark:bg-ping/3" : ""}
       transition-colors
     `}
   >

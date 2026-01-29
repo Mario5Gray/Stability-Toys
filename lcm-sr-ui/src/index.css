@@ -24,7 +24,7 @@
   background: rgb(244 244 245); /* zinc-100 */
 }
 .progress-slim::-moz-progress-bar {
-  background: rgb(244 244 245);
+  background: rgb(244 200 200);
 }
 
 /* react-scroll-to-bottom button styling */

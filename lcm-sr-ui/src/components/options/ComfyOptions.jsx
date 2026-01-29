@@ -15,7 +15,7 @@ import { NumberStepper, NumberStepperDebounced } from "@/components/ui/NumberSte
 export function ComfyOptions({
   inputImage,
   apiBase = "https://node2:4205",
-  workflowId = "TRACKING-LCM-DIFFS",
+  workflowId = "LCM_CYBERPONY_XL",
   defaultCfg = 1.0,
   defaultSteps = 16,
   defaultDenoise = 0.03,
@@ -86,7 +86,7 @@ export function ComfyOptions({
       params: { cfg, steps, denoise },
       inputImageFile,
     });
-  }, [onStart, onError, comfy, workflowId, cfg, steps, denoise, inputImage, file]);
+  }, [onStart, onError, inputImage, file]);
 
   // Debug mount/unmount (kept, harmless)
   useEffect(() => {
@@ -118,7 +118,7 @@ export function ComfyOptions({
         job: comfy.job,
       });
     }
-  }, [comfy.state, comfy.job, onOutputs, workflowId, cfg, steps, denoise]);
+  }, [comfy.state, comfy.job, onOutputs]);
 
   // Keep file in sync with selected chat image (url/file)
   const lastKeyRef = useRef(null);
@@ -173,7 +173,7 @@ export function ComfyOptions({
             // Indeterminate (no value attr) => animated bar in DaisyUI
             <progress className="progress-slim w-full" value={fraction} max={1}/>
           ) : (
-            <progress className="progress-slim " value={fraction} max={1} />
+            <progress className="progress-slim w-full" value={fraction} max={1} />
           )
         ) : null}
       </div>
@@ -187,7 +187,7 @@ export function ComfyOptions({
       {/* CFG */}
 
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2">
-        <label className=" w-10 text-xs text-muted-foreground">cfg</label>
+        <label className="w-10 text-xs text-muted-foreground">cfg</label>
 
         <NumberStepper
           value={cfg}

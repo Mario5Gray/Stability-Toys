@@ -15,6 +15,7 @@ from invokers.workflow_store import WorkflowSpec, WorkflowStore
 # import the helpers you actually call
 from invokers.jobs import jobs_put, jobs_get, jobs_append_unique, jobs_update_path
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("comfy.jobs")
 router = APIRouter()
 
@@ -22,9 +23,9 @@ router = APIRouter()
 COMFY_BASE_URL = "https://node2:8189"  # or https://node2:8188 if TLS in front
 
 WORKFLOWS = {
-    "TRACKING-LCM-DIFFS": WorkflowSpec(
-        workflow_id="TRACKING-LCM-DIFFS",
-        prompt_path="/workflows/Tracking-LCM-DIFFS-API.json",
+    "LCM_CYBERPONY_XL": WorkflowSpec(
+        workflow_id="LCM_CYBERPONY_XL",
+        prompt_path="/workflows/LCM_CYBERPONY_XL.json",
         load_image_node="46",
         sampler_node="50",
     ),
@@ -50,7 +51,7 @@ async def start_job(
     except Exception as e:
         raise HTTPException(400, f"Bad params JSON: {e}")
 
-    logger.info(
+    logger.debug(
         "start_job workflowId=%s params=%s image=%s",
         workflowId,
         params_obj,
@@ -58,14 +59,14 @@ async def start_job(
     )
 
     if image is None:
-        logger.info("no image provided in request")
+        logger.debug("no image provided in request")
         # preserving your behavior (500). Consider 400 if you want semantics.
         raise HTTPException(500, "Job failed to initialize.")
 
     # Read bytes once
     content = await image.read()
 
-    logger.info(
+    logger.debug(
         "uploaded image bytes=%s filename=%s content_type=%s",
         len(content),
         image.filename,
@@ -158,6 +159,7 @@ def _run_job(job_id: str, workflow_id: str, params: Dict[str, Any], uploaded_ima
             # Optimization: single chained lookup rather than repeated dict indexing
             uploaded_name = uploaded_image.get("name") or uploaded_image.get("filename")
 
+
         # Build prompt graph
         prompt_graph = store.make_prompt(
             workflow_id,
@@ -166,6 +168,17 @@ def _run_job(job_id: str, workflow_id: str, params: Dict[str, Any], uploaded_ima
             cfg=params.get("cfg"),
             denoise=params.get("denoise"),
             seed=params.get("seed"),
+        )
+
+        logger.debug(
+            "make_prompt workflow=%s image=%s steps=%s cfg=%s denoise=%s seed=%s nodes=%d",
+            workflow_id,
+            uploaded_name,
+            params.get("steps"),
+            params.get("cfg"),
+            params.get("denoise"),
+            params.get("seed"),
+            len(prompt_graph),
         )
 
         # Nodes total known immediately
