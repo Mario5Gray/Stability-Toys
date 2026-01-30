@@ -77,6 +77,14 @@ from yume.dream_init import initialize_dream_system, shutdown_dream_system
 from backends.base import PipelineWorker
 
 import logging
+import signal
+
+# Mode system imports
+from server.mode_config import get_mode_config, reload_mode_config
+from backends.model_registry import get_model_registry
+from backends.worker_pool import get_worker_pool, GenerationJob
+from server.model_routes import router as model_router
+from server.file_watcher import start_config_watcher, stop_config_watcher
 
 # Try to import RKNNLite for super-resolution
 try:
@@ -109,6 +117,7 @@ class StyleLoraRequest(BaseModel):
 # -----------------------------
 class GenerateRequest(BaseModel):
     prompt: str
+    mode: Optional[str] = Field(default=None, description="Optional mode to switch to before generation (e.g. 'sdxl-portrait')")
     size: str = Field(default=os.environ.get("DEFAULT_SIZE", "512x512"), pattern=r"^\d+x\d+$")
     num_inference_steps: int = Field(default=int(os.environ.get("DEFAULT_STEPS", "4")), ge=1, le=50)
     guidance_scale: float = Field(default=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")), ge=0.0, le=20.0)
@@ -520,15 +529,77 @@ async def lifespan(app: FastAPI):
     logger.info("Starting FastAPI server lifespan...")
     logger.info(f"BACKEND={BACKEND}, NUM_WORKERS={NUM_WORKERS}, LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}")
 
+    # Determine if using CUDA backend
+    use_cuda = False
+    if BACKEND == "cuda":
+        use_cuda = True
+    elif BACKEND == "auto":
+        try:
+            import torch
+            use_cuda = torch.cuda.is_available()
+        except Exception:
+            use_cuda = False
+
+    # Initialize pipeline service
     try:
-        app.state.service = PipelineService.get_instance(
-            paths=paths,
-            num_workers=NUM_WORKERS,
-            queue_max=QUEUE_MAX,
-            rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
-            use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
-        )
+        if use_cuda:
+            # CUDA backend: Use new mode system with WorkerPool
+            logger.info("Using CUDA backend with mode system")
+
+            # Initialize mode configuration
+            try:
+                mode_config = get_mode_config()
+                logger.info(f"Mode system initialized: {len(mode_config.list_modes())} modes available")
+                logger.info(f"Default mode: {mode_config.get_default_mode()}")
+            except FileNotFoundError:
+                logger.warning("modes.yaml not found - mode system disabled, falling back to legacy behavior")
+                # Fallback to legacy PipelineService
+                app.state.service = PipelineService.get_instance(
+                    paths=paths,
+                    num_workers=NUM_WORKERS,
+                    queue_max=QUEUE_MAX,
+                    rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
+                    use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
+                )
+                use_cuda = False  # Disable mode system features
+            else:
+                # Initialize worker pool with mode system
+                app.state.worker_pool = get_worker_pool()
+                app.state.service = None  # Not using PipelineService
+
+                # Setup SIGHUP handler for config reload
+                def sighup_handler(signum, frame):
+                    logger.info("Received SIGHUP - reloading modes.yaml")
+                    try:
+                        reload_mode_config()
+                        logger.info("Configuration reloaded successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to reload configuration: {e}", exc_info=True)
+
+                signal.signal(signal.SIGHUP, sighup_handler)
+                logger.info("SIGHUP handler registered for config reload")
+
+                # Start file watcher for hot-reload
+                try:
+                    start_config_watcher("modes.yaml", reload_mode_config)
+                    logger.info("File watcher started for modes.yaml")
+                except Exception as e:
+                    logger.warning(f"Failed to start file watcher: {e}")
+        else:
+            # RKNN backend: Use legacy PipelineService
+            logger.info("Using RKNN backend with legacy PipelineService")
+            app.state.service = PipelineService.get_instance(
+                paths=paths,
+                num_workers=NUM_WORKERS,
+                queue_max=QUEUE_MAX,
+                rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
+                use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
+            )
+
+        # Store backend type for later use
+        app.state.use_mode_system = use_cuda and hasattr(app.state, 'worker_pool')
         logger.info("Pipeline service initialized successfully")
+
     except Exception as e:
         logger.error(f"Failed to initialize pipeline service: {e}", exc_info=True)
         raise
@@ -576,11 +647,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error closing storage: {e}", exc_info=True)
 
-    try:
-        app.state.service.shutdown()
-        logger.info("Pipeline service shut down")
-    except Exception as e:
-        logger.error(f"Error shutting down pipeline service: {e}", exc_info=True)
+    # Shutdown pipeline service or worker pool
+    if app.state.use_mode_system and hasattr(app.state, 'worker_pool'):
+        try:
+            # Stop file watcher
+            stop_config_watcher()
+            logger.info("File watcher stopped")
+        except Exception as e:
+            logger.error(f"Error stopping file watcher: {e}", exc_info=True)
+
+        try:
+            app.state.worker_pool.shutdown()
+            logger.info("Worker pool shut down")
+        except Exception as e:
+            logger.error(f"Error shutting down worker pool: {e}", exc_info=True)
+    elif app.state.service is not None:
+        try:
+            app.state.service.shutdown()
+            logger.info("Pipeline service shut down")
+        except Exception as e:
+            logger.error(f"Error shutting down pipeline service: {e}", exc_info=True)
 
     if app.state.sr_service is not None:
         try:
@@ -642,9 +728,61 @@ def _store_image_blob(
 
 @app.post("/generate", responses={200: {"content": {"image/png": {}, "image/jpeg": {}}}})
 def generate(req: GenerateRequest):
-    service: PipelineService = app.state.service
+    # Check if using mode system (CUDA with modes.yaml)
+    if getattr(app.state, 'use_mode_system', False):
+        pool = app.state.worker_pool
 
-    fut = service.submit(req, timeout_s=0.25)
+        # Handle mode switching if requested
+        if req.mode is not None:
+            current_mode = pool.get_current_mode()
+            if current_mode != req.mode:
+                # Queue mode switch
+                try:
+                    switch_fut = pool.switch_mode(req.mode)
+                    # Wait for mode switch to complete
+                    switch_fut.result(timeout=30.0)
+                    logger.info(f"[/generate] Switched to mode: {req.mode}")
+                except KeyError:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Mode '{req.mode}' not found in modes.yaml"
+                    )
+                except Exception as e:
+                    logger.error(f"[/generate] Mode switch failed: {e}", exc_info=True)
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Mode switch failed: {e}"
+                    )
+
+        # Apply mode defaults if not specified in request
+        current_mode = pool.get_current_mode()
+        if current_mode:
+            mode_config = get_mode_config()
+            mode = mode_config.get_mode(current_mode)
+
+            # Apply defaults from mode if not provided
+            if req.size == os.environ.get("DEFAULT_SIZE", "512x512"):
+                req.size = mode.default_size
+            if req.num_inference_steps == int(os.environ.get("DEFAULT_STEPS", "4")):
+                req.num_inference_steps = mode.default_steps
+            if req.guidance_scale == float(os.environ.get("DEFAULT_GUIDANCE", "1.0")):
+                req.guidance_scale = mode.default_guidance
+
+        # Submit generation job
+        job = GenerationJob(req=req)
+        try:
+            fut = pool.submit_job(job)
+        except queue.Full:
+            raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
+
+        mode_used = current_mode
+    else:
+        # Legacy PipelineService
+        service: PipelineService = app.state.service
+        fut = service.submit(req, timeout_s=0.25)
+        mode_used = None
+
+    # Wait for generation result
     try:
         png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
     except Exception as e:
@@ -704,6 +842,10 @@ def generate(req: GenerateRequest):
         "X-Seed": str(seed),
         "X-SuperRes": "1" if did_superres else "0",
     }
+
+    # Add mode header if using mode system
+    if mode_used:
+        headers["X-Mode"] = mode_used
 
     if image_key:
         headers["X-LCM-Image-Key"] = image_key
@@ -932,6 +1074,10 @@ async def startup_yume():
 
 # OpenAI compatible endpoint
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
+
+# Model management API
+app.include_router(model_router)
+logger.info("Model management API mounted at /api")
 
 if YUME_ENABLED:
     app.include_router(dream_router)
