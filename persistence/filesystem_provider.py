@@ -26,7 +26,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from storage_provider import StorageProvider, StorageItem, STORAGE_TTL_IMAGE
+from persistence.storage_provider import StorageProvider, StorageItem, STORAGE_TTL_IMAGE
 
 
 class FilesystemStorageProvider(StorageProvider):

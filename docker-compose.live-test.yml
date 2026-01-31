@@ -23,15 +23,20 @@ services:
       - "4200:4200"
     volumes:
       # Mount Python source for hot-reload
-      - ./lcm_sr_server.py:/app/lcm_sr_server.py:ro
-      - ./lcm_server.py:/app/lcm_server.py:ro
-      - ./rknnlcm.py:/app/rknnlcm.py:ro
-      - ./redis_provider.py:/app/redis_provider.py:ro
-      - ./storage_provider.py:/app/storage_provider.py:ro
-      - ./request_logger.py:/app/request_logger.py:ro
-      - ./compat_endpoints.py:/app/compat_endpoints.py:ro
-      - ./backends:/app/backends:ro
-      - ./yume:/app/yume:ro
+      - ./server:/app/server:ro,Z          
+      - ./backends:/app/backends:ro,Z
+      - ./utils:/app/utils:ro,Z
+      - ./persistence:/app/persistence:ro,Z      
+      - ./tests:/app/tests:ro,Z
+      - ./invokers:/app/invokers:ro,Z
+      - ./yume:/app/yume:ro,Z
+      - ${MODEL_ROOT}:/models:rw,Z
+      - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
+      - ${FS_HOST_PATH:-./store}:/store:rw,Z
+      - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
+      - ${YUME_CLIP_HOST_PATH:-./}:/clip:ro,Z
+      - ./test-modes.yaml:/app/modes.yaml:ro,Z
+
       # Mount pre-built UI dist (run yarn build first, or use ui-dev profile)
       - ./lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist:ro
       # Mount models directory

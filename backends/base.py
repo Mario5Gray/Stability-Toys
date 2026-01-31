@@ -37,7 +37,6 @@ class PipelineWorker(Protocol):
         Return (png_bytes, seed_used, latents_bytes) where latents_bytes is a raw tensor
         of shape [1,4,8,8] (NCHW) serialized as little-endian float16 bytes.
         """
-
 @dataclass(frozen=True)
 class ModelPaths:
     root: str

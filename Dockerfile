@@ -1,5 +1,6 @@
 ARG TARGETPLATFORM
 ARG BACKEND
+ARG CERTFILE
 
 # CERTS
 FROM harbor:443/certificate-base:latest AS certs
@@ -33,13 +34,13 @@ WORKDIR /app
 COPY librknnrt.so /tmp/librknnrt.so
 RUN if [ "$BACKEND" = "rknn" ]; then \
    apt-get update && apt-get install -y --no-install-recommends \    
-    ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg vim curl\
+    ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
     #&& rm -rf /var/lib/apt/lists/* ; \
   ;fi && cp /tmp/librknnrt.so /usr/lib/librknnrt.so
 
 RUN if [ "$BACKEND" = "cuda" ]; then \
     apt-get update && apt-get install -y \
-     ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg vim curl\
+     ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
      && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
      && dpkg -i cuda-keyring_1.1-1_all.deb \
      && apt-get update && apt-get install -y \
@@ -52,12 +53,12 @@ RUN if [ "$BACKEND" = "cuda" ]; then \
      fi
 
 # Install certs
-COPY --from=certs /usr/local/share/ca-certificates/ChatRoot-rootCA.crt /usr/local/share/ca-certificates/chatroot.crt
+COPY certs/cert.crt /usr/local/share/ca-certificates/cert.crt
 
 # update-ca-certificates & verify contact
 RUN update-ca-certificates && \
     openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
-        /usr/local/share/ca-certificates/chatroot.crt
+        /usr/local/share/ca-certificates/cert.crt
 
 
 # Install python deps
@@ -66,7 +67,11 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy server code
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir nvidia-ml-py; \
+    fi
+
+# Copy server code 
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/

@@ -30,7 +30,7 @@ import redis  # redis-py
 
 # Import your contract/types from your project
 # Adjust these names if your storage_provider.py differs.
-from storage_provider import StorageProvider, StorageItem
+from persistence.storage_provider import StorageProvider, StorageItem
 
 
 class RedisStorageProvider(StorageProvider):

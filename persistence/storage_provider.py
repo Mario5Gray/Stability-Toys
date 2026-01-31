@@ -53,10 +53,10 @@ class StorageProvider:
         elif provider == "DISABLED":
             return None
         elif provider == "REDIS":
-            from redis_provider import RedisStorageProvider
+            from persistence.redis_provider import RedisStorageProvider
             return RedisStorageProvider()
         elif provider in ("FILESYSTEM", "FS"):
-            from filesystem_provider import FilesystemStorageProvider
+            from persistence.filesystem_provider import FilesystemStorageProvider
             return FilesystemStorageProvider()
         else:
             raise RuntimeError(f"Unknown STORAGE_PROVIDER={provider}")

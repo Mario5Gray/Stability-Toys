@@ -1,7 +1,7 @@
 # Dockerfile.test - For running SDXL worker tests in isolation
 # Usage:
 #   docker build -f Dockerfile.test -t lcm-sd-test .
-#   docker run --rm --gpus all --privileged -v /path/to/models:/models:ro lcm-sd-test
+#   docker run --rm --gpus all --privileged -v ${MODELS_HOST_PATH}:/models:ro -v ./modes-test.yaml:/app/modes.yaml lcm-sd-test
 
 ARG BACKEND=cuda
 
@@ -54,11 +54,11 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Install test dependencies
 RUN pip install --no-cache-dir \
-    pytest>=7.0 \
+    'pytest>=7.0' \
     pytest-timeout \
     pytest-asyncio
 
-# Copy server code
+# Copy server code 
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/

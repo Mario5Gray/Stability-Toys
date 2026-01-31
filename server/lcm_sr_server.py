@@ -517,7 +517,6 @@ SR_NUM_WORKERS = int(os.environ.get("SR_NUM_WORKERS", "1"))
 SR_QUEUE_MAX = int(os.environ.get("SR_QUEUE_MAX", "32"))
 SR_REQUEST_TIMEOUT = float(os.environ.get("SR_REQUEST_TIMEOUT", "120"))
 SR_MAX_PIXELS = int(os.environ.get("SR_MAX_PIXELS", "24000000"))
-
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 
 paths = ModelPaths(root=MODEL_ROOT)
@@ -676,7 +675,7 @@ async def lifespan(app: FastAPI):
 
     if YUME_ENABLED:
         try:
-            shutdown_dream_system()
+            shutdown_dream_system(app.state)
             logger.info("Yume system shut down")
         except Exception as e:
             logger.error(f"Error shutting down Yume: {e}", exc_info=True)
@@ -726,11 +725,10 @@ def _store_image_blob(
 
 
 @app.post("/generate", responses={200: {"content": {"image/png": {}, "image/jpeg": {}}}})
-def generate(req: GenerateRequest):
+def generate(req: GenerateRequest):    
     # Check if using mode system (CUDA with modes.yaml)
     if getattr(app.state, 'use_mode_system', False):
         pool = app.state.worker_pool
-
         # Handle mode switching if requested
         if req.mode is not None:
             current_mode = pool.get_current_mode()
@@ -752,7 +750,6 @@ def generate(req: GenerateRequest):
                         status_code=500,
                         detail=f"Mode switch failed: {e}"
                     )
-
         # Apply mode defaults if not specified in request
         current_mode = pool.get_current_mode()
         if current_mode:
@@ -777,6 +774,8 @@ def generate(req: GenerateRequest):
         mode_used = current_mode
     else:
         # Legacy PipelineService
+        print("legacy pipeline service.")
+        logger.info("Legacy Pipeline Service")
         service: PipelineService = app.state.service
         fut = service.submit(req, timeout_s=0.25)
         mode_used = None
@@ -1061,15 +1060,15 @@ def health():
     return {"status": "ok"}
 
 async def startup_yume():
-    logger.info("🌙 Initializing Yume")
+    logger.info("🌙  Initializing Yume")
     success = await initialize_dream_system(
         app_state=app.state,
         service=app.state.service,
         backend=BACKEND,
-        dream_config={'top_k': 200, 'explore_temperature': 0.8}
+        dream_config={'top_k': 100, 'explore_temperature': 0.8}
     )
     if success:
-        logger.info("🌕Yume system ready!")
+        logger.info("🌙 Yume system ready!")
 
 # OpenAI compatible endpoint
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()

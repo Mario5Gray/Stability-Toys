@@ -35,7 +35,6 @@ COPY utils/ /app/utils/
 
 COPY *.py /app/
 COPY *.sh /app/
-RUN chmod +x /app/start.sh
 
 # Create UI mount point (will be mounted at runtime)
 RUN mkdir -p /opt/lcm-sr-server/ui-dist

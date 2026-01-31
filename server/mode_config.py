@@ -1,7 +1,7 @@
 """
 Mode configuration management.
 
-Loads and validates modes.yaml configuration file containing:
+Loads and validates modes.yml configuration file containing:
 - Global paths (model_root, lora_root)
 - Default mode
 - Mode definitions (model, loras, defaults)
@@ -48,7 +48,7 @@ class ModeConfig:
 
 @dataclass
 class ModesYAML:
-    """Root configuration from modes.yaml."""
+    """Root configuration from modes.yml."""
     model_root: str
     lora_root: str
     default_mode: str
@@ -57,31 +57,32 @@ class ModesYAML:
 
 class ModeConfigManager:
     """
-    Manages mode configurations from modes.yaml.
+    Manages mode configurations from modes.yml.
 
     Responsibilities:
-    - Load and validate modes.yaml
+    - Load and validate modes.yml
     - Resolve paths relative to model_root/lora_root
     - Provide access to mode definitions
     - Validate mode consistency
     """
 
-    def __init__(self, config_path: str = "modes.yaml"):
+    def __init__(self, config_path: str = "modes.yml"):
         """
         Initialize mode configuration manager.
 
         Args:
-            config_path: Path to modes.yaml (relative to project root)
+            config_path: Path to modes.yml (relative to project root)
         """
         self.config_path = Path(config_path)
+        print(self.config_path)
         self.config: Optional[ModesYAML] = None
         self._load_config()
 
     def _load_config(self):
-        """Load and validate modes.yaml."""
+        """Load and validate modes.yml."""
         if not self.config_path.exists():
             raise FileNotFoundError(
-                f"modes.yaml not found at {self.config_path}. "
+                f"modes.yml not found at {self.config_path}. "
                 f"Create this file to define model loading modes."
             )
 
@@ -92,14 +93,14 @@ class ModeConfigManager:
 
         # Validate required fields
         if not data:
-            raise ValueError("modes.yaml is empty")
+            raise ValueError("modes.yml is empty")
 
         if "model_root" not in data:
-            raise ValueError("modes.yaml missing required field: model_root")
+            raise ValueError("modes.yml missing required field: model_root")
         if "default_mode" not in data:
-            raise ValueError("modes.yaml missing required field: default_mode")
+            raise ValueError("modes.yml missing required field: default_mode")
         if "modes" not in data or not data["modes"]:
-            raise ValueError("modes.yaml missing or empty: modes")
+            raise ValueError("modes.yml missing or empty: modes")
 
         # Parse configuration
         model_root = Path(data["model_root"]).expanduser()

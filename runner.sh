@@ -18,6 +18,8 @@ docker run --rm -it \
   -p 4200:4200 \
   --privileged \
   $@ \
+  -v ./modes.yml:/app/modes.yml:ro,Z \
+  -v ./logs:/app/logs:rw,Z \
   -v ./store:/store:rw,Z \
   -v ./workflows:/workflows:ro,Z \
   -v /media/assets/AI/SDXL/models/clip/clip-vit-base-patch32:/clip:ro,Z \

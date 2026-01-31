@@ -9,9 +9,19 @@ services:
     image: yume-test:latest
     container_name: yume-test
     volumes:
-      # Mount source code for live testing during development
-      - ./yume:/app/yume
-      - ./tests:/app/tests
+      - ./server:/app/server:ro,Z          
+      - ./backends:/app/backends:ro,Z
+      - ./utils:/app/utils:ro,Z
+      - ./persistence:/app/persistence:ro,Z      
+      - ./tests:/app/tests:ro,Z
+      - ./invokers:/app/invokers:ro,Z
+      - ./yume:/app/yume:ro,Z
+      - ${MODEL_ROOT}:/models:rw,Z
+      - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
+      - ${FS_HOST_PATH:-./store}:/store:rw,Z
+      - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
+      - ${YUME_CLIP_HOST_PATH:-./}:/clip:ro,Z
+      - ./test-modes.yaml:/app/modes.yaml:ro,Z
       # Mount coverage output
       - ./htmlcov:/app/htmlcov
     command: pytest tests/ -v --cov=yume --cov-report=html --cov-report=term-missing

@@ -130,9 +130,22 @@ class ModelRegistry:
             return 0
 
         # Get actual allocated memory
-        allocated = torch.cuda.memory_allocated(self._device_index)
-        return allocated
+        used_vram = torch.cuda.device_memory_used(self._device_index)
+        return used_vram
+    
+    def get_allocated_vram(self) -> int:
+        '''
+        Get currently allocated VRAM by this app
 
+        uses torch.cuda.memory_allocated                
+        '''
+        if not torch.cuda.is_available():
+            return 0
+
+        # Get actual allocated memory
+        used_vram = torch.cuda.memory_allocated(self._device_index)
+        return used_vram
+        
     def get_total_vram(self) -> int:
         """Get total GPU VRAM in bytes."""
         return self._total_vram
@@ -159,7 +172,7 @@ class ModelRegistry:
             return False
 
         available = self.get_available_vram()
-        can_load = estimated_bytes <= available
+        can_load = estimated_bytes < available + (available*.05)
 
         logger.debug(
             f"[ModelRegistry] VRAM check: need {estimated_bytes / 1024**3:.2f} GB, "
@@ -210,23 +223,28 @@ class ModelRegistry:
         used = self.get_used_vram()
         total = self.get_total_vram()
         available = self.get_available_vram()
+        allocated = self.get_allocated_vram()
 
         # Get breakdown by loaded models
         models_breakdown = []
+
+        to_gb = lambda x: x / (1024**3)
+
         with self._lock:
             for name, model in self._loaded.items():
                 models_breakdown.append({
                     "name": name,
                     "model_path": model.model_path,
-                    "vram_gb": round(model.vram_bytes / 1024**3, 2),
+                    "vram_gb": to_gb(model.vram_bytes),
                     "loras": model.loras,
                 })
 
         return {
             "device": self._device_name,
-            "total_gb": round(total / 1024**3, 2),
-            "used_gb": round(used / 1024**3, 2),
-            "available_gb": round(available / 1024**3, 2),
+            "total_gb": to_gb(total),
+            "allocated_gb": to_gb(allocated),
+            "used_gb": to_gb(used),
+            "available_gb": to_gb(available),
             "usage_percent": round((used / total * 100) if total > 0 else 0, 1),
             "models_loaded": len(self._loaded),
             "models": models_breakdown,
