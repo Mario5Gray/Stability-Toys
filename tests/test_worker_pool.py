@@ -11,10 +11,13 @@ import time
 import threading
 import sys
 
-# Mock dependencies before importing
-sys.modules['torch'] = MagicMock()
-sys.modules['torch.cuda'] = MagicMock()
-sys.modules['diffusers'] = MagicMock()
+# Mock dependencies just long enough to import the module under test,
+# then restore sys.modules immediately so other test files aren't poisoned.
+_MOCKED_MODULES = ['torch', 'torch.cuda', 'diffusers']
+_saved_modules = {k: sys.modules.get(k) for k in _MOCKED_MODULES}
+
+for _mod in _MOCKED_MODULES:
+    sys.modules[_mod] = MagicMock()
 
 from backends.worker_pool import (
     WorkerPool,
@@ -24,6 +27,13 @@ from backends.worker_pool import (
     ModeSwitchJob,
     CustomJob,
 )
+
+# Restore immediately
+for _mod, _orig in _saved_modules.items():
+    if _orig is None:
+        sys.modules.pop(_mod, None)
+    else:
+        sys.modules[_mod] = _orig
 
 
 @pytest.fixture

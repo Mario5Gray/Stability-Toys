@@ -4,11 +4,22 @@ Tests both OpenAI CLIP and Hugging Face implementations.
 """
 
 import pytest
+import sys
+import types
 import torch
 import numpy as np
 from PIL import Image
 from unittest.mock import Mock, MagicMock, patch
 import io
+
+# Pre-inject a fake 'clip' module into sys.modules so that
+# patch('clip.load') / patch('clip.tokenize') never triggers
+# the real clip → torchvision → torch.hub import chain.
+if 'clip' not in sys.modules:
+    _fake_clip = types.ModuleType('clip')
+    _fake_clip.load = Mock(return_value=(Mock(), lambda x: x))
+    _fake_clip.tokenize = Mock(return_value=torch.randint(0, 1000, (1, 77)))
+    sys.modules['clip'] = _fake_clip
 
 
 @pytest.fixture

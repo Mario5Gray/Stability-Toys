@@ -9,14 +9,22 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
 
-# Mock dependencies before importing
-sys.modules['torch'] = MagicMock()
-sys.modules['torch.cuda'] = MagicMock()
-sys.modules['safetensors'] = MagicMock()
-sys.modules['safetensors.torch'] = MagicMock()
-sys.modules['diffusers'] = MagicMock()
+# Mock dependencies just long enough to import the module under test,
+# then restore sys.modules immediately so other test files aren't poisoned.
+_MOCKED_MODULES = ['torch', 'torch.cuda', 'safetensors', 'safetensors.torch', 'diffusers']
+_saved_modules = {k: sys.modules.get(k) for k in _MOCKED_MODULES}
+
+for _mod in _MOCKED_MODULES:
+    sys.modules[_mod] = MagicMock()
 
 from backends.worker_factory import detect_worker_type, create_cuda_worker
+
+# Restore immediately — the imported module keeps its internal mock references
+for _mod, _orig in _saved_modules.items():
+    if _orig is None:
+        sys.modules.pop(_mod, None)
+    else:
+        sys.modules[_mod] = _orig
 
 
 class TestDetectWorkerType:

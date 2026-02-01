@@ -42,6 +42,7 @@ class ModelRegistry:
         self._lock = Lock()
         self._device_index = 0  # Default CUDA device
 
+        print(f"Cuda available. {torch.cuda.memory_allocated()}")
         # Detect GPU
         if torch.cuda.is_available():
             device_props = torch.cuda.get_device_properties(self._device_index)
@@ -131,6 +132,7 @@ class ModelRegistry:
 
         # Get actual allocated memory
         used_vram = torch.cuda.device_memory_used(self._device_index)
+
         return used_vram
     
     def get_allocated_vram(self) -> int:
@@ -173,13 +175,13 @@ class ModelRegistry:
 
         available = self.get_available_vram()
         can_load = estimated_bytes < available + (available*.05)
-
-        logger.debug(
+        
+        print(
             f"[ModelRegistry] VRAM check: need {estimated_bytes / 1024**3:.2f} GB, "
             f"available {available / 1024**3:.2f} GB, "
             f"fits: {can_load}"
         )
-
+        
         return can_load
 
     def estimate_model_vram(self, model_path: str) -> int:

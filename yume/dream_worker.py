@@ -72,6 +72,7 @@ class DreamWorker:
             clip_scorer: Optional CLIPScorer instance (from yume.scoring)
             config: Optional config dict
         """
+        print(f"config= {config}")
         self.model = model
         self.clip_scorer = clip_scorer
         self.redis = redis_client
@@ -83,7 +84,7 @@ class DreamWorker:
         self.start_time = None
         
         # Candidate tracking
-        self.top_k = config.get('top_k', 100)
+        self.top_k = self.config.get('top_k', 100)
         self.candidates = deque(maxlen=self.top_k * 2)  # Buffer
         self.rendered_cache = {}  # seed -> image data
         
@@ -558,6 +559,8 @@ class DreamWorker:
                 'rendered': bool(int(data[b'rendered'])),
                 'image_data': data[b'image_data'].decode() if data[b'rendered'] else None,
             })
+
+        return results
 
 # Global dream worker instance (for easy access across the app)
 _global_dream_worker = None

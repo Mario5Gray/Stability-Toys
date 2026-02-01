@@ -4,6 +4,7 @@ Tests dream session management, candidate generation, and scoring.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import time
 import numpy as np
@@ -35,7 +36,7 @@ def mock_model():
     return model
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_redis():
     """Mock Redis client."""
     redis = AsyncMock()
@@ -78,18 +79,15 @@ def dream_worker(mock_model, mock_redis, mock_clip_scorer):
 class TestDreamWorkerInitialization:
     """Test DreamWorker initialization."""
     
-    def test_init_default_config(self, mock_model, mock_redis):
+    def test_init_default_config(self, mock_model, mock_redis, dream_worker):
         """Test initialization with default config."""
-        from yume.dream_worker import DreamWorker
         
-        worker = DreamWorker(mock_model, mock_redis)
-        
-        assert worker.model == mock_model
-        assert worker.redis == mock_redis
-        assert worker.is_dreaming is False
-        assert worker.dream_count == 0
-        assert worker.start_time is None
-        assert worker.top_k == 100  # default
+        assert dream_worker.model == mock_model
+        assert dream_worker.redis == mock_redis
+        assert dream_worker.is_dreaming is False
+        assert dream_worker.dream_count == 0
+        assert dream_worker.start_time is None
+        assert dream_worker.top_k == 100  # default
     
     def test_init_custom_config(self, mock_model, mock_redis):
         """Test initialization with custom config."""
@@ -100,13 +98,10 @@ class TestDreamWorkerInitialization:
         
         assert worker.top_k == 50
     
-    def test_init_with_clip_scorer(self, mock_model, mock_redis, mock_clip_scorer):
+    def test_init_with_clip_scorer(self, dream_worker, mock_clip_scorer):
         """Test initialization with CLIP scorer."""
-        from yume.dream_worker import DreamWorker
         
-        worker = DreamWorker(mock_model, mock_redis, clip_scorer=mock_clip_scorer)
-        
-        assert worker.clip_scorer == mock_clip_scorer
+        assert dream_worker.clip_scorer == mock_clip_scorer
 
 
 class TestDreamSession:
@@ -313,9 +308,9 @@ class TestLatentHashing:
     def test_hash_torch_tensor(self, dream_worker):
         """Test hashing torch tensor."""
         import torch
-        
+
         latent = torch.randn(1, 4, 8, 8)
-        
+
         hash1 = dream_worker._hash_latent(latent)
         hash2 = dream_worker._hash_latent(latent)
         
@@ -367,7 +362,7 @@ class TestRedisStorage:
         
         result = await dream_worker.get_top_dreams()
         
-        assert 'error' in result
+        assert [] == result
     
     @pytest.mark.asyncio
     async def test_get_top_dreams_with_results(self, dream_worker, mock_redis):

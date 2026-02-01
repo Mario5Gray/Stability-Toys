@@ -8,6 +8,9 @@ services:
       dockerfile: Dockerfile.test
     image: yume-test:latest
     container_name: yume-test
+    env_file:
+      - env.dev  # Load all
+      - env.cuda 
     volumes:
       - ./server:/app/server:ro,Z          
       - ./backends:/app/backends:ro,Z
@@ -16,8 +19,7 @@ services:
       - ./tests:/app/tests:ro,Z
       - ./invokers:/app/invokers:ro,Z
       - ./yume:/app/yume:ro,Z
-      - ${MODEL_ROOT}:/models:rw,Z
-      - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
+      - ${MODELS_HOST_PATH:-./model}:/models:ro,Z
       - ${FS_HOST_PATH:-./store}:/store:rw,Z
       - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
       - ${YUME_CLIP_HOST_PATH:-./}:/clip:ro,Z
@@ -29,9 +31,14 @@ services:
   # Run specific test suites
   test-unit:
     extends: test
-    container_name: yume-test-unit
-    command: pytest tests/ -v -m unit
-    
+    container_name: yume-test-not-ws
+    command: pytest tests/ -v  -m "not ws"
+
+  test-ws:
+    extends: test
+    container_name: yume-test-ws
+    command: pytest tests/ -m ws -v
+        
   test-integration:
     extends: test
     container_name: yume-test-integration

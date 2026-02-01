@@ -3,6 +3,7 @@ Shared pytest fixtures and configuration for Yume tests.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import numpy as np
 from PIL import Image
@@ -65,7 +66,7 @@ def random_latent_numpy():
     return np.random.randn(1, 4, 8, 8).astype(np.float32)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_redis_client():
     """Create a mock Redis async client."""
     redis = AsyncMock()
@@ -251,6 +252,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "unit: mark test as unit test")
     config.addinivalue_line("markers", "requires_gpu: mark test as requiring GPU")
     config.addinivalue_line("markers", "requires_redis: mark test as requiring Redis")
+    config.addinivalue_line("markers", "ws: mark test as WebSocket test")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -269,6 +271,12 @@ def pytest_collection_modifyitems(config, items):
         if "slow" in item.name.lower() or "stress" in item.name.lower():
             item.add_marker(pytest.mark.slow)
 
+        # Mark WebSocket tests by module filename
+        mod = getattr(item, "module", None)
+        modfile = getattr(mod, "__file__", "") or ""
+        basename = os.path.basename(modfile)
+        if basename.startswith("test_ws_") or basename == "test_jobs_callback.py":
+            item.add_marker(pytest.mark.ws)
 
 # Custom assertions
 def assert_valid_score(score):

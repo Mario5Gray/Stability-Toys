@@ -4,6 +4,7 @@ Tests end-to-end workflows and component interactions.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import time
 import numpy as np
@@ -13,7 +14,7 @@ import redis.asyncio as aioredis
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def redis_client():
     """Create real or mock Redis client."""
     # For testing, use mock. For real integration tests, use real Redis

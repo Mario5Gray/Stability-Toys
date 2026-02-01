@@ -7,7 +7,7 @@ All messages are JSON envelopes: {"type": "domain:action", ...}
 
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Dict
 
 from fastapi import WebSocket
 

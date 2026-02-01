@@ -12,15 +12,14 @@ import os
 import time
 import uuid
 import queue
-import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from server.ws_hub import hub
 from server.upload_routes import resolve_file_ref
 from invokers.jobs import (
-    jobs_put, jobs_get, jobs_update_path, set_on_update,
+    jobs_put, jobs_get, set_on_update,
 )
 
 logger = logging.getLogger(__name__)
@@ -313,7 +312,7 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
 async def _run_comfy(ws: WebSocket, client_id: str, job_id: str, msg: dict) -> None:
     """Run a comfy job, reusing _run_job from comfy_routes."""
     try:
-        from server.comfy_routes import _run_job, store as workflow_store, inv as comfy_inv
+        from server.comfy_routes import _run_job, inv as comfy_inv
 
         params = msg.get("params", {})
         workflow_id = msg.get("workflowId")

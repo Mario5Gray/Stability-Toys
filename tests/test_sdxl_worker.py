@@ -26,10 +26,20 @@ from dataclasses import dataclass
 from concurrent.futures import Future
 from typing import Optional
 
-# Skip all tests if CUDA is not available
+# Skip all tests if CUDA is not functional
+def _cuda_functional():
+    """Check if CUDA is actually usable (not just detected)."""
+    if not torch.cuda.is_available():
+        return False
+    try:
+        torch.tensor([0.0], device="cuda")
+        return True
+    except Exception:
+        return False
+
 pytestmark = pytest.mark.skipif(
-    not torch.cuda.is_available(),
-    reason="CUDA not available - SDXL worker requires GPU"
+    not _cuda_functional(),
+    reason="CUDA not functional - SDXL worker requires working GPU"
 )
 
 
