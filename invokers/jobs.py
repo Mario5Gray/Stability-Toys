@@ -1,12 +1,36 @@
 import copy
+import time
 import threading
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Callable, Dict, Optional, List, Tuple
 
 STALE_S = 60          # no heartbeat for 60s => stale
 HARD_S  = 15 * 60     # 15 min hard cap
 
 JOBS_LOCK = threading.RLock()
 JOBS: Dict[str, Dict[str, Any]] = {}
+
+# Optional callback for WS push notifications on job updates
+_on_update: Optional[Callable[[str, dict], None]] = None
+
+
+def set_on_update(cb: Optional[Callable[[str, dict], None]]) -> None:
+    """Register a callback invoked after every job mutation. Called with (job_id, snapshot)."""
+    global _on_update
+    _on_update = cb
+
+
+def _fire_update(job_id: str) -> None:
+    """Fire the update callback with a snapshot of the job, if registered."""
+    cb = _on_update
+    if cb is None:
+        return
+    j = JOBS.get(job_id)
+    if j is None:
+        return
+    try:
+        cb(job_id, copy.deepcopy(j))
+    except Exception:
+        pass  # never let callback errors break job logic
 
 def jobs_get(job_id: str) -> Optional[Dict[str, Any]]:
     with JOBS_LOCK:
@@ -25,6 +49,7 @@ def jobs_update(job_id: str, patch: Dict[str, Any]) -> None:
         if j is None:
             return
         j.update(patch)
+        _fire_update(job_id)
 
 def jobs_items_snapshot() -> List[Tuple[str, Dict[str, Any]]]:
     """
@@ -67,6 +92,7 @@ def jobs_update_path(job_id: str, path: str, value: Any) -> None:
                 cur[k] = nxt
             cur = nxt
         cur[keys[-1]] = value
+        _fire_update(job_id)
 
 def jobs_append_unique(job_id: str, path: str, item: Any) -> None:
     """

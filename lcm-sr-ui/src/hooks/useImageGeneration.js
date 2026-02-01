@@ -15,6 +15,7 @@ import {
   MESSAGE_ROLES,
   ABORT_ERROR_NAME,
 } from '../utils/constants';
+import { jobQueue, PRIORITY } from '../lib/jobQueue';
 
 /**
  * Dream mode modifiers - stochastic variations for exploration.
@@ -146,9 +147,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
   /**
    * Generate an image with the specified parameters.
+   * Enqueues onto the job queue instead of calling API directly.
    */
   const runGenerate = useCallback(
-    async (params) => {
+    (params) => {
       const {
         prompt: promptParam,
         size: sizeParam,
@@ -158,14 +160,15 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         seedMode: seedModeParam,
         seed: seedParam,
         targetMessageId,
-        skipAutoSelect = false, // Don't auto-select after generation (used by dream mode)
+        skipAutoSelect = false,
+        isDream = false,
       } = params;
 
       // Validate prompt
       const p = safeJsonString(promptParam).trim();
       if (!p) return;
 
-      // Resolve parameters with clamping
+      // Resolve parameters with clamping (snapshot eagerly)
       const useSize = sizeParam;
       const useSteps = clampInt(Number(stepsParam), STEPS_CONFIG.MIN, STEPS_CONFIG.MAX);
       const useCfg = Math.max(0, Math.min(CFG_CONFIG.ABSOLUTE_MAX, Number(cfgParam) || 0));
@@ -188,19 +191,16 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       const assistantId = targetMessageId ?? nowId();
 
       if (targetMessageId) {
-        // In-place regeneration - keep the image visible with regenerating flag
-        // Don't set text - use overlay indicator instead to avoid layout shift
         updateMessage(targetMessageId, {
           isRegenerating: true,
           text: null,
         });
       } else {
-        // New generation - add pending message only (no user text bubble)
         const pendingMsg = {
           id: assistantId,
           role: MESSAGE_ROLES.ASSISTANT,
           kind: MESSAGE_KINDS.PENDING,
-          text: null, // No text - just show placeholder
+          text: null,
           meta: {
             request: {
               apiBase: '(pending)',
@@ -215,75 +215,123 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           },
           ts: Date.now(),
         };
-
         addMessage(pendingMsg);
       }
 
-      try {
-        const result = await api.generate(
-          {
-            prompt: p,
-            size: useSize,
-            steps: useSteps,
-            cfg: useCfg,
-            seed: reqSeed,
-            superres: superresOn,
-            superresLevel: useSrLevel,
-          },
-          assistantId
-        );
+      const apiRef = api;
 
-        // Update message with result (no text - just the image)
-        // Clear any previous error state
-        updateMessage(assistantId, {
-          kind: MESSAGE_KINDS.IMAGE,
-          isRegenerating: false,
-          hasError: false,
-          errorText: null,
-          text: null,
-          imageUrl: result.imageUrl,
-          serverImageUrl: result.serverImageUrl || null,
-          serverImageKey: result.serverImageKey || null,
-          params: {
-            prompt: p,
-            size: useSize,
-            steps: useSteps,
-            cfg: useCfg,
-            seedMode: SEED_MODES.FIXED,
-            seed: result.metadata.seed,
-            superresLevel: useSrLevel,
-          },
-          meta: {
-            backend: result.metadata.backend,
-            apiBase: result.metadata.apiBase,
-            superres: result.metadata.superres,
-            srScale: result.metadata.srScale,
-          },
-        });
+      const jobId = jobQueue.enqueue({
+        priority: isDream ? PRIORITY.BACKGROUND : PRIORITY.NORMAL,
+        source: isDream ? 'dream' : 'generate',
+        payload: {
+          prompt: p,
+          size: useSize,
+          steps: useSteps,
+          cfg: useCfg,
+          seed: reqSeed,
+          superres: superresOn,
+          superresLevel: useSrLevel,
+          assistantId,
+          targetMessageId,
+          skipAutoSelect,
+        },
+        meta: {},
+        runner: async (payload, signal) => {
+          const result = await apiRef.generate(
+            {
+              prompt: payload.prompt,
+              size: payload.size,
+              steps: payload.steps,
+              cfg: payload.cfg,
+              seed: payload.seed,
+              superres: payload.superres,
+              superresLevel: payload.superresLevel,
+            },
+            payload.assistantId
+          );
 
-        // Auto-select the new image (unless suppressed, e.g., during dream mode)
-        if (!skipAutoSelect) {
-          setSelectedMsgId(assistantId);
-        }
+          // Update message with result
+          updateMessage(payload.assistantId, {
+            kind: MESSAGE_KINDS.IMAGE,
+            isRegenerating: false,
+            hasError: false,
+            errorText: null,
+            text: null,
+            imageUrl: result.imageUrl,
+            serverImageUrl: result.serverImageUrl || null,
+            serverImageKey: result.serverImageKey || null,
+            params: {
+              prompt: payload.prompt,
+              size: payload.size,
+              steps: payload.steps,
+              cfg: payload.cfg,
+              seedMode: SEED_MODES.FIXED,
+              seed: result.metadata.seed,
+              superresLevel: payload.superresLevel,
+            },
+            meta: {
+              backend: result.metadata.backend,
+              apiBase: result.metadata.apiBase,
+              superres: result.metadata.superres,
+              srScale: result.metadata.srScale,
+            },
+          });
 
-        return assistantId; // Return message ID for dream mode
-      } catch (err) {
+          if (!payload.skipAutoSelect) {
+            setSelectedMsgId(payload.assistantId);
+          }
+
+          return {
+            imageKey: result.serverImageKey || null,
+            cacheKey: null,
+            dimensions: payload.size,
+          };
+        },
+      });
+
+      // Listen for error on this specific job
+      const onError = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+        const err = e.detail.error;
         const errMsg =
           err?.name === ABORT_ERROR_NAME
             ? UI_MESSAGES.CANCELED
             : err?.message || String(err);
-        // Preserve image frame if it exists (in-place regen failure)
-        // Set hasError flag for red glow indicator instead of destroying image
         updateMessage(assistantId, {
           kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
           isRegenerating: false,
           hasError: true,
           errorText: errMsg,
-          // Don't set text - error shows via border glow
           text: targetMessageId ? null : errMsg,
         });
-        return null;
-      }
+      };
+      const onCancel = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+        updateMessage(assistantId, {
+          kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
+          isRegenerating: false,
+          hasError: true,
+          errorText: UI_MESSAGES.CANCELED,
+          text: targetMessageId ? null : UI_MESSAGES.CANCELED,
+        });
+      };
+      jobQueue.addEventListener('error', onError);
+      jobQueue.addEventListener('cancel', onCancel);
+
+      // Clean up listeners on complete too
+      const onComplete = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+        jobQueue.removeEventListener('complete', onComplete);
+      };
+      jobQueue.addEventListener('complete', onComplete);
+
+      return assistantId;
     },
     [api, addMessage, updateMessage, setSelectedMsgId]
   );

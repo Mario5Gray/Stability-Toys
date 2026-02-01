@@ -41,7 +41,7 @@ function parseSize(sizeStr) {
  * Placeholder component for pending image generations.
  * Maintains aspect ratio matching expected output size.
  */
-function ImagePlaceholder({ size, onCancel }) {
+function ImagePlaceholder({ size, onCancel, queuePosition }) {
   const { width, height } = parseSize(size);
 
   // Scale down to fit within max dimensions while preserving aspect ratio
@@ -59,7 +59,9 @@ function ImagePlaceholder({ size, onCancel }) {
       >
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
           <Loader2 className="h-8 w-8 animate-spin opacity-50" />
-          <span className="text-xs opacity-70">Generating…</span>
+          <span className="text-xs opacity-70">
+            {queuePosition > 0 ? `Queued (#${queuePosition})` : 'Generating…'}
+          </span>
         </div>
         {onCancel ? (
           <button

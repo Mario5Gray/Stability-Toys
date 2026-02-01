@@ -40,6 +40,7 @@ Env:
   SR_MAX_PIXELS=24000000
 """
 
+import asyncio
 import io
 import os
 import json
@@ -64,6 +65,9 @@ from PIL import Image
 
 from server.comfy_routes import router as comfy_router
 from yume.dream_endpoints import dream_router
+from server.ws_routes import ws_router, register_job_hook, _build_status
+from server.ws_hub import hub
+from server.upload_routes import upload_router, cleanup_uploads_loop
 
 # lcm_sr_server.py (add near imports)
 from server.compat_endpoints import CompatEndpoints
@@ -635,8 +639,18 @@ async def lifespan(app: FastAPI):
             logger.error(f"Failed to initialize Yume: {e}", exc_info=True)
             raise
 
+    # Wire up WS job update hook and start background tasks
+    register_job_hook()
+    upload_cleanup_task = asyncio.create_task(cleanup_uploads_loop())
+    status_broadcast_task = asyncio.create_task(_status_broadcaster(app))
+    logger.info("WebSocket hub, upload cleanup, and status broadcaster started")
+
     logger.info("Server startup complete")
     yield
+
+    # Cancel background tasks
+    upload_cleanup_task.cancel()
+    status_broadcast_task.cancel()
 
     # shutdown
     logger.info("Starting server shutdown...")
@@ -679,6 +693,18 @@ async def lifespan(app: FastAPI):
             logger.info("Yume system shut down")
         except Exception as e:
             logger.error(f"Error shutting down Yume: {e}", exc_info=True)
+
+async def _status_broadcaster(app: FastAPI):
+    """Broadcast system:status to all WS clients every 5 seconds."""
+    while True:
+        await asyncio.sleep(5)
+        try:
+            if hub.client_count > 0:
+                msg = _build_status(app.state)
+                await hub.broadcast(msg)
+        except Exception:
+            pass
+
 
 app = FastAPI(lifespan=lifespan, title="LCM_Stable_Diffusion and Super_Resolution Service")
 
@@ -1084,6 +1110,11 @@ if YUME_ENABLED:
 if COMFYUI_ENABLED:
     app.include_router(comfy_router)
 
+# WebSocket + upload routes
+app.include_router(ws_router)
+app.include_router(upload_router)
+logger.info("WebSocket endpoint mounted at /v1/ws, upload at /v1/upload")
+
 # UI static mount (serves Vite dist)
 app.mount(
     "/",
@@ -1093,13 +1124,7 @@ app.mount(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "enigma:5173",
-    "http://mindgate:5173",
-    "http://enigma:5173",
-    "https://node2.lan:4205",
-    "https://node2:4201",
-    "https://node2:4205"],
+    allow_origins=["*"],    # CHANGE ME!!!
     allow_methods=["*"],
     allow_headers=["*"],
 )

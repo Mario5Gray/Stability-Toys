@@ -11,6 +11,8 @@ import { createComfyInvokerApi } from "@/lib/comfyInvokerApi";
 import { useComfyJob } from "@/hooks/useComfyJob";
 import { urlToFile } from "@/utils/imageToFile";
 import { NumberStepper, NumberStepperDebounced } from "@/components/ui/NumberStepper";
+import { jobQueue, PRIORITY } from "@/lib/jobQueue";
+import { createComfyRunner } from "@/lib/comfyRunner";
 
 export function ComfyOptions({
   inputImage,
@@ -24,6 +26,7 @@ export function ComfyOptions({
   onError,
   onOutputs,
   onComfyStart,
+  queueState,
 }) {
   // API + job hook
   const api = useMemo(() => createComfyInvokerApi(apiBase), [apiBase]);
@@ -49,19 +52,19 @@ export function ComfyOptions({
     comfy.state === "done" ||
     !!comfy.jobId;
 
+  // Memoize the comfy runner
+  const runner = useMemo(() => createComfyRunner(api), [api]);
+
   // --- Run action ---
   const run = useCallback(async () => {
     let inputImageFile = null;
 
-    // Prefer file already prepared by sync() effect (avoids refetching URL)
     if (inputImage?.kind === "file") {
       inputImageFile = inputImage.file;
     } else if (inputImage?.kind === "url") {
-      // If sync() already converted the URL to a File, use it
       if (file) {
         inputImageFile = file;
       } else {
-        // Fallback: fetch and build File (only when file isn't ready yet)
         const res = await fetch(inputImage.url);
         const blob = await res.blob();
         inputImageFile = new File([blob], inputImage.filename || "input.png", {
@@ -69,23 +72,41 @@ export function ComfyOptions({
         });
       }
     } else {
-      // Manual upload fallback
       inputImageFile = file;
     }
 
-    // If no image, the backend will error; surface cleanly client-side too
     if (!inputImageFile) {
       const err = new Error("No input image selected.");
       onError?.(err);
       throw err;
     }
-    onComfyStart?.();
-    return comfy.start({
+
+    // Snapshot params eagerly
+    const snapshotPayload = {
       workflowId,
       params: { cfg, steps, denoise },
       inputImageFile,
+    };
+
+    // Create pending message
+    const msgId = onComfyStart?.();
+
+    // Enqueue via job queue
+    const jobId = jobQueue.enqueue({
+      priority: PRIORITY.NORMAL,
+      source: 'comfy',
+      payload: snapshotPayload,
+      meta: {},
+      runner: async (payload, signal) => {
+        // Use comfy.start for the existing polling/state machine
+        const result = await comfy.start(payload);
+        return result;
+      },
     });
-  }, [onStart, onError, inputImage, file]);
+
+    // Also start via useComfyJob for progress display
+    comfy.start(snapshotPayload);
+  }, [onStart, onError, inputImage, file, workflowId, cfg, steps, denoise, api, comfy, onComfyStart, runner]);
 
   // Debug mount/unmount (kept, harmless)
   useEffect(() => {
@@ -240,7 +261,6 @@ export function ComfyOptions({
       <div style={{ display: "flex", gap: 8 }}>
         <Button
           onClick={run}
-          disabled={comfy.isBusy}
           className="
             relative overflow-hidden
             border border-purple-400/40
@@ -254,6 +274,11 @@ export function ComfyOptions({
         >
           <Sparkles className="mr-2 h-4 w-4" />
           Run
+          {queueState?.depth > 0 && (
+            <span className="ml-2 inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-white/25 text-[11px] font-semibold px-1.5">
+              {queueState.depth}
+            </span>
+          )}
         </Button>
 
         <Button
