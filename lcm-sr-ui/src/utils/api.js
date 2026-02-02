@@ -502,13 +502,15 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
   let cacheMisses = 0;
 
   return {
+    
     /**
      * Generate an image with automatic API base selection, tracking, and caching.
      */
     async generate(params, requestId = null) {
       // Generate cache key from deterministic params
       const cacheKey = generateCacheKey(params);
-
+      
+      
       // Check cache first
       if (cache) {
         const cached = await cache.get(cacheKey);
@@ -561,8 +563,10 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
 
         // Store in cache (async, don't block)
         if (cache) {
+          console.log("[app] cache found, " + result.serverImageUrl);
           if (result.serverImageUrl) {
             // Server-side caching: store URL reference with metadata
+            console.log("Storing into cache");
             cache.set(cacheKey, new Blob([]), {
               ...result.metadata,
               serverImageUrl: result.serverImageUrl,
@@ -583,6 +587,7 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
 
         return { ...result, fromCache: false };
       } finally {
+        console.log("Out of that storage facility.");
         if (requestId) {
           abortManager.remove(requestId);
         }

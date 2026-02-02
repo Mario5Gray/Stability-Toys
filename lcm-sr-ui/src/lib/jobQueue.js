@@ -147,9 +147,13 @@ class JobQueue extends EventTarget {
     this._invalidate();
     this._emit('start', { job });
 
-    try { console.log("Sending JOB " + job.id);
+    try { 
+      const f0 = performance.now();
+      console.log("Sending JOB " + job.id);  
       const result = await job.runner(job.payload, controller.signal)
-      
+      const f1 = performance.now();
+      console.log("await job runner time ", (f1 - f0).toFixed(1), "ms");
+
       this._running.delete(job.id);
       this._invalidate();
       this._emit('complete', { job, result });

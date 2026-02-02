@@ -3,95 +3,48 @@
 /**
  * Cache abstraction layer - storage agnostic interface.
  * Implementations can use IndexedDB, memory, localStorage, etc.
+ *
+ * Added:
+ *  - Optional EventTarget-based eventing (non-breaking)
+ *  - emit("hydrated") etc. for background hydration workflows
  */
 
 /* ============================================================================
  * CACHE KEY GENERATION
  * ========================================================================== */
 
-/**
- * Generate a deterministic cache key from generation parameters.
- * Same params always produce the same key.
- *
- * @param {object} params - Generation parameters
- * @returns {string} Cache key
- */
 export function generateCacheKey(params) {
-  const {
-    prompt,
-    size,
-    steps,
-    cfg,
-    seed,
-    superresLevel = 0,
-  } = params;
+  const { prompt, size, steps, cfg, seed, superresLevel = 0 } = params;
 
-  // Normalize and sort for consistency
   const normalized = {
-    p: String(prompt || '').trim().toLowerCase(),
-    sz: String(size || '512x512'),
+    p: String(prompt || "").trim().toLowerCase(),
+    sz: String(size || "512x512"),
     st: Number(steps) || 0,
     cfg: Number(cfg) || 0,
     sd: Number(seed) || 0,
     sr: Number(superresLevel) || 0,
   };
 
-  // Simple deterministic hash
   const str = JSON.stringify(normalized);
   return hashString(str);
 }
 
-/**
- * Simple string hash (djb2 algorithm).
- * @param {string} str
- * @returns {string} Hex hash
- */
 function hashString(str) {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
   }
-  // Convert to unsigned 32-bit and then to hex
-  return (hash >>> 0).toString(16).padStart(8, '0');
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
-
-/* ============================================================================
- * CACHE INTERFACE (Abstract)
- * ========================================================================== */
-
-/**
- * @typedef {object} CacheEntry
- * @property {string} key - Cache key
- * @property {Blob} blob - Image blob data
- * @property {object} metadata - Generation metadata
- * @property {number} createdAt - Timestamp
- * @property {number} accessedAt - Last access timestamp
- * @property {number} size - Blob size in bytes
- */
-
-/**
- * @typedef {object} CacheInterface
- * @property {function(string): Promise<CacheEntry|null>} get - Get entry by key
- * @property {function(string, Blob, object): Promise<void>} set - Store entry
- * @property {function(string): Promise<boolean>} has - Check if key exists
- * @property {function(string): Promise<boolean>} delete - Delete entry
- * @property {function(): Promise<void>} clear - Clear all entries
- * @property {function(): Promise<number>} size - Get total entries count
- * @property {function(): Promise<number>} totalBytes - Get total storage used
- */
 
 /* ============================================================================
  * INDEXEDDB IMPLEMENTATION
  * ========================================================================== */
 
-const DB_NAME = 'lcm-image-cache';
+const DB_NAME = "lcm-image-cache";
 const DB_VERSION = 1;
-const STORE_NAME = 'images';
+const STORE_NAME = "images";
 
-/**
- * Open IndexedDB connection.
- * @returns {Promise<IDBDatabase>}
- */
 function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -103,10 +56,10 @@ function openDatabase() {
       const db = event.target.result;
 
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' });
-        store.createIndex('createdAt', 'createdAt', { unique: false });
-        store.createIndex('accessedAt', 'accessedAt', { unique: false });
-        store.createIndex('size', 'size', { unique: false });
+        const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("accessedAt", "accessedAt", { unique: false });
+        store.createIndex("size", "size", { unique: false });
       }
     };
   });
@@ -114,33 +67,27 @@ function openDatabase() {
 
 /**
  * Create an IndexedDB-backed cache.
- *
- * @param {object} options
- * @param {number} [options.maxEntries=500] - Max entries before LRU eviction
- * @param {number} [options.maxBytes=500*1024*1024] - Max storage (500MB default)
- * @returns {CacheInterface}
  */
 export function createIndexedDBCache(options = {}) {
-  const {
-    maxEntries = 500,
-    maxBytes = 500 * 1024 * 1024, // 500MB
-  } = options;
+  const { maxEntries = 500, maxBytes = 500 * 1024 * 1024 } = options;
 
   let dbPromise = null;
 
-  /**
-   * Get database connection (lazy init).
-   */
-  const getDb = () => {
-    if (!dbPromise) {
-      dbPromise = openDatabase();
+  // --- Eventing (optional, non-breaking) ---
+  const events = new EventTarget();
+  const emit = (type, detail) => {
+    try {
+      events.dispatchEvent(new CustomEvent(type, { detail }));
+    } catch (e) {
+      // CustomEvent can fail in some test envs; ignore
     }
+  };
+
+  const getDb = () => {
+    if (!dbPromise) dbPromise = openDatabase();
     return dbPromise;
   };
 
-  /**
-   * Run a transaction and return result.
-   */
   const withStore = async (mode, callback) => {
     const db = await getDb();
     return new Promise((resolve, reject) => {
@@ -160,133 +107,160 @@ export function createIndexedDBCache(options = {}) {
     });
   };
 
-  /**
-   * Promisify IDBRequest.
-   */
-  const promisify = (request) => {
-    return new Promise((resolve, reject) => {
+  const promisify = (request) =>
+    new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
+
+  // Helper: fetch existing entry (readonly)
+  const getRaw = async (key) => {
+    const db = await getDb();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    return promisify(store.get(key));
   };
 
-  return {
-    /**
-     * Get cache entry by key.
-     * Updates accessedAt timestamp.
-     */
+  // Helper: determine if a write is a "hydration" (empty -> non-empty)
+  const isHydration = (prevEntry, nextBlob) => {
+    const prevSize = prevEntry?.blob?.size ?? 0;
+    const nextSize = nextBlob?.size ?? 0;
+    return prevSize === 0 && nextSize > 0;
+  };
+
+  // Define api object first so methods can reference it safely
+  const api = {
+    // EventTarget passthroughs
+    addEventListener: (...args) => events.addEventListener(...args),
+    removeEventListener: (...args) => events.removeEventListener(...args),
+    dispatchEvent: (...args) => events.dispatchEvent(...args),
+    emit, // convenience
+
     async get(key) {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
 
         const entry = await promisify(store.get(key));
 
         if (entry) {
-          // Update access time
           entry.accessedAt = Date.now();
           store.put(entry);
         }
 
         return entry || null;
       } catch (err) {
-        console.warn('[Cache] get failed:', err);
+        console.warn("[Cache] get failed:", err);
         return null;
       }
     },
 
     /**
      * Store blob with metadata.
+     * - Non-breaking: same signature.
+     * - New behavior: emits events.
+     * - New behavior: merges metadata with existing (shallow) when requested.
+     *
+     * Options (optional, non-breaking because 4th param is optional):
+     *   { mergeMetadata: true }
      */
-    async set(key, blob, metadata = {}) {
+    async set(key, blob, metadata = {}, opts = {}) {
+      const byteLen = blob?.size ?? null;
+      console.log("[Cache] set() attempt", { key, byteLen, metadata });
+
       try {
+        const prev = await getRaw(key);
+
+        const mergeMetadata = !!opts.mergeMetadata;
+        const nextMeta = mergeMetadata
+          ? { ...(prev?.metadata || {}), ...(metadata || {}) }
+          : (metadata || {});
+
         const entry = {
           key,
-          blob,
-          metadata,
-          createdAt: Date.now(),
+          blob: blob || new Blob([]),
+          metadata: nextMeta,
+          createdAt: prev?.createdAt ?? Date.now(),
           accessedAt: Date.now(),
-          size: blob.size,
+          size: (blob || new Blob([])).size,
         };
 
-        await withStore('readwrite', (store) => {
+        await withStore("readwrite", (store) => {
           store.put(entry);
         });
 
+        emit("set", { key, size: entry.size, metadata: entry.metadata });
+
+        if (isHydration(prev, entry.blob)) {
+          emit("hydrated", { key, size: entry.size, metadata: entry.metadata });
+        }
+
         // Trigger eviction check (async, don't await)
-        this._evictIfNeeded();
+        api._evictIfNeeded();
       } catch (err) {
-        console.warn('[Cache] set failed:', err);
+        console.warn("[Cache] set failed:", err);
       }
     },
 
     /**
-     * Check if key exists.
+     * Convenience: store metadata-only pointer without bytes.
+     * (Non-breaking add-on; you can keep doing cache.set(key, new Blob([]), meta))
      */
+    async setMetaOnly(key, metadata = {}, opts = {}) {
+      const meta = { ...(metadata || {}), __metaOnly: true };
+      return api.set(key, new Blob([]), meta, { mergeMetadata: !!opts.mergeMetadata });
+    },
+
     async has(key) {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, 'readonly');
+        const tx = db.transaction(STORE_NAME, "readonly");
         const store = tx.objectStore(STORE_NAME);
         const count = await promisify(store.count(key));
         return count > 0;
       } catch (err) {
-        console.warn('[Cache] has failed:', err);
+        console.warn("[Cache] has failed:", err);
         return false;
       }
     },
 
-    /**
-     * Delete entry by key.
-     */
     async delete(key) {
       try {
-        await withStore('readwrite', (store) => {
-          store.delete(key);
-        });
+        await withStore("readwrite", (store) => store.delete(key));
+        emit("delete", { key });
         return true;
       } catch (err) {
-        console.warn('[Cache] delete failed:', err);
+        console.warn("[Cache] delete failed:", err);
         return false;
       }
     },
 
-    /**
-     * Clear all entries.
-     */
     async clear() {
       try {
-        await withStore('readwrite', (store) => {
-          store.clear();
-        });
+        await withStore("readwrite", (store) => store.clear());
+        emit("clear", {});
       } catch (err) {
-        console.warn('[Cache] clear failed:', err);
+        console.warn("[Cache] clear failed:", err);
       }
     },
 
-    /**
-     * Get total entry count.
-     */
     async size() {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, 'readonly');
+        const tx = db.transaction(STORE_NAME, "readonly");
         const store = tx.objectStore(STORE_NAME);
         return await promisify(store.count());
       } catch (err) {
-        console.warn('[Cache] size failed:', err);
+        console.warn("[Cache] size failed:", err);
         return 0;
       }
     },
 
-    /**
-     * Get total bytes used.
-     */
     async totalBytes() {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, 'readonly');
+        const tx = db.transaction(STORE_NAME, "readonly");
         const store = tx.objectStore(STORE_NAME);
 
         let total = 0;
@@ -305,19 +279,13 @@ export function createIndexedDBCache(options = {}) {
           cursor.onerror = () => reject(cursor.error);
         });
       } catch (err) {
-        console.warn('[Cache] totalBytes failed:', err);
+        console.warn("[Cache] totalBytes failed:", err);
         return 0;
       }
     },
 
-    /**
-     * Get cache statistics.
-     */
     async stats() {
-      const [count, bytes] = await Promise.all([
-        this.size(),
-        this.totalBytes(),
-      ]);
+      const [count, bytes] = await Promise.all([api.size(), api.totalBytes()]);
       return {
         entries: count,
         bytes,
@@ -328,29 +296,20 @@ export function createIndexedDBCache(options = {}) {
       };
     },
 
-    /**
-     * Evict oldest entries if over limits.
-     * Uses LRU (least recently accessed).
-     */
     async _evictIfNeeded() {
       try {
-        const [count, bytes] = await Promise.all([
-          this.size(),
-          this.totalBytes(),
-        ]);
-
+        const [count, bytes] = await Promise.all([api.size(), api.totalBytes()]);
         const needsEviction = count > maxEntries || bytes > maxBytes;
         if (!needsEviction) return;
 
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
-        const index = store.index('accessedAt');
+        const index = store.index("accessedAt");
 
-        // Get oldest entries
         const toDelete = Math.max(
-          count - maxEntries + 10, // Evict 10 extra to avoid frequent eviction
-          Math.ceil((bytes - maxBytes) / (bytes / count)) + 5
+          count - maxEntries + 10,
+          Math.ceil((bytes - maxBytes) / (bytes / Math.max(count, 1))) + 5
         );
 
         let deleted = 0;
@@ -365,71 +324,89 @@ export function createIndexedDBCache(options = {}) {
               c.continue();
             } else {
               console.log(`[Cache] Evicted ${deleted} entries`);
+              emit("evict", { deleted });
               resolve();
             }
           };
           cursor.onerror = () => resolve();
         });
       } catch (err) {
-        console.warn('[Cache] eviction failed:', err);
+        console.warn("[Cache] eviction failed:", err);
       }
     },
 
-    /**
-     * Close database connection.
-     */
     async close() {
       if (dbPromise) {
         const db = await dbPromise;
         db.close();
         dbPromise = null;
+        emit("close", {});
       }
     },
   };
+
+  return api;
 }
 
 /* ============================================================================
  * IN-MEMORY CACHE (Fallback / Testing)
  * ========================================================================== */
 
-/**
- * Create an in-memory cache (for testing or fallback).
- * Data is lost on page refresh.
- *
- * @param {object} options
- * @param {number} [options.maxEntries=100] - Max entries
- * @returns {CacheInterface}
- */
 export function createMemoryCache(options = {}) {
   const { maxEntries = 100 } = options;
   const store = new Map();
 
-  return {
+  const events = new EventTarget();
+  const emit = (type, detail) => {
+    try {
+      events.dispatchEvent(new CustomEvent(type, { detail }));
+    } catch (e) {}
+  };
+
+  const api = {
+    addEventListener: (...args) => events.addEventListener(...args),
+    removeEventListener: (...args) => events.removeEventListener(...args),
+    dispatchEvent: (...args) => events.dispatchEvent(...args),
+    emit,
+
     async get(key) {
       const entry = store.get(key);
-      if (entry) {
-        entry.accessedAt = Date.now();
-      }
+      if (entry) entry.accessedAt = Date.now();
       return entry || null;
     },
 
-    async set(key, blob, metadata = {}) {
+    async set(key, blob, metadata = {}, opts = {}) {
+      const prev = store.get(key);
+      const mergeMetadata = !!opts.mergeMetadata;
+      const nextMeta = mergeMetadata
+        ? { ...(prev?.metadata || {}), ...(metadata || {}) }
+        : (metadata || {});
+
       const entry = {
         key,
-        blob,
-        metadata,
-        createdAt: Date.now(),
+        blob: blob || new Blob([]),
+        metadata: nextMeta,
+        createdAt: prev?.createdAt ?? Date.now(),
         accessedAt: Date.now(),
-        size: blob.size,
+        size: (blob || new Blob([])).size,
       };
-      store.set(key, entry);
 
-      // Simple LRU: delete oldest if over limit
+      const wasHydration = (prev?.blob?.size ?? 0) === 0 && entry.blob.size > 0;
+
+      store.set(key, entry);
+      emit("set", { key, size: entry.size, metadata: entry.metadata });
+      if (wasHydration) emit("hydrated", { key, size: entry.size, metadata: entry.metadata });
+
       if (store.size > maxEntries) {
-        const oldest = [...store.entries()]
-          .sort((a, b) => a[1].accessedAt - b[1].accessedAt)[0];
+        const oldest = [...store.entries()].sort((a, b) => a[1].accessedAt - b[1].accessedAt)[0];
         if (oldest) store.delete(oldest[0]);
+        emit("evict", { deleted: 1 });
       }
+    },
+
+    async setMetaOnly(key, metadata = {}, opts = {}) {
+      const meta = { ...(metadata || {}), __metaOnly: true };
+      return api.set(key, new Blob([]), meta, { mergeMetadata: !!opts.mergeMetadata });
     },
 
     async has(key) {
@@ -437,11 +414,14 @@ export function createMemoryCache(options = {}) {
     },
 
     async delete(key) {
-      return store.delete(key);
+      const ok = store.delete(key);
+      if (ok) emit("delete", { key });
+      return ok;
     },
 
     async clear() {
       store.clear();
+      emit("clear", {});
     },
 
     async size() {
@@ -450,14 +430,12 @@ export function createMemoryCache(options = {}) {
 
     async totalBytes() {
       let total = 0;
-      for (const entry of store.values()) {
-        total += entry.size || 0;
-      }
+      for (const entry of store.values()) total += entry.size || 0;
       return total;
     },
 
     async stats() {
-      const bytes = await this.totalBytes();
+      const bytes = await api.totalBytes();
       return {
         entries: store.size,
         bytes,
@@ -467,31 +445,24 @@ export function createMemoryCache(options = {}) {
     },
 
     async close() {
-      // No-op for memory cache
+      emit("close", {});
     },
   };
+
+  return api;
 }
 
 /* ============================================================================
  * CACHE FACTORY
  * ========================================================================== */
 
-/**
- * Create the appropriate cache based on environment.
- * Falls back to memory cache if IndexedDB unavailable.
- *
- * @param {object} options - Cache options
- * @returns {CacheInterface}
- */
 export function createCache(options = {}) {
-  // Check if IndexedDB is available
-  if (typeof indexedDB !== 'undefined') {
+  if (typeof indexedDB !== "undefined") {
     try {
       return createIndexedDBCache(options);
     } catch (err) {
-      console.warn('[Cache] IndexedDB unavailable, using memory cache:', err);
+      console.warn("[Cache] IndexedDB unavailable, using memory cache:", err);
     }
   }
-
   return createMemoryCache(options);
 }

@@ -51,6 +51,7 @@ import { ComfyOptions } from "./ComfyOptions";
 export function OptionsPanel({
   params,
   inputImage,
+  comfyInputImage,
   selectedParams,
   selectedMsgId,
   onClearSelection,
@@ -485,7 +486,7 @@ export function OptionsPanel({
           <Separator />
 
           <ComfyOptions   onOutputs={onComfyOutputs}
-                          inputImage={inputImage}
+                          inputImage={comfyInputImage}
                           onComfyStart={onComfyStart}
                           queueState={queueState}
           />

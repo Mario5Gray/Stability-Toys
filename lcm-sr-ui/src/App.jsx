@@ -70,6 +70,7 @@ export default function App() {
 
   // Reload cached images on startup (only for blob URLs without server URL)
   useEffect(() => {
+    console.log("Reloading cached images");
     const reloadCachedImages = async () => {
       // Only reload messages that need it AND don't have a server URL
       const needsReload = messages.filter(
@@ -82,7 +83,9 @@ export default function App() {
       if (needsReload.length === 0) return;
 
       for (const msg of needsReload) {
+        console.log("[app] fetching image from cache ")
         const imageUrl = await getImageFromCache(msg.params);
+        console.log("[app] fetched image from cache ")
         if (imageUrl) {
           updateMessage(msg.id, { imageUrl, needsReload: false });
         } else {
@@ -288,46 +291,60 @@ export default function App() {
     [onSend]
   );
 
-const inputImage = useMemo(() => {  
-  if (uploadFile) return { kind: "file", file: uploadFile, source: "upload" };
-  
-  if (selectedImage) {  
-    return selectedImage; // {kind:"url", ...}
-  }
-  
-  return null;
-}, [uploadFile, selectedImage]);
+  // would be better to have a Dispatcher that could track
+  // files to context (generate vs comfy)
+  const selectedChatImage = useMemo(() => {
+    console.log ( (selectedMsg?.serverImageUrl || "foo" )+ "," + (selectedMsg?.imageUrl || "bar" ));
+    if (!selectedMsg?.imageUrl) return null;
+    return {
+      kind: "url",
+      url: selectedMsg.imageUrl,
+      filename: `chat_${selectedMsg.id}.png`,
+      source: "chat",
+      key: selectedMsg.id,
+    };
+  }, [selectedMsg]);
 
-const defaultComposer = useMemo(() => ({
-  onSendPrompt: (promptText) => {
-    const text = String(promptText || "").trim();
-    if (!text) return;
+  const uploadImage = useMemo(() => {
+    if (!uploadFile) return null;
+    return { kind: "file", file: uploadFile, source: "upload" };
+  }, [uploadFile]);
 
-    runGenerate({
-      prompt: text,
-      size: params.effective.size,
-      steps: params.effective.steps,
-      cfg: params.effective.cfg,
-      seedMode: params.draft.seedMode,
-      seed: params.draft.seed,
-      superresLevel: params.effective.superresLevel,
-    });
-  },
-  onCancelAll: cancelAll,
-  onKeyDown,
-  onFocus: clearSelection,
-}), [
-  runGenerate,
-  params.effective.size,
-  params.effective.steps,
-  params.effective.cfg,
-  params.draft.seedMode,
-  params.draft.seed,
-  params.effective.superresLevel,
-  cancelAll,
-  onKeyDown,
-  clearSelection,
-]);
+    const generatorInputImage = useMemo(() => {
+    // generator prefers explicit upload if present, else selected chat image
+      return uploadImage ?? selectedChatImage ?? null;
+  }, [uploadImage, selectedChatImage]);
+
+  const defaultComposer = useMemo(() => ({
+    onSendPrompt: (promptText) => {
+      const text = String(promptText || "").trim();
+      if (!text) return;
+
+      runGenerate({
+        prompt: text,
+        size: params.effective.size,
+        steps: params.effective.steps,
+        cfg: params.effective.cfg,
+        seedMode: params.draft.seedMode,
+        seed: params.draft.seed,
+        superresLevel: params.effective.superresLevel,
+      });
+    },
+    onCancelAll: cancelAll,
+    onKeyDown,
+    onFocus: clearSelection,
+  }), [
+    runGenerate,
+    params.effective.size,
+    params.effective.steps,
+    params.effective.cfg,
+    params.draft.seedMode,
+    params.draft.seed,
+    params.effective.superresLevel,
+    cancelAll,
+    onKeyDown,
+    clearSelection,
+  ]);
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -382,7 +399,8 @@ const defaultComposer = useMemo(() => ({
 
           {/* Options Panel */}
           <OptionsPanel          
-            inputImage={inputImage}
+            inputImage={generatorInputImage}
+            comfyInputImage={selectedChatImage}
             params={params}
             selectedParams={selectedParams}
             selectedMsgId={selectedMsgId}

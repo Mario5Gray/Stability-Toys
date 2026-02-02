@@ -23,62 +23,35 @@ import { wsClient } from '../lib/wsClient';
  * Dream mode modifiers - stochastic variations for exploration.
  */
 const DREAM_MODIFIERS = [
-  // Lighting
-  'dramatic lighting', 'soft lighting', 'golden hour', 'rim light', 
+  'dramatic lighting', 'soft lighting', 'golden hour', 'rim light',
   'volumetric light', 'backlighting', 'studio lighting', 'natural light',
-  
-  // Atmosphere
   'misty', 'foggy', 'hazy', 'atmospheric', 'ethereal', 'moody',
-  
-  // Camera/Composition
   'wide angle', 'telephoto', 'shallow depth of field', 'bokeh',
   'cinematic composition', 'rule of thirds', 'symmetrical', 'dynamic angle',
-  
-  // Style
   'highly detailed', 'painterly', 'photorealistic', 'stylized',
   'film grain', 'vintage', 'modern', 'minimalist',
-  
-  // Color
   'warm tones', 'cool tones', 'vibrant colors', 'muted colors',
   'monochromatic', 'high contrast', 'desaturated',
-  
-  // Detail
   'intricate details', 'sharp focus', 'soft focus', 'textured',
 ];
 
-/**
- * Generate a dream variation of a prompt.
- * @param {string} basePrompt - Original prompt
- * @param {number} temperature - How wild (0-1, default 0.3)
- * @returns {string} Modified prompt with random additions
- */
 function dreamVariation(basePrompt, temperature = 0.3) {
   const base = basePrompt.trim();
-  
-  // Number of modifiers scales with temperature
   const numMods = Math.floor(Math.random() * (1 + temperature * 3)) + 1;
-  
-  // Pick random modifiers
+
   const mods = [];
   const available = [...DREAM_MODIFIERS];
   for (let i = 0; i < numMods && available.length > 0; i++) {
     const idx = Math.floor(Math.random() * available.length);
     mods.push(available.splice(idx, 1)[0]);
   }
-  
+
   return mods.length > 0 ? `${base}, ${mods.join(', ')}` : base;
 }
 
-/**
- * Generate parameter mutations for dream mode.
- * @param {object} baseParams - Base generation parameters
- * @param {number} temperature - Mutation strength (0-1)
- * @returns {object} Mutated parameters
- */
 function mutateParams(baseParams, temperature = 0.3) {
   const mutations = { ...baseParams };
-  
-  // Randomly vary steps (±20%)
+
   if (Math.random() < temperature) {
     const delta = Math.floor(baseParams.steps * 0.2 * (Math.random() - 0.5));
     mutations.steps = clampInt(
@@ -87,46 +60,61 @@ function mutateParams(baseParams, temperature = 0.3) {
       STEPS_CONFIG.MAX
     );
   }
-  
-  // Randomly vary CFG (±30%)
+
   if (Math.random() < temperature) {
     const delta = baseParams.cfg * 0.3 * (Math.random() - 0.5);
     mutations.cfg = Math.max(0, Math.min(CFG_CONFIG.MAX, baseParams.cfg + delta));
   }
-  
-  // New random seed always
+
   mutations.seed = eightDigitSeed();
   mutations.seedMode = SEED_MODES.FIXED;
-  
+
   return mutations;
 }
 
 /**
+ * Background hydration:
+ * - We store meta-only immediately (server URL + key)
+ * - Then we fetch bytes in the background, and cache.set(blob, mergeMetadata:true)
+ * - Cache emits "hydrated" and we can swap the UI to a blob URL (fast + offline-ish)
+ */
+async function hydrateCacheEntry({ cache, cacheKey, serverImageUrl, signal }) {
+  if (!cache || !cacheKey || !serverImageUrl) return;
+
+  const res = await fetch(serverImageUrl, { signal });
+  if (!res.ok) throw new Error(`hydrate fetch failed: ${res.status}`);
+  const blob = await res.blob();
+
+  // Merge metadata so we preserve serverImageUrl/serverImageKey/etc.
+  await cache.set(cacheKey, blob, {}, { mergeMetadata: true });
+
+  return { blobSize: blob.size };
+}
+
+/**
  * Hook for image generation and super-resolution operations.
- * Includes "dream mode" for stochastic exploration.
- * 
- * @param {function} addMessage - Function to add messages to chat
- * @param {function} updateMessage - Function to update a message
- * @param {function} setSelectedMsgId - Function to set selected message ID
- * @returns {object} Generation functions and state
  */
 export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) {
   // API client and cache (created once)
   const apiClientRef = useRef(null);
   const cacheRef = useRef(null);
 
+  // Track which messages correspond to which cache keys
+  const cacheKeyToMsgIdsRef = useRef(new Map()); // cacheKey -> Set(msgId)
+  const inflightHydrationsRef = useRef(new Set()); // cacheKey -> hydration in progress
+  const blobUrlByCacheKeyRef = useRef(new Map()); // cacheKey -> blobUrl (for cleanup)
+
   // Dream mode state
   const [isDreaming, setIsDreaming] = useState(false);
-  const [dreamTemperature, setDreamTemperature] = useState(0.3); // 0-1
-  const [dreamInterval, setDreamInterval] = useState(5000); // ms between dreams
-  const [guideImage, setGuideImage] = useState(null); // { url, prompt } when user clicks "Guide Dream"
+  const [dreamTemperature, setDreamTemperature] = useState(0.3);
+  const [dreamInterval, setDreamInterval] = useState(5000);
+  const [dreamMessageId, setDreamMessageId] = useState(null);
   const dreamTimerRef = useRef(null);
   const dreamParamsRef = useRef(null);
-  
+  const dreamHistoryRef = useRef([]);
+
   // Initialize cache and API client
-  if (!cacheRef.current) {
-    cacheRef.current = createCache();
-  }
+  if (!cacheRef.current) cacheRef.current = createCache();
   if (!apiClientRef.current) {
     const config = createApiConfig();
     apiClientRef.current = createApiClient(config);
@@ -136,16 +124,112 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const api = apiClientRef.current;
 
   /**
-   * Cleanup blob URLs and abort requests on unmount.
+   * Cleanup on unmount:
+   * - api.cleanup
+   * - dream interval
+   * - blob URL revokes created by us
+   * - cache event listener
    */
   useEffect(() => {
+    const onHydrated = (e) => {
+      const { key: cacheKey } = e.detail || {};
+      if (!cacheKey) return;
+
+      // Read the hydrated entry and swap message URLs to blob URL
+      (async () => {
+        try {
+          const entry = await cache.get(cacheKey);
+          if (!entry?.blob || entry.blob.size === 0) return;
+
+          // Create / reuse blob URL for this cache key
+          let blobUrl = blobUrlByCacheKeyRef.current.get(cacheKey);
+          if (!blobUrl) {
+            blobUrl = URL.createObjectURL(entry.blob);
+            blobUrlByCacheKeyRef.current.set(cacheKey, blobUrl);
+          }
+
+          // Update all messages that reference this cacheKey to use blobUrl
+          const msgIds = cacheKeyToMsgIdsRef.current.get(cacheKey);
+          if (msgIds && msgIds.size > 0) {
+            for (const msgId of msgIds) {
+              updateMessage(msgId, {
+                imageUrl: blobUrl,
+                // keep serverImageUrl/serverImageKey in message for persistence/debug
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('[Cache] hydrated handler failed:', err);
+        } finally {
+          inflightHydrationsRef.current.delete(cacheKey);
+        }
+      })();
+    };
+
+    // Attach cache event listener (if supported)
+    if (cache?.addEventListener) {
+      cache.addEventListener('hydrated', onHydrated);
+    }
+
     return () => {
       api.cleanup();
-      if (dreamTimerRef.current) {
-        clearInterval(dreamTimerRef.current);
+      if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
+
+      // Revoke any blob URLs we created
+      for (const url of blobUrlByCacheKeyRef.current.values()) {
+        try { URL.revokeObjectURL(url); } catch {}
+      }
+      blobUrlByCacheKeyRef.current.clear();
+
+      if (cache?.removeEventListener) {
+        cache.removeEventListener('hydrated', onHydrated);
       }
     };
-  }, [api]);
+  }, [api, cache, updateMessage]);
+
+  /**
+   * Schedule hydration in the background (deduped).
+   */
+  const scheduleHydration = useCallback((cacheKey, serverImageUrl) => {
+    if (!cache || !cacheKey || !serverImageUrl) return;
+    if (inflightHydrationsRef.current.has(cacheKey)) return;
+
+    inflightHydrationsRef.current.add(cacheKey);
+
+    jobQueue.enqueue({
+      priority: PRIORITY.BACKGROUND,
+      source: 'cache-hydrate',
+      payload: { cacheKey, serverImageUrl },
+      meta: {},
+      runner: async (payload, signal) => {
+        try {
+          await hydrateCacheEntry({
+            cache,
+            cacheKey: payload.cacheKey,
+            serverImageUrl: payload.serverImageUrl,
+            signal,
+          });
+        } catch (err) {
+          // Don't poison; just allow retry later
+          inflightHydrationsRef.current.delete(payload.cacheKey);
+          console.warn('[Cache] hydrate failed:', err);
+        }
+      },
+    });
+  }, [cache]);
+
+  /**
+   * Remember that msgId corresponds to cacheKey (so we can swap URL on hydrate).
+   */
+  const linkMsgToCacheKey = useCallback((msgId, cacheKey) => {
+    if (!msgId || !cacheKey) return;
+    let set = cacheKeyToMsgIdsRef.current.get(cacheKey);
+    if (!set) {
+      set = new Set();
+      cacheKeyToMsgIdsRef.current.set(cacheKey, set);
+    }
+    set.add(msgId);
+  }, []);
 
   /**
    * Generate an image with the specified parameters.
@@ -166,19 +250,13 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         isDream = false,
       } = params;
 
-      // Validate prompt
       const p = safeJsonString(promptParam).trim();
       if (!p) return;
 
-      // Resolve parameters with clamping (snapshot eagerly)
       const useSize = sizeParam;
       const useSteps = clampInt(Number(stepsParam), STEPS_CONFIG.MIN, STEPS_CONFIG.MAX);
       const useCfg = Math.max(0, Math.min(CFG_CONFIG.ABSOLUTE_MAX, Number(cfgParam) || 0));
-      const useSrLevel = clampInt(
-        Number(srLevelParam),
-        SR_CONFIG.MIN,
-        SR_CONFIG.BACKEND_MAX
-      );
+      const useSrLevel = clampInt(Number(srLevelParam), SR_CONFIG.MIN, SR_CONFIG.BACKEND_MAX);
       const useSeedMode = seedModeParam;
       const useSeedValue = seedParam;
 
@@ -188,17 +266,12 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           : clampInt(parseInt(String(useSeedValue ?? '0'), 10), 0, SEED_CONFIG.MAX);
 
       const superresOn = useSrLevel > 0;
-
-      // Determine if this is in-place regen or new generation
       const assistantId = targetMessageId ?? nowId();
 
       if (targetMessageId) {
-        updateMessage(targetMessageId, {
-          isRegenerating: true,
-          text: null,
-        });
+        updateMessage(targetMessageId, { isRegenerating: true, text: null });
       } else {
-        const pendingMsg = {
+        addMessage({
           id: assistantId,
           role: MESSAGE_ROLES.ASSISTANT,
           kind: MESSAGE_KINDS.PENDING,
@@ -216,8 +289,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
             },
           },
           ts: Date.now(),
-        };
-        addMessage(pendingMsg);
+        });
       }
 
       const apiRef = api;
@@ -239,70 +311,142 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         },
         meta: {},
         runner: async (payload, signal) => {
-          const result = wsClient.connected
-            ? await generateViaWs(payload, signal)
-            : await apiRef.generate(
-                {
-                  prompt: payload.prompt,
-                  size: payload.size,
-                  steps: payload.steps,
-                  cfg: payload.cfg,
-                  seed: payload.seed,
-                  superres: payload.superres,
-                  superresLevel: payload.superresLevel,
-                },
-                payload.assistantId
-              );
+          const cacheParams = {
+            prompt: payload.prompt,
+            size: payload.size,
+            steps: payload.steps,
+            cfg: payload.cfg,
+            seed: payload.seed,
+            superres: payload.superres,
+            superresLevel: payload.superresLevel,
+          };
 
-          // Update message with result
-          updateMessage(payload.assistantId, {
+          const cacheKey = generateCacheKey(cacheParams);
+          linkMsgToCacheKey(payload.assistantId, cacheKey);
+
+          let result = null;
+
+          if (wsClient.connected) {
+            // 1) Try cache first
+            if (cache) {
+              const cached = await cache.get(cacheKey);
+              if (cached) {
+                // Prefer blob URL (fast), otherwise server URL (instant), otherwise nothing
+                const blobUrl =
+                  cached.blob?.size > 0 ? URL.createObjectURL(cached.blob) : null;
+
+                const serverUrl = cached.metadata?.serverImageUrl || null;
+
+                if (blobUrl || serverUrl) {
+                  result = {
+                    imageUrl: blobUrl || serverUrl,
+                    serverImageUrl: serverUrl,
+                    serverImageKey: cached.metadata?.serverImageKey || null,
+                    metadata: cached.metadata || {},
+                    fromCache: true,
+                  };
+                }
+
+                // If meta-only, schedule hydration
+                if ((!cached.blob || cached.blob.size === 0) && serverUrl) {
+                  scheduleHydration(cacheKey, serverUrl);
+                }
+              }
+            }
+
+            // 2) If not in cache, generate via WS
+            if (!result) {
+              result = await generateViaWs(payload, signal);
+
+              // 3) Store meta-only immediately, then hydrate in background
+              if (cache && result?.serverImageUrl) {
+                // better: call cache.setMetaOnly if present, fallback to set
+                if (typeof cache.setMetaOnly === 'function') {
+                  cache.setMetaOnly(cacheKey, {
+                    ...result.metadata,
+                    serverImageUrl: result.serverImageUrl,
+                    serverImageKey: result.serverImageKey,
+                  });
+                } else {
+                  cache.set(cacheKey, new Blob([]), {
+                    ...result.metadata,
+                    serverImageUrl: result.serverImageUrl,
+                    serverImageKey: result.serverImageKey,
+                  });
+                }
+
+                scheduleHydration(cacheKey, result.serverImageUrl);
+              }
+            }
+          } else {
+            // HTTP fallback — api.generate handles its own caching
+            result = await apiRef.generate(cacheParams, payload.assistantId);
+          }
+
+          // --- Update message with result (server URL immediately, blob will swap later on "hydrated") ---
+          const msgUpdate = {
             kind: MESSAGE_KINDS.IMAGE,
             isRegenerating: false,
             hasError: false,
             errorText: null,
             text: null,
-            imageUrl: result.imageUrl,
-            serverImageUrl: result.serverImageUrl || null,
-            serverImageKey: result.serverImageKey || null,
+            imageUrl: result?.imageUrl || null,
+            serverImageUrl: result?.serverImageUrl || null,
+            serverImageKey: result?.serverImageKey || null,
             params: {
               prompt: payload.prompt,
               size: payload.size,
               steps: payload.steps,
               cfg: payload.cfg,
               seedMode: SEED_MODES.FIXED,
-              seed: result.metadata.seed,
+              seed: result?.metadata?.seed ?? payload.seed,
               superresLevel: payload.superresLevel,
             },
             meta: {
-              backend: result.metadata.backend,
-              apiBase: result.metadata.apiBase,
-              superres: result.metadata.superres,
-              srScale: result.metadata.srScale,
+              backend: result?.metadata?.backend,
+              apiBase: result?.metadata?.apiBase,
+              superres: result?.metadata?.superres,
+              srScale: result?.metadata?.srScale,
+              cacheKey,
             },
-          });
+          };
 
-          if (!payload.skipAutoSelect) {
-            setSelectedMsgId(payload.assistantId);
+          // Dream history accumulation: push each result into the ref and attach to message
+          if (isDream) {
+            const historyEntry = {
+              imageUrl: result?.imageUrl || null,
+              serverImageUrl: result?.serverImageUrl || null,
+              serverImageKey: result?.serverImageKey || null,
+              params: msgUpdate.params,
+              meta: msgUpdate.meta,
+            };
+            dreamHistoryRef.current.push(historyEntry);
+            msgUpdate.imageHistory = [...dreamHistoryRef.current];
+            msgUpdate.historyIndex = dreamHistoryRef.current.length - 1;
           }
 
+          updateMessage(payload.assistantId, msgUpdate);
+
+          if (!payload.skipAutoSelect) setSelectedMsgId(payload.assistantId);
+
           return {
-            imageKey: result.serverImageKey || null,
-            cacheKey: null,
+            imageKey: result?.serverImageKey || null,
+            cacheKey,
             dimensions: payload.size,
           };
         },
       });
 
-      // Listen for error on this specific job
+      // Per-job error handling (unchanged)
       const onError = (e) => {
         if (e.detail?.job?.id !== jobId) return;
         jobQueue.removeEventListener('error', onError);
         jobQueue.removeEventListener('cancel', onCancel);
+
         const err = e.detail.error;
         const errMsg =
-          err?.name === ABORT_ERROR_NAME
-            ? UI_MESSAGES.CANCELED
-            : err?.message || String(err);
+          err?.name === ABORT_ERROR_NAME ? UI_MESSAGES.CANCELED : err?.message || String(err);
+
         updateMessage(assistantId, {
           kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
           isRegenerating: false,
@@ -311,10 +455,12 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           text: targetMessageId ? null : errMsg,
         });
       };
+
       const onCancel = (e) => {
         if (e.detail?.job?.id !== jobId) return;
         jobQueue.removeEventListener('error', onError);
         jobQueue.removeEventListener('cancel', onCancel);
+
         updateMessage(assistantId, {
           kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
           isRegenerating: false,
@@ -323,25 +469,25 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           text: targetMessageId ? null : UI_MESSAGES.CANCELED,
         });
       };
-      jobQueue.addEventListener('error', onError);
-      jobQueue.addEventListener('cancel', onCancel);
 
-      // Clean up listeners on complete too
       const onComplete = (e) => {
         if (e.detail?.job?.id !== jobId) return;
         jobQueue.removeEventListener('error', onError);
         jobQueue.removeEventListener('cancel', onCancel);
         jobQueue.removeEventListener('complete', onComplete);
       };
+
+      jobQueue.addEventListener('error', onError);
+      jobQueue.addEventListener('cancel', onCancel);
       jobQueue.addEventListener('complete', onComplete);
 
       return assistantId;
     },
-    [api, addMessage, updateMessage, setSelectedMsgId]
+    [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey]
   );
 
   /**
-   * Upload and super-resolve an image.
+   * Upload and super-resolve an image. (left as-is)
    */
   const runSuperResUpload = useCallback(
     async (file, magnitude) => {
@@ -354,11 +500,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         role: MESSAGE_ROLES.USER,
         kind: MESSAGE_KINDS.TEXT,
         text: `Super-res upload: ${file.name} (magnitude ${magnitude})`,
-        meta: {
-          ingest: 'superres',
-          filename: file.name,
-          magnitude,
-        },
+        meta: { ingest: 'superres', filename: file.name, magnitude },
         ts: Date.now(),
       };
 
@@ -367,12 +509,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         role: MESSAGE_ROLES.ASSISTANT,
         kind: MESSAGE_KINDS.PENDING,
         text: UI_MESSAGES.SUPER_RESOLVING,
-        meta: {
-          request: {
-            endpoint: '/superres',
-            magnitude,
-          },
-        },
+        meta: { request: { endpoint: '/superres', magnitude } },
         ts: Date.now(),
       };
 
@@ -394,133 +531,201 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         });
       } catch (err) {
         const msg =
-          err?.name === ABORT_ERROR_NAME
-            ? UI_MESSAGES.CANCELED
-            : err?.message || String(err);
-        updateMessage(assistantId, {
-          kind: MESSAGE_KINDS.ERROR,
-          text: msg,
-        });
+          err?.name === ABORT_ERROR_NAME ? UI_MESSAGES.CANCELED : err?.message || String(err);
+        updateMessage(assistantId, { kind: MESSAGE_KINDS.ERROR, text: msg });
       }
     },
     [api, addMessage, updateMessage]
   );
 
   /**
-   * Start dream mode - continuously generate variations.
-   * @param {object} baseParams - Starting parameters
+   * Start dream mode.
    */
   const startDreaming = useCallback(
     (baseParams) => {
-      // Stop any existing dream
-      if (dreamTimerRef.current) {
-        clearInterval(dreamTimerRef.current);
-      }
+      if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
 
-      // Store base params
       dreamParamsRef.current = { ...baseParams };
+      dreamHistoryRef.current = [];
       setIsDreaming(true);
 
-      // Generate first dream immediately (skip auto-select to not disturb user's view)
+      // First dream: create a fresh message
       const dreamParams = mutateParams(baseParams, dreamTemperature);
       dreamParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
       dreamParams.skipAutoSelect = true;
-      runGenerate(dreamParams);
+      dreamParams.isDream = true;
+      const firstId = runGenerate(dreamParams);
+      setDreamMessageId(firstId);
 
-      // Schedule recurring dreams
+      // Subsequent dreams paint into the same message
       dreamTimerRef.current = setInterval(() => {
         const nextParams = mutateParams(dreamParamsRef.current, dreamTemperature);
-        nextParams.prompt = dreamVariation(
-          dreamParamsRef.current.prompt,
-          dreamTemperature
-        );
-        nextParams.skipAutoSelect = true; // Don't yank the view
+        nextParams.prompt = dreamVariation(dreamParamsRef.current.prompt, dreamTemperature);
+        nextParams.skipAutoSelect = true;
+        nextParams.isDream = true;
+        nextParams.targetMessageId = firstId;
         runGenerate(nextParams);
       }, dreamInterval);
     },
     [dreamTemperature, dreamInterval, runGenerate]
   );
 
-  /**
-   * Stop dream mode.
-   */
   const stopDreaming = useCallback(() => {
     if (dreamTimerRef.current) {
       clearInterval(dreamTimerRef.current);
       dreamTimerRef.current = null;
     }
     setIsDreaming(false);
+    setDreamMessageId(null);
     dreamParamsRef.current = null;
+    dreamHistoryRef.current = [];
   }, []);
 
-  /**
-   * Guide the dream - update base params based on user feedback.
-   * @param {object} newBaseParams - New parameters to dream from
-   */
-  const guideDream = useCallback(
-    (newBaseParams) => {
-      if (!isDreaming) return;
-      
-      // Update the base params that dreams mutate from
-      dreamParamsRef.current = { ...newBaseParams };
-    },
-    [isDreaming]
-  );
+  const guideDream = useCallback((newBaseParams) => {
+    if (!isDreaming) return;
+    dreamParamsRef.current = { ...newBaseParams };
+  }, [isDreaming]);
 
   /**
-   * Cancel a specific request.
+   * Save current dream bubble and start a fresh one on the next tick.
    */
-  const cancelRequest = useCallback(
-    (id) => {
-      return api.cancel(id);
-    },
-    [api]
-  );
+  const saveDreamAndContinue = useCallback(() => {
+    if (!isDreaming) return;
+    setDreamMessageId(null);
+    dreamHistoryRef.current = [];
+
+    // Restart the interval so the next tick creates a fresh message
+    if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
+    const baseParams = dreamParamsRef.current;
+    if (!baseParams) return;
+
+    dreamTimerRef.current = setInterval(() => {
+      const currentDreamMsgId = dreamMessageId; // will be null, triggering fresh message
+      const nextParams = mutateParams(baseParams, dreamTemperature);
+      nextParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
+      nextParams.skipAutoSelect = true;
+      nextParams.isDream = true;
+
+      // If no dreamMessageId yet, create fresh; otherwise reuse
+      // We need a ref-based approach since setInterval captures stale closure
+      runGenerate(nextParams);
+    }, dreamInterval);
+
+    // Immediately fire one to create the new message
+    const firstParams = mutateParams(baseParams, dreamTemperature);
+    firstParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
+    firstParams.skipAutoSelect = true;
+    firstParams.isDream = true;
+    const newId = runGenerate(firstParams);
+    setDreamMessageId(newId);
+
+    // Now fix the interval to paint into the new message
+    if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
+    dreamTimerRef.current = setInterval(() => {
+      const nextParams = mutateParams(dreamParamsRef.current, dreamTemperature);
+      nextParams.prompt = dreamVariation(dreamParamsRef.current.prompt, dreamTemperature);
+      nextParams.skipAutoSelect = true;
+      nextParams.isDream = true;
+      nextParams.targetMessageId = newId;
+      runGenerate(nextParams);
+    }, dreamInterval);
+  }, [isDreaming, dreamMessageId, dreamTemperature, dreamInterval, runGenerate]);
 
   /**
-   * Cancel all in-flight requests.
+   * Dream history navigation: go to previous image.
    */
+  const dreamHistoryPrev = useCallback((msg) => {
+    if (!msg.imageHistory?.length) return;
+    const newIdx = Math.max(0, (msg.historyIndex ?? 0) - 1);
+    const entry = msg.imageHistory[newIdx];
+    updateMessage(msg.id, {
+      imageUrl: entry.imageUrl,
+      historyIndex: newIdx,
+      serverImageUrl: entry.serverImageUrl,
+      serverImageKey: entry.serverImageKey,
+      params: entry.params,
+      meta: entry.meta,
+    });
+  }, [updateMessage]);
+
+  /**
+   * Dream history navigation: go to next image.
+   */
+  const dreamHistoryNext = useCallback((msg) => {
+    if (!msg.imageHistory?.length) return;
+    const maxIdx = msg.imageHistory.length - 1;
+    const newIdx = Math.min(maxIdx, (msg.historyIndex ?? 0) + 1);
+    const entry = msg.imageHistory[newIdx];
+    updateMessage(msg.id, {
+      imageUrl: entry.imageUrl,
+      historyIndex: newIdx,
+      serverImageUrl: entry.serverImageUrl,
+      serverImageKey: entry.serverImageKey,
+      params: entry.params,
+      meta: entry.meta,
+    });
+  }, [updateMessage]);
+
+  /**
+   * Dream history navigation: jump to the latest (most recent) image.
+   */
+  const dreamHistoryLive = useCallback((msg) => {
+    if (!msg.imageHistory?.length) return;
+    const lastIdx = msg.imageHistory.length - 1;
+    const entry = msg.imageHistory[lastIdx];
+    updateMessage(msg.id, {
+      imageUrl: entry.imageUrl,
+      historyIndex: lastIdx,
+      serverImageUrl: entry.serverImageUrl,
+      serverImageKey: entry.serverImageKey,
+      params: entry.params,
+      meta: entry.meta,
+    });
+  }, [updateMessage]);
+
+  const cancelRequest = useCallback((id) => api.cancel(id), [api]);
+
   const cancelAll = useCallback(() => {
     api.cancelAll();
-    stopDreaming(); // Also stop dreaming
+    stopDreaming();
   }, [api, stopDreaming]);
 
-  /**
-   * Get server label for UI display.
-   */
-  const serverLabel = api.config.bases.length > 0
-    ? `RR (${api.config.bases.length} backends)`
-    : api.config.single || '(same origin)';
+  const serverLabel =
+    api.config.bases.length > 0
+      ? `RR (${api.config.bases.length} backends)`
+      : api.config.single || '(same origin)';
 
   /**
    * Get an image from cache by params.
-   * Returns blob URL if found, null otherwise.
+   * - If blob is present: returns blob URL
+   * - If meta-only: schedules hydration + returns null
    */
   const getImageFromCache = useCallback(async (params) => {
     if (!cache) return null;
     try {
       const key = generateCacheKey(params);
       const entry = await cache.get(key);
-      if (entry?.blob) {
+
+      if (entry?.blob && entry.blob.size > 0) {
         return URL.createObjectURL(entry.blob);
+      }
+
+      // meta-only pointer: hydrate in background
+      const serverUrl = entry?.metadata?.serverImageUrl;
+      if (serverUrl) {
+        scheduleHydration(key, serverUrl);
       }
     } catch (err) {
       console.warn('[Cache] getImageFromCache failed:', err);
     }
     return null;
-  }, [cache]);
+  }, [cache, scheduleHydration]);
 
-  /**
-   * Get cache stats.
-   */
   const getCacheStats = useCallback(async () => {
     if (!cache) return { enabled: false };
     return await cache.stats();
   }, [cache]);
 
-  /**
-   * Clear the image cache.
-   */
   const clearCache = useCallback(async () => {
     if (cache) {
       await cache.clear();
@@ -546,6 +751,11 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     setDreamTemperature,
     dreamInterval,
     setDreamInterval,
+    dreamMessageId,
+    saveDreamAndContinue,
+    dreamHistoryPrev,
+    dreamHistoryNext,
+    dreamHistoryLive,
 
     // Cache
     getImageFromCache,
