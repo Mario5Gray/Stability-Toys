@@ -310,12 +310,8 @@ const inputImage = useMemo(() => {
           <MessageSquare className="h-4 w-4" />
           Main Chat
         </TabsTrigger>
-        <TabsTrigger value="dreams" className="gap-2">
-          <Sparkles className="h-4 w-4" />
-          Dream Gallery
-          {isDreaming && (
-            <span className="ml-2 h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
-          )}
+        <TabsTrigger value="dreams" className="gap-2">        
+          Save Gallery
         </TabsTrigger>
       </TabsList>
     </div>
