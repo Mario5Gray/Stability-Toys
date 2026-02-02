@@ -3,16 +3,13 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import { ChatDropzone } from "./components/chat/ChatDropzone";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { useLatentExploration } from './hooks/useLatentExploration';
 import { useChatMessages } from './hooks/useChatMessages';
-import { useScrollManagement } from './hooks/useScrollManagement';
 import { useGenerationParams } from './hooks/useGenerationParams';
 import { useImageGeneration } from './hooks/useImageGeneration';
 import { useJobQueue } from './hooks/useJobQueue';
 import { useWs } from './hooks/useWs';
 import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
-import { DreamGallery } from './components/dreams/DreamGallery';
 import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
 import { MessageSquare, Sparkles } from 'lucide-react';
@@ -424,11 +421,11 @@ const inputImage = useMemo(() => {
       </div>
     </TabsContent>
   </ChatDropzone>
-          {/* Dream Gallery Tab */}
+          {/* Dream Gallery Tab
           <TabsContent value="dreams" className="h-full m-0">
             <DreamGallery apiBase={apiBase} />
           </TabsContent>
-        </div>
+        </div> */}
       </Tabs>
 
     </div>
