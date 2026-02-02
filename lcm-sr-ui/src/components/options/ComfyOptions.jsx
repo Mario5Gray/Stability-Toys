@@ -8,11 +8,9 @@ import { Sparkles, Pause } from "lucide-react";
 
 import { CSS_CLASSES } from "../../utils/constants";
 import { createComfyInvokerApi } from "@/lib/comfyInvokerApi";
-import { useComfyJob } from "@/hooks/useComfyJob";
+import { useComfyJobWs } from "@/hooks/useComfyJobWs";
 import { urlToFile } from "@/utils/imageToFile";
 import { NumberStepper, NumberStepperDebounced } from "@/components/ui/NumberStepper";
-import { jobQueue, PRIORITY } from "@/lib/jobQueue";
-import { createComfyRunner } from "@/lib/comfyRunner";
 
 export function ComfyOptions({
   inputImage,
@@ -30,7 +28,7 @@ export function ComfyOptions({
 }) {
   // API + job hook
   const api = useMemo(() => createComfyInvokerApi(apiBase), [apiBase]);
-  const comfy = useComfyJob({ api });
+  const comfy = useComfyJobWs({ api });
 
   // Controls
   const [cfg, setCfg] = useState(defaultCfg);
@@ -51,9 +49,6 @@ export function ComfyOptions({
     comfy.state === "running" ||
     comfy.state === "done" ||
     !!comfy.jobId;
-
-  // Memoize the comfy runner
-  const runner = useMemo(() => createComfyRunner(api), [api]);
 
   // --- Run action ---
   const run = useCallback(async () => {
@@ -89,24 +84,11 @@ export function ComfyOptions({
     };
 
     // Create pending message
-    const msgId = onComfyStart?.();
+    onComfyStart?.();
 
-    // Enqueue via job queue
-    const jobId = jobQueue.enqueue({
-      priority: PRIORITY.NORMAL,
-      source: 'comfy',
-      payload: snapshotPayload,
-      meta: {},
-      runner: async (payload, signal) => {
-        // Use comfy.start for the existing polling/state machine
-        const result = await comfy.start(payload);
-        return result;
-      },
-    });
-
-    // Also start via useComfyJob for progress display
+    // Start via WS hook (upload + submit + progress via push)
     comfy.start(snapshotPayload);
-  }, [onStart, onError, inputImage, file, workflowId, cfg, steps, denoise, api, comfy, onComfyStart, runner]);
+  }, [onError, inputImage, file, workflowId, cfg, steps, denoise, comfy, onComfyStart]);
 
   // Debug mount/unmount (kept, harmless)
   useEffect(() => {

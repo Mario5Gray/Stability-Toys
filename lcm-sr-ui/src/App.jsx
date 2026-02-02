@@ -12,8 +12,10 @@ import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
 import { MessageSquare, Sparkles } from 'lucide-react';
 import { uuidv4 } from "@/utils/uuid";
+import { useWs } from './hooks/useWs';
 
 export default function App() {
+  useWs(); // auto-connect WS singleton on mount
   // ============================================================================
   // STATE MANAGEMENT VIA HOOKS
   // ============================================================================
