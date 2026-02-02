@@ -61,6 +61,15 @@ export function createComfyRunnerWs() {
 
     // Wait for job:complete or job:error
     return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const settle = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+
       if (signal.aborted) {
         wsClient.send({ type: 'job:cancel', jobId });
         reject(new DOMException('Job cancelled', 'AbortError'));
@@ -68,26 +77,31 @@ export function createComfyRunnerWs() {
       }
 
       const onAbort = () => {
-        cleanup();
         wsClient.send({ type: 'job:cancel', jobId });
-        reject(new DOMException('Job cancelled', 'AbortError'));
+        settle(reject, new DOMException('Job cancelled', 'AbortError'));
       };
       signal.addEventListener('abort', onAbort, { once: true });
 
+      const onDisconnect = (e) => {
+        if (e.detail?.state === 'disconnected') {
+          settle(reject, new Error('WebSocket disconnected during ComfyUI job'));
+        }
+      };
+      wsClient.addEventListener('statechange', onDisconnect);
+
       const unsubComplete = wsClient.on('job:complete', (msg) => {
         if (msg.jobId !== jobId) return;
-        cleanup();
-        resolve({ jobId, outputs: msg.outputs ?? [], raw: msg });
+        settle(resolve, { jobId, outputs: msg.outputs ?? [], raw: msg });
       });
 
       const unsubError = wsClient.on('job:error', (msg) => {
         if (msg.jobId !== jobId) return;
-        cleanup();
-        reject(new Error(msg.error || 'ComfyUI job failed'));
+        settle(reject, new Error(msg.error || 'ComfyUI job failed'));
       });
 
       function cleanup() {
         signal.removeEventListener('abort', onAbort);
+        wsClient.removeEventListener('statechange', onDisconnect);
         unsubComplete();
         unsubError();
       }

@@ -16,6 +16,7 @@ export function useComfyJobWs({ api } = {}) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const corrIdRef = useRef(null);
+  const jobIdRef = useRef(null);
   const unsubsRef = useRef([]);
 
   const cleanup = useCallback(() => {
@@ -28,6 +29,7 @@ export function useComfyJobWs({ api } = {}) {
     if (jobId) {
       wsClient.send({ type: 'job:cancel', jobId });
     }
+    jobIdRef.current = null;
     setState('canceled');
   }, [jobId, cleanup]);
 
@@ -35,6 +37,7 @@ export function useComfyJobWs({ api } = {}) {
     async (payload) => {
       // Reset
       cleanup();
+      jobIdRef.current = null;
       setError(null);
       setJob(null);
       setState('starting');
@@ -63,29 +66,27 @@ export function useComfyJobWs({ api } = {}) {
       // Subscribe to WS events before sending
       const unsubs = [];
 
-      // job:ack
+      // job:ack — match by correlation id, capture jobId into ref for sync access
       unsubs.push(wsClient.on('job:ack', (msg) => {
         if (msg.id !== corrId) return;
+        jobIdRef.current = msg.jobId;
         setJobId(msg.jobId);
         setState('running');
       }));
 
-      // job:progress
+      // job:progress — filter by jobId
       unsubs.push(wsClient.on('job:progress', (msg) => {
-        // Match by jobId (set after ack)
-        setJob((prev) => {
-          if (!prev && !msg.jobId) return prev;
-          // Accept if we don't have a jobId yet or it matches
-          return {
-            ...prev,
-            status: msg.status,
-            progress: msg.progress,
-          };
-        });
+        if (!jobIdRef.current || msg.jobId !== jobIdRef.current) return;
+        setJob((prev) => ({
+          ...prev,
+          status: msg.status,
+          progress: msg.progress,
+        }));
       }));
 
-      // job:complete
+      // job:complete — filter by jobId
       unsubs.push(wsClient.on('job:complete', (msg) => {
+        if (!jobIdRef.current || msg.jobId !== jobIdRef.current) return;
         setJob((prev) => ({
           ...prev,
           status: 'done',
@@ -95,8 +96,9 @@ export function useComfyJobWs({ api } = {}) {
         cleanup();
       }));
 
-      // job:error
+      // job:error — filter by jobId
       unsubs.push(wsClient.on('job:error', (msg) => {
+        if (!jobIdRef.current || msg.jobId !== jobIdRef.current) return;
         setError(new Error(msg.error || 'ComfyUI job failed'));
         setState('error');
         cleanup();

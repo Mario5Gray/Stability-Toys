@@ -5,6 +5,8 @@
 
 import { wsClient, nextCorrId } from './wsClient';
 
+const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
+
 /**
  * Create a WS-based generate runner.
  * @param {object} payload - Generation parameters (prompt, size, steps, cfg, seed, superres, superresLevel)
@@ -18,6 +20,16 @@ export function generateViaWs(payload, signal) {
     }
 
     const corrId = nextCorrId();
+    let settled = false;
+    let cleanup;
+    let jobId = null;
+
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup?.();
+      fn(value);
+    };
 
     // Send job:submit
     wsClient.send({
@@ -35,21 +47,30 @@ export function generateViaWs(payload, signal) {
       },
     });
 
-    let cleanup;
-    let jobId = null;
+    // Timeout — reject if server never responds
+    const timer = setTimeout(() => {
+      settle(reject, new Error('Generate timed out (no response)'));
+    }, GENERATE_TIMEOUT_MS);
 
     // Handle abort
     const onAbort = () => {
-      cleanup?.();
       const err = new Error('Aborted');
       err.name = 'AbortError';
-      reject(err);
+      settle(reject, err);
     };
 
     if (signal) {
       if (signal.aborted) { onAbort(); return; }
       signal.addEventListener('abort', onAbort, { once: true });
     }
+
+    // Reject on WS disconnect (server can't deliver results on a dead socket)
+    const onDisconnect = (e) => {
+      if (e.detail?.state === 'disconnected') {
+        settle(reject, new Error('WebSocket disconnected during generation'));
+      }
+    };
+    wsClient.addEventListener('statechange', onDisconnect);
 
     // Listen for matching response.
     // job:ack carries our corrId + a jobId; subsequent messages use jobId only.
@@ -67,16 +88,14 @@ export function generateViaWs(payload, signal) {
       if (!jobId || msg.jobId !== jobId) return;
 
       if (msg.type === 'job:error') {
-        cleanup?.();
-        reject(new Error(msg.error || 'Generation failed'));
+        settle(reject, new Error(msg.error || 'Generation failed'));
         return;
       }
 
       if (msg.type === 'job:complete') {
-        cleanup?.();
         const out = msg.outputs?.[0] || {};
         const meta = msg.meta || {};
-        resolve({
+        settle(resolve, {
           imageUrl: out.url,
           serverImageUrl: out.url,
           serverImageKey: out.key,
@@ -94,7 +113,9 @@ export function generateViaWs(payload, signal) {
     wsClient.addEventListener('message', handler);
 
     cleanup = () => {
+      clearTimeout(timer);
       wsClient.removeEventListener('message', handler);
+      wsClient.removeEventListener('statechange', onDisconnect);
       if (signal) signal.removeEventListener('abort', onAbort);
     };
   });

@@ -13,9 +13,11 @@ import { SR_CONFIG } from './utils/constants';
 import { MessageSquare, Sparkles } from 'lucide-react';
 import { uuidv4 } from "@/utils/uuid";
 import { useWs } from './hooks/useWs';
+import { useJobQueue } from './hooks/useJobQueue';
 
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
+  const queueState = useJobQueue();
   // ============================================================================
   // STATE MANAGEMENT VIA HOOKS
   // ============================================================================
@@ -38,6 +40,7 @@ export default function App() {
     patchSelectedParams,
     setMsgRef,
     clearHistory,
+    deleteMessage,
   } = chatState;
 
   // Image generation (includes dream mode)
@@ -381,7 +384,7 @@ export default function App() {
             messages={messages}
             selectedMsgId={selectedMsgId}
             onToggleSelect={toggleSelectMsg}
-            onCancelRequest={cancelRequest}
+            onCancelRequest={(id) => { cancelRequest(id); deleteMessage(id); }}
             setMsgRef={setMsgRef}
             composer={defaultComposer}
             inflightCount={inflightCount}
@@ -429,7 +432,7 @@ export default function App() {
             onClearHistory={clearHistory}
             onComfyOutputs={onComfyOutputs}
             onComfyStart={onComfyStart}
-
+            queueState={queueState}
           />
         </div>
       </div>

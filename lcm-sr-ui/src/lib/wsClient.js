@@ -130,16 +130,6 @@ class WSClient extends EventTarget {
    */
   waitFor(predicate, timeoutMs = 60000) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        unsub();
-        reject(new Error('WS waitFor timeout'));
-      }, timeoutMs);
-
-      const unsub = this.on('*_all', (msg) => {
-        // We need a different approach — listen on raw message event
-      });
-
-      // Use raw listener
       const handler = (e) => {
         const msg = e.detail;
         if (msg && predicate(msg)) {
@@ -148,6 +138,12 @@ class WSClient extends EventTarget {
           resolve(msg);
         }
       };
+
+      const timer = setTimeout(() => {
+        this.removeEventListener('message', handler);
+        reject(new Error('WS waitFor timeout'));
+      }, timeoutMs);
+
       this.addEventListener('message', handler);
     });
   }
