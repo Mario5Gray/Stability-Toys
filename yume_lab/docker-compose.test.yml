@@ -1,0 +1,50 @@
+# Docker Compose for running Yume dream system tests
+version: '3.8'
+
+services:
+  test:
+    build:
+      context: ..
+      dockerfile: Dockerfile.test
+    image: yume-test:latest
+    container_name: yume-test
+    env_file:
+      - ../env.dev
+      - ../env.cuda
+    environment:
+      - YUME_ENABLED=true
+    volumes:
+      - ../server:/app/server:ro,Z
+      - ../backends:/app/backends:ro,Z
+      - ../utils:/app/utils:ro,Z
+      - ../persistence:/app/persistence:ro,Z
+      - ./tests:/app/tests:ro,Z
+      - ../invokers:/app/invokers:ro,Z
+      - ../yume:/app/yume:ro,Z
+      - ${MODELS_HOST_PATH:-../model}:/models:ro,Z
+      - ${FS_HOST_PATH:-../store}:/store:rw,Z
+      - ${WORKFLOW_HOST_PATH:-../workflows}:/workflows:ro,Z
+      - ${YUME_CLIP_HOST_PATH:-../}:/clip:ro,Z
+      - ../test-modes.yaml:/app/modes.yaml:ro,Z
+      - ./htmlcov:/app/htmlcov
+    command: pytest tests/ -v --cov=yume --cov-report=html --cov-report=term-missing
+
+  test-unit:
+    extends: test
+    container_name: yume-test-unit
+    command: pytest tests/ -v -m "not integration"
+
+  test-integration:
+    extends: test
+    container_name: yume-test-integration
+    command: pytest tests/ -v -m integration
+
+  test-fast:
+    extends: test
+    container_name: yume-test-fast
+    command: pytest tests/ -v -m "not slow"
+
+  test-watch:
+    extends: test
+    container_name: yume-test-watch
+    command: ptw tests/ -- -v

@@ -1091,7 +1091,8 @@ async def startup_yume():
         app_state=app.state,
         service=app.state.service,
         backend=BACKEND,
-        dream_config={'top_k': 100, 'explore_temperature': 0.8}
+        dream_config={'top_k': 100, 'explore_temperature': 0.8},
+        worker_pool=getattr(app.state, 'worker_pool', None)
     )
     if success:
         logger.info("🌙 Yume system ready!")

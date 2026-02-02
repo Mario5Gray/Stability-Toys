@@ -1,4 +1,4 @@
-# Docker Compose for running Yume tests
+# Docker Compose for running Dream Lab tests
 version: '3.8'
 
 services:
@@ -6,50 +6,41 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.test
-    image: yume-test:latest
-    container_name: yume-test
+    image: dreamlab-test:latest
+    container_name: dreamlab-test
     env_file:
-      - env.dev  # Load all
-      - env.cuda 
+      - env.dev
+      - env.cuda
     volumes:
-      - ./server:/app/server:ro,Z          
+      - ./server:/app/server:ro,Z
       - ./backends:/app/backends:ro,Z
       - ./utils:/app/utils:ro,Z
-      - ./persistence:/app/persistence:ro,Z      
+      - ./persistence:/app/persistence:ro,Z
       - ./tests:/app/tests:ro,Z
       - ./invokers:/app/invokers:ro,Z
-      - ./yume:/app/yume:ro,Z
       - ${MODELS_HOST_PATH:-./model}:/models:ro,Z
       - ${FS_HOST_PATH:-./store}:/store:rw,Z
       - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
-      - ${YUME_CLIP_HOST_PATH:-./}:/clip:ro,Z
       - ./test-modes.yaml:/app/modes.yaml:ro,Z
-      # Mount coverage output
       - ./htmlcov:/app/htmlcov
-    command: pytest tests/ -v --cov=yume --cov-report=html --cov-report=term-missing
-    
-  # Run specific test suites
+    command: pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+
   test-unit:
     extends: test
-    container_name: yume-test-not-ws
-    command: pytest tests/ -v  -m "not ws"
+    container_name: dreamlab-test-not-ws
+    command: pytest tests/ -v -m "not ws"
 
   test-ws:
     extends: test
-    container_name: yume-test-ws
+    container_name: dreamlab-test-ws
     command: pytest tests/ -m ws -v
-        
-  test-integration:
-    extends: test
-    container_name: yume-test-integration
-    command: pytest tests/ -v -m integration
-    
+
   test-fast:
     extends: test
-    container_name: yume-test-fast
+    container_name: dreamlab-test-fast
     command: pytest tests/ -v -m "not slow"
-    
+
   test-watch:
     extends: test
-    container_name: yume-test-watch
+    container_name: dreamlab-test-watch
     command: ptw tests/ -- -v

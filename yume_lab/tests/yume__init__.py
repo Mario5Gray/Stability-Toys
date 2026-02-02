@@ -2,7 +2,7 @@
 Yume - Latent Space Exploration Library
 
 Background dream worker for exploring latent space in LCM-based image generation.
-Generates, scores, and curates thousands of variations autonomously.
+Generates, scores, and curates through cfg, clip.
 """
 
 __version__ = "0.1.0"

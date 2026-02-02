@@ -175,6 +175,52 @@ class TestJobStubs:
 
 
 # ---------------------------------------------------------------------------
+# dream:* — errors when worker not initialized
+# ---------------------------------------------------------------------------
+
+class TestDreamHandlers:
+    """Dream handlers should return an error when worker is unavailable.
+
+    Outside Docker, the yume module may fail to import (missing /app/logs/torch.log).
+    Both "not initialized" and import errors are valid — the key assertion is
+    that the client receives a {"type": "error", ...} envelope, not a crash.
+    """
+
+    def test_dream_start_no_worker(self):
+        with client.websocket_connect("/v1/ws") as ws:
+            ws.receive_json()  # consume status
+            ws.send_json({
+                "type": "dream:start",
+                "id": "d1",
+                "params": {"prompt": "sunset"},
+            })
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+            assert "error" in msg
+
+    def test_dream_stop_no_worker(self):
+        with client.websocket_connect("/v1/ws") as ws:
+            ws.receive_json()  # consume status
+            ws.send_json({"type": "dream:stop", "id": "d2"})
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+
+    def test_dream_top_no_worker(self):
+        with client.websocket_connect("/v1/ws") as ws:
+            ws.receive_json()  # consume status
+            ws.send_json({"type": "dream:top", "id": "d3"})
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+
+    def test_dream_guide_no_worker(self):
+        with client.websocket_connect("/v1/ws") as ws:
+            ws.receive_json()  # consume status
+            ws.send_json({"type": "dream:guide", "id": "d4", "params": {"prompt": "new"}})
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+
+
+# ---------------------------------------------------------------------------
 # Upload endpoint
 # ---------------------------------------------------------------------------
 

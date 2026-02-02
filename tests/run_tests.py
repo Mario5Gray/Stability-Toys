@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test runner script for Yume library.
+Test runner script.
 Provides convenient commands for running different test suites.
 """
 
@@ -23,7 +23,7 @@ def run_all_tests(args):
     if args.verbose:
         cmd.append("-v")
     if args.coverage:
-        cmd.extend(["--cov=yume", "--cov-report=html", "--cov-report=term"])
+        cmd.extend(["--cov-report=html", "--cov-report=term"])
     return run_command(cmd)
 
 
@@ -55,7 +55,6 @@ def run_with_coverage(args):
     """Run tests with coverage report."""
     cmd = [
         "pytest",
-        "--cov=yume",
         "--cov-report=html",
         "--cov-report=term-missing",
         "--cov-report=json",
@@ -142,14 +141,13 @@ def clean_cache(args):
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Test runner for Yume library",
+        description="Test runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   ./run_tests.py all              # Run all tests
   ./run_tests.py unit             # Run only unit tests
   ./run_tests.py integration      # Run only integration tests
-  ./run_tests.py specific test_dream_worker.py::TestDreamWorkerInitialization
   ./run_tests.py coverage         # Run with coverage report
   ./run_tests.py fast             # Run fast tests only
   ./run_tests.py parallel -w 4    # Run tests in parallel with 4 workers

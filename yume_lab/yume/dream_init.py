@@ -23,7 +23,8 @@ async def initialize_dream_system(
     redis_url: Optional[str] = None,
     clip_model_name: str = YUME_CLIP_MODEL,
     dream_config: Optional[Dict[str, Any]] = None,
-    yume_available: bool = True
+    yume_available: bool = True,
+    worker_pool: Any = None
 ) -> bool:
     """
     Initialize the Yume dream system with Redis, CLIP, and dream workers.
@@ -128,11 +129,15 @@ async def initialize_dream_system(
         # ================================================================
         # Step 3: Get LCM worker and initialize dream system
         # ================================================================
-        if not service.workers:
-            print("⚠️  No workers available in service")
+        lcm_worker = None
+        if worker_pool is not None and getattr(worker_pool, '_worker', None) is not None:
+            lcm_worker = worker_pool._worker
+        elif service is not None and getattr(service, 'workers', None):
+            lcm_worker = service.workers[0]
+
+        if lcm_worker is None:
+            print("⚠️  No workers available")
             return False
-        
-        lcm_worker = service.workers[0]
         
         # Import DreamWorker
         from yume.dream_worker import DreamWorker

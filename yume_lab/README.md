@@ -1,5 +1,13 @@
 # 🌙 Yume (夢) - Background Dream System
 
+** Directive (02/01/2026)
+** By no means is this project deprecated I think it can still 
+** be useful in exploration of the prospects of LCM
+** However, as a front-end it has litte use beyond novel research
+** which is why we have this sub-project that utilizies the 
+** lcm-sd server API's! It can change and we wont have a problem 
+** with getting API's off sync unless in active development
+
 > Server-side latent space exploration with CLIP scoring
 
 ---

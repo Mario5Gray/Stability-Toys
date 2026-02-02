@@ -29,7 +29,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/
-COPY yume/ /app/yume/
 COPY invokers/ /app/invokers/
 COPY utils/ /app/utils/
 
