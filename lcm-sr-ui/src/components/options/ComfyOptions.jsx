@@ -147,7 +147,12 @@ export function ComfyOptions({
       if (inputImage.kind === "url") {
         try {
           // urlToFile likely uses fetch internally; do it once here.
-          const f = await urlToFile(inputImage.url, inputImage.filename || "input.png");
+          const t0= performance.now();
+          _url = inputImage.url
+          _name = inputImage.filename || "input.png"
+          const f = await urlToFile(_url, _name);
+          const t1 = performance.now();
+          console.log("[imageToFile] total", (t1 - t0).toFixed(1), "ms", { url, name });
           if (!cancelled) setFile(f);
         } catch (err) {
           if (!cancelled) {

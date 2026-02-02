@@ -147,8 +147,9 @@ class JobQueue extends EventTarget {
     this._invalidate();
     this._emit('start', { job });
 
-    try {
-      const result = await job.runner(job.payload, controller.signal);
+    try { console.log("Sending JOB " + job.id);
+      const result = await job.runner(job.payload, controller.signal)
+      
       this._running.delete(job.id);
       this._invalidate();
       this._emit('complete', { job, result });
@@ -168,8 +169,11 @@ class JobQueue extends EventTarget {
           status: 'complete',
           error: null,
         }).catch(() => {});
-      } catch { /* ledger unavailable */ }
+      } catch { /* ledger unavailable */
+        console.error("Ledger is not available!");
+       }
     } catch (err) {
+      console.error("Error in launching job " + job.id);
       this._running.delete(job.id);
       this._invalidate();
 

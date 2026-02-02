@@ -16,6 +16,8 @@ import {
   ABORT_ERROR_NAME,
 } from '../utils/constants';
 import { jobQueue, PRIORITY } from '../lib/jobQueue';
+import { generateViaWs } from '../lib/generateRunnerWs';
+import { wsClient } from '../lib/wsClient';
 
 /**
  * Dream mode modifiers - stochastic variations for exploration.
@@ -237,18 +239,20 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         },
         meta: {},
         runner: async (payload, signal) => {
-          const result = await apiRef.generate(
-            {
-              prompt: payload.prompt,
-              size: payload.size,
-              steps: payload.steps,
-              cfg: payload.cfg,
-              seed: payload.seed,
-              superres: payload.superres,
-              superresLevel: payload.superresLevel,
-            },
-            payload.assistantId
-          );
+          const result = wsClient.connected
+            ? await generateViaWs(payload, signal)
+            : await apiRef.generate(
+                {
+                  prompt: payload.prompt,
+                  size: payload.size,
+                  steps: payload.steps,
+                  cfg: payload.cfg,
+                  seed: payload.seed,
+                  superres: payload.superres,
+                  superresLevel: payload.superresLevel,
+                },
+                payload.assistantId
+              );
 
           // Update message with result
           updateMessage(payload.assistantId, {

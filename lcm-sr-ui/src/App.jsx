@@ -298,6 +298,36 @@ const inputImage = useMemo(() => {
   return null;
 }, [uploadFile, selectedImage]);
 
+const defaultComposer = useMemo(() => ({
+  onSendPrompt: (promptText) => {
+    const text = String(promptText || "").trim();
+    if (!text) return;
+
+    runGenerate({
+      prompt: text,
+      size: params.effective.size,
+      steps: params.effective.steps,
+      cfg: params.effective.cfg,
+      seedMode: params.draft.seedMode,
+      seed: params.draft.seed,
+      superresLevel: params.effective.superresLevel,
+    });
+  },
+  onCancelAll: cancelAll,
+  onKeyDown,
+  onFocus: clearSelection,
+}), [
+  runGenerate,
+  params.effective.size,
+  params.effective.steps,
+  params.effective.cfg,
+  params.draft.seedMode,
+  params.draft.seed,
+  params.effective.superresLevel,
+  cancelAll,
+  onKeyDown,
+  clearSelection,
+]);
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -336,23 +366,7 @@ const inputImage = useMemo(() => {
             onToggleSelect={toggleSelectMsg}
             onCancelRequest={cancelRequest}
             setMsgRef={setMsgRef}
-            composer={{
-              prompt: params.draft.prompt,
-              onPromptChange: params.setPromptDirect,
-              onSend,
-              onCancelAll: cancelAll,
-              onKeyDown,
-              onFocus: clearSelection,
-              disabled: !params.effective.prompt.trim(),
-              currentParams: {
-                size: params.effective.size,
-                steps: params.effective.steps,
-                cfg: params.effective.cfg,
-                seedMode: params.draft.seedMode,
-                seed: params.draft.seed,
-                superresLevel: params.effective.superresLevel,
-              },
-            }}
+            composer={defaultComposer}
             inflightCount={inflightCount}
             isDreaming={isDreaming}
             dreamMessageId={dreamMessageId}

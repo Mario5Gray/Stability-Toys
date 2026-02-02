@@ -22,7 +22,10 @@ export default defineConfig({
     proxy: {
       "/generate": "http://localhost:4200",
       "/superres": "http://localhost:4200",
-      "/v1": "http://localhost:4200",
+      "/v1": {
+        target: "http://localhost:4200",
+        ws: true,
+      },
       "/storage": "http://localhost:4200",
       "/dreams": "http://localhost:4200",
     },

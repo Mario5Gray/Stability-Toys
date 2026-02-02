@@ -35,7 +35,7 @@ class WSClient extends EventTarget {
    * Connect to the WS endpoint.
    * @param {string} [url] - ws:// or wss:// URL. Defaults to same-origin /v1/ws.
    */
-  connect(url) {
+  connect(url) {    
     if (this._ws && (this._state === 'connected' || this._state === 'connecting')) {
       return; // already connected/connecting
     }
@@ -44,6 +44,7 @@ class WSClient extends EventTarget {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       url = `${proto}//${location.host}/v1/ws`;
     }
+
     this._url = url;
     this._intentionalClose = false;
     this._openSocket();
@@ -70,8 +71,11 @@ class WSClient extends EventTarget {
   send(msg) {
     const id = msg.id || nextCorrId();
     const envelope = { ...msg, id };
+    
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
-      this._ws.send(JSON.stringify(envelope));
+      const jsonReq = JSON.stringify(envelope)
+      console.log("[WS] sending now request: " + jsonReq) ;
+      this._ws.send(jsonReq);
     } else {
       console.warn('[WS] send while not connected, dropping:', envelope.type);
     }
@@ -161,7 +165,7 @@ class WSClient extends EventTarget {
 
     const ws = new WebSocket(this._url);
     this._ws = ws;
-
+    
     ws.onopen = () => {
       this._reconnectDelay = RECONNECT_BASE_MS;
       this._setState('connected');
