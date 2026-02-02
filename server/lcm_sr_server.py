@@ -64,7 +64,7 @@ from transformers import CLIPTokenizer
 from PIL import Image
 
 from server.comfy_routes import router as comfy_router
-from yume.dream_endpoints import dream_router
+
 from server.ws_routes import ws_router, register_job_hook, _build_status
 from server.ws_hub import hub
 from server.upload_routes import upload_router, cleanup_uploads_loop
@@ -77,7 +77,7 @@ from persistence.storage_provider import StorageProvider
 
 from backends.base import ModelPaths, Job
 
-from yume.dream_init import initialize_dream_system, shutdown_dream_system
+
 from backends.base import PipelineWorker
 
 import logging
@@ -99,7 +99,6 @@ except ImportError:
 
 BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
 COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
-YUME_ENABLED = os.environ.get("YUME_ENABLED", "false").lower().strip()
 
 logger = logging.getLogger(__name__)
 #logging.basicConfig(filename='myapp.log', level=logging.INFO)
@@ -632,13 +631,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize storage provider: {e}", exc_info=True)
         raise
 
-    if YUME_ENABLED:
-        try:
-            await startup_yume()
-        except Exception as e:
-            logger.error(f"Failed to initialize Yume: {e}", exc_info=True)
-            raise
-
     # Wire up WS job update hook and start background tasks
     register_job_hook()
     upload_cleanup_task = asyncio.create_task(cleanup_uploads_loop())
@@ -686,13 +678,6 @@ async def lifespan(app: FastAPI):
             logger.info("SR service shut down")
         except Exception as e:
             logger.error(f"Error shutting down SR service: {e}", exc_info=True)
-
-    if YUME_ENABLED:
-        try:
-            shutdown_dream_system(app.state)
-            logger.info("Yume system shut down")
-        except Exception as e:
-            logger.error(f"Error shutting down Yume: {e}", exc_info=True)
 
 async def _status_broadcaster(app: FastAPI):
     """Broadcast system:status to all WS clients every 5 seconds."""
@@ -1085,27 +1070,12 @@ def storage_get(key: str):
 def health():
     return {"status": "ok"}
 
-async def startup_yume():
-    logger.info("🌙  Initializing Yume")
-    success = await initialize_dream_system(
-        app_state=app.state,
-        service=app.state.service,
-        backend=BACKEND,
-        dream_config={'top_k': 100, 'explore_temperature': 0.8},
-        worker_pool=getattr(app.state, 'worker_pool', None)
-    )
-    if success:
-        logger.info("🌙 Yume system ready!")
-
 # OpenAI compatible endpoint
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
 
 # Model management API
 app.include_router(model_router)
 logger.info("Model management API mounted at /api")
-
-if YUME_ENABLED:
-    app.include_router(dream_router)
 
 # Comfyui invoker
 if COMFYUI_ENABLED:

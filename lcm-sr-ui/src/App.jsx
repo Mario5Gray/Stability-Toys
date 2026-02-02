@@ -6,8 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { useChatMessages } from './hooks/useChatMessages';
 import { useGenerationParams } from './hooks/useGenerationParams';
 import { useImageGeneration } from './hooks/useImageGeneration';
-import { useJobQueue } from './hooks/useJobQueue';
-import { useWs } from './hooks/useWs';
 import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
@@ -212,56 +210,43 @@ export default function App() {
     };
   }, [selectedMsg]);
 
-  // WebSocket (auto-connects on mount)
-  const ws = useWs();
-
-  // Job queue state
-  const queueState = useJobQueue();
-
-  // Session ID for ledger grouping
-  const [sessionId] = useState(() => uuidv4());
-
   /**
-   *  Handling comfyui image to chat message
+   *  Handling comfyui image to chat message 
    */
-  const pendingMapRef = useRef(new Map());
-
-
-  const onComfyStart = useCallback((jobId) => {
+  const pendingIdRef = useRef(null);
+  
+  
+  const onComfyStart = useCallback(() => {
     const id = uuidv4();
-    if (jobId) {
-      pendingMapRef.current.set(jobId, id);
-    } else {
-      pendingMapRef.current.set('_last', id);
-    }
+    pendingIdRef.current = id;
 
     addMessage({
       id,
       role: "assistant",
       kind: "pending",
-      meta: { backend: "comfy", jobId },
+      meta: { backend: "comfy" },
     });
-    return id;
   }, [addMessage]);
 
   /*
     Handle ComfyUI image->chat
   */
-  const onComfyOutputs = useCallback(({ workflowId, params, outputs, jobId }) => {
+  const onComfyOutputs = useCallback(({ workflowId, params, outputs }) => {
+    // if you only care about first output:
     const first = outputs?.[0];
     if (!first) return;
 
-    const msgId = pendingMapRef.current.get(jobId) ?? pendingMapRef.current.get('_last');
-    if (msgId) {
-      updateMessage(msgId, {
+    const id = pendingIdRef.current;
+    if (id) {
+      updateMessage(id, {
         kind: "image",
         imageUrl: first.url,
         params: { ...params, workflowId },
         meta: { backend: `comfy:${workflowId}` },
       });
-      pendingMapRef.current.delete(jobId);
-      pendingMapRef.current.delete('_last');
+      pendingIdRef.current = null;
     } else {
+      // fallback if no pending
       addMessage({ role:"assistant", kind:"image", imageUrl:first.url, params:{...params, workflowId}, meta:{backend:`comfy:${workflowId}`}});
     }
   }, [addMessage, updateMessage]);
@@ -384,7 +369,7 @@ const inputImage = useMemo(() => {
           />
 
           {/* Options Panel */}
-          <OptionsPanel
+          <OptionsPanel          
             inputImage={inputImage}
             params={params}
             selectedParams={selectedParams}
@@ -393,7 +378,6 @@ const inputImage = useMemo(() => {
             onApplyPromptDelta={onApplyPromptDelta}
             onApplySeedDelta={onApplySeedDelta}
             onRerunSelected={onRerunSelected}
-            queueState={queueState}
             dreamState={{
               isDreaming,
               temperature: dreamTemperature,
@@ -421,11 +405,7 @@ const inputImage = useMemo(() => {
       </div>
     </TabsContent>
   </ChatDropzone>
-          {/* Dream Gallery Tab
-          <TabsContent value="dreams" className="h-full m-0">
-            <DreamGallery apiBase={apiBase} />
-          </TabsContent>
-        </div> */}
+        </div>
       </Tabs>
 
     </div>
