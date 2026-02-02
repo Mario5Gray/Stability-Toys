@@ -13,6 +13,29 @@ const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
  * @param {AbortSignal} [signal] - Optional abort signal
  * @returns {Promise<{imageUrl, serverImageUrl, serverImageKey, metadata}>}
  */
+/**
+ * Retry wrapper around generateViaWs.
+ * Up to 3 total attempts with 1s/2s backoff. Skips retry on AbortError.
+ * On timeout, sends job:cancel to the server before rejecting.
+ */
+export async function generateViaWsWithRetry(payload, signal) {
+  const MAX_ATTEMPTS = 3;
+  const BACKOFFS = [1000, 2000];
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      return await generateViaWs(payload, signal);
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, BACKOFFS[attempt] || 2000));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export function generateViaWs(payload, signal) {
   return new Promise((resolve, reject) => {
     if (!wsClient.connected) {
@@ -47,8 +70,11 @@ export function generateViaWs(payload, signal) {
       },
     });
 
-    // Timeout — reject if server never responds
+    // Timeout — reject if server never responds; cancel server-side job
     const timer = setTimeout(() => {
+      if (jobId && wsClient.connected) {
+        wsClient.send({ type: 'job:cancel', jobId });
+      }
       settle(reject, new Error('Generate timed out (no response)'));
     }, GENERATE_TIMEOUT_MS);
 

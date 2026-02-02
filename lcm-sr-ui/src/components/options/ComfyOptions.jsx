@@ -1,5 +1,5 @@
 // src/components/options/ComfyOptions.jsx
-import React, { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -7,34 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Sparkles, Pause } from "lucide-react";
 
 import { CSS_CLASSES } from "../../utils/constants";
-import { createComfyInvokerApi } from "@/lib/comfyInvokerApi";
-import { useComfyJobWs } from "@/hooks/useComfyJobWs";
 import { NumberStepper } from "@/components/ui/NumberStepper";
+import { wsClient } from "@/lib/wsClient";
+import { jobQueue } from "@/lib/jobQueue";
 
 /**
- * ComfyOptions (no preview / no eager url->File conversion)
- * - No syncing inputImage into local file state
- * - URL->File conversion happens ONLY when Run is clicked
- * - Outputs are expected to be injected into chat via onOutputs, not displayed here
+ * ComfyOptions — now delegates to jobQueue via onRunComfy callback.
+ * Progress is tracked by listening to WS job:progress events.
  */
 export function ComfyOptions({
   inputImage,
-  apiBase = "https://node2:4205",
   workflowId = "LCM_CYBERPONY_XL",
   defaultCfg = 0.0,
   defaultSteps = 8,
   defaultDenoise = 0.03,
-  onStart,
-  onDone,
-  onError,
-  onOutputs,
-  onComfyStart,
+  onRunComfy,
   queueState,
 }) {
-  // API + job hook
-  const api = useMemo(() => createComfyInvokerApi(apiBase), [apiBase]);
-  const comfy = useComfyJobWs({ api });
-
   // Controls
   const [comfyCfg, setComfyCFG] = useState(defaultCfg);
   const [comfySteps, setComfySteps] = useState(defaultSteps);
@@ -43,28 +32,56 @@ export function ComfyOptions({
   // Manual upload fallback ONLY (not synced from selection)
   const [uploadFile, setUploadFile] = useState(null);
 
-  // Snapshot run params so callbacks don’t “drift” if user changes sliders mid-job
-  const lastRunRef = useRef(null);
+  // Progress from WS events (latest comfy job)
+  const [fraction, setFraction] = useState(0);
+  const [showProgress, setShowProgress] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Derived progress values
-  const rawFraction = comfy.job?.progress?.fraction;
-  const fraction = Math.max(0, Math.min(1, Number(rawFraction ?? 0)));
-  const showProgress =
-    comfy.state === "starting" ||
-    comfy.state === "running" ||
-    comfy.state === "done" ||
-    !!comfy.jobId;
+  // Track latest comfy job progress via WS events
+  useEffect(() => {
+    const unsubProgress = wsClient.on("job:progress", (msg) => {
+      // Show progress for any comfy-sourced job
+      if (msg.source === "comfy" || msg.jobType === "comfy") {
+        setShowProgress(true);
+        setFraction(Math.max(0, Math.min(1, Number(msg.progress?.fraction ?? 0))));
+      }
+    });
+
+    const onComplete = (e) => {
+      const job = e.detail?.job;
+      if (job?.source === "comfy") {
+        setShowProgress(false);
+        setFraction(0);
+      }
+    };
+
+    const onError = (e) => {
+      const job = e.detail?.job;
+      if (job?.source === "comfy") {
+        setShowProgress(false);
+        setFraction(0);
+      }
+    };
+
+    jobQueue.addEventListener("complete", onComplete);
+    jobQueue.addEventListener("error", onError);
+
+    return () => {
+      unsubProgress();
+      jobQueue.removeEventListener("complete", onComplete);
+      jobQueue.removeEventListener("error", onError);
+    };
+  }, []);
 
   // --- Run action ---
   const run = useCallback(async () => {
-    onStart?.();
+    setError(null);
 
     let inputImageFile = null;
 
     if (inputImage?.kind === "file") {
       inputImageFile = inputImage.file;
     } else if (inputImage?.kind === "url") {
-      // Convert URL->File ONLY at Run time (no preview, no prefetch)
       const res = await fetch(inputImage.url);
       if (!res.ok) throw new Error(`fetch image failed: ${res.status}`);
       const blob = await res.blob();
@@ -72,75 +89,32 @@ export function ComfyOptions({
         type: blob.type || "image/png",
       });
     } else {
-      // Manual upload fallback
       inputImageFile = uploadFile;
     }
 
     if (!inputImageFile) {
-      const err = new Error("No input image selected.");
-      onError?.(err);
-      throw err;
+      setError(new Error("No input image selected."));
+      return;
     }
 
-    // Snapshot params eagerly (stable for this run)
     const paramsSnapshot = { cfg: comfyCfg, steps: comfySteps, denoise: comfyDenoise };
-    lastRunRef.current = {
-      workflowId,
-      params: paramsSnapshot,
-    };
+    setShowProgress(true);
+    setFraction(0);
 
-    // Create pending message in chat
-    onComfyStart?.();
-
-    // Start via WS hook (upload + submit + progress via push)
-    comfy.start({
+    onRunComfy?.({
       workflowId,
       params: paramsSnapshot,
       inputImageFile,
     });
   }, [
-    onStart,
-    onError,
-    onComfyStart,
+    onRunComfy,
     inputImage,
     uploadFile,
     workflowId,
     comfyCfg,
     comfySteps,
     comfyDenoise,
-    comfy,
   ]);
-
-  // done callback
-  useEffect(() => {
-    if (comfy.state === "done") {
-      onDone?.(comfy.job);
-    }
-  }, [comfy.state, comfy.job, onDone]);
-
-  // error callback
-  useEffect(() => {
-    if (comfy.state === "error" && comfy.error) {
-      onError?.(comfy.error);
-    }
-  }, [comfy.state, comfy.error, onError]);
-
-  // outputs callback (when outputs arrive)
-  useEffect(() => {
-    if (comfy.state !== "done") return;
-    if (!comfy.job?.outputs?.length) return;
-
-    const snap = lastRunRef.current;
-    const payloadParams = snap?.params ?? { cfg: comfyCfg, steps: comfySteps, denoise: comfyDenoise };
-    const payloadWorkflowId = snap?.workflowId ?? workflowId;
-
-    onOutputs?.({
-      workflowId: payloadWorkflowId,
-      params: payloadParams,
-      outputs: comfy.job.outputs,
-      job: comfy.job,
-    });
-  }, [comfy.state, comfy.job, onOutputs, workflowId]);
 
   return (
     <div className="option-panel-area space-y-3 rounded-2xl border p-4">
@@ -177,9 +151,9 @@ export function ComfyOptions({
           onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
         />
 
-        {comfy.error ? (
+        {error ? (
           <pre style={{ whiteSpace: "pre-wrap" }}>
-            {String(comfy.error.message || comfy.error)}
+            {String(error.message || error)}
           </pre>
         ) : null}
       </div>
@@ -210,16 +184,13 @@ export function ComfyOptions({
 
         <Button
           variant="outline"
-          onClick={comfy.cancel}
-          disabled={!comfy.isBusy}
+          onClick={() => jobQueue.cancelAll()}
           className="border-red-400/40 text-red-500 hover:bg-red-500/10"
         >
           <Pause className="mr-2 h-4 w-4" />
           Stop
         </Button>
       </div>
-
-      {/* No preview grid here. Outputs land in chat via onOutputs. */}
     </div>
   );
 }

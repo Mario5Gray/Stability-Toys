@@ -84,6 +84,14 @@ def _get_app_state(ws: WebSocket):
 
 HANDLERS: Dict[str, Any] = {}  # populated below
 
+# Track running async tasks so we can cancel them
+_running_tasks: Dict[str, asyncio.Task] = {}
+
+
+def _track_task(job_id: str, task: asyncio.Task) -> None:
+    _running_tasks[job_id] = task
+    task.add_done_callback(lambda _: _running_tasks.pop(job_id, None))
+
 
 def _handler(msg_type: str):
     def decorator(fn):
@@ -120,11 +128,14 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     })
 
     if job_type == "generate":
-        asyncio.create_task(_run_generate(ws, client_id, job_id, params))
+        t = asyncio.create_task(_run_generate(ws, client_id, job_id, params))
+        _track_task(job_id, t)
     elif job_type == "comfy":
-        asyncio.create_task(_run_comfy(ws, client_id, job_id, msg))
+        t = asyncio.create_task(_run_comfy(ws, client_id, job_id, msg))
+        _track_task(job_id, t)
     elif job_type == "sr":
-        asyncio.create_task(_run_sr(ws, client_id, job_id, msg))
+        t = asyncio.create_task(_run_sr(ws, client_id, job_id, msg))
+        _track_task(job_id, t)
     else:
         await hub.send(client_id, _error(f"Unknown jobType: {job_type}", corr_id))
 
@@ -135,7 +146,12 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
 
 @_handler("job:cancel")
 async def handle_job_cancel(ws: WebSocket, msg: dict, client_id: str) -> dict:
-    return {"type": "job:cancel:ack", "id": msg.get("id"), "detail": "cancel not yet implemented"}
+    job_id = msg.get("jobId")
+    task = _running_tasks.get(job_id)
+    if task and not task.done():
+        task.cancel()
+        return {"type": "job:cancel:ack", "id": msg.get("id"), "jobId": job_id, "detail": "cancelled"}
+    return {"type": "job:cancel:ack", "id": msg.get("id"), "jobId": job_id, "detail": "no running task found"}
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +248,10 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
                 "sr": did_sr,
             },
         })
+
+    except asyncio.CancelledError:
+        logger.info("Generate job %s cancelled by client", job_id)
+        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Cancelled by client"})
 
     except Exception as e:
         logger.error("Generate job %s failed: %s", job_id, e, exc_info=True)

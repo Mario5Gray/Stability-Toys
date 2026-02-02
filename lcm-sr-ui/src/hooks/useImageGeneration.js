@@ -16,7 +16,8 @@ import {
   ABORT_ERROR_NAME,
 } from '../utils/constants';
 import { jobQueue, PRIORITY } from '../lib/jobQueue';
-import { generateViaWs } from '../lib/generateRunnerWs';
+import { generateViaWsWithRetry } from '../lib/generateRunnerWs';
+import { createComfyRunnerWs } from '../lib/comfyRunnerWs';
 import { wsClient } from '../lib/wsClient';
 
 /**
@@ -98,6 +99,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   // API client and cache (created once)
   const apiClientRef = useRef(null);
   const cacheRef = useRef(null);
+
+  // Comfy runner (created once)
+  const comfyRunnerRef = useRef(null);
+  if (!comfyRunnerRef.current) comfyRunnerRef.current = createComfyRunnerWs();
 
   // Track which messages correspond to which cache keys
   const cacheKeyToMsgIdsRef = useRef(new Map()); // cacheKey -> Set(msgId)
@@ -356,7 +361,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
             // 2) If not in cache, generate via WS
             if (!result) {
-              result = await generateViaWs(payload, signal);
+              result = await generateViaWsWithRetry(payload, signal);
 
               // 3) Store meta-only immediately, then hydrate in background
               if (cache && result?.serverImageUrl) {
@@ -447,6 +452,137 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         const errMsg =
           err?.name === ABORT_ERROR_NAME ? UI_MESSAGES.CANCELED : err?.message || String(err);
 
+        const savedParams = {
+          prompt: promptParam,
+          size: sizeParam,
+          steps: stepsParam,
+          cfg: cfgParam,
+          superresLevel: srLevelParam,
+          seedMode: seedModeParam,
+          seed: seedParam,
+          targetMessageId: assistantId,
+        };
+
+        updateMessage(assistantId, {
+          kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
+          isRegenerating: false,
+          hasError: true,
+          errorText: errMsg,
+          text: targetMessageId ? null : errMsg,
+          retryParams: savedParams,
+        });
+      };
+
+      const onCancel = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+
+        updateMessage(assistantId, {
+          kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
+          isRegenerating: false,
+          hasError: true,
+          errorText: UI_MESSAGES.CANCELED,
+          text: targetMessageId ? null : UI_MESSAGES.CANCELED,
+        });
+      };
+
+      const onComplete = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+        jobQueue.removeEventListener('complete', onComplete);
+      };
+
+      jobQueue.addEventListener('error', onError);
+      jobQueue.addEventListener('cancel', onCancel);
+      jobQueue.addEventListener('complete', onComplete);
+
+      return assistantId;
+    },
+    [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey]
+  );
+
+  /**
+   * Run a ComfyUI workflow through the job queue.
+   * If targetMessageId is provided, updates that message and appends to its imageHistory.
+   * Otherwise creates a new pending message.
+   */
+  const runComfy = useCallback(
+    ({ workflowId, params, inputImageFile, targetMessageId, existingHistory }) => {
+      const assistantId = targetMessageId ?? nowId();
+
+      if (targetMessageId) {
+        updateMessage(targetMessageId, { isRegenerating: true });
+      } else {
+        addMessage({
+          id: assistantId,
+          role: MESSAGE_ROLES.ASSISTANT,
+          kind: MESSAGE_KINDS.PENDING,
+          text: null,
+          meta: { backend: 'comfy' },
+          ts: Date.now(),
+        });
+      }
+
+      const comfyRunner = comfyRunnerRef.current;
+      // Snapshot current history so concurrent jobs don't clobber each other
+      const priorHistory = existingHistory ? [...existingHistory] : [];
+
+      const jobId = jobQueue.enqueue({
+        priority: PRIORITY.NORMAL,
+        source: 'comfy',
+        payload: { workflowId, params, inputImageFile, assistantId, targetMessageId, priorHistory },
+        meta: {},
+        runner: async (payload, signal) => {
+          const result = await comfyRunner(
+            {
+              workflowId: payload.workflowId,
+              params: payload.params,
+              inputImageFile: payload.inputImageFile,
+            },
+            signal
+          );
+
+          const firstOutput = result?.outputs?.[0];
+          const newUrl = firstOutput?.url || null;
+          const entryParams = { ...payload.params, workflowId: payload.workflowId };
+          const entryMeta = { backend: `comfy:${payload.workflowId}` };
+
+          const historyEntry = {
+            imageUrl: newUrl,
+            serverImageUrl: newUrl,
+            params: entryParams,
+            meta: entryMeta,
+          };
+
+          const newHistory = [...payload.priorHistory, historyEntry];
+
+          updateMessage(payload.assistantId, {
+            kind: MESSAGE_KINDS.IMAGE,
+            isRegenerating: false,
+            imageUrl: newUrl,
+            params: entryParams,
+            meta: entryMeta,
+            imageHistory: newHistory,
+            historyIndex: newHistory.length - 1,
+          });
+
+          setSelectedMsgId(payload.assistantId);
+          return result;
+        },
+      });
+
+      // Error / cancel handlers
+      const onError = (e) => {
+        if (e.detail?.job?.id !== jobId) return;
+        jobQueue.removeEventListener('error', onError);
+        jobQueue.removeEventListener('cancel', onCancel);
+
+        const err = e.detail.error;
+        const errMsg =
+          err?.name === ABORT_ERROR_NAME ? UI_MESSAGES.CANCELED : err?.message || String(err);
+
         updateMessage(assistantId, {
           kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
           isRegenerating: false,
@@ -483,7 +619,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
       return assistantId;
     },
-    [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey]
+    [addMessage, updateMessage, setSelectedMsgId]
   );
 
   /**
@@ -736,6 +872,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   return {
     // Generation
     runGenerate,
+    runComfy,
     runSuperResUpload,
 
     // Cancellation

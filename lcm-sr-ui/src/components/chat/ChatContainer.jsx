@@ -19,6 +19,7 @@ export function ChatContainer({
   onDreamHistoryPrev,
   onDreamHistoryNext,
   onDreamHistoryLive,
+  onRetry,
   serverLabel,
 }) {
   return (
@@ -48,6 +49,7 @@ export function ChatContainer({
                     onDreamHistoryPrev={() => onDreamHistoryPrev?.(msg)}
                     onDreamHistoryNext={() => onDreamHistoryNext?.(msg)}
                     onDreamHistoryLive={() => onDreamHistoryLive?.(msg)}
+                    onRetry={onRetry}
                   />
                 </div>
               ))}

@@ -1,7 +1,7 @@
 // src/components/chat/MessageBubble.jsx
 
 import React from 'react';
-import { X, Loader2, ChevronLeft, ChevronRight, Radio } from 'lucide-react';
+import { X, Loader2, ChevronLeft, ChevronRight, Radio, RotateCcw } from 'lucide-react';
 import { MESSAGE_ROLES, MESSAGE_KINDS } from '../../utils/constants';
 
 /**
@@ -97,6 +97,7 @@ function ImagePlaceholder({ size, onCancel, queuePosition }) {
  * @param {function} [props.onDreamHistoryPrev] - Go to previous in history
  * @param {function} [props.onDreamHistoryNext] - Go to next in history
  * @param {function} [props.onDreamHistoryLive] - Go to latest (live)
+ * @param {function} [props.onRetry] - Retry callback for failed messages
  */
 export function MessageBubble({
   msg,
@@ -109,6 +110,7 @@ export function MessageBubble({
   onDreamHistoryPrev,
   onDreamHistoryNext,
   onDreamHistoryLive,
+  onRetry,
 }) {
   const isUser = msg.role === MESSAGE_ROLES.USER;
 
@@ -170,6 +172,17 @@ export function MessageBubble({
         {msg.text ? (
           <div className="whitespace-pre-wrap text-sm leading-relaxed">
             {msg.text}
+            {msg.kind === MESSAGE_KINDS.ERROR && onRetry && msg.retryParams && (
+              <button
+                className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs transition-colors"
+                onClick={(e) => { e.stopPropagation(); onRetry(msg); }}
+                title="Retry generation"
+                type="button"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Retry
+              </button>
+            )}
           </div>
         ) : null}
 
@@ -221,13 +234,24 @@ export function MessageBubble({
                     </div>
                   </div>
                 )}
-                {/* Error indicator tooltip */}
+                {/* Error indicator tooltip + retry button */}
                 {msg.hasError && msg.errorText && (
                   <div
-                    className="absolute bottom-2 left-2 right-2 bg-red-900/90 text-white text-xs px-2 py-1 rounded backdrop-blur-sm truncate"
+                    className="absolute bottom-2 left-2 right-2 flex items-center gap-2 bg-red-900/90 text-white text-xs px-2 py-1 rounded backdrop-blur-sm"
                     title={msg.errorText}
                   >
-                    {msg.errorText}
+                    <span className="truncate flex-1">{msg.errorText}</span>
+                    {onRetry && msg.retryParams && (
+                      <button
+                        className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); onRetry(msg); }}
+                        title="Retry generation"
+                        type="button"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Retry
+                      </button>
+                    )}
                   </div>
                 )}
                 {/* Dream mode indicator */}

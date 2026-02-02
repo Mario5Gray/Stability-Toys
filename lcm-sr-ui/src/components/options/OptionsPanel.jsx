@@ -66,16 +66,9 @@ export function OptionsPanel({
   onSrMagnitudeChange,
   serverLabel,
   onRunComfy,
-  comfyIsBusy,
-  comfyState,
-  comfyJob,
-  comfyError,
-  onCancelComfy,
   onClearCache,
   getCacheStats,
   onClearHistory,
-  onComfyOutputs,
-  onComfyStart,
   queueState,
 }) {
   const optionsScrollRef = useRef(null);
@@ -218,17 +211,6 @@ export function OptionsPanel({
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  function ComfyGenerator() {
-    const api = useMemo(() => createComfyInvokerApi("/api"), []);
-    const comfy = useComfyJob({ api });
-
-    const [options, setOptions] = useState({
-      cfg: 0.35,
-      steps: 12,
-      denoise: 0.3,
-    });
   };
 
   return (
@@ -485,9 +467,8 @@ export function OptionsPanel({
           
           <Separator />
 
-          <ComfyOptions   onOutputs={onComfyOutputs}
-                          inputImage={comfyInputImage}
-                          onComfyStart={onComfyStart}
+          <ComfyOptions   inputImage={comfyInputImage}
+                          onRunComfy={onRunComfy}
                           queueState={queueState}
           />
           

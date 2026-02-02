@@ -1,6 +1,6 @@
 // src/App.jsx
 
-import React, { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { ChatDropzone } from "./components/chat/ChatDropzone";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { useChatMessages } from './hooks/useChatMessages';
@@ -11,7 +11,6 @@ import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
 import { MessageSquare, Sparkles } from 'lucide-react';
-import { uuidv4 } from "@/utils/uuid";
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
 
@@ -47,6 +46,7 @@ export default function App() {
   const generation = useImageGeneration(addMessage, updateMessage, setSelectedMsgId);
   const {
     runGenerate,
+    runComfy,
     runSuperResUpload,
     cancelRequest,
     cancelAll,
@@ -219,47 +219,6 @@ export default function App() {
   }, [selectedMsg]);
 
   /**
-   *  Handling comfyui image to chat message 
-   */
-  const pendingIdRef = useRef(null);
-  
-  
-  const onComfyStart = useCallback(() => {
-    const id = uuidv4();
-    pendingIdRef.current = id;
-
-    addMessage({
-      id,
-      role: "assistant",
-      kind: "pending",
-      meta: { backend: "comfy" },
-    });
-  }, [addMessage]);
-
-  /*
-    Handle ComfyUI image->chat
-  */
-  const onComfyOutputs = useCallback(({ workflowId, params, outputs }) => {
-    // if you only care about first output:
-    const first = outputs?.[0];
-    if (!first) return;
-
-    const id = pendingIdRef.current;
-    if (id) {
-      updateMessage(id, {
-        kind: "image",
-        imageUrl: first.url,
-        params: { ...params, workflowId },
-        meta: { backend: `comfy:${workflowId}` },
-      });
-      pendingIdRef.current = null;
-    } else {
-      // fallback if no pending
-      addMessage({ role:"assistant", kind:"image", imageUrl:first.url, params:{...params, workflowId}, meta:{backend:`comfy:${workflowId}`}});
-    }
-  }, [addMessage, updateMessage]);
-
-  /**
    * Handle super-resolution upload.
    */
   const onSuperResUpload = useCallback(() => {
@@ -394,6 +353,7 @@ export default function App() {
             onDreamHistoryPrev={dreamHistoryPrev}
             onDreamHistoryNext={dreamHistoryNext}
             onDreamHistoryLive={dreamHistoryLive}
+            onRetry={(msg) => { if (msg.retryParams) runGenerate(msg.retryParams); }}
             srLevel={params.effective.superresLevel}
             onCopyPrompt={onCopyPrompt}
             copied={copied}
@@ -430,8 +390,23 @@ export default function App() {
             onClearCache={clearCache}
             getCacheStats={getCacheStats}
             onClearHistory={clearHistory}
-            onComfyOutputs={onComfyOutputs}
-            onComfyStart={onComfyStart}
+            onRunComfy={(payload) => {
+              const history = selectedMsg?.imageHistory || [];
+              // Bootstrap history with current image if message exists but has no history
+              if (selectedMsg && history.length === 0 && selectedMsg.imageUrl) {
+                history.push({
+                  imageUrl: selectedMsg.imageUrl,
+                  serverImageUrl: selectedMsg.serverImageUrl,
+                  params: selectedMsg.params,
+                  meta: selectedMsg.meta,
+                });
+              }
+              runComfy({
+                ...payload,
+                targetMessageId: selectedMsgId || undefined,
+                existingHistory: history,
+              });
+            }}
             queueState={queueState}
           />
         </div>
