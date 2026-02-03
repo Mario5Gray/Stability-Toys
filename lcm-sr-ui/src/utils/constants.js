@@ -15,6 +15,7 @@ export const SIZE_OPTIONS = [
 ];
 
 export const DEFAULT_SIZE = "512x512";
+export const API_BASE = import.meta.env.VITE_API_BASE;
 
 /* ============================================================================
  * GENERATION PARAMETERS
@@ -130,6 +131,7 @@ export const FILE_CONFIG = {
  * API ENDPOINTS
  * ========================================================================== */
 export const API_ENDPOINTS = {
+  API: "/api",
   GENERATE: "/generate",
   SUPERRES: "/superres",
 };

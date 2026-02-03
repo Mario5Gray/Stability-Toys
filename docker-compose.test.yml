@@ -21,7 +21,7 @@ services:
       - ${MODELS_HOST_PATH:-./model}:/models:ro,Z
       - ${FS_HOST_PATH:-./store}:/store:rw,Z
       - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
-      - ./test-modes.yaml:/app/modes.yaml:ro,Z
+      - ./conf-test:/app/conf:rw,Z
       - ./htmlcov:/app/htmlcov
     command: pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 

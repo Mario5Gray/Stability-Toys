@@ -10,7 +10,8 @@ import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
-import { MessageSquare, Sparkles } from 'lucide-react';
+import { MessageSquare, Settings } from 'lucide-react';
+import ModeEditor from './components/config/ModeEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
 
@@ -120,10 +121,6 @@ export default function App() {
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
-
-  // API base from env
-
-  const apiBase = "";
 
   // ============================================================================
   // EVENT HANDLERS
@@ -321,8 +318,9 @@ export default function App() {
           <MessageSquare className="h-4 w-4" />
           Main Chat
         </TabsTrigger>
-        <TabsTrigger value="dreams" className="gap-2">        
-          Save Gallery
+        <TabsTrigger value="config" className="gap-2">
+          <Settings className="h-4 w-4" />
+          Configuration
         </TabsTrigger>
       </TabsList>
     </div>
@@ -330,12 +328,13 @@ export default function App() {
 {/* Tab Content */}
 <div className="flex-1 overflow-hidden">
   {/* Main Chat Tab */}
-<ChatDropzone
-  addMessage={addMessage}
-  setSelectedMsgId={setSelectedMsgId}
-  setUploadFile={setUploadFile}
->
-  <TabsContent value="chat" className="h-full m-0">        
+
+  <TabsContent value="chat" className="h-full m-0"> 
+          <ChatDropzone
+        addMessage={addMessage}
+        setSelectedMsgId={setSelectedMsgId}
+        setUploadFile={setUploadFile}
+      >       
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
           {/* Chat Panel */}
@@ -411,8 +410,15 @@ export default function App() {
           />
         </div>
       </div>
+      </ChatDropzone>
     </TabsContent>
-  </ChatDropzone>
+  
+
+          {/* Configuration Tab */}
+          <TabsContent value="config" className="h-full m-0 overflow-auto">
+            <ModeEditor />
+          </TabsContent>
+  
         </div>
       </Tabs>
 

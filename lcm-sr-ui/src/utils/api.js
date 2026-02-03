@@ -57,7 +57,6 @@ export function createApiConfig() {
 
   const bases = parseApiBases(vitePlural || "");
   const single = normalizeBase(viteSingle || craSingle || "");
-
   return { bases, single };
 }
 
@@ -86,6 +85,7 @@ export function createRoundRobinPicker(apiConfig) {
       const idx = counter++ % bases.length;
       return bases[idx];
     }
+    
     return normalizeBase(apiConfig.single);
   };
 }
@@ -496,6 +496,86 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
   const blobManager = createBlobUrlManager();
   const abortManager = createAbortManager();
   const cache = cacheEnabled ? createCache(cacheConfig) : null;
+  function joinUrl(base, path) {
+    const b = (base ?? "").replace(/\/+$/, "");
+    const p = String(path ?? "").replace(/^\/+/, "");
+    return b ? `${b}/${p}` : `/${p}`;
+  }
+
+  async function fetchRequest(
+    method,
+    endpoint,
+    {
+      body,
+      headers,
+      requestId,
+      signal,
+      expect = "auto", // "auto" | "json" | "text" | "blob" | "none"
+    } = {}
+  ) {
+    const apiBase = pickApiBase(); // "" = same-origin
+    const url = joinUrl(apiBase, endpoint);
+
+    console.log("url = " + url);
+
+    const controller = signal ? null : new AbortController();
+    const usedSignal = signal ?? controller?.signal;
+
+    if (requestId && controller) {
+      abortManager.add(requestId, controller);
+    }
+
+    const t0 = performance.now();
+    try {
+      console.log(`[fetch ${method}] ->`, url);
+
+      const res = await fetch(url, {
+        method,
+        signal: usedSignal,
+        headers: {
+          ...(body && !(body instanceof FormData)
+            ? { "Content-Type": "application/json" }
+            : {}),
+          ...(headers || {}),
+        },
+        body:
+          body == null
+            ? undefined
+            : body instanceof FormData
+            ? body
+            : JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `${method} ${url} failed: ${res.status} ${res.statusText} ${text}`
+        );
+      }
+
+      if (expect === "none") return;
+
+      if (expect === "blob") return await res.blob();
+      if (expect === "text") return await res.text();
+      if (expect === "json") return await res.json();
+
+      // auto
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return await res.json();
+      if (ct.startsWith("image/")) return await res.blob();
+      return await res.text();
+    } finally {
+      console.log(
+        `[fetch ${method}] <-`,
+        url,
+        (performance.now() - t0).toFixed(1),
+        "ms"
+      );
+      if (requestId && controller) {
+        abortManager.remove(requestId);
+      }
+    }
+  }
 
   // Track cache stats
   let cacheHits = 0;
@@ -503,6 +583,22 @@ export function createApiClient(apiConfig, cacheOptions = {}) {
 
   return {
     
+    fetchGet(endpoint, requestId = null) {
+      return fetchRequest("GET", endpoint, { requestId });
+    },
+    fetchPut(endpoint, body, requestId = null) {
+      return fetchRequest("PUT", endpoint, {
+        body,
+        requestId,
+        expect: "json",
+      });
+    },
+    fetchPost(endpoint, body, requestId = null) {
+      return fetchRequest("POST", endpoint, { body, requestId });
+    },
+    fetchDelete(endpoint, requestId = null) {
+      return fetchRequest("DELETE", endpoint, { requestId, expect: "none" });
+    },    
     /**
      * Generate an image with automatic API base selection, tracking, and caching.
      */

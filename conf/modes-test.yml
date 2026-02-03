@@ -1,0 +1,16 @@
+model_root: /models
+lora_root: /models/loras
+default_mode: lcm-general
+
+modes:
+  lcm-general:
+    model: diffusers/lcm-dreamshaper-v7
+    default_size: "768x768"
+    default_steps: 8
+    default_guidance: 2.5
+
+  lcm-chenkin:
+    model: diffusers/chenkinanimehotbaby_xl_lcm
+    default_size: "512x512"
+    default_steps: 8
+    default_guidance: 2.5

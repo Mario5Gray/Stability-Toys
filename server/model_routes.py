@@ -5,7 +5,8 @@ Provides REST API for managing models, modes, and VRAM.
 """
 
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -32,7 +33,58 @@ class ModelLoadRequest(BaseModel):
     model_path: str
     mode_name: Optional[str] = None  # Optional mode name for registration
 
+#
+#
+#
+def scan_models(models_root: Path) -> Dict[str, List[Path]]:
+    """
+    Scan a models directory for:
+      - Checkpoint models (.safetensors)
+      - Diffusers pipeline roots (directories containing model_index.json)
 
+    Expected structure:
+      models/
+        checkpoints/
+        diffusers/
+
+    Returns:
+      {
+        "checkpoints": [Path, ...],
+        "diffusers": [Path, ...],   # pipeline root dirs
+      }
+    """
+    models_root = Path(models_root)
+    results = {
+        "checkpoints": [],
+        "diffusers": [],
+        "loras": [],
+    }
+
+    # ---- loras (.safetensors) ---
+    loras_dir = models_root / "loras"
+    if loras_dir.exists():
+        results["loras"] = sorted(
+            p for p in loras_dir.rglob("*.safetensors") if p.is_file()
+        )
+
+    # ---- Checkpoints (.safetensors) ----
+    checkpoints_dir = models_root / "checkpoints"
+    if checkpoints_dir.exists():
+        results["checkpoints"] = sorted(
+            p for p in checkpoints_dir.rglob("*.safetensors") if p.is_file()
+        )
+
+    # ---- Diffusers (pipeline root = has model_index.json) ----
+    diffusers_dir = models_root / "diffusers"
+    if diffusers_dir.exists():
+        roots = set()
+        for mi in diffusers_dir.rglob("model_index.json"):
+            if mi.is_file():
+                roots.add(mi.parent)
+
+        results["diffusers"] = sorted(roots)
+
+    return results
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -226,3 +278,116 @@ async def load_model(request: ModelLoadRequest):
         status_code=501,
         detail="Direct model loading not implemented. Use mode switching via /api/modes/switch",
     )
+
+
+# ============================================================================
+# Inventory Endpoints
+# ============================================================================
+
+@router.get("/inventory/models")
+async def get_inventory_models():
+    """Scan MODEL_ROOT for available model directories."""
+    config = get_mode_config()
+    model_root = Path(config.config.model_root)
+
+    models = scan_models(model_root)
+    # Flatten checkpoints and diffusers into a single list of relative path strings
+    all_models = []
+    for p in models["checkpoints"]:
+        all_models.append(str(p.relative_to(model_root)))
+    for p in models["diffusers"]:
+        all_models.append(str(p.relative_to(model_root)))
+    
+    return {"models": all_models, "model_root": str(model_root)}
+
+
+@router.get("/inventory/loras")
+async def get_inventory_loras():
+    """Scan LORAS_ROOT for available LoRA files."""
+    config = get_mode_config()
+    lora_root = Path(config.config.model_root)
+
+    loras = scan_models(lora_root)["loras"]
+    # Convert Path objects to relative path strings
+    lora_strings = [str(p.relative_to(lora_root)) for p in loras]
+
+    return {"loras": lora_strings, "lora_root": str(lora_root)}
+
+
+# ============================================================================
+# Mode CRUD Endpoints
+# ============================================================================
+
+class ModeCreateRequest(BaseModel):
+    model: str
+    loras: List[Dict[str, Any]] = []
+    default_size: str = "512x512"
+    default_steps: int = 4
+    default_guidance: float = 1.0
+
+
+class ModesBulkSaveRequest(BaseModel):
+    model_root: str
+    lora_root: str
+    default_mode: str
+    modes: Dict[str, Any]
+
+
+@router.put("/modes")
+async def save_all_modes(request: ModesBulkSaveRequest):
+    """Save full modes config, write to disk and reload."""
+    config = get_mode_config()
+    data = request.model_dump()
+
+    if not data.get("modes"):
+        raise HTTPException(status_code=400, detail="At least one mode must exist")
+
+    if data["default_mode"] not in data["modes"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"default_mode '{data['default_mode']}' not found in modes",
+        )
+
+    try:
+        config.save_config(data)
+        return {"status": "saved", "modes": list(data["modes"].keys())}
+    except Exception as e:
+        logger.error(f"[API] Save modes failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/modes/{name}")
+async def create_or_update_mode(name: str, request: ModeCreateRequest):
+    """Create or update a single mode."""
+    config = get_mode_config()
+    data = config.to_dict()
+    data["modes"][name] = request.model_dump()
+
+    try:
+        config.save_config(data)
+        return {"status": "saved", "mode": name}
+    except Exception as e:
+        logger.error(f"[API] Save mode '{name}' failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/modes/{name}")
+async def delete_mode(name: str):
+    """Delete a mode. Cannot delete the default mode."""
+    config = get_mode_config()
+    data = config.to_dict()
+
+    if name not in data["modes"]:
+        raise HTTPException(status_code=404, detail=f"Mode '{name}' not found")
+
+    if name == data["default_mode"]:
+        raise HTTPException(status_code=400, detail="Cannot delete the default mode")
+
+    del data["modes"][name]
+
+    try:
+        config.save_config(data)
+        return {"status": "deleted", "mode": name}
+    except Exception as e:
+        logger.error(f"[API] Delete mode '{name}' failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

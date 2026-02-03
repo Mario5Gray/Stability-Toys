@@ -28,6 +28,7 @@ export default defineConfig({
       },
       "/storage": "http://localhost:4200",
       "/dreams": "http://localhost:4200",
+      "/api": "http://localhost:4200",
     },
   },
 });

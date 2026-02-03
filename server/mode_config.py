@@ -66,7 +66,7 @@ class ModeConfigManager:
     - Validate mode consistency
     """
 
-    def __init__(self, config_path: str = "modes.yml"):
+    def __init__(self, config_path: str = "conf/modes.yml"):
         """
         Initialize mode configuration manager.
 
@@ -194,6 +194,47 @@ class ModeConfigManager:
                 logger.warning(f"  - {error}")
             # Don't raise - allow starting with missing models for development
 
+    def save_config(self, data: Dict[str, Any]):
+        """
+        Save configuration data to modes.yml and reload.
+
+        Args:
+            data: Dict with model_root, lora_root, default_mode, modes
+        """
+        # Build YAML-friendly structure
+        yaml_data = {
+            "model_root": data["model_root"],
+            "lora_root": data["lora_root"],
+            "default_mode": data["default_mode"],
+            "modes": {},
+        }
+
+        for mode_name, mode_data in data["modes"].items():
+            mode_entry = {
+                "model": mode_data["model"],
+                "default_size": mode_data.get("default_size", "512x512"),
+                "default_steps": mode_data.get("default_steps", 4),
+                "default_guidance": mode_data.get("default_guidance", 1.0),
+            }
+            loras = mode_data.get("loras", [])
+            if loras:
+                mode_entry["loras"] = [
+                    {"path": lora["path"], "strength": lora.get("strength", 1.0)}
+                    if lora.get("strength", 1.0) != 1.0
+                    else lora["path"]
+                    for lora in loras
+                ]
+            yaml_data["modes"][mode_name] = mode_entry
+
+        # Write atomically-ish: write to temp then rename
+        tmp_path = self.config_path.with_suffix(".yml.tmp")
+        with open(tmp_path, "w") as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
+        tmp_path.rename(self.config_path)
+
+        logger.info(f"[ModeConfig] Saved configuration to {self.config_path}")
+        self._load_config()
+
     def reload(self):
         """Reload configuration from disk."""
         logger.info("[ModeConfig] Reloading configuration")
@@ -262,11 +303,15 @@ class ModeConfigManager:
 _config_manager: Optional[ModeConfigManager] = None
 
 
-def get_mode_config() -> ModeConfigManager:
+def get_mode_config(confPath: Optional[str] = None) -> ModeConfigManager:
     """Get global mode configuration manager instance."""
     global _config_manager
     if _config_manager is None:
-        _config_manager = ModeConfigManager()
+        if confPath is None:
+            _config_manager = ModeConfigManager()
+        else:
+            _config_manager = ModeConfigManager(confPath) 
+
     return _config_manager
 
 
@@ -275,5 +320,3 @@ def reload_mode_config():
     global _config_manager
     if _config_manager is not None:
         _config_manager.reload()
-    else:
-        _config_manager = ModeConfigManager()

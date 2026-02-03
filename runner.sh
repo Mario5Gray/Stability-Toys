@@ -18,7 +18,7 @@ docker run --rm -it \
   -p 4200:4200 \
   --privileged \
   $@ \
-  -v ./modes.yml:/app/modes.yml:ro,Z \
+  -v ./conf:/app/conf:rw,Z \
   -v ./logs:/app/logs:rw,Z \
   -v ./store:/store:rw,Z \
   -v ./workflows:/workflows:ro,Z \

@@ -1,0 +1,164 @@
+# ============================================================================
+# Dream Lab - Dynamic Model Loading Configuration
+# ============================================================================
+#
+# This file defines model loading modes for the server.
+# Each mode specifies a model, optional LoRAs, and generation defaults.
+#
+# Copy this file to modes.yaml and customize for your setup:
+#   cp modes.yaml.example modes.yaml
+#
+# The server will hot-reload this file when changes are detected.
+# You can also reload manually: POST /api/modes/reload
+#
+# ============================================================================
+
+# Global configuration
+# ----------------------------------------------------------------------------
+
+# Path to directory containing models
+model_root: /models
+
+# Path to directory containing LoRAs (optional, defaults to model_root)
+lora_root: /models/loras
+
+# Default mode to load on startup
+default_mode: sdxl-general
+
+# ============================================================================
+# Mode Definitions
+# ============================================================================
+#
+# Each mode defines:
+#   - model: Path to model file (relative to model_root)
+#   - loras: Optional list of LoRAs to load
+#   - default_size: Default image size
+#   - default_steps: Default inference steps
+#   - default_guidance: Default guidance scale
+#   - metadata: Optional custom metadata
+#
+# The server auto-detects whether a model is SD1.5 or SDXL.
+# ============================================================================
+
+modes:
+  # --------------------------------------------------------------------------
+  # SDXL Modes
+  # --------------------------------------------------------------------------
+
+  sdxl-general:
+    model: sdxl/sdxl-base-1.0.safetensors
+    default_size: "1024x1024"
+    default_steps: 30
+    default_guidance: 7.5
+    metadata:
+      description: "SDXL base model for general purpose generation"
+
+  sdxl-portrait:
+    model: sdxl/sdxl-base-1.0.safetensors
+    loras:
+      - path: portrait-enhancer.safetensors
+        strength: 0.8
+        adapter_name: portrait
+    default_size: "896x1152"  # Portrait aspect
+    default_steps: 35
+    default_guidance: 8.0
+    metadata:
+      description: "SDXL with portrait enhancement LoRA"
+
+  sdxl-refiner:
+    model: sdxl/sdxl-refiner-1.0.safetensors
+    default_size: "1024x1024"
+    default_steps: 20
+    default_guidance: 7.5
+    metadata:
+      description: "SDXL refiner for upscaling/refining base outputs"
+      cross_attention_dim: 1280
+
+  # --------------------------------------------------------------------------
+  # SD 1.5 Modes
+  # --------------------------------------------------------------------------
+
+  sd15-fast:
+    model: sd15/dreamshaper-lcm.safetensors
+    default_size: "512x512"
+    default_steps: 4
+    default_guidance: 1.0
+    metadata:
+      description: "Fast SD1.5 LCM model"
+
+  sd15-anime:
+    model: sd15/dreamshaper-v7.safetensors
+    loras:
+      - path: anime-style.safetensors
+        strength: 1.0
+      - path: detail-enhancer.safetensors
+        strength: 0.6
+    default_size: "512x768"
+    default_steps: 25
+    default_guidance: 7.5
+    metadata:
+      description: "SD1.5 with anime style LoRAs"
+
+  sd15-landscape:
+    model: sd15/realisticvision.safetensors
+    loras:
+      - path: landscape-enhancer.safetensors
+        strength: 0.8
+    default_size: "768x512"  # Landscape aspect
+    default_steps: 30
+    default_guidance: 7.0
+    metadata:
+      description: "SD1.5 optimized for landscape photography"
+
+# ============================================================================
+# Example: Minimal Mode
+# ============================================================================
+#
+# Minimal mode with just a model:
+#
+# minimal:
+#   model: my-model.safetensors
+#
+# ============================================================================
+
+# ============================================================================
+# Example: LoRA Formats
+# ============================================================================
+#
+# Simple format (path only):
+#   loras:
+#     - lora1.safetensors
+#     - lora2.safetensors
+#
+# Full format (path + strength + adapter name):
+#   loras:
+#     - path: lora1.safetensors
+#       strength: 0.8
+#       adapter_name: custom_name
+#     - path: lora2.safetensors
+#       strength: 1.2
+#
+# ============================================================================
+
+# ============================================================================
+# API Usage Examples
+# ============================================================================
+#
+# List available modes:
+#   GET /api/modes
+#
+# Switch to a mode:
+#   POST /api/modes/switch
+#   {"mode": "sdxl-portrait"}
+#
+# Generate with specific mode:
+#   POST /generate
+#   {"mode": "sdxl-portrait", "prompt": "a beautiful portrait"}
+#
+# Check current status:
+#   GET /api/models/status
+#
+# Reload this config:
+#   POST /api/modes/reload
+#
+# ============================================================================
