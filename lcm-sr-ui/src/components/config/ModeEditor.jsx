@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Slider } from '../ui/slider';
 import { Badge } from '../ui/badge';
-import { Trash2, Plus, Save, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, Save, RefreshCw, Star } from 'lucide-react';
 import { createApiClient, createApiConfig } from '../../utils/api';
 const SIZES = ['256x256', '384x384', '512x512', '640x640', '768x768', '1024x1024'];
 
@@ -131,6 +131,24 @@ export default function ModeEditor() {
     }
   };
 
+  const setDefaultMode = async (name) => {
+    if (name === config.default_mode) return;
+
+    try {
+      await api.fetchPut('/api/modes', {
+        model_root: config.model_root,
+        lora_root: config.lora_root,
+        default_mode: name,
+        modes: config.modes,
+      });
+      setSuccess(`"${name}" is now the default mode`);
+      setTimeout(() => setSuccess(null), 2000);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   if (!config) {
     return <div className="p-8 text-center text-muted-foreground">Loading configuration...</div>;
   }
@@ -175,6 +193,11 @@ export default function ModeEditor() {
                   {isDefault && <Badge variant="secondary">default</Badge>}
                 </div>
                 <div className="flex gap-2">
+                  {!isDefault && (
+                    <Button variant="outline" size="sm" onClick={() => setDefaultMode(name)} disabled={editing !== null} title="Set as default">
+                      <Star className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => startEdit(name)} disabled={editing !== null}>
                     Edit
                   </Button>
