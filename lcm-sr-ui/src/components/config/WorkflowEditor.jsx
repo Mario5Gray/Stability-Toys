@@ -7,6 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Badge } from '../ui/badge';
 import { Trash2, Plus, Save, RefreshCw, Star, Eye, Upload, X, FileJson } from 'lucide-react';
 import { createApiClient, createApiConfig } from '../../utils/api';
+import { CSS_CLASSES } from '../../utils/constants';
 
 const SIZES = ['256x256', '384x384', '512x512', '640x640', '768x768', '1024x1024'];
 const WORKFLOW_DIR = '/app/workflows'; // Default directory for workflow files
@@ -387,8 +388,9 @@ function WorkflowForm({ draft, setDraft, onSave, onCancel, saving, isNew, onFile
         <div>
           <Label>Default Size</Label>
           <Select value={draft.default_size} onValueChange={v => patch('default_size', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
+              <SelectValue /></SelectTrigger>
+            <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
               {SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>

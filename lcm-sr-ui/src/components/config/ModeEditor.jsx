@@ -8,6 +8,8 @@ import { Slider } from '../ui/slider';
 import { Badge } from '../ui/badge';
 import { Trash2, Plus, Save, RefreshCw, Star } from 'lucide-react';
 import { createApiClient, createApiConfig } from '../../utils/api';
+import { CSS_CLASSES } from '../../utils/constants';
+
 const SIZES = ['256x256', '384x384', '512x512', '640x640', '768x768', '1024x1024'];
 
 export default function ModeEditor() {
@@ -263,8 +265,10 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
         <div>
           <Label>Model</Label>
           <Select value={draft.model} onValueChange={v => patch('model', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
+              <SelectValue placeholder="Select Model"/>
+              </SelectTrigger>
+            <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
               {inventory.models.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               {/* Include current value if not in inventory */}
               {draft.model && !inventory.models.includes(draft.model) && (
@@ -279,8 +283,10 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
         <div>
           <Label>Default Size</Label>
           <Select value={draft.default_size} onValueChange={v => patch('default_size', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
+              <SelectValue />
+              </SelectTrigger>
+            <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
               {SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -308,8 +314,10 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
         {draft.loras.map((lora, idx) => (
           <div key={idx} className="flex items-center gap-2 mb-2">
             <Select value={lora.path} onValueChange={v => updateLora(idx, 'path', v)}>
-              <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER} >
+                <SelectValue />
+                </SelectTrigger>
+              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
                 {inventory.loras.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                 {!inventory.loras.includes(lora.path) && (
                   <SelectItem value={lora.path}>{lora.path} (current)</SelectItem>

@@ -5,7 +5,7 @@ Loads and validates conf/workflows.yml configuration file containing:
 - Default workflow name
 - Workflow definitions (metadata + ComfyUI workflow JSON)
 """
-
+import os
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 import yaml
 
 logger = logging.getLogger(__name__)
-
+CUI_WORKFLOW_PATH = os.environ.get("CUI_WORKFLOWS_PATH", "workflows")
 
 @dataclass
 class WorkflowConfig:
@@ -47,8 +47,12 @@ class WorkflowConfigManager:
     - Provide access to workflow definitions
     """
 
-    def __init__(self, config_path: str = "conf/workflows.yml"):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: str):
+        if not config_path:
+            raise ValueError(f"ComfyUI workflows not specified! current WORKFLOWS_PATH={self.config_path}")
+        
+        self.config_path = Path(os.path.join(Path(config_path), "workflows.yml"))
+        
         self.config: Optional[WorkflowsYAML] = None
         self._load_config()
 
@@ -187,12 +191,15 @@ class WorkflowConfigManager:
 
 _config_manager: Optional[WorkflowConfigManager] = None
 
-
-def get_workflow_config() -> WorkflowConfigManager:
+def get_workflow_config(confPath: Optional[str] = None) -> WorkflowConfigManager:
     """Get global workflow configuration manager instance."""
     global _config_manager
     if _config_manager is None:
-        _config_manager = WorkflowConfigManager()
+        if confPath is None:
+            _config_manager = WorkflowConfigManager(CUI_WORKFLOW_PATH)
+        else:
+            _config_manager = WorkflowConfigManager(confPath)
+
     return _config_manager
 
 
@@ -201,5 +208,3 @@ def reload_workflow_config():
     global _config_manager
     if _config_manager is not None:
         _config_manager.reload()
-    else:
-        _config_manager = WorkflowConfigManager()

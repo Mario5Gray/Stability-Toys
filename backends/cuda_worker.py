@@ -68,6 +68,7 @@ class DiffusersCudaWorker(PipelineWorker):
         )
 
         if is_diffusers_dir:
+            print("loading diffusers")
             pipe = StableDiffusionPipeline.from_pretrained(
                 ckpt_path,
                 torch_dtype=dtype,
@@ -76,6 +77,7 @@ class DiffusersCudaWorker(PipelineWorker):
             )
             format_name = "diffusers"
         else:
+            print("loading safetensors")
             pipe = StableDiffusionPipeline.from_single_file(
                 ckpt_path,
                 torch_dtype=dtype,
@@ -106,8 +108,6 @@ class DiffusersCudaWorker(PipelineWorker):
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
         te_dim = getattr(te_dim, "hidden_size", None)
 
-        print(f"[cuda] text_encoder.hidden_size={te_dim}")     
-
         # SD1.5 styles: required_cross_attention_dim=768
         # SDXL styles: required_cross_attention_dim=2048,
         # Determine model compatibility info once
@@ -118,7 +118,6 @@ class DiffusersCudaWorker(PipelineWorker):
         cad = getattr(getattr(self.pipe, "unet", None), "config", None)
         cad = getattr(cad, "cross_attention_dim", None)
 
-        print(f"[cuda] unet.cross_attention_dim={cad} pipeline={type(self.pipe).__name__}")
 
         for sid, sd in STYLE_REGISTRY.items():
             # --- Compatibility gate: cross-attention dim ---
@@ -131,7 +130,6 @@ class DiffusersCudaWorker(PipelineWorker):
                     self._style_loaded[sd.adapter_name] = False
                     continue
             try:
-                print(f"[cuda] loading lora ({sd.required_cross_attention_dim}) weights from {sd.lora_path}")
                 try:
                     # Newer diffusers supports adapter_name
                     self.pipe.load_lora_weights(sd.lora_path, adapter_name=sd.adapter_name)

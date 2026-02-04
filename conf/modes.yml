@@ -3,12 +3,12 @@ lora_root: /models
 default_mode: lcm-general
 modes:
   lcm-general:
-    model: diffusers/lcm-dreamshaper-v7
+    model: checkpoints/hephaistosnextgen-xl-lcm-bf16-hybrid.safetensors
     default_size: 768x768
     default_steps: 8
     default_guidance: 2.5
   lcm-chenkin:
-    model: diffusers/supreme_xl_lcm
+    model: diffusers/lcm-dreamshaper-v7
     default_size: 512x512
     default_steps: 8
     default_guidance: 2.5

@@ -6,7 +6,7 @@ Loads and validates modes.yml configuration file containing:
 - Default mode
 - Mode definitions (model, loras, defaults)
 """
-
+import os
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -14,8 +14,9 @@ from dataclasses import dataclass, field
 
 import yaml
 
-logger = logging.getLogger(__name__)
+MODE_CONFIG_PATH = os.environ.get("MODE_CONFIG_PATH", "conf")
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class LoRAConfig:
@@ -66,15 +67,18 @@ class ModeConfigManager:
     - Validate mode consistency
     """
 
-    def __init__(self, config_path: str = "conf/modes.yml"):
+    def __init__(self, config_path: str):
         """
         Initialize mode configuration manager.
 
         Args:
             config_path: Path to modes.yml (relative to project root)
         """
-        self.config_path = Path(config_path)
-        print(self.config_path)
+        if not config_path:
+            raise ValueError(f"Couldnt find a modes.yml to configure models with! current CONFIG_PATH={self.config_path}")
+        
+        self.config_path = Path(os.path.join(Path(config_path), "modes.yml"))
+
         self.config: Optional[ModesYAML] = None
         self._load_config()
 
@@ -308,7 +312,7 @@ def get_mode_config(confPath: Optional[str] = None) -> ModeConfigManager:
     global _config_manager
     if _config_manager is None:
         if confPath is None:
-            _config_manager = ModeConfigManager()
+            _config_manager = ModeConfigManager(MODE_CONFIG_PATH)
         else:
             _config_manager = ModeConfigManager(confPath) 
 

@@ -18,10 +18,10 @@ docker run --rm -it \
   -p 4200:4200 \
   --privileged \
   $@ \
-  -v ./conf:/app/conf:rw,Z \
+  -v ./conf:/conf:rw,Z \
   -v ./logs:/app/logs:rw,Z \
   -v ./store:/store:rw,Z \
-  -v ./workflows:/workflows:ro,Z \
+  -v ./workflows:/workflows:rw,Z \
   -v /media/assets/AI/SDXL/models/clip/clip-vit-base-patch32:/clip:ro,Z \
   -v "${MODELS_HOST_PATH}:/models:ro,Z" ${EXTRA_ARGS} ${RUNNER_CMD:-bash}
 set +x

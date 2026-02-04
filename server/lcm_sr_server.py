@@ -98,6 +98,8 @@ except ImportError:
     RKNNLITE_AVAILABLE = False
     RKNNLite = None
 
+from .mode_config import MODE_CONFIG_PATH
+
 BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
 COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
 
@@ -522,8 +524,7 @@ SR_QUEUE_MAX = int(os.environ.get("SR_QUEUE_MAX", "32"))
 SR_REQUEST_TIMEOUT = float(os.environ.get("SR_REQUEST_TIMEOUT", "120"))
 SR_MAX_PIXELS = int(os.environ.get("SR_MAX_PIXELS", "24000000"))
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
-
-paths = ModelPaths(root=MODEL_ROOT)
+model_root_path = ModelPaths(root=MODEL_ROOT)
 
 
 @asynccontextmanager
@@ -555,9 +556,9 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Default mode: {mode_config.get_default_mode()}")
             except FileNotFoundError:
                 logger.warning("modes.yaml not found - mode system disabled, falling back to legacy behavior")
-                # Fallback to legacy PipelineService
+                # Fallback to direct PipelineService
                 app.state.service = PipelineService.get_instance(
-                    paths=paths,
+                    paths=model_root_path,
                     num_workers=NUM_WORKERS,
                     queue_max=QUEUE_MAX,
                     rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
@@ -583,7 +584,7 @@ async def lifespan(app: FastAPI):
 
                 # Start file watcher for hot-reload
                 try:
-                    start_config_watcher("modes.yaml", reload_mode_config)
+                    start_config_watcher(MODE_CONFIG_PATH, reload_mode_config)
                     logger.info("File watcher started for modes.yaml")
                 except Exception as e:
                     logger.warning(f"Failed to start file watcher: {e}")
@@ -591,7 +592,7 @@ async def lifespan(app: FastAPI):
             # RKNN backend: Use legacy PipelineService
             logger.info("Using RKNN backend with legacy PipelineService")
             app.state.service = PipelineService.get_instance(
-                paths=paths,
+                paths=model_root_path,
                 num_workers=NUM_WORKERS,
                 queue_max=QUEUE_MAX,
                 rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),

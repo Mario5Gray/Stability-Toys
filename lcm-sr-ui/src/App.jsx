@@ -12,6 +12,7 @@ import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
 import { MessageSquare, Settings } from 'lucide-react';
 import ModeEditor from './components/config/ModeEditor';
+import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
 
@@ -417,6 +418,8 @@ export default function App() {
           {/* Configuration Tab */}
           <TabsContent value="config" className="h-full m-0 overflow-auto">
             <ModeEditor />
+
+            <WorkflowEditor />
           </TabsContent>
   
         </div>
