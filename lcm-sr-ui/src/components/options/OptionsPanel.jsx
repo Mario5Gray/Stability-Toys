@@ -18,6 +18,7 @@ import {
 import { Send, Trash2, Combine} from 'lucide-react';
 import { DreamControls } from './DreamControls';
 import { SelectedImageControls } from './SelectedImageControls';
+import ModeOptions from './ModeOptions';
 import {
   SIZE_OPTIONS,
   STEPS_CONFIG,
@@ -407,6 +408,10 @@ export function OptionsPanel({
           </div>            
           </div>
           </div>
+          <Separator />
+
+          <ModeOptions />
+
           <Separator />
 
           {/* Seed */}

@@ -126,11 +126,15 @@ export function useChatMessages() {
   /**
    * Update a specific message by ID with partial data.
    * @param {string} id - Message ID to update
-   * @param {object} patch - Partial message data to merge
+   * @param {object|function} patch - Partial message data to merge or updater fn
    */
   const updateMessage = useCallback((id, patch) => {
     setMessages((prev) =>
-      prev.map((msg) => (msg.id === id ? { ...msg, ...patch } : msg))
+      prev.map((msg) => {
+        if (msg.id !== id) return msg;
+        const next = typeof patch === 'function' ? patch(msg) : { ...msg, ...patch };
+        return next;
+      })
     );
   }, []);
 

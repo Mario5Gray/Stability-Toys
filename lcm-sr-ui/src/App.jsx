@@ -70,6 +70,7 @@ export default function App() {
     getImageFromCache,
     getCacheStats,
     clearCache,
+    cleanupMessage,
   } = generation;
 
 
@@ -343,7 +344,7 @@ export default function App() {
             messages={messages}
             selectedMsgId={selectedMsgId}
             onToggleSelect={toggleSelectMsg}
-            onCancelRequest={(id) => { cancelRequest(id); deleteMessage(id); }}
+            onCancelRequest={(id) => { cleanupMessage(id); cancelRequest(id); deleteMessage(id); }}
             setMsgRef={setMsgRef}
             composer={defaultComposer}
             inflightCount={inflightCount}

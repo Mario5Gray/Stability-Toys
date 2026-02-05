@@ -116,7 +116,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const [dreamMessageId, setDreamMessageId] = useState(null);
   const dreamTimerRef = useRef(null);
   const dreamParamsRef = useRef(null);
-  const dreamHistoryRef = useRef([]);
+  const dreamHistoryByMsgIdRef = useRef(new Map());
 
   // Initialize cache and API client
   if (!cacheRef.current) cacheRef.current = createCache();
@@ -414,6 +414,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
               srScale: result?.metadata?.srScale,
               cacheKey,
             },
+            
           };
 
           // Dream history accumulation: push each result into the ref and attach to message
@@ -425,9 +426,12 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
               params: msgUpdate.params,
               meta: msgUpdate.meta,
             };
-            dreamHistoryRef.current.push(historyEntry);
-            msgUpdate.imageHistory = [...dreamHistoryRef.current];
-            msgUpdate.historyIndex = dreamHistoryRef.current.length - 1;
+            const existingHistory =
+              dreamHistoryByMsgIdRef.current.get(payload.assistantId) || [];
+            const nextHistory = [...existingHistory, historyEntry];
+            dreamHistoryByMsgIdRef.current.set(payload.assistantId, nextHistory);
+            msgUpdate.imageHistory = nextHistory;
+            msgUpdate.historyIndex = Math.max(0, nextHistory.length - 1);
           }
 
           updateMessage(payload.assistantId, msgUpdate);
@@ -558,14 +562,22 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
           const newHistory = [...payload.priorHistory, historyEntry];
 
-          updateMessage(payload.assistantId, {
-            kind: MESSAGE_KINDS.IMAGE,
-            isRegenerating: false,
-            imageUrl: newUrl,
-            params: entryParams,
-            meta: entryMeta,
-            imageHistory: newHistory,
-            historyIndex: newHistory.length - 1,
+          updateMessage(payload.assistantId, (msg) => {
+            const currentHistory = msg?.imageHistory || [];
+            const mergedHistory =
+              currentHistory.length > payload.priorHistory.length
+                ? [...currentHistory, historyEntry]
+                : newHistory;
+            return {
+              ...msg,
+              kind: MESSAGE_KINDS.IMAGE,
+              isRegenerating: false,
+              imageUrl: newUrl,
+              params: entryParams,
+              meta: entryMeta,
+              imageHistory: mergedHistory,
+              historyIndex: mergedHistory.length - 1,
+            };
           });
 
           setSelectedMsgId(payload.assistantId);
@@ -682,7 +694,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
 
       dreamParamsRef.current = { ...baseParams };
-      dreamHistoryRef.current = [];
       setIsDreaming(true);
 
       // First dream: create a fresh message
@@ -714,7 +725,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     setIsDreaming(false);
     setDreamMessageId(null);
     dreamParamsRef.current = null;
-    dreamHistoryRef.current = [];
   }, []);
 
   const guideDream = useCallback((newBaseParams) => {
@@ -728,7 +738,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const saveDreamAndContinue = useCallback(() => {
     if (!isDreaming) return;
     setDreamMessageId(null);
-    dreamHistoryRef.current = [];
 
     // Restart the interval so the next tick creates a fresh message
     if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
@@ -754,6 +763,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     firstParams.isDream = true;
     const newId = runGenerate(firstParams);
     setDreamMessageId(newId);
+    if (newId) dreamHistoryByMsgIdRef.current.set(newId, []);
 
     // Now fix the interval to paint into the new message
     if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
@@ -869,6 +879,16 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     }
   }, [cache]);
 
+  const cleanupMessage = useCallback((msgId) => {
+    if (!msgId) return;
+    dreamHistoryByMsgIdRef.current.delete(msgId);
+    for (const [cacheKey, msgIds] of cacheKeyToMsgIdsRef.current.entries()) {
+      if (msgIds.delete(msgId) && msgIds.size === 0) {
+        cacheKeyToMsgIdsRef.current.delete(cacheKey);
+      }
+    }
+  }, []);
+
   return {
     // Generation
     runGenerate,
@@ -898,6 +918,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     getImageFromCache,
     getCacheStats,
     clearCache,
+    cleanupMessage,
 
     // State
     inflightCount: api.inflightCount,
