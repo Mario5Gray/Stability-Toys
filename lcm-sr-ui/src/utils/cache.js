@@ -42,8 +42,10 @@ function hashString(str) {
  * ========================================================================== */
 
 const DB_NAME = "lcm-image-cache";
-const DB_VERSION = 1;
-const STORE_NAME = "images";
+const DB_VERSION = 2;
+const META_STORE = "imageMeta";
+const BLOB_STORE = "imageBlobs";
+const LEGACY_STORE = "images";
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -54,12 +56,51 @@ function openDatabase() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const tx = event.target.transaction;
 
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
-        store.createIndex("createdAt", "createdAt", { unique: false });
-        store.createIndex("accessedAt", "accessedAt", { unique: false });
-        store.createIndex("size", "size", { unique: false });
+      let metaStore;
+      if (!db.objectStoreNames.contains(META_STORE)) {
+        metaStore = db.createObjectStore(META_STORE, { keyPath: "key" });
+        metaStore.createIndex("createdAt", "createdAt", { unique: false });
+        metaStore.createIndex("accessedAt", "accessedAt", { unique: false });
+        metaStore.createIndex("size", "size", { unique: false });
+      } else {
+        metaStore = tx.objectStore(META_STORE);
+      }
+
+      let blobStore;
+      if (!db.objectStoreNames.contains(BLOB_STORE)) {
+        blobStore = db.createObjectStore(BLOB_STORE, { keyPath: "key" });
+      } else {
+        blobStore = tx.objectStore(BLOB_STORE);
+      }
+
+      if (db.objectStoreNames.contains(LEGACY_STORE)) {
+        const legacy = tx.objectStore(LEGACY_STORE);
+        legacy.openCursor().onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            const entry = cursor.value || {};
+            const blob = entry.blob || new Blob([]);
+            const size = entry.size ?? blob.size ?? 0;
+            const meta = {
+              key: entry.key,
+              metadata: entry.metadata || {},
+              createdAt: entry.createdAt || Date.now(),
+              accessedAt: entry.accessedAt || Date.now(),
+              size,
+            };
+            metaStore.put(meta);
+            if (blob.size > 0) {
+              blobStore.put({ key: entry.key, blob, size: blob.size });
+            } else {
+              blobStore.delete(entry.key);
+            }
+            cursor.continue();
+          } else {
+            db.deleteObjectStore(LEGACY_STORE);
+          }
+        };
       }
     };
   });
@@ -88,15 +129,15 @@ export function createIndexedDBCache(options = {}) {
     return dbPromise;
   };
 
-  const withStore = async (mode, callback) => {
+  const withStores = async (mode, storeNames, callback) => {
     const db = await getDb();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, mode);
-      const store = tx.objectStore(STORE_NAME);
+      const tx = db.transaction(storeNames, mode);
+      const stores = storeNames.map((name) => tx.objectStore(name));
 
       let result;
       try {
-        result = callback(store, tx);
+        result = callback(stores, tx);
       } catch (err) {
         reject(err);
         return;
@@ -114,16 +155,16 @@ export function createIndexedDBCache(options = {}) {
     });
 
   // Helper: fetch existing entry (readonly)
-  const getRaw = async (key) => {
+  const getMeta = async (key) => {
     const db = await getDb();
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(META_STORE, "readonly");
+    const store = tx.objectStore(META_STORE);
     return promisify(store.get(key));
   };
 
   // Helper: determine if a write is a "hydration" (empty -> non-empty)
   const isHydration = (prevEntry, nextBlob) => {
-    const prevSize = prevEntry?.blob?.size ?? 0;
+    const prevSize = prevEntry?.size ?? 0;
     const nextSize = nextBlob?.size ?? 0;
     return prevSize === 0 && nextSize > 0;
   };
@@ -139,17 +180,28 @@ export function createIndexedDBCache(options = {}) {
     async get(key) {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction([META_STORE, BLOB_STORE], "readwrite");
+        const metaStore = tx.objectStore(META_STORE);
+        const blobStore = tx.objectStore(BLOB_STORE);
 
-        const entry = await promisify(store.get(key));
+        const meta = await promisify(metaStore.get(key));
+        const blobEntry = await promisify(blobStore.get(key));
 
-        if (entry) {
-          entry.accessedAt = Date.now();
-          store.put(entry);
+        if (meta) {
+          meta.accessedAt = Date.now();
+          metaStore.put(meta);
         }
 
-        return entry || null;
+        if (!meta) return null;
+
+        return {
+          key,
+          blob: blobEntry?.blob || new Blob([]),
+          metadata: meta.metadata || {},
+          createdAt: meta.createdAt,
+          accessedAt: meta.accessedAt,
+          size: meta.size ?? blobEntry?.size ?? blobEntry?.blob?.size ?? 0,
+        };
       } catch (err) {
         console.warn("[Cache] get failed:", err);
         return null;
@@ -170,7 +222,7 @@ export function createIndexedDBCache(options = {}) {
       console.log("[Cache] set() attempt", { key, byteLen, metadata });
 
       try {
-        const prev = await getRaw(key);
+        const prev = await getMeta(key);
 
         const mergeMetadata = !!opts.mergeMetadata;
         const nextMeta = mergeMetadata
@@ -179,20 +231,24 @@ export function createIndexedDBCache(options = {}) {
 
         const entry = {
           key,
-          blob: blob || new Blob([]),
           metadata: nextMeta,
           createdAt: prev?.createdAt ?? Date.now(),
           accessedAt: Date.now(),
           size: (blob || new Blob([])).size,
         };
 
-        await withStore("readwrite", (store) => {
-          store.put(entry);
+        await withStores("readwrite", [META_STORE, BLOB_STORE], ([metaStore, blobStore]) => {
+          metaStore.put(entry);
+          if (entry.size > 0) {
+            blobStore.put({ key, blob: blob || new Blob([]), size: entry.size });
+          } else {
+            blobStore.delete(key);
+          }
         });
 
         emit("set", { key, size: entry.size, metadata: entry.metadata });
 
-        if (isHydration(prev, entry.blob)) {
+        if (isHydration(prev, { size: entry.size })) {
           emit("hydrated", { key, size: entry.size, metadata: entry.metadata });
         }
 
@@ -215,8 +271,8 @@ export function createIndexedDBCache(options = {}) {
     async has(key) {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction(META_STORE, "readonly");
+        const store = tx.objectStore(META_STORE);
         const count = await promisify(store.count(key));
         return count > 0;
       } catch (err) {
@@ -227,7 +283,10 @@ export function createIndexedDBCache(options = {}) {
 
     async delete(key) {
       try {
-        await withStore("readwrite", (store) => store.delete(key));
+        await withStores("readwrite", [META_STORE, BLOB_STORE], ([metaStore, blobStore]) => {
+          metaStore.delete(key);
+          blobStore.delete(key);
+        });
         emit("delete", { key });
         return true;
       } catch (err) {
@@ -238,7 +297,10 @@ export function createIndexedDBCache(options = {}) {
 
     async clear() {
       try {
-        await withStore("readwrite", (store) => store.clear());
+        await withStores("readwrite", [META_STORE, BLOB_STORE], ([metaStore, blobStore]) => {
+          metaStore.clear();
+          blobStore.clear();
+        });
         emit("clear", {});
       } catch (err) {
         console.warn("[Cache] clear failed:", err);
@@ -248,8 +310,8 @@ export function createIndexedDBCache(options = {}) {
     async size() {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction(META_STORE, "readonly");
+        const store = tx.objectStore(META_STORE);
         return await promisify(store.count());
       } catch (err) {
         console.warn("[Cache] size failed:", err);
@@ -260,8 +322,8 @@ export function createIndexedDBCache(options = {}) {
     async totalBytes() {
       try {
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction(META_STORE, "readonly");
+        const store = tx.objectStore(META_STORE);
 
         let total = 0;
         const cursor = store.openCursor();
@@ -303,9 +365,10 @@ export function createIndexedDBCache(options = {}) {
         if (!needsEviction) return;
 
         const db = await getDb();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        const index = store.index("accessedAt");
+        const tx = db.transaction([META_STORE, BLOB_STORE], "readwrite");
+        const metaStore = tx.objectStore(META_STORE);
+        const blobStore = tx.objectStore(BLOB_STORE);
+        const index = metaStore.index("accessedAt");
 
         const toDelete = Math.max(
           count - maxEntries + 10,
@@ -319,7 +382,8 @@ export function createIndexedDBCache(options = {}) {
           cursor.onsuccess = (event) => {
             const c = event.target.result;
             if (c && deleted < toDelete) {
-              store.delete(c.primaryKey);
+              metaStore.delete(c.primaryKey);
+              blobStore.delete(c.primaryKey);
               deleted++;
               c.continue();
             } else {
