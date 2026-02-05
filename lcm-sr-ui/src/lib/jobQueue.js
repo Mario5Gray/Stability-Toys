@@ -1,5 +1,7 @@
 // src/lib/jobQueue.js — Singleton Priority Queue
 
+import { emitJobEvent } from '../utils/otelTelemetry.js';
+
 export const PRIORITY = Object.freeze({
   URGENT: 0,
   NORMAL: 1,
@@ -16,6 +18,7 @@ class JobQueue extends EventTarget {
     this._pending = [];    // sorted: priority ASC, enqueueTime ASC
     this._running = new Map(); // id → { job, controller }
     this._snapshot = null; // memoized for useSyncExternalStore
+    this._telemetry = new Map(); // id -> timing data
   }
 
   // ---- public API ----
@@ -46,6 +49,17 @@ class JobQueue extends EventTarget {
     this._pending.splice(idx, 0, job);
     this._invalidate();
     this._emit('enqueue', { job });
+    this._telemetry.set(job.id, {
+      enqueuedAt: job.enqueuedAt,
+      startedAt: null,
+    });
+    emitJobEvent('queue.enqueue.job', {
+      'job.id': job.id,
+      'job.source': job.source,
+      'job.priority': job.priority,
+      'job.enqueued_at_ms': job.enqueuedAt,
+      'job.queue.depth': this.depth,
+    });
     this._flush();
     return id;
   }
@@ -57,6 +71,15 @@ class JobQueue extends EventTarget {
       const [job] = this._pending.splice(pendingIdx, 1);
       this._invalidate();
       this._emit('cancel', { job });
+      emitJobEvent('queue.cancel.job', {
+        'job.id': job.id,
+        'job.source': job.source,
+        'job.priority': job.priority,
+        'job.enqueued_at_ms': job.enqueuedAt,
+        'job.queue.depth': this.depth,
+        'job.status': 'canceled',
+      });
+      this._telemetry.delete(job.id);
       return true;
     }
     // Cancel running
@@ -74,6 +97,15 @@ class JobQueue extends EventTarget {
     this._pending.length = 0;
     for (const job of cancelled) {
       this._emit('cancel', { job });
+      emitJobEvent('queue.cancel.job', {
+        'job.id': job.id,
+        'job.source': job.source,
+        'job.priority': job.priority,
+        'job.enqueued_at_ms': job.enqueuedAt,
+        'job.queue.depth': this.depth,
+        'job.status': 'canceled',
+      });
+      this._telemetry.delete(job.id);
     }
     for (const [, entry] of this._running) {
       entry.controller.abort();
@@ -146,6 +178,18 @@ class JobQueue extends EventTarget {
     this._running.set(job.id, { job, controller });
     this._invalidate();
     this._emit('start', { job });
+    const telem = this._telemetry.get(job.id);
+    const startedAt = Date.now();
+    if (telem) telem.startedAt = startedAt;
+    emitJobEvent('queue.start.job', {
+      'job.id': job.id,
+      'job.source': job.source,
+      'job.priority': job.priority,
+      'job.enqueued_at_ms': job.enqueuedAt,
+      'job.started_at_ms': startedAt,
+      'job.queue.latency_ms': Math.max(0, startedAt - job.enqueuedAt),
+      'job.queue.depth': this.depth,
+    });
 
     try { 
       const f0 = performance.now();
@@ -157,6 +201,22 @@ class JobQueue extends EventTarget {
       this._running.delete(job.id);
       this._invalidate();
       this._emit('complete', { job, result });
+      const finishedAt = Date.now();
+      const telem2 = this._telemetry.get(job.id);
+      const started = telem2?.startedAt ?? finishedAt;
+      emitJobEvent('queue.complete.job', {
+        'job.id': job.id,
+        'job.source': job.source,
+        'job.priority': job.priority,
+        'job.enqueued_at_ms': job.enqueuedAt,
+        'job.started_at_ms': started,
+        'job.finished_at_ms': finishedAt,
+        'job.queue.latency_ms': Math.max(0, started - job.enqueuedAt),
+        'job.run_time_ms': Math.max(0, finishedAt - started),
+        'job.total_time_ms': Math.max(0, finishedAt - job.enqueuedAt),
+        'job.status': 'complete',
+      });
+      this._telemetry.delete(job.id);
 
       // Fire-and-forget ledger write
       try {
@@ -183,8 +243,41 @@ class JobQueue extends EventTarget {
 
       if (controller.signal.aborted) {
         this._emit('cancel', { job, error: err });
+        const finishedAt = Date.now();
+        const telem2 = this._telemetry.get(job.id);
+        const started = telem2?.startedAt ?? finishedAt;
+        emitJobEvent('queue.cancel.job', {
+          'job.id': job.id,
+          'job.source': job.source,
+          'job.priority': job.priority,
+          'job.enqueued_at_ms': job.enqueuedAt,
+          'job.started_at_ms': started,
+          'job.finished_at_ms': finishedAt,
+          'job.queue.latency_ms': Math.max(0, started - job.enqueuedAt),
+          'job.run_time_ms': Math.max(0, finishedAt - started),
+          'job.total_time_ms': Math.max(0, finishedAt - job.enqueuedAt),
+          'job.status': 'canceled',
+        });
+        this._telemetry.delete(job.id);
       } else {
         this._emit('error', { job, error: err });
+        const finishedAt = Date.now();
+        const telem2 = this._telemetry.get(job.id);
+        const started = telem2?.startedAt ?? finishedAt;
+        emitJobEvent('queue.error.job', {
+          'job.id': job.id,
+          'job.source': job.source,
+          'job.priority': job.priority,
+          'job.enqueued_at_ms': job.enqueuedAt,
+          'job.started_at_ms': started,
+          'job.finished_at_ms': finishedAt,
+          'job.queue.latency_ms': Math.max(0, started - job.enqueuedAt),
+          'job.run_time_ms': Math.max(0, finishedAt - started),
+          'job.total_time_ms': Math.max(0, finishedAt - job.enqueuedAt),
+          'job.status': 'error',
+          'error.message': err?.message ?? String(err),
+        });
+        this._telemetry.delete(job.id);
 
         // Ledger: record error
         try {

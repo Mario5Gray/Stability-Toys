@@ -11,7 +11,6 @@ services:
 
     ports:
       - "4200:4200"
-
     volumes:
       - ${MODELS_HOST_PATH}:/models:rw,Z
       - ${FS_HOST_PATH:-./store}:/storage:rw,Z
@@ -21,9 +20,16 @@ services:
       - env.rknn
 
     restart: unless-stopped
+    networks:
+      - observ-net
 
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/docs').read()\""]
       interval: 30s
       timeout: 5s
       retries: 5
+
+networks:
+  observ-net:
+    name: observ-net
+    external: true

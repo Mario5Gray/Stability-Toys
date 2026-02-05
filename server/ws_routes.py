@@ -12,6 +12,8 @@ import os
 import time
 import uuid
 import queue
+from urllib import request as urlrequest
+from urllib.error import URLError, HTTPError
 from typing import Any, Dict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -100,6 +102,17 @@ def _handler(msg_type: str):
     return decorator
 
 
+def _post_bytes(url: str, body: bytes, content_type: str) -> int:
+    req = urlrequest.Request(
+        url,
+        data=body,
+        headers={"Content-Type": content_type},
+        method="POST",
+    )
+    with urlrequest.urlopen(req, timeout=5) as resp:
+        return resp.status
+
+
 # ---------------------------------------------------------------------------
 # ping / pong
 # ---------------------------------------------------------------------------
@@ -138,6 +151,34 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
         _track_task(job_id, t)
     else:
         await hub.send(client_id, _error(f"Unknown jobType: {job_type}", corr_id))
+
+
+# ---------------------------------------------------------------------------
+# telemetry:otlp
+# ---------------------------------------------------------------------------
+
+@_handler("telemetry:otlp")
+async def handle_telemetry_otlp(ws: WebSocket, msg: dict, client_id: str) -> dict:
+    endpoint = os.environ.get("OTEL_PROXY_ENDPOINT", "").strip()
+    if not endpoint:
+        return {"type": "telemetry:ack", "id": msg.get("id"), "status": "noop"}
+
+    payload = msg.get("payload")
+    if payload is None:
+        return _error("Missing payload", msg.get("id"))
+
+    content_type = msg.get("contentType", "application/json")
+    try:
+        body = json.dumps(payload).encode("utf-8")
+        status = await asyncio.to_thread(_post_bytes, endpoint, body, content_type)
+    except HTTPError as e:
+        logger.warning("[telemetry] collector error %s", e)
+        return _error("collector error", msg.get("id"))
+    except URLError as e:
+        logger.warning("[telemetry] collector unavailable %s", e)
+        return _error("collector unavailable", msg.get("id"))
+
+    return {"type": "telemetry:ack", "id": msg.get("id"), "status": status}
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 // src/App.jsx
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { ChatDropzone } from "./components/chat/ChatDropzone";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { useChatMessages } from './hooks/useChatMessages';
@@ -15,10 +15,25 @@ import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
+import { emitUiEvent } from './utils/otelTelemetry';
 
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
+  const didReportRender = useRef(false);
+
+  useEffect(() => {
+    if (didReportRender.current) return;
+    didReportRender.current = true;
+    const start = window.__appStartTime;
+    if (typeof start === 'number') {
+      emitUiEvent('ui.render.app', {
+        'ui.component': 'App',
+        'ui.metric': 'first_render_ms',
+        'ui.value': Math.max(0, performance.now() - start),
+      });
+    }
+  }, []);
   // ============================================================================
   // STATE MANAGEMENT VIA HOOKS
   // ============================================================================

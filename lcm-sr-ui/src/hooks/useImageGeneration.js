@@ -117,6 +117,21 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const dreamTimerRef = useRef(null);
   const dreamParamsRef = useRef(null);
   const dreamHistoryByMsgIdRef = useRef(new Map());
+  const dreamTemperatureRef = useRef(dreamTemperature);
+  const dreamIntervalRef = useRef(dreamInterval);
+  const dreamMessageIdRef = useRef(dreamMessageId);
+
+  useEffect(() => {
+    dreamTemperatureRef.current = dreamTemperature;
+  }, [dreamTemperature]);
+
+  useEffect(() => {
+    dreamIntervalRef.current = dreamInterval;
+  }, [dreamInterval]);
+
+  useEffect(() => {
+    dreamMessageIdRef.current = dreamMessageId;
+  }, [dreamMessageId]);
 
   // Initialize cache and API client
   if (!cacheRef.current) cacheRef.current = createCache();
@@ -689,6 +704,28 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   /**
    * Start dream mode.
    */
+  const runDreamCycle = useCallback(
+    (targetId = null) => {
+      const baseParams = dreamParamsRef.current;
+      if (!baseParams) return null;
+      const temp = dreamTemperatureRef.current;
+      const nextParams = mutateParams(baseParams, temp);
+      nextParams.prompt = dreamVariation(baseParams.prompt, temp);
+      nextParams.skipAutoSelect = true;
+      nextParams.isDream = true;
+      if (targetId) nextParams.targetMessageId = targetId;
+      return runGenerate(nextParams);
+    },
+    [runGenerate]
+  );
+
+  const restartDreamInterval = useCallback(() => {
+    if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
+    dreamTimerRef.current = setInterval(() => {
+      runDreamCycle(dreamMessageIdRef.current);
+    }, dreamIntervalRef.current);
+  }, [runDreamCycle]);
+
   const startDreaming = useCallback(
     (baseParams) => {
       if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
@@ -697,24 +734,14 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       setIsDreaming(true);
 
       // First dream: create a fresh message
-      const dreamParams = mutateParams(baseParams, dreamTemperature);
-      dreamParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
-      dreamParams.skipAutoSelect = true;
-      dreamParams.isDream = true;
-      const firstId = runGenerate(dreamParams);
+      const firstId = runDreamCycle(null);
       setDreamMessageId(firstId);
+      dreamMessageIdRef.current = firstId;
 
       // Subsequent dreams paint into the same message
-      dreamTimerRef.current = setInterval(() => {
-        const nextParams = mutateParams(dreamParamsRef.current, dreamTemperature);
-        nextParams.prompt = dreamVariation(dreamParamsRef.current.prompt, dreamTemperature);
-        nextParams.skipAutoSelect = true;
-        nextParams.isDream = true;
-        nextParams.targetMessageId = firstId;
-        runGenerate(nextParams);
-      }, dreamInterval);
+      restartDreamInterval();
     },
-    [dreamTemperature, dreamInterval, runGenerate]
+    [runDreamCycle, restartDreamInterval]
   );
 
   const stopDreaming = useCallback(() => {
@@ -738,44 +765,27 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const saveDreamAndContinue = useCallback(() => {
     if (!isDreaming) return;
     setDreamMessageId(null);
+    dreamMessageIdRef.current = null;
 
     // Restart the interval so the next tick creates a fresh message
     if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
     const baseParams = dreamParamsRef.current;
     if (!baseParams) return;
 
-    dreamTimerRef.current = setInterval(() => {
-      const currentDreamMsgId = dreamMessageId; // will be null, triggering fresh message
-      const nextParams = mutateParams(baseParams, dreamTemperature);
-      nextParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
-      nextParams.skipAutoSelect = true;
-      nextParams.isDream = true;
-
-      // If no dreamMessageId yet, create fresh; otherwise reuse
-      // We need a ref-based approach since setInterval captures stale closure
-      runGenerate(nextParams);
-    }, dreamInterval);
-
     // Immediately fire one to create the new message
-    const firstParams = mutateParams(baseParams, dreamTemperature);
-    firstParams.prompt = dreamVariation(baseParams.prompt, dreamTemperature);
-    firstParams.skipAutoSelect = true;
-    firstParams.isDream = true;
-    const newId = runGenerate(firstParams);
+    const newId = runDreamCycle(null);
     setDreamMessageId(newId);
     if (newId) dreamHistoryByMsgIdRef.current.set(newId, []);
+    dreamMessageIdRef.current = newId;
 
     // Now fix the interval to paint into the new message
-    if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
-    dreamTimerRef.current = setInterval(() => {
-      const nextParams = mutateParams(dreamParamsRef.current, dreamTemperature);
-      nextParams.prompt = dreamVariation(dreamParamsRef.current.prompt, dreamTemperature);
-      nextParams.skipAutoSelect = true;
-      nextParams.isDream = true;
-      nextParams.targetMessageId = newId;
-      runGenerate(nextParams);
-    }, dreamInterval);
-  }, [isDreaming, dreamMessageId, dreamTemperature, dreamInterval, runGenerate]);
+    restartDreamInterval();
+  }, [isDreaming, runDreamCycle, restartDreamInterval]);
+
+  useEffect(() => {
+    if (!isDreaming) return;
+    restartDreamInterval();
+  }, [isDreaming, dreamInterval, restartDreamInterval]);
 
   /**
    * Dream history navigation: go to previous image.

@@ -193,7 +193,8 @@ export async function generateImage(apiBase, params, signal = null) {
   });
 
   // Extract server storage key if server-side caching is enabled
-  const serverImageKey = res.headers.get("X-LCM-Image-Key");
+  const serverImageKey =
+    res.headers.get("x-storage-key") || res.headers.get("X-LCM-Image-Key");
 
   let imageUrl;
   let serverImageUrl = null;

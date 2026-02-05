@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { createApiClient, createApiConfig } from '../../utils/api';
 import { CSS_CLASSES } from '../../utils/constants';
+import { emitUiEvent } from '../../utils/otelTelemetry';
 
 export default function ModeOptions() {
   const [config, setConfig] = useState(null); // { default_mode, modes }
@@ -41,6 +42,11 @@ export default function ModeOptions() {
 
     try {
       setIsSwitching(true);
+      emitUiEvent('mode.select', {
+        'ui.component': 'ModeOptions',
+        'ui.action': 'select',
+        'ui.value': name,
+      });
       await api.fetchPost('/api/modes/switch', {
         mode: name,
       });

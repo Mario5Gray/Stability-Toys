@@ -14,7 +14,7 @@ fi
 
 set -x
 docker run --rm -it \
-  --network dream-lab_appnet \
+  --network observ-net \
   -p 4200:4200 \
   --privileged \
   $@ \

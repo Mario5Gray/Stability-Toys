@@ -23,6 +23,8 @@ services:
       - env.custom
 
     restart: unless-stopped
+    networks:
+      - observ-net
 
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/docs').read()\""]
@@ -36,3 +38,8 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+networks:
+  observ-net:
+    name: observ-net
+    external: true

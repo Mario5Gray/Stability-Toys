@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Heart, Pause, Play } from 'lucide-react';
+import { emitUiEvent } from '@/utils/otelTelemetry';
 
 /**
  * Dream Mode controls component.
@@ -69,6 +70,11 @@ export function DreamControls({
         <Switch
           checked={isDreaming}
           onCheckedChange={(checked) => {
+            emitUiEvent('dream.toggle', {
+              'ui.component': 'DreamControls',
+              'ui.action': 'toggle',
+              'ui.value': checked ? 'on' : 'off',
+            });
             if (checked) {
               onStartDreaming(baseParams);
             } else {
@@ -99,6 +105,13 @@ export function DreamControls({
               max={1}
               step={0.1}
               onValueChange={([v]) => onTemperatureChange(v)}
+              onValueChangeEnd={([v]) =>
+                emitUiEvent('dream.temperature.change', {
+                  'ui.component': 'DreamControls',
+                  'ui.action': 'change',
+                  'ui.value': v,
+                })
+              }
               className="[&_[data-orientation=horizontal]]:bg-gradient-to-r [&_[data-orientation=horizontal]]:from-blue-200 [&_[data-orientation=horizontal]]:to-red-200"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground">
@@ -122,6 +135,13 @@ export function DreamControls({
               max={30}
               step={1}
               onValueChange={([v]) => onIntervalChange(v * 1000)}
+              onValueChangeEnd={([v]) =>
+                emitUiEvent('dream.interval.change', {
+                  'ui.component': 'DreamControls',
+                  'ui.action': 'change',
+                  'ui.value': v,
+                })
+              }
             />
             <div className="text-xs text-muted-foreground">
               Generate a new variation every {intervalSeconds} second{intervalSeconds !== 1 ? 's' : ''}
@@ -137,6 +157,12 @@ export function DreamControls({
                   : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
               }`}
               onClick={handleGuideDream}
+              onMouseDown={() =>
+                emitUiEvent('dream.guide.click', {
+                  'ui.component': 'DreamControls',
+                  'ui.action': 'click',
+                })
+              }
             >
               <Heart className={`h-4 w-4 ${isGuided ? 'fill-current animate-pulse' : ''}`} />
               {isGuided ? 'Guided!' : 'Guide Dream Toward This'}
@@ -150,6 +176,12 @@ export function DreamControls({
               size="sm"
               className="flex-1"
               onClick={onStopDreaming}
+              onMouseDown={() =>
+                emitUiEvent('dream.pause.click', {
+                  'ui.component': 'DreamControls',
+                  'ui.action': 'click',
+                })
+              }
             >
               <Pause className="mr-1 h-3 w-3" />
               Pause
@@ -162,6 +194,12 @@ export function DreamControls({
                 onStopDreaming();
                 setTimeout(() => onStartDreaming(baseParams), 100);
               }}
+              onMouseDown={() =>
+                emitUiEvent('dream.restart.click', {
+                  'ui.component': 'DreamControls',
+                  'ui.action': 'click',
+                })
+              }
             >
               <Play className="mr-1 h-3 w-3" />
               Restart
