@@ -10,6 +10,7 @@ import { CSS_CLASSES } from "../../utils/constants";
 import { NumberStepper } from "@/components/ui/NumberStepper";
 import { wsClient } from "@/lib/wsClient";
 import { jobQueue } from "@/lib/jobQueue";
+import { createCache } from "../../utils/cache";
 
 /**
  * ComfyOptions — now delegates to jobQueue via onRunComfy callback.
@@ -82,9 +83,37 @@ export function ComfyOptions({
     if (inputImage?.kind === "file") {
       inputImageFile = inputImage.file;
     } else if (inputImage?.kind === "url") {
-      const res = await fetch(inputImage.url);
-      if (!res.ok) throw new Error(`fetch image failed: ${res.status}`);
-      const blob = await res.blob();
+      const tryFetch = async (url) => {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`fetch image failed: ${res.status}`);
+        return res.blob();
+      };
+
+      let blob;
+      try {
+        blob = await tryFetch(inputImage.url);
+      } catch (err) {
+        let recovered = false;
+        if (inputImage.serverUrl && inputImage.serverUrl !== inputImage.url) {
+          try {
+            blob = await tryFetch(inputImage.serverUrl);
+            recovered = true;
+          } catch {}
+        }
+        if (!recovered && inputImage.cacheKey) {
+          const cache = createCache();
+          const entry = await cache.get(inputImage.cacheKey);
+          if (entry?.blob && entry.blob.size > 0) {
+            blob = entry.blob;
+            recovered = true;
+          } else if (entry?.metadata?.serverImageUrl) {
+            blob = await tryFetch(entry.metadata.serverImageUrl);
+            recovered = true;
+          }
+        }
+        if (!recovered) throw err;
+      }
+
       inputImageFile = new File([blob], inputImage.filename || "input.png", {
         type: blob.type || "image/png",
       });

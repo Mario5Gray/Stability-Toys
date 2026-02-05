@@ -274,7 +274,9 @@ export default function App() {
     if (!selectedMsg?.imageUrl) return null;
     return {
       kind: "url",
-      url: selectedMsg.imageUrl,
+      url: selectedMsg.serverImageUrl || selectedMsg.imageUrl,
+      serverUrl: selectedMsg.serverImageUrl || null,
+      cacheKey: selectedMsg.meta?.cacheKey || null,
       filename: `chat_${selectedMsg.id}.png`,
       source: "chat",
       key: selectedMsg.id,

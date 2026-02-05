@@ -142,6 +142,7 @@ export function MessageBubble({
   const clickable = msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating
     ? 'cursor-pointer'
     : '';
+  const isComfyJob = !!msg.meta?.backend?.startsWith?.('comfy');
 
   // Different wrapper styles for image-only vs text messages
   const wrapperClass = isImageOnly
@@ -200,7 +201,6 @@ export function MessageBubble({
               <div
                 className={
                   'inline-block relative rounded-xl' +
-                  (msg.isRegenerating ? ' image-generating-border' : '') +
                   (msg.hasError && !msg.isRegenerating ? ' image-error-border' : '') +
                   (isSelected && !msg.hasError && !msg.isRegenerating ? ' image-selected-border' : '')
                 }
@@ -210,7 +210,6 @@ export function MessageBubble({
                   alt="generation"
                   className={
                     'max-h-[640px] w-auto rounded-xl bg-background' +
-                    (msg.isRegenerating ? ' opacity-60' : '') +
                     (isDreamMessage ? ' cursor-pointer' : '')
                   }
                   loading="lazy"
@@ -225,13 +224,19 @@ export function MessageBubble({
                     }
                   }}
                 />
-                {/* Regenerating overlay - floats above image, no layout shift */}
-                {msg.isRegenerating && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="flex items-center gap-2 bg-black/60 text-white text-sm px-3 py-1.5 rounded-full backdrop-blur-sm">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Regenerating</span>
-                    </div>
+                {/* Status badges */}
+                {(isDreamMessage || msg.isRegenerating) && (
+                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
+                    {isDreamMessage && !msg.isRegenerating && (
+                      <span className="bg-purple-600/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm animate-pulse">
+                        dreaming
+                      </span>
+                    )}
+                    {msg.isRegenerating && (
+                      <span className="bg-slate-800/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm animate-pulse">
+                        generating
+                      </span>
+                    )}
                   </div>
                 )}
                 {/* Error indicator tooltip + retry button */}
@@ -252,12 +257,6 @@ export function MessageBubble({
                         Retry
                       </button>
                     )}
-                  </div>
-                )}
-                {/* Dream mode indicator */}
-                {isDreamMessage && !msg.isRegenerating && (
-                  <div className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                    dreaming
                   </div>
                 )}
               </div>
@@ -315,6 +314,7 @@ export function MessageBubble({
               {msg.meta?.backend ? (
                 <Pill label={msg.meta.backend} />
               ) : null}
+              {isComfyJob ? <Pill label="comfyui" /> : null}
 
               <a
                 className="ml-auto underline hover:no-underline"
