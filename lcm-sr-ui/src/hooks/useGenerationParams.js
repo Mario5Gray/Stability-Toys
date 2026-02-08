@@ -118,33 +118,6 @@ export function useGenerationParams(
   );
 
 
-  /**
-   * Update on Outside Rnder
-   */
-  const catchOutsideGeneration = useCallback(async (value) => {
-      
-    
-    const result = await runGenerate(prompt, params);
-    
-    if(result) {
-    // Add generated image to messages
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        type: 'image',
-        content: `data:image/png;base64,${result.image}`,
-        metadata: {
-          prompt: prompt,
-          seed: result.seed,
-          steps: params.steps,
-          cfg: params.cfg_scale,
-          model: params.model,
-          timestamp: Date.now()
-        }
-      }]);
-    }
-    
-  }, [runGenerate]);
-
   /*
    * 
    * Set prompt - updates draft or triggers regen if selected.

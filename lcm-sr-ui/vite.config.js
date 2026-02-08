@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     allowedHosts: process.env.VITE_ALLOWED_HOSTS 
       ? process.env.VITE_ALLOWED_HOSTS.split(',')
-      : ["mindgate", "enigma", "node2"],
+      : ["mindgate", "enigma", "node2", "enigma:5173"],
     host: true,
     watch: {
       usePolling: true,

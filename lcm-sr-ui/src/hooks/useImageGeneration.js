@@ -526,9 +526,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
    * Run a ComfyUI workflow through the job queue.
    * If targetMessageId is provided, updates that message and appends to its imageHistory.
    * Otherwise creates a new pending message.
+   * Optional: skipAutoSelect to avoid UI focus changes on completion.
    */
   const runComfy = useCallback(
-    ({ workflowId, params, inputImageFile, targetMessageId, existingHistory }) => {
+    ({ workflowId, params, inputImageFile, targetMessageId, existingHistory, skipAutoSelect }) => {
       const assistantId = targetMessageId ?? nowId();
 
       if (targetMessageId) {
@@ -551,7 +552,15 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       const jobId = jobQueue.enqueue({
         priority: PRIORITY.NORMAL,
         source: 'comfy',
-        payload: { workflowId, params, inputImageFile, assistantId, targetMessageId, priorHistory },
+        payload: {
+          workflowId,
+          params,
+          inputImageFile,
+          assistantId,
+          targetMessageId,
+          priorHistory,
+          skipAutoSelect: !!skipAutoSelect,
+        },
         meta: {},
         runner: async (payload, signal) => {
           const result = await comfyRunner(
@@ -583,19 +592,23 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
               currentHistory.length > payload.priorHistory.length
                 ? [...currentHistory, historyEntry]
                 : newHistory;
+            const nextParams =
+              payload.targetMessageId && msg?.params ? msg.params : entryParams;
             return {
               ...msg,
               kind: MESSAGE_KINDS.IMAGE,
               isRegenerating: false,
               imageUrl: newUrl,
-              params: entryParams,
+              params: nextParams,
               meta: entryMeta,
               imageHistory: mergedHistory,
               historyIndex: mergedHistory.length - 1,
             };
           });
 
-          setSelectedMsgId(payload.assistantId);
+          if (!payload.skipAutoSelect) {
+            setSelectedMsgId(payload.assistantId);
+          }
           return result;
         },
       });

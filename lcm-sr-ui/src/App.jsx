@@ -423,6 +423,7 @@ export default function App() {
                 ...payload,
                 targetMessageId: selectedMsgId || undefined,
                 existingHistory: history,
+                skipAutoSelect: !selectedMsgId,
               });
             }}
             queueState={queueState}
