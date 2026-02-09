@@ -120,6 +120,40 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const onImageDisplayed = useCallback((msg) => {
+    if (!msg?.id) return;
+    updateMessage(msg.id, {
+      imageDisplayed: true,
+      imageDisplayedAt: Date.now(),
+      imageLoadError: false,
+    });
+  }, [updateMessage]);
+
+  const onImageError = useCallback(async (msg) => {
+    if (!msg?.id) return;
+
+    if (msg.imageRetryAttempted) {
+      updateMessage(msg.id, { imageLoadError: true, imageDisplayed: false });
+      return;
+    }
+
+    updateMessage(msg.id, { imageLoadError: true, imageDisplayed: false, imageRetryAttempted: true });
+
+    if (msg.serverImageUrl) {
+      updateMessage(msg.id, { imageUrl: msg.serverImageUrl });
+      return;
+    }
+
+    if (msg.params) {
+      const imageUrl = await getImageFromCache(msg.params);
+      if (imageUrl) {
+        updateMessage(msg.id, { imageUrl, needsReload: false });
+      } else {
+        updateMessage(msg.id, { needsReload: true });
+      }
+    }
+  }, [getImageFromCache, updateMessage]);  
+
   // Generation parameters (draft + selected)
   const params = useGenerationParams(
     selectedParams,
@@ -376,6 +410,8 @@ export default function App() {
             onCopyPrompt={onCopyPrompt}
             copied={copied}
             serverLabel={serverLabel}
+            onImageDisplayed={onImageDisplayed}
+            onImageError={onImageError}
           />
 
           {/* Options Panel */}

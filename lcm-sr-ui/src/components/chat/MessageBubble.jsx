@@ -97,6 +97,8 @@ function ImagePlaceholder({ size, onCancel, queuePosition }) {
  * @param {function} [props.onDreamHistoryPrev] - Go to previous in history
  * @param {function} [props.onDreamHistoryNext] - Go to next in history
  * @param {function} [props.onDreamHistoryLive] - Go to latest (live)
+ * @param {function} [props.onImageDisplayed] - Image load success callback
+ * @param {function} [props.onImageError] - Image load error callback
  * @param {function} [props.onRetry] - Retry callback for failed messages
  */
 export function MessageBubble({
@@ -110,6 +112,8 @@ export function MessageBubble({
   onDreamHistoryPrev,
   onDreamHistoryNext,
   onDreamHistoryLive,
+  onImageDisplayed,
+  onImageError,
   onRetry,
 }) {
   const isUser = msg.role === MESSAGE_ROLES.USER;
@@ -127,6 +131,9 @@ export function MessageBubble({
 
   // Image-only messages (no text) get minimal styling
   const isImageOnly = (msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && !msg.text;
+
+  const displayUrl = msg.imageUrl || msg.serverImageUrl || null;
+  const canShowImage = (msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && !!displayUrl;
 
   const bubbleColor =
     isUser
@@ -188,7 +195,7 @@ export function MessageBubble({
         ) : null}
 
         {/* Image */}
-        {(msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && msg.imageUrl ? (
+        {canShowImage ? (
 
           <div className={msg.text ? 'mt-3' : ''}>
             {/* Image frame with buffer space for indicators */}
@@ -206,7 +213,7 @@ export function MessageBubble({
                 }
               >
                 <img
-                  src={msg.imageUrl}
+                  src={displayUrl}
                   alt="generation"
                   className={
                     'max-h-[640px] w-auto rounded-xl bg-background' +
@@ -217,6 +224,8 @@ export function MessageBubble({
                     e.stopPropagation();
                     onSelect?.();
                   }}
+                  onLoad={() => onImageDisplayed?.(msg)}
+                  onError={() => onImageError?.(msg)}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
                     if (isDreamMessage && onDreamSave) {
@@ -318,7 +327,7 @@ export function MessageBubble({
 
               <a
                 className="ml-auto underline hover:no-underline"
-                href={msg.imageUrl}
+                href={displayUrl}
                 download={`lcm_${msg.params?.seed ?? 'image'}.png`}
                 onClick={(e) => e.stopPropagation()}
               >

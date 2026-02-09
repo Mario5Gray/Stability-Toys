@@ -106,6 +106,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
   // Track which messages correspond to which cache keys
   const cacheKeyToMsgIdsRef = useRef(new Map()); // cacheKey -> Set(msgId)
+  const msgIdToCacheKeyRef = useRef(new Map()); // msgId -> cacheKey
   const inflightHydrationsRef = useRef(new Set()); // cacheKey -> hydration in progress
   const blobUrlByCacheKeyRef = useRef(new Map()); // cacheKey -> blobUrl (for cleanup)
 
@@ -243,12 +244,21 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
    */
   const linkMsgToCacheKey = useCallback((msgId, cacheKey) => {
     if (!msgId || !cacheKey) return;
+    const prevKey = msgIdToCacheKeyRef.current.get(msgId);
+    if (prevKey && prevKey !== cacheKey) {
+      const prevSet = cacheKeyToMsgIdsRef.current.get(prevKey);
+      if (prevSet) {
+        prevSet.delete(msgId);
+        if (prevSet.size === 0) cacheKeyToMsgIdsRef.current.delete(prevKey);
+      }
+    }
     let set = cacheKeyToMsgIdsRef.current.get(cacheKey);
     if (!set) {
       set = new Set();
       cacheKeyToMsgIdsRef.current.set(cacheKey, set);
     }
     set.add(msgId);
+    msgIdToCacheKeyRef.current.set(msgId, cacheKey);
   }, []);
 
   /**
@@ -803,54 +813,91 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   /**
    * Dream history navigation: go to previous image.
    */
-  const dreamHistoryPrev = useCallback((msg) => {
+  const getImageFromCache = useCallback(async (params) => {
+    if (!cache) return null;
+    try {
+      const key = generateCacheKey(params);
+      const entry = await cache.get(key);
+
+      const serverUrl = entry?.metadata?.serverImageUrl;
+      if (serverUrl) {
+        // Return immediately for display; hydration keeps blob cache warm
+        scheduleHydration(key, serverUrl);
+        return serverUrl;
+      }
+
+      if (entry?.blob && entry.blob.size > 0) {
+        return URL.createObjectURL(entry.blob);
+      }
+    } catch (err) {
+      console.warn('[Cache] getImageFromCache failed:', err);
+    }
+    return null;
+  }, [cache, scheduleHydration]);
+
+  const dreamHistoryPrev = useCallback(async (msg) => {
     if (!msg.imageHistory?.length) return;
     const newIdx = Math.max(0, (msg.historyIndex ?? 0) - 1);
     const entry = msg.imageHistory[newIdx];
+    let imageUrl = entry.imageUrl || entry.serverImageUrl || null;
+    if (!imageUrl && entry?.params) {
+      imageUrl = await getImageFromCache(entry.params);
+    }
     updateMessage(msg.id, {
-      imageUrl: entry.imageUrl,
+      imageUrl,
       historyIndex: newIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
       params: entry.params,
       meta: entry.meta,
+      needsReload: !imageUrl,
     });
-  }, [updateMessage]);
+  }, [updateMessage, getImageFromCache]);
 
   /**
    * Dream history navigation: go to next image.
    */
-  const dreamHistoryNext = useCallback((msg) => {
+  const dreamHistoryNext = useCallback(async (msg) => {
     if (!msg.imageHistory?.length) return;
     const maxIdx = msg.imageHistory.length - 1;
     const newIdx = Math.min(maxIdx, (msg.historyIndex ?? 0) + 1);
     const entry = msg.imageHistory[newIdx];
+    let imageUrl = entry.imageUrl || entry.serverImageUrl || null;
+    if (!imageUrl && entry?.params) {
+      imageUrl = await getImageFromCache(entry.params);
+    }
     updateMessage(msg.id, {
-      imageUrl: entry.imageUrl,
+      imageUrl,
       historyIndex: newIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
       params: entry.params,
       meta: entry.meta,
+      needsReload: !imageUrl,
     });
-  }, [updateMessage]);
+  }, [updateMessage, getImageFromCache]);
 
   /**
    * Dream history navigation: jump to the latest (most recent) image.
    */
-  const dreamHistoryLive = useCallback((msg) => {
+  const dreamHistoryLive = useCallback(async (msg) => {
     if (!msg.imageHistory?.length) return;
     const lastIdx = msg.imageHistory.length - 1;
     const entry = msg.imageHistory[lastIdx];
+    let imageUrl = entry.imageUrl || entry.serverImageUrl || null;
+    if (!imageUrl && entry?.params) {
+      imageUrl = await getImageFromCache(entry.params);
+    }
     updateMessage(msg.id, {
-      imageUrl: entry.imageUrl,
+      imageUrl,
       historyIndex: lastIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
       params: entry.params,
       meta: entry.meta,
+      needsReload: !imageUrl,
     });
-  }, [updateMessage]);
+  }, [updateMessage, getImageFromCache]);
 
   const cancelRequest = useCallback((id) => api.cancel(id), [api]);
 
@@ -869,27 +916,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
    * - If blob is present: returns blob URL
    * - If meta-only: schedules hydration + returns null
    */
-  const getImageFromCache = useCallback(async (params) => {
-    if (!cache) return null;
-    try {
-      const key = generateCacheKey(params);
-      const entry = await cache.get(key);
-
-      if (entry?.blob && entry.blob.size > 0) {
-        return URL.createObjectURL(entry.blob);
-      }
-
-      // meta-only pointer: hydrate in background
-      const serverUrl = entry?.metadata?.serverImageUrl;
-      if (serverUrl) {
-        scheduleHydration(key, serverUrl);
-      }
-    } catch (err) {
-      console.warn('[Cache] getImageFromCache failed:', err);
-    }
-    return null;
-  }, [cache, scheduleHydration]);
-
   const getCacheStats = useCallback(async () => {
     if (!cache) return { enabled: false };
     return await cache.stats();
@@ -905,6 +931,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const cleanupMessage = useCallback((msgId) => {
     if (!msgId) return;
     dreamHistoryByMsgIdRef.current.delete(msgId);
+    msgIdToCacheKeyRef.current.delete(msgId);
     for (const [cacheKey, msgIds] of cacheKeyToMsgIdsRef.current.entries()) {
       if (msgIds.delete(msgId) && msgIds.size === 0) {
         cacheKeyToMsgIdsRef.current.delete(cacheKey);
