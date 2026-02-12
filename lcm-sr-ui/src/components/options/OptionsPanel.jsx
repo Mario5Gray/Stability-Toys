@@ -41,6 +41,7 @@ import { ComfyOptions } from "./ComfyOptions";
  * @param {function} props.onClearSelection - Clear selection callback
  * @param {function} props.onApplyPromptDelta - Apply prompt delta callback
  * @param {function} props.onRerunSelected - Rerun selected callback
+ * @param {function} props.onPersistSelectedParams - Persist edits to previous selection
  * @param {object} props.dreamState - Dream mode state
  * @param {function} props.onSuperResUpload - SR upload callback
  * @param {File|null} props.uploadFile - Selected file for SR
@@ -59,6 +60,7 @@ export function OptionsPanel({
   onApplyPromptDelta,
   onApplySeedDelta,
   onRerunSelected,
+  onPersistSelectedParams,
   dreamState,
   onSuperResUpload,
   uploadFile,
@@ -105,6 +107,14 @@ export function OptionsPanel({
   useEffect(() => {
     const currentId = selectedMsgId ?? null;
     if (currentId !== prevSelectedId.current) {
+      if (prevSelectedId.current && prevSelectedId.current !== currentId) {
+        onPersistSelectedParams?.(prevSelectedId.current, {
+          prompt: localPrompt,
+          steps: localSteps,
+          cfg: localCfg,
+          superresLevel: localSrLevel,
+        });
+      }
       prevSelectedId.current = currentId;
       // Mark that we're syncing to prevent prompt push from triggering regen
       isSyncingSelection.current = true;

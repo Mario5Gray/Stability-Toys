@@ -21,16 +21,27 @@ function loadPersistedMessages() {
 
     return parsed.map((msg) => {
       if (msg.kind === MESSAGE_KINDS.IMAGE) {
+        const nextHistory = Array.isArray(msg.imageHistory)
+          ? msg.imageHistory.map((entry) => {
+              if (entry?.serverImageUrl) {
+                return { ...entry, imageUrl: entry.serverImageUrl };
+              }
+              if (entry?.imageUrl?.startsWith('blob:')) {
+                return { ...entry, imageUrl: null };
+              }
+              return entry;
+            })
+          : msg.imageHistory;
         // Server URLs (http/https) are persistent - use directly
         if (msg.imageUrl?.startsWith('http')) {
-          return msg;
+          return { ...msg, imageHistory: nextHistory };
         }
         // Server URL stored separately - use it
         if (msg.serverImageUrl) {
-          return { ...msg, imageUrl: msg.serverImageUrl };
+          return { ...msg, imageUrl: msg.serverImageUrl, imageHistory: nextHistory };
         }
         // Blob URLs or missing - need reload from client cache
-        return { ...msg, imageUrl: null, needsReload: true };
+        return { ...msg, imageUrl: null, needsReload: true, imageHistory: nextHistory };
       }
       return msg;
     });
@@ -48,14 +59,26 @@ function persistMessages(messages) {
   try {
     const toSave = messages.map((msg) => {
       if (msg.kind === MESSAGE_KINDS.IMAGE) {
+        const history = Array.isArray(msg.imageHistory)
+          ? msg.imageHistory.map((entry) => {
+              if (entry?.serverImageUrl) {
+                return { ...entry, imageUrl: entry.serverImageUrl };
+              }
+              if (entry?.imageUrl?.startsWith('blob:')) {
+                return { ...entry, imageUrl: null };
+              }
+              return entry;
+            })
+          : msg.imageHistory;
         // Server URLs are persistent - use as primary imageUrl
         if (msg.serverImageUrl) {
-          return { ...msg, imageUrl: msg.serverImageUrl };
+          return { ...msg, imageUrl: msg.serverImageUrl, imageHistory: history };
         }
         // Blob URLs don't persist - mark for reload
         if (msg.imageUrl?.startsWith('blob:')) {
-          return { ...msg, imageUrl: null, needsReload: true };
+          return { ...msg, imageUrl: null, needsReload: true, imageHistory: history };
         }
+        return { ...msg, imageHistory: history };
       }
       return msg;
     });

@@ -173,6 +173,29 @@ export default function App() {
   // Copy feedback
   const [copied, setCopied] = useState(false);
 
+  // Persist edits on selection change so message state reflects current controls
+  const persistSelectedParams = useCallback((id, patch) => {
+    if (!id) return;
+    updateMessage(id, (msg) => {
+      if (!msg || msg.kind !== 'image') return msg;
+      const next = { ...msg, params: { ...(msg.params || {}), ...patch } };
+      if (Array.isArray(msg.imageHistory) && msg.imageHistory.length > 0) {
+        const lastIdx = msg.imageHistory.length - 1;
+        const currentIdx = msg.historyIndex ?? lastIdx;
+        if (currentIdx === lastIdx) {
+          const entry = msg.imageHistory[lastIdx];
+          return {
+            ...next,
+            imageUrl: entry?.serverImageUrl || entry?.imageUrl || next.imageUrl,
+            serverImageUrl: entry?.serverImageUrl || next.serverImageUrl,
+            serverImageKey: entry?.serverImageKey || next.serverImageKey,
+          };
+        }
+      }
+      return next;
+    });
+  }, [updateMessage]);
+
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
@@ -425,6 +448,7 @@ export default function App() {
             onApplyPromptDelta={onApplyPromptDelta}
             onApplySeedDelta={onApplySeedDelta}
             onRerunSelected={onRerunSelected}
+            onPersistSelectedParams={persistSelectedParams}
             dreamState={{
               isDreaming,
               temperature: dreamTemperature,
@@ -459,7 +483,7 @@ export default function App() {
                 ...payload,
                 targetMessageId: selectedMsgId || undefined,
                 existingHistory: history,
-                skipAutoSelect: !selectedMsgId,
+                skipAutoSelect: true,
               });
             }}
             queueState={queueState}

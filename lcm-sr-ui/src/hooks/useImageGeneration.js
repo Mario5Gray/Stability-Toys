@@ -848,8 +848,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       historyIndex: newIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
-      params: entry.params,
-      meta: entry.meta,
       needsReload: !imageUrl,
     });
   }, [updateMessage, getImageFromCache]);
@@ -871,8 +869,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       historyIndex: newIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
-      params: entry.params,
-      meta: entry.meta,
       needsReload: !imageUrl,
     });
   }, [updateMessage, getImageFromCache]);
@@ -893,8 +889,6 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       historyIndex: lastIdx,
       serverImageUrl: entry.serverImageUrl,
       serverImageKey: entry.serverImageKey,
-      params: entry.params,
-      meta: entry.meta,
       needsReload: !imageUrl,
     });
   }, [updateMessage, getImageFromCache]);

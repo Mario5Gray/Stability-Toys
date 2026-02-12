@@ -132,7 +132,7 @@ export function MessageBubble({
   // Image-only messages (no text) get minimal styling
   const isImageOnly = (msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && !msg.text;
 
-  const displayUrl = msg.imageUrl || msg.serverImageUrl || null;
+  const displayUrl = msg.serverImageUrl || msg.imageUrl || null;
   const canShowImage = (msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating) && !!displayUrl;
 
   const bubbleColor =
