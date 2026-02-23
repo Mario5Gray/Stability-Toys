@@ -1,0 +1,17 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml:ro,Z
+    ports:
+      - "9094:9094"   # Prometheus scrape endpoint
+    networks:
+      - observ-net
+    restart: unless-stopped
+
+networks:
+  observ-net:
+    name: observ-net
+    external: true

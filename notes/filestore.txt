@@ -1,0 +1,113 @@
+Server-Side Filesystem Image Caching
+
+     Summary
+
+     Replace client-side IndexedDB blob caching with server-side filesystem storage. Images persis
+      via TTL-based expiration, and clients use server URLs instead of blob URLs.
+
+     Server Changes
+
+     1. Create filesystem_provider.py (new file)
+
+     - Implements existing StorageProvider protocol
+     - Directory sharding: {base_dir}/{key[0:2]}/{key}.bin + .meta.json
+     - TTL-based expiration with background cleanup thread
+     - Atomic writes via temp file + rename
+
+     Config env vars:
+     STORAGE_PROVIDER=FILESYSTEM
+     FS_STORAGE_DIR=/data/image-cache
+     FS_STORAGE_TTL_S=604800          # 7 days
+     FS_STORAGE_CLEANUP_INTERVAL_S=3600
+     STORAGE_ENABLE_HTTP=1
+
+     2. Update storage_provider.py
+
+     - Add FILESYSTEM case to make_storage_provider_from_env() factory
+
+     3. Update lcm_sr_server.py (optional optimization)
+
+     - Use FileResponse for streaming file serving at /storage/{key}
+
+     Client Changes
+
+     4. Update api.js
+
+     - Extract X-LCM-Image-Key header from response
+     - Return serverImageUrl: /storage/{key} instead of blob URL when available
+     - Fallback to blob URL if server caching disabled
+
+     5. Update useImageGeneration.js
+
+     - Store serverImageUrl and serverImageKey in message objects
+
+     6. Update useChatMessages.js
+
+     - loadPersistedMessages(): Server URLs don't need reload, blob URLs do
+     - persistMessages(): Keep server URLs, strip blob URLs
+
+     7. Update App.jsx
+
+     - Simplify reload logic: skip messages with serverImageUrl
+
+     Files to Modify
+     ┌───────────────────────────────────────────┬────────────────────────────────────────────────
+     │                   File                    │                     Action
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+     │ filesystem_provider.py                    │ Create
+     ├───────────────────────────────────────────┼───────────────────────────────────────────────
+     │ storage_provider.py                       │ Add FILESYSTEM to factory
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+     │ lcm_sr_server.py                          │ Optional: FileResponse optimization
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+     │ lcm-sr-ui/src/utils/api.js                │ Extract X-LCM-Image-Key, return serverImageUrl
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+     │ lcm-sr-ui/src/hooks/useImageGeneration.js │ Store serverImageUrl in messages
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+      lcm-sr-ui/src/hooks/useChatMessages.js    │ Simplify persistence for server URLs
+     ├───────────────────────────────────────────┼────────────────────────────────────────────────
+     │ lcm-sr-ui/src/App.jsx                     │ Simplify reload logic
+     └───────────────────────────────────────────┴────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     Backward Compatibility
+
+     - Server: No X-LCM-Image-Key header when STORAGE_PROVIDER=DISABLED - client uses blob URLs
+     - Client: Check serverImageUrl first, fallback to blob URL
+     - Existing localStorage messages reload from client cache as before
+
+     Verification
+
+     Server:
+     # Generate and check header
+     curl -X POST http://localhost:4200/generate \
+       -H "Content-Type: application/json" \
+       -d '{"prompt": "test", "size": "512x512"}' \
+       -D - -o /dev/null 2>&1 | grep X-LCM-Image-Key
+
+     # Retrieve via storage endpoint
+     curl -I http://localhost:4200/storage/{key}
+
+     # Check filesystem
+     ls -la $FS_STORAGE_DIR/*/
+
+     Client:
+     1. Generate image - verify URL is /storage/{key} not blob:
+     2. Refresh page - image loads without cache lookup
+     3. Disable server storage - verify blob URL fallback works
+

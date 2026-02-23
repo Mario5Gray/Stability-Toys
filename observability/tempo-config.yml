@@ -1,0 +1,16 @@
+server:
+  http_listen_port: 3200
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+
+metrics_generator:
+  storage:
+    path: /var/tempo/generator
+
+compactor:
+  compaction:
+    block_retention: 168h

@@ -1,38 +1,21 @@
-import argparse
 import json
+import logging
+import os
 import time
+from typing import Any, Callable, List, Optional, Union, Tuple
 
-import PIL
-from diffusers import StableDiffusionPipeline
+import numpy as np
+import torch  # Only used for `torch.from_tensor` in `pipe.scheduler.step()`
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.schedulers import (
-    LCMScheduler
-)
-
-import logging
+from diffusers.schedulers import LCMScheduler
+from PIL import Image
+from rknnlite.api import RKNNLite
+from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-import numpy as np
-import os
-
-import torch  # Only used for `torch.from_tensor` in `pipe.scheduler.step()`
-from transformers import CLIPFeatureExtractor, CLIPTokenizer
-from typing import Callable, List, Optional, Union, Tuple
-from PIL import Image
-
-from rknnlite.api import RKNNLite
-
-import os
-import json
-import time
-from typing import List, Any, Optional, Union
-
-import numpy as np
-from rknnlite.api import RKNNLite
 
 class RKNN2Model:
     """Wrapper for running RKNPU2 (RKNNLite) models"""
@@ -675,134 +658,3 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
 
         assert emb.shape == (w.shape[0], embedding_dim)
         return emb
-
-def get_image_path(args, **override_kwargs):
-    """ mkdir output folder and encode metadata in the filename
-    """
-    out_folder = os.path.join(args.o, "_".join(args.prompt.replace("/", "_").rsplit(" ")))
-    os.makedirs(out_folder, exist_ok=True)
-
-    out_fname = f"randomSeed_{override_kwargs.get('seed', None) or args.seed}"
-
-    out_fname += f"_LCM_"
-    out_fname += f"_numInferenceSteps{override_kwargs.get('num_inference_steps', None) or args.num_inference_steps}"
-
-    return os.path.join(out_folder, out_fname + ".png")
-
-
-def prepare_controlnet_cond(image_path, height, width):
-    image = Image.open(image_path).convert("RGB")
-    image = image.resize((height, width), resample=Image.LANCZOS)
-    image = np.array(image).transpose(2, 0, 1) / 255.0
-    return image
-
-#args.prompt seed=4234924 i=model_path o=output_path size=256x256 num_inference_steps guidance_scale
-def generate_png_bytes(args):
-    logger.info(f"Setting random seed to {args.seed}")
-
-    scheduler_config_path = os.path.join(args.i, "scheduler/scheduler_config.json")
-    with open(scheduler_config_path, "r") as f:
-        scheduler_config = json.load(f)
-
-    user_specified_scheduler = LCMScheduler.from_config(scheduler_config)
-
-    pipe = RKNN2LatentConsistencyPipeline(
-        text_encoder=RKNN2Model(self.paths.text_encoder, data_format="nchw", **self.rknn_context_cfg),
-        unet=RKNN2Model(self.paths.unet, data_format="nhwc", **self.rknn_context_cfg),
-        vae_decoder=RKNN2Model(self.paths.vae_decoder, data_format="nchw", **self.rknn_context_cfg),
-        scheduler=user_specified_scheduler,
-        tokenizer=CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16"),
-    )
-
-    logger.info("Beginning image generation.")
-
-    result = pipe(
-        prompt=args.prompt,
-        height=int(args.size.split("x")[0]),
-        width=int(args.size.split("x")[1]),
-        num_inference_steps=args.num_inference_steps,
-        guidance_scale=args.guidance_scale,
-        generator=np.random.RandomState(args.seed),
-    )
-
-    pil_image = result["images"][0]
-
-    # Convert to PNG bytes
-    buf = io.BytesIO()
-    pil_image.save(buf, format="PNG")
-    buf.seek(0)
-
-    return buf.getvalue()
-
-def main(args):
-    logger.info(f"Setting random seed to {args.seed}")
-
-    # load scheduler from scheduler/scheduler_config.json
-    scheduler_config_path = os.path.join(args.i, "scheduler/scheduler_config.json")
-    with open(scheduler_config_path, "r") as f:
-        scheduler_config = json.load(f)
-    user_specified_scheduler = LCMScheduler.from_config(scheduler_config)
-
-    logger.info("Using scheduler: %s", user_specified_scheduler.__class__.__name__)
-
-    # Parse size as WIDTHxHEIGHT (common CLI convention)
-    w_str, h_str = args.size.lower().split("x")
-    width, height = int(w_str), int(h_str)
-
-    pipe = RKNN2LatentConsistencyPipeline(
-        text_encoder=RKNN2Model(os.path.join(args.i, "text_encoder"), data_format="nchw"),
-        unet=RKNN2Model(os.path.join(args.i, "unet"), data_format="nhwc"),
-        vae_decoder=RKNN2Model(os.path.join(args.i, "vae_decoder"), data_format="nhwc"),
-        scheduler=user_specified_scheduler,
-        tokenizer=CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16"),
-    )
-
-    logger.info("Beginning image generation.")
-    out = pipe(
-        prompt=args.prompt,
-        height=height,
-        width=width,
-        num_inference_steps=args.num_inference_steps,
-        guidance_scale=args.guidance_scale,
-        generator=np.random.RandomState(args.seed),
-    )
-
-    out_path = get_image_path(args)
-    logger.info("Saving generated image to %s", out_path)
-    out["images"][0].save(out_path)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--prompt",
-        required=True,
-        help="The text prompt to be used for text-to-image generation.")
-    parser.add_argument(
-        "-i",
-        required=True,
-        help=("Path to model directory"))
-    parser.add_argument("-o", required=True)
-    parser.add_argument("--seed",
-                        default=93,
-                        type=int,
-                        help="Random seed to be able to reproduce results")
-    parser.add_argument(
-        "-s",
-        "--size",
-        default="256x256",
-        type=str,
-        help="Image size")
-    parser.add_argument(
-        "--num-inference-steps",
-        default=4,
-        type=int,
-        help="The number of iterations the unet model will be executed throughout the reverse diffusion process")
-    parser.add_argument(
-        "--guidance-scale",
-        default=7.5,
-        type=float,
-        help="Controls the influence of the text prompt on sampling process (0=random images)")
-
-    args = parser.parse_args()
-    main(args)    

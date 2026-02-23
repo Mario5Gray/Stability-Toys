@@ -1,0 +1,35 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  # Prometheus scrapes metrics from the collector
+  prometheus:
+    endpoint: 0.0.0.0:9094
+
+  # Traces: set a Tempo endpoint if/when you add Tempo
+  otlphttp/tempo:
+    endpoint: http://tempo:4318
+
+  # Local debug (logging exporter is deprecated)
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/tempo, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
+    # Logs pipeline disabled: loki exporter not available in this collector build.

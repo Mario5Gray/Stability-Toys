@@ -1,0 +1,18 @@
+services:
+  tempo:
+    image: grafana/tempo:2.4.2
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/tempo-config.yml"]
+    volumes:
+      - ./tempo-config.yml:/etc/tempo/tempo-config.yml:ro,Z
+      - /media/assets/server/workspace/observability/tempo/store:/var/tempo,Z
+    ports:
+      - "3200:3200"   # Tempo HTTP
+    networks:
+      - observ-net
+    restart: unless-stopped
+
+networks:
+  observ-net:
+    name: observ-net
+    external: true

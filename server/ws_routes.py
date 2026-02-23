@@ -12,9 +12,10 @@ import os
 import time
 import uuid
 import queue
-from urllib import request as urlrequest
 from urllib.error import URLError, HTTPError
 from typing import Any, Dict
+
+from server.http_utils import post_bytes
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from server.ws_hub import hub
@@ -102,17 +103,6 @@ def _handler(msg_type: str):
     return decorator
 
 
-def _post_bytes(url: str, body: bytes, content_type: str) -> int:
-    req = urlrequest.Request(
-        url,
-        data=body,
-        headers={"Content-Type": content_type},
-        method="POST",
-    )
-    with urlrequest.urlopen(req, timeout=5) as resp:
-        return resp.status
-
-
 # ---------------------------------------------------------------------------
 # ping / pong
 # ---------------------------------------------------------------------------
@@ -170,7 +160,7 @@ async def handle_telemetry_otlp(ws: WebSocket, msg: dict, client_id: str) -> dic
     content_type = msg.get("contentType", "application/json")
     try:
         body = json.dumps(payload).encode("utf-8")
-        status = await asyncio.to_thread(_post_bytes, endpoint, body, content_type)
+        status = await asyncio.to_thread(post_bytes, endpoint, body, content_type)
     except HTTPError as e:
         logger.warning("[telemetry] collector error %s", e)
         return _error("collector error", msg.get("id"))
