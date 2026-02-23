@@ -4,18 +4,20 @@ import { useDropzone } from "react-dropzone";
 import { useDropIngest } from "@/hooks/useDropIngest";
 
 /**
- * Wraps children and enables drag-drop import of PNG generations.
+ * Wraps children and enables drag-drop import of images.
  *
  * Props:
  *  - addMessage
  *  - setSelectedMsgId
  *  - setUploadFile (optional; recommended so drop selects image, not upload)
+ *  - setInitImage (optional; sets the init image for img2img generation)
  *  - children
  */
 export function ChatDropzone({
   addMessage,
   setSelectedMsgId,
   setUploadFile,
+  setInitImage,
   children,
 }) {
   const { ingestFiles } = useDropIngest({
@@ -28,20 +30,25 @@ export function ChatDropzone({
     () => async (acceptedFiles) => {
       // Do not throw; dropzone should never break UI
       try {
+        // Set the first dropped file as init image for img2img
+        if (acceptedFiles.length > 0 && setInitImage) {
+          const file = acceptedFiles[0];
+          setInitImage({ file, objectUrl: URL.createObjectURL(file) });
+        }
+        // Also run ingest (extracts embedded params from PNG metadata if present)
         await ingestFiles(acceptedFiles);
       } catch (e) {
         console.error("[ChatDropzone] ingest failed:", e);
       }
     },
-    [ingestFiles]
+    [ingestFiles, setInitImage]
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
     multiple: true,
-    // Start with PNG only; you can expand later
     accept: {
-      "image/png": [".png"],
+      "image/*": [".png", ".jpg", ".jpeg", ".webp"],
     },
     // Prevent the browser from opening the file
     noClick: true,
@@ -67,12 +74,12 @@ export function ChatDropzone({
             {isDragReject ? (
               <div className="flex flex-col items-center gap-1">
                 <div className="font-medium">Unsupported file</div>
-                <div className="opacity-80">Drop a .png image</div>
+                <div className="opacity-80">Drop an image file (.png, .jpg, .webp)</div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
-                <div className="font-medium">Drop to import</div>
-                <div className="opacity-80">Creates a chat message + loads params</div>
+                <div className="font-medium">Drop to set init image</div>
+                <div className="opacity-80">Used as starting point for generation</div>
               </div>
             )}
           </div>

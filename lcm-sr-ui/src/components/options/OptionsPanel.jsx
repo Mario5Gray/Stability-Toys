@@ -50,6 +50,54 @@ import { ComfyOptions } from "./ComfyOptions";
  * @param {function} props.onSrMagnitudeChange - SR magnitude change callback
  * @param {string} props.serverLabel - Server label for display
  */
+function InitImagePreview({ initImage, onClear }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
+      <img
+        src={initImage.objectUrl}
+        alt="Init image"
+        className="h-16 w-16 rounded-lg object-cover shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium truncate">{initImage.file.name}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">Init image for generation</div>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="shrink-0 rounded-full w-6 h-6 flex items-center justify-center hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+        title="Clear init image"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function StrengthSlider({ value, onChange }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">Denoise Strength</Label>
+        <span className="text-xs text-muted-foreground tabular-nums">{Number(value).toFixed(2)}</span>
+      </div>
+      <input
+        type="range"
+        min="0.01"
+        max="1.0"
+        step="0.05"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-purple-600"
+      />
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>Keep image</span>
+        <span>Fully regenerate</span>
+      </div>
+    </div>
+  );
+}
+
 export function OptionsPanel({
   params,
   inputImage,
@@ -73,6 +121,10 @@ export function OptionsPanel({
   getCacheStats,
   onClearHistory,
   queueState,
+  initImage,
+  onClearInitImage,
+  denoiseStrength,
+  onDenoiseStrengthChange,
 }) {
   const optionsScrollRef = useRef(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -257,6 +309,18 @@ export function OptionsPanel({
           />
           
           <Separator />
+
+          {/* Init Image for img2img */}
+          {initImage && (
+            <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
+              <div className="font-medium text-sm">Init Image</div>
+              <InitImagePreview initImage={initImage} onClear={onClearInitImage} />
+              <StrengthSlider
+                value={denoiseStrength ?? 0.75}
+                onChange={onDenoiseStrengthChange}
+              />
+            </div>
+          )}
 
           {/* Prompt, steps, cfg, seed, resolution */}
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">

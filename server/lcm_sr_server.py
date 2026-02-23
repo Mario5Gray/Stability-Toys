@@ -140,6 +140,12 @@ class GenerateRequest(BaseModel):
         le=3,
         description="SR magnitude (1..3). Interpreted as number of SR passes. Default=2.",
     )
+    denoise_strength: float = Field(
+        default=0.75,
+        ge=0.01,
+        le=1.0,
+        description="Denoise strength for img2img (0.01=keep image, 1.0=fully regenerate).",
+    )
 
 # -----------------------------
 # RKNN multi-context configuration

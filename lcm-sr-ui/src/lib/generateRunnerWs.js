@@ -67,6 +67,8 @@ export function generateViaWs(payload, signal) {
         seed: payload.seed,
         superres: payload.superres,
         superres_magnitude: payload.superresLevel || 1,
+        init_image_ref: payload.initImageRef || undefined,
+        denoise_strength: payload.initImageRef ? payload.denoiseStrength : undefined,
       },
     });
 

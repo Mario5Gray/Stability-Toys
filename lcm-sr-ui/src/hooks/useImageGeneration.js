@@ -278,6 +278,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         targetMessageId,
         skipAutoSelect = false,
         isDream = false,
+        initImageFile = null,
+        denoiseStrength = 0.75,
       } = params;
 
       const p = safeJsonString(promptParam).trim();
@@ -338,9 +340,22 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           assistantId,
           targetMessageId,
           skipAutoSelect,
+          initImageFile,
+          denoiseStrength,
         },
         meta: {},
         runner: async (payload, signal) => {
+          // Upload init image if present, get a server-side fileRef
+          let initImageRef = null;
+          if (payload.initImageFile) {
+            const formData = new FormData();
+            formData.append('file', payload.initImageFile);
+            const uploadRes = await fetch('/v1/upload', { method: 'POST', body: formData, signal });
+            if (!uploadRes.ok) throw new Error(`Init image upload failed: ${uploadRes.status}`);
+            const { fileRef } = await uploadRes.json();
+            initImageRef = fileRef;
+          }
+
           const cacheParams = {
             prompt: payload.prompt,
             size: payload.size,
@@ -357,8 +372,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
           let result = null;
 
           if (wsClient.connected) {
-            // 1) Try cache first
-            if (cache) {
+            // 1) Try cache first (skip when using init image — result depends on image content)
+            if (cache && !initImageRef) {
               const cached = await cache.get(cacheKey);
               if (cached) {
                 // Prefer blob URL (fast), otherwise server URL (instant), otherwise nothing
@@ -386,10 +401,13 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
             // 2) If not in cache, generate via WS
             if (!result) {
-              result = await generateViaWsWithRetry(payload, signal);
+              result = await generateViaWsWithRetry(
+                { ...payload, initImageRef, denoiseStrength: payload.denoiseStrength },
+                signal
+              );
 
-              // 3) Store meta-only immediately, then hydrate in background
-              if (cache && result?.serverImageUrl) {
+              // 3) Store meta-only immediately, then hydrate in background (skip for img2img)
+              if (cache && result?.serverImageUrl && !initImageRef) {
                 // better: call cache.setMetaOnly if present, fallback to set
                 if (typeof cache.setMetaOnly === 'function') {
                   cache.setMetaOnly(cacheKey, {

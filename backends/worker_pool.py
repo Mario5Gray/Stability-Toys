@@ -76,6 +76,7 @@ class Job(ABC):
 class GenerationJob(Job):
     """Job for image generation."""
     req: Any  # GenerateRequest
+    init_image: Optional[bytes] = None  # Optional init image bytes for img2img
 
     def __post_init__(self):
         super().__post_init__()

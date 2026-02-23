@@ -170,6 +170,15 @@ export default function App() {
   const [uploadFile, setUploadFile] = useState(null);
   const [srMagnitude, setSrMagnitude] = useState(SR_CONFIG.DEFAULT_MAGNITUDE);
 
+  // Init image for img2img generation
+  const [initImage, setInitImage] = useState(null);
+  const clearInitImage = useCallback(() => {
+    if (initImage?.objectUrl) {
+      URL.revokeObjectURL(initImage.objectUrl);
+    }
+    setInitImage(null);
+  }, [initImage]);
+
   // Copy feedback
   const [copied, setCopied] = useState(false);
 
@@ -215,8 +224,34 @@ export default function App() {
       seedMode: params.draft.seedMode,
       seed: params.draft.seed,
       superresLevel: params.effective.superresLevel,
+      initImageFile: initImage?.file || null,
+      denoiseStrength: params.draft.denoiseStrength,
     });
-  }, [selectedParams, runGenerate, params]);
+  }, [selectedParams, runGenerate, params, initImage]);
+
+  // Debounced img2img: fire a generation whenever initImage or denoiseStrength changes.
+  // Snapshot params at the moment of change so the timer closure is never stale.
+  const initImageTimerRef = useRef(null);
+  useEffect(() => {
+    if (!initImage) {
+      window.clearTimeout(initImageTimerRef.current);
+      return;
+    }
+    const snapshot = {
+      prompt: params.effective.prompt,
+      size: params.effective.size,
+      steps: params.effective.steps,
+      cfg: params.effective.cfg,
+      seedMode: params.draft.seedMode,
+      seed: params.draft.seed,
+      superresLevel: params.effective.superresLevel,
+      initImageFile: initImage.file,
+      denoiseStrength: params.draft.denoiseStrength,
+    };
+    window.clearTimeout(initImageTimerRef.current);
+    initImageTimerRef.current = window.setTimeout(() => runGenerate(snapshot), 180);
+    return () => window.clearTimeout(initImageTimerRef.current);
+  }, [initImage, params.draft.denoiseStrength]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Re-run the currently selected image with its params.
@@ -363,6 +398,8 @@ export default function App() {
         seedMode: params.draft.seedMode,
         seed: params.draft.seed,
         superresLevel: params.effective.superresLevel,
+        initImageFile: initImage?.file || null,
+        denoiseStrength: params.draft.denoiseStrength,
       });
     },
     onCancelAll: cancelAll,
@@ -376,6 +413,8 @@ export default function App() {
     params.draft.seedMode,
     params.draft.seed,
     params.effective.superresLevel,
+    params.draft.denoiseStrength,
+    initImage,
     cancelAll,
     onKeyDown,
     clearSelection,
@@ -410,6 +449,7 @@ export default function App() {
         addMessage={addMessage}
         setSelectedMsgId={setSelectedMsgId}
         setUploadFile={setUploadFile}
+        setInitImage={setInitImage}
       >       
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
@@ -438,7 +478,7 @@ export default function App() {
           />
 
           {/* Options Panel */}
-          <OptionsPanel          
+          <OptionsPanel
             inputImage={generatorInputImage}
             comfyInputImage={selectedChatImage}
             params={params}
@@ -468,6 +508,10 @@ export default function App() {
             onClearCache={clearCache}
             getCacheStats={getCacheStats}
             onClearHistory={clearHistory}
+            initImage={initImage}
+            onClearInitImage={clearInitImage}
+            denoiseStrength={params.draft.denoiseStrength}
+            onDenoiseStrengthChange={params.setDenoiseStrength}
             onRunComfy={(payload) => {
               const history = selectedMsg?.imageHistory || [];
               // Bootstrap history with current image if message exists but has no history

@@ -2,13 +2,20 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 from typing import Tuple
 
 import numpy as np
 import torch
-from PIL import Image
-from diffusers import LCMScheduler, StableDiffusionPipeline, StableDiffusionXLPipeline
+from PIL import Image, PngImagePlugin
+from diffusers import (
+    LCMScheduler,
+    StableDiffusionPipeline,
+    StableDiffusionXLPipeline,
+    StableDiffusionImg2ImgPipeline,
+    StableDiffusionXLImg2ImgPipeline,
+)
 
 from .base import PipelineWorker
 from backends.styles import STYLE_REGISTRY, parse_style_request
@@ -104,6 +111,7 @@ class DiffusersCudaWorker(PipelineWorker):
         self.pipe = pipe
         self.device = device
         self.dtype = dtype
+        self._img2img_pipe = None  # Lazily created from self.pipe.components
 
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
         te_dim = getattr(te_dim, "hidden_size", None)
@@ -198,6 +206,7 @@ class DiffusersCudaWorker(PipelineWorker):
     # ---------------------------
     def run_job(self, job) -> tuple[bytes, int]:
         req = job.req
+        init_image = getattr(job, 'init_image', None)
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
@@ -216,24 +225,48 @@ class DiffusersCudaWorker(PipelineWorker):
 
         self._apply_style(style_id, level)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-            )
+        if init_image is not None:
+            # img2img path: reuse loaded weights at zero extra VRAM cost
+            init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+            if self._img2img_pipe is None:
+                self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
+            denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+            with torch.inference_mode():
+                out = self._img2img_pipe(
+                    prompt=req.prompt,
+                    image=init_pil,
+                    strength=denoise_strength,
+                    num_inference_steps=int(req.num_inference_steps),
+                    guidance_scale=float(req.guidance_scale),
+                    generator=gen,
+                )
+        else:
+            # txt2img path (unchanged)
+            with torch.inference_mode():
+                out = self.pipe(
+                    prompt=req.prompt,
+                    width=width,
+                    height=height,
+                    num_inference_steps=int(req.num_inference_steps),
+                    guidance_scale=float(req.guidance_scale),
+                    generator=gen,
+                )
 
         # reset style to avoid state bleed
         self._apply_style(None, 0)
 
         img: Image.Image = out.images[0]
 
-        # PERF NOTE: BytesIO reuse would be micro-optimization; not worth complexity here.
+        pnginfo = PngImagePlugin.PngInfo()
+        pnginfo.add_text("lcm", json.dumps({
+            "prompt": req.prompt,
+            "seed": seed,
+            "size": req.size,
+            "steps": int(req.num_inference_steps),
+            "cfg": float(req.guidance_scale),
+        }))
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        img.save(buf, format="PNG", pnginfo=pnginfo)
         return buf.getvalue(), seed
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
@@ -401,6 +434,7 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         self.pipe = pipe
         self.device = device
         self.dtype = dtype
+        self._img2img_pipe = None  # Lazily created from self.pipe.components
 
         # Get text encoder dimensions
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
@@ -507,6 +541,7 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
             (png_bytes, seed_used)
         """
         req = job.req
+        init_image = getattr(job, 'init_image', None)
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
@@ -526,23 +561,48 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
 
         self._apply_style(style_id, level)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-            )
+        if init_image is not None:
+            # img2img path: reuse loaded weights at zero extra VRAM cost
+            init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+            if self._img2img_pipe is None:
+                self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
+            denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+            with torch.inference_mode():
+                out = self._img2img_pipe(
+                    prompt=req.prompt,
+                    image=init_pil,
+                    strength=denoise_strength,
+                    num_inference_steps=int(req.num_inference_steps),
+                    guidance_scale=float(req.guidance_scale),
+                    generator=gen,
+                )
+        else:
+            # txt2img path (unchanged)
+            with torch.inference_mode():
+                out = self.pipe(
+                    prompt=req.prompt,
+                    width=width,
+                    height=height,
+                    num_inference_steps=int(req.num_inference_steps),
+                    guidance_scale=float(req.guidance_scale),
+                    generator=gen,
+                )
 
         # reset style to avoid state bleed
         self._apply_style(None, 0)
 
         img: Image.Image = out.images[0]
 
+        pnginfo = PngImagePlugin.PngInfo()
+        pnginfo.add_text("lcm", json.dumps({
+            "prompt": req.prompt,
+            "seed": seed,
+            "size": req.size,
+            "steps": int(req.num_inference_steps),
+            "cfg": float(req.guidance_scale),
+        }))
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        img.save(buf, format="PNG", pnginfo=pnginfo)
         return buf.getvalue(), seed
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:

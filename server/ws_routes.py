@@ -222,13 +222,24 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
             seed=params.get("seed"),
             superres=params.get("superres", False),
             superres_magnitude=params.get("superres_magnitude", 2),
+            denoise_strength=params.get("denoise_strength", 0.75),
         )
+
+        # Resolve optional init image reference
+        init_image_bytes = None
+        init_image_ref = params.get("init_image_ref")
+        if init_image_ref:
+            try:
+                init_image_bytes = resolve_file_ref(init_image_ref)
+            except KeyError as e:
+                await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
+                return
 
         # Submit to appropriate backend
         if getattr(state, "use_mode_system", False):
             from backends.worker_pool import GenerationJob
             pool = state.worker_pool
-            job = GenerationJob(req=req)
+            job = GenerationJob(req=req, init_image=init_image_bytes)
             try:
                 fut = pool.submit_job(job)
             except queue.Full:

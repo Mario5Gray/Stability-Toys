@@ -48,6 +48,7 @@ export function useGenerationParams(
   const [srLevel, setSrLevel] = useState(SR_CONFIG.DEFAULT);
   const [seedMode, setSeedMode] = useState(SEED_MODES.RANDOM);
   const [seed, setSeed] = useState(() => String(eightDigitSeed()));
+  const [denoiseStrength, setDenoiseStrength] = useState(0.75);
 
   // Debounce timer for regeneration
   const regenTimerRef = useRef(null);
@@ -64,8 +65,9 @@ export function useGenerationParams(
       seedMode,
       seed: seedMode === SEED_MODES.FIXED ? Number(seed || 0) : null,
       superresLevel: srLevel,
+      denoiseStrength,
     }),
-    [prompt, size, steps, cfg, seedMode, seed, srLevel]
+    [prompt, size, steps, cfg, seedMode, seed, srLevel, denoiseStrength]
   );
 
   /**
@@ -87,6 +89,9 @@ export function useGenerationParams(
         SR_CONFIG.MIN,
         SR_CONFIG.BACKEND_MAX
       ),
+      denoiseStrength: Number.isFinite(Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength))
+        ? Math.min(1.0, Math.max(0.01, Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength)))
+        : 0.75,
     };
   }, [selectedParams, DEFAULTS]);
 
@@ -271,6 +276,7 @@ export function useGenerationParams(
       srLevel,
       seedMode,
       seed,
+      denoiseStrength,
     },
 
     // Effective values (selected or draft, validated)
@@ -284,6 +290,7 @@ export function useGenerationParams(
     setSrLevel: setSrLevelEffective,
     setSeedMode,
     setSeed,
+    setDenoiseStrength,
 
     // Utilities
     randomizeSeed,
