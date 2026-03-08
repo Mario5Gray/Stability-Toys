@@ -1,5 +1,5 @@
-model_root: /models
-lora_root: /models
+model_root: /models/diffusers
+lora_root: /models/loras
 default_mode: lcm-general
 modes:
   lcm-general:

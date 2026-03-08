@@ -159,7 +159,8 @@ export default function App() {
     selectedParams,
     patchSelectedParams,
     runGenerate,
-    selectedMsgId
+    selectedMsgId,
+    initImage?.file || null
   );
   
   // ============================================================================

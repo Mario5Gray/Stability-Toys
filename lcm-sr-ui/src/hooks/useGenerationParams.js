@@ -38,7 +38,8 @@ export function useGenerationParams(
   selectedParams,
   patchSelectedParams,
   runGenerate,
-  selectedMsgId
+  selectedMsgId,
+  initImageFile = null
 ) {
   // Draft parameters (when no image is selected)
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -116,10 +117,12 @@ export function useGenerationParams(
           seed: next.seed,
           superresLevel: next.superresLevel ?? 0,
           targetMessageId: selectedMsgId, // In-place update
+          initImageFile: initImageFile || null,
+          denoiseStrength: next.denoiseStrength ?? denoiseStrength,
         });
       }, DEBOUNCE_CONFIG.REGEN_DELAY_MS);
     },
-    [selectedMsgId, selectedParams, patchSelectedParams, runGenerate]
+    [selectedMsgId, selectedParams, patchSelectedParams, runGenerate, initImageFile, denoiseStrength]
   );
 
 
