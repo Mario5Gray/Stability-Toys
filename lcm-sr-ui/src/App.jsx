@@ -154,15 +154,6 @@ export default function App() {
     }
   }, [getImageFromCache, updateMessage]);  
 
-  // Generation parameters (draft + selected)
-  const params = useGenerationParams(
-    selectedParams,
-    patchSelectedParams,
-    runGenerate,
-    selectedMsgId,
-    initImage?.file || null
-  );
-  
   // ============================================================================
   // LOCAL UI STATE
   // ============================================================================
@@ -182,6 +173,15 @@ export default function App() {
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
+
+  // Generation parameters (draft + selected)
+  const params = useGenerationParams(
+    selectedParams,
+    patchSelectedParams,
+    runGenerate,
+    selectedMsgId,
+    initImage?.file || null
+  );
 
   // Persist edits on selection change so message state reflects current controls
   const persistSelectedParams = useCallback((id, patch) => {

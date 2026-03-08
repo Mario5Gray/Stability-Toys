@@ -75,19 +75,44 @@ function InitImagePreview({ initImage, onClear }) {
 }
 
 function StrengthSlider({ value, onChange }) {
+  const [inputText, setInputText] = useState(Number(value).toFixed(2));
+
+  useEffect(() => {
+    setInputText(Number(value).toFixed(2));
+  }, [value]);
+
+  const handleTextChange = (e) => {
+    setInputText(e.target.value);
+    const n = parseFloat(e.target.value);
+    if (!isNaN(n) && n >= 0 && n <= 1) onChange(Math.round(n * 100) / 100);
+  };
+
+  const handleTextBlur = () => {
+    const n = parseFloat(inputText);
+    const clamped = isNaN(n) ? value : Math.min(1, Math.max(0, n));
+    onChange(Math.round(clamped * 100) / 100);
+    setInputText((Math.round(clamped * 100) / 100).toFixed(2));
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label className="text-xs">Denoise Strength</Label>
-        <span className="text-xs text-muted-foreground tabular-nums">{Number(value).toFixed(2)}</span>
+        <input
+          type="text"
+          value={inputText}
+          onChange={handleTextChange}
+          onBlur={handleTextBlur}
+          className="w-14 text-right text-xs bg-transparent border-b border-muted-foreground/30 focus:border-purple-500 outline-none tabular-nums"
+        />
       </div>
       <input
         type="range"
-        min="0.01"
-        max="1.0"
-        step="0.05"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        min="0"
+        max="100"
+        step="1"
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
         className="w-full accent-purple-600"
       />
       <div className="flex justify-between text-xs text-muted-foreground">

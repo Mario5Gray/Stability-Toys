@@ -38,25 +38,28 @@ class ModelLoadRequest(BaseModel):
 #
 def scan_models(models_root: Path) -> Dict[str, List[Path]]:
     """
-    Scan a models directory for:
-      - Checkpoint models (.safetensors)
-      - Diffusers pipeline roots (directories containing model_index.json)
+    Scan a models directory for available models.
 
-    Expected structure:
+    Expected structure (ComfyUI-compatible):
       models/
-        checkpoints/
-        diffusers/
+        checkpoints/       - single-file .safetensors / .ckpt
+        diffusers/         - pipeline roots (dirs with model_index.json)
+        diffusion_models/  - UNet-format models (FLUX, etc.)
+        loras/             - LoRA .safetensors files
 
     Returns:
       {
         "checkpoints": [Path, ...],
-        "diffusers": [Path, ...],   # pipeline root dirs
+        "diffusers": [Path, ...],          # pipeline root dirs
+        "diffusion_models": [Path, ...],
+        "loras": [Path, ...],
       }
     """
     models_root = Path(models_root)
-    results = {
+    results: Dict[str, List[Path]] = {
         "checkpoints": [],
         "diffusers": [],
+        "diffusion_models": [],
         "loras": [],
     }
 
@@ -81,8 +84,14 @@ def scan_models(models_root: Path) -> Dict[str, List[Path]]:
         for mi in diffusers_dir.rglob("model_index.json"):
             if mi.is_file():
                 roots.add(mi.parent)
-
         results["diffusers"] = sorted(roots)
+
+    # ---- Diffusion models / UNet-format (.safetensors) ----
+    diffusion_models_dir = models_root / "diffusion_models"
+    if diffusion_models_dir.exists():
+        results["diffusion_models"] = sorted(
+            p for p in diffusion_models_dir.rglob("*.safetensors") if p.is_file()
+        )
 
     return results
 # ============================================================================
@@ -291,13 +300,11 @@ async def get_inventory_models():
     model_root = Path(config.config.model_root)
 
     models = scan_models(model_root)
-    # Flatten checkpoints and diffusers into a single list of relative path strings
     all_models = []
-    for p in models["checkpoints"]:
-        all_models.append(str(p.relative_to(model_root)))
-    for p in models["diffusers"]:
-        all_models.append(str(p.relative_to(model_root)))
-    
+    for category in ("checkpoints", "diffusers", "diffusion_models"):
+        for p in models[category]:
+            all_models.append(str(p.relative_to(model_root)))
+
     return {"models": all_models, "model_root": str(model_root)}
 
 
@@ -305,10 +312,9 @@ async def get_inventory_models():
 async def get_inventory_loras():
     """Scan LORAS_ROOT for available LoRA files."""
     config = get_mode_config()
-    lora_root = Path(config.config.model_root)
+    lora_root = Path(config.config.lora_root)
 
-    loras = scan_models(lora_root)["loras"]
-    # Convert Path objects to relative path strings
+    loras = scan_models(lora_root.parent)["loras"]
     lora_strings = [str(p.relative_to(lora_root)) for p in loras]
 
     return {"loras": lora_strings, "lora_root": str(lora_root)}

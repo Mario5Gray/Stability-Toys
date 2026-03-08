@@ -515,7 +515,7 @@ class SuperResService:
 # -----------------------------
 # FastAPI server config
 # -----------------------------
-MODEL_ROOT = os.path.join(os.environ.get('MODEL_ROOT'), os.environ.get('MODEL'))
+MODEL_ROOT = os.path.join(os.environ.get('MODEL_ROOT', ''), os.environ.get('MODEL', ''))
 
 NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "1"))
 QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
@@ -523,7 +523,7 @@ PORT = int(os.environ.get("PORT", "4200"))
 REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
 
 SR_ENABLED = os.environ.get("SR_ENABLED", "1") not in ("0", "false", "False")
-SR_MODEL_PATH = os.environ.get("SR_MODEL_PATH", os.path.join(os.environ.get('MODEL_ROOT'), "super-resolution-10.rknn"))
+SR_MODEL_PATH = os.environ.get("SR_MODEL_PATH", os.path.join(os.environ.get('MODEL_ROOT', ''), "super-resolution-10.rknn"))
 SR_INPUT_SIZE = int(os.environ.get("SR_INPUT_SIZE", "224"))
 SR_OUTPUT_SIZE = int(os.environ.get("SR_OUTPUT_SIZE", "672"))
 SR_NUM_WORKERS = int(os.environ.get("SR_NUM_WORKERS", "1"))

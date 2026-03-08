@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 # Type hints for dependency injection
 class WorkerFactory(Protocol):
     """Protocol for worker creation functions."""
-    def __call__(self, worker_id: int) -> PipelineWorker:
-        """Create a worker with the given ID."""
+    def __call__(self, worker_id: int, model_path: str) -> PipelineWorker:
+        """Create a worker with the given ID and resolved model path."""
         ...
 
 
@@ -186,7 +186,7 @@ class WorkerPool:
         self._load_mode(default_mode)
 
     @staticmethod
-    def _default_worker_factory(worker_id: int) -> PipelineWorker:
+    def _default_worker_factory(worker_id: int, model_path: str) -> PipelineWorker:
         """
         Default worker factory.
 
@@ -195,12 +195,13 @@ class WorkerPool:
 
         Args:
             worker_id: Worker ID to assign
+            model_path: Resolved absolute path to the model
 
         Returns:
             Created PipelineWorker instance
         """
         from backends.worker_factory import create_cuda_worker
-        return create_cuda_worker(worker_id)
+        return create_cuda_worker(worker_id, model_path)
 
     def _load_mode(self, mode_name: str):
         """
@@ -218,15 +219,11 @@ class WorkerPool:
         if self._worker is not None:
             self._unload_current_worker()
 
-        # Set environment variables from mode config
-        os.environ["MODEL_ROOT"] = self._mode_config.config.model_root
-        os.environ["MODEL"] = mode.model
-
         # Track VRAM before worker creation
         vram_before = self._registry.get_used_vram()
 
-        # Create worker using injected factory
-        self._worker = self._worker_factory(worker_id=0)
+        # Create worker using injected factory, passing fully-resolved model path
+        self._worker = self._worker_factory(worker_id=0, model_path=mode.model_path)
 
         vram_after = self._registry.get_used_vram()
         vram_used = vram_after - vram_before

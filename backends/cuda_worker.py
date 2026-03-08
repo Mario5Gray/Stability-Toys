@@ -33,28 +33,19 @@ class DiffusersCudaWorker(PipelineWorker):
       - Diffusers layout: directory with model_index.json
 
     Env:
-      MODEL_ROOT=/basepath/to/
-      MODEL=model.safetensors  (or MODEL=model_dir/)
       CUDA_DTYPE=fp16|bf16|fp32   (default fp16)
       CUDA_DEVICE=cuda:0         (default cuda:0)
       CUDA_ENABLE_XFORMERS=1     (default 0)
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
-    def __init__(self, worker_id: int):
+    def __init__(self, worker_id: int, model_path: str):
         super().__init__(worker_id)
 
         self.worker_id = worker_id
         self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
         self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
 
-        model_root = (os.environ.get("MODEL_ROOT") or "").strip()
-        model_name = (os.environ.get("MODEL") or "").strip()
-        if not model_root:
-            raise RuntimeError("MODEL_ROOT is required for BACKEND=cuda")
-        if not model_name:
-            raise RuntimeError("MODEL is required for BACKEND=cuda")
-
-        ckpt_path = os.path.join(model_root, model_name)
+        ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
 
         device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
@@ -346,8 +337,6 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
       - SDXL-compatible LoRAs (cross_attention_dim=2048)
 
     Env:
-      MODEL_ROOT=/basepath/to/models/
-      MODEL=model.safetensors               (or model_dir/)
       CUDA_DTYPE=fp16|bf16|fp32             (default fp16)
       CUDA_DEVICE=cuda:0                    (default cuda:0)
       CUDA_ENABLE_XFORMERS=1                (default 0)
@@ -360,23 +349,14 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
 
-    def __init__(self, worker_id: int):
+    def __init__(self, worker_id: int, model_path: str):
         super().__init__(worker_id)
 
         self.worker_id = worker_id
         self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
         self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
 
-        # Use same MODEL_ROOT and MODEL as SD1.5 worker
-        model_root = (os.environ.get("MODEL_ROOT") or "").strip()
-        model_name = (os.environ.get("MODEL") or "").strip()
-
-        if not model_root:
-            raise RuntimeError("MODEL_ROOT is required for SDXL CUDA worker")
-        if not model_name:
-            raise RuntimeError("MODEL is required for SDXL CUDA worker")
-
-        ckpt_path = os.path.join(model_root, model_name)
+        ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
 
         device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()

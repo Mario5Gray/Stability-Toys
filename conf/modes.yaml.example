@@ -46,7 +46,7 @@ modes:
   # --------------------------------------------------------------------------
 
   sdxl-general:
-    model: sdxl/sdxl-base-1.0.safetensors
+    model: checkpoints/sdxl-base-1.0.safetensors
     default_size: "1024x1024"
     default_steps: 30
     default_guidance: 7.5
@@ -54,7 +54,7 @@ modes:
       description: "SDXL base model for general purpose generation"
 
   sdxl-portrait:
-    model: sdxl/sdxl-base-1.0.safetensors
+    model: checkpoints/sdxl-base-1.0.safetensors
     loras:
       - path: portrait-enhancer.safetensors
         strength: 0.8
@@ -66,7 +66,7 @@ modes:
       description: "SDXL with portrait enhancement LoRA"
 
   sdxl-refiner:
-    model: sdxl/sdxl-refiner-1.0.safetensors
+    model: checkpoints/sdxl-refiner-1.0.safetensors
     default_size: "1024x1024"
     default_steps: 20
     default_guidance: 7.5
@@ -79,7 +79,7 @@ modes:
   # --------------------------------------------------------------------------
 
   sd15-fast:
-    model: sd15/dreamshaper-lcm.safetensors
+    model: checkpoints/dreamshaper-lcm.safetensors
     default_size: "512x512"
     default_steps: 4
     default_guidance: 1.0
@@ -87,7 +87,7 @@ modes:
       description: "Fast SD1.5 LCM model"
 
   sd15-anime:
-    model: sd15/dreamshaper-v7.safetensors
+    model: checkpoints/dreamshaper-v7.safetensors
     loras:
       - path: anime-style.safetensors
         strength: 1.0
@@ -100,7 +100,7 @@ modes:
       description: "SD1.5 with anime style LoRAs"
 
   sd15-landscape:
-    model: sd15/realisticvision.safetensors
+    model: checkpoints/realisticvision.safetensors
     loras:
       - path: landscape-enhancer.safetensors
         strength: 0.8
@@ -117,7 +117,7 @@ modes:
 # Minimal mode with just a model:
 #
 # minimal:
-#   model: my-model.safetensors
+#   model: checkpoints/my-model.safetensors
 #
 # ============================================================================
 

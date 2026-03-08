@@ -1,14 +1,14 @@
-model_root: /models/diffusers
+model_root: /models
 lora_root: /models/loras
 default_mode: lcm-general
 modes:
   lcm-general:
-    model: lcm-dreamshaper-v7
+    model: diffusers/lcm-dreamshaper-v7
     default_size: 768x768
     default_steps: 8
     default_guidance: 3.0
   lcm-chenkin:
-    model: LCM-runwayml-stable-diffusion-v1-5
+    model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512
     default_steps: 8
     default_guidance: 2.5

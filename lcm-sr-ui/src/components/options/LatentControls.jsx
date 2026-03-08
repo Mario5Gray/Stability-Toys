@@ -1,6 +1,6 @@
 // src/components/options/LatentControls.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -35,6 +35,11 @@ import { CSS_CLASSES } from '../../utils/constants';
 export function LatentControls({ latentState, currentParams, hasSelectedImage }) {
   const [selectedPreset, setSelectedPreset] = useState('COUSINS_DETAILED');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [denoiseText, setDenoiseText] = useState(latentState.denoiseStrength.toFixed(2));
+
+  useEffect(() => {
+    setDenoiseText(latentState.denoiseStrength.toFixed(2));
+  }, [latentState.denoiseStrength]);
 
   const handleApplyPreset = async () => {
     if (!currentParams.prompt?.trim()) {
@@ -279,16 +284,29 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Denoise Strength</Label>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {latentState.denoiseStrength.toFixed(2)}
-                </span>
+                <input
+                  type="text"
+                  value={denoiseText}
+                  onChange={(e) => {
+                    setDenoiseText(e.target.value);
+                    const n = parseFloat(e.target.value);
+                    if (!isNaN(n) && n >= 0 && n <= 1) latentState.setDenoiseStrength(Math.round(n * 100) / 100);
+                  }}
+                  onBlur={() => {
+                    const n = parseFloat(denoiseText);
+                    const clamped = isNaN(n) ? latentState.denoiseStrength : Math.min(1, Math.max(0.1, n));
+                    latentState.setDenoiseStrength(Math.round(clamped * 100) / 100);
+                    setDenoiseText((Math.round(clamped * 100) / 100).toFixed(2));
+                  }}
+                  className="w-14 text-right text-xs bg-transparent border-b border-muted-foreground/30 focus:border-purple-500 outline-none tabular-nums"
+                />
               </div>
               <Slider
-                value={[latentState.denoiseStrength]}
-                min={0.1}
-                max={1.0}
-                step={0.05}
-                onValueChange={([v]) => latentState.setDenoiseStrength(v)}
+                value={[Math.round(latentState.denoiseStrength * 100)]}
+                min={10}
+                max={100}
+                step={1}
+                onValueChange={([v]) => latentState.setDenoiseStrength(v / 100)}
               />
               <div className="text-xs text-muted-foreground">
                 Lower = stay closer to latent, Higher = more variation
