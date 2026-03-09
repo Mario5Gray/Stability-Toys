@@ -14,6 +14,7 @@ import os
 import logging
 import queue
 import threading
+import time
 import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Callable, Protocol
@@ -175,8 +176,14 @@ class WorkerPool:
         self._stop = threading.Event()
         self._worker: Optional[PipelineWorker] = None
         self._worker_thread: Optional[threading.Thread] = None
+        self._watchdog_thread: Optional[threading.Thread] = None
         self._current_mode: Optional[str] = None
         self._lock = threading.Lock()
+
+        # Idle eviction config — 0 disables eviction
+        self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
+        self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
+        self._last_activity = time.monotonic()
 
         # Dependency injection with defaults to singletons
         self._worker_factory = worker_factory or self._default_worker_factory
@@ -197,6 +204,8 @@ class WorkerPool:
             )
             # _load_mode already cleaned up; pool starts in no-model state
             self._start_worker_thread()
+
+        self._start_watchdog_thread()
 
     @staticmethod
     def _default_worker_factory(worker_id: int, model_path: str) -> PipelineWorker:
@@ -322,6 +331,66 @@ class WorkerPool:
         self._worker_thread.start()
         logger.info("[WorkerPool] Worker thread started")
 
+    def _start_watchdog_thread(self):
+        """Start idle eviction watchdog thread."""
+        if self._idle_timeout <= 0:
+            logger.info("[WorkerPool] Idle eviction disabled (MODEL_IDLE_TIMEOUT_SECS=0)")
+            return
+
+        self._watchdog_thread = threading.Thread(
+            target=self._idle_watchdog_loop,
+            daemon=True,
+            name="IdleWatchdog",
+        )
+        self._watchdog_thread.start()
+        logger.info(
+            f"[WorkerPool] Idle watchdog started "
+            f"(timeout={self._idle_timeout:.0f}s, interval={self._idle_check_interval:.0f}s)"
+        )
+
+    def _idle_watchdog_loop(self):
+        """Background thread: evicts model after idle timeout."""
+        logger.debug("[WorkerPool] Idle watchdog loop running")
+
+        while not self._stop.wait(timeout=self._idle_check_interval):
+            if self._worker is None:
+                continue
+
+            idle_secs = time.monotonic() - self._last_activity
+            if idle_secs < self._idle_timeout:
+                continue
+
+            logger.info(
+                f"[WorkerPool] Model idle for {idle_secs:.0f}s "
+                f"(timeout={self._idle_timeout:.0f}s); queuing eviction"
+            )
+            try:
+                evict_job = CustomJob(handler=self._evict_if_idle)
+                self.q.put_nowait(evict_job)
+            except queue.Full:
+                logger.warning("[WorkerPool] Queue full; skipping idle eviction this cycle")
+
+        logger.debug("[WorkerPool] Idle watchdog loop stopped")
+
+    def _evict_if_idle(self):
+        """
+        Evict the loaded model if the pool is still idle.
+
+        Runs on the worker thread (via CustomJob) to serialise with generation.
+        Re-checks the idle condition in case a job arrived after the watchdog
+        enqueued this eviction.
+        """
+        idle_secs = time.monotonic() - self._last_activity
+        if idle_secs < self._idle_timeout:
+            logger.debug("[WorkerPool] Eviction skipped: activity detected since enqueue")
+            return {"status": "skipped", "reason": "activity_detected"}
+        if self._worker is None:
+            return {"status": "skipped", "reason": "already_unloaded"}
+
+        logger.info(f"[WorkerPool] Evicting idle model '{self._current_mode}'")
+        self._unload_current_worker()
+        return {"status": "evicted"}
+
     def _worker_loop(self):
         """Main worker loop - processes jobs from queue."""
         logger.info("[WorkerPool] Worker loop started")
@@ -334,39 +403,42 @@ class WorkerPool:
                 continue
 
             try:
-                # Check if this is a mode switch job
                 if isinstance(job, ModeSwitchJob):
-                    # Check if already in target mode (skip unless forced)
-                    if self._current_mode == job.target_mode and not job.force:
+                    # Skip only if worker is live and already on the right mode
+                    if self._worker is not None and self._current_mode == job.target_mode and not job.force:
                         logger.info(
                             f"[WorkerPool] Already in mode '{job.target_mode}', "
                             "skipping mode switch"
                         )
                         result = {"mode": job.target_mode, "status": "already_loaded"}
                     else:
-                        # Execute mode switch
                         result = job.execute(self._worker)
-
-                        # Reload worker with new mode
                         self._load_mode(job.target_mode)
 
-                    # Set result
                     if not job.fut.done():
                         job.fut.set_result(result)
 
                 else:
-                    # Regular job - execute with current worker
+                    # Demand reload: worker may have been evicted since last job
+                    if self._worker is None and self._current_mode is not None:
+                        logger.info(
+                            f"[WorkerPool] Worker was evicted; "
+                            f"demand-reloading mode '{self._current_mode}'"
+                        )
+                        self._load_mode(self._current_mode)
+
                     result = job.execute(self._worker)
 
                     if not job.fut.done():
                         job.fut.set_result(result)
+
+                self._last_activity = time.monotonic()
 
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
                 if not job.fut.done():
                     job.fut.set_exception(e)
             finally:
-                # Mark task as done for queue.join() to work
                 self.q.task_done()
 
         logger.info("[WorkerPool] Worker loop stopped")
@@ -440,9 +512,11 @@ class WorkerPool:
         # Signal worker thread to stop
         self._stop.set()
 
-        # Wait for worker thread to finish
+        # Wait for worker and watchdog threads to finish
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=5.0)
+        if self._watchdog_thread and self._watchdog_thread.is_alive():
+            self._watchdog_thread.join(timeout=5.0)
 
         # Unload worker
         self._unload_current_worker()
