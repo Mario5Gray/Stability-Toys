@@ -76,10 +76,23 @@ function InitImagePreview({ initImage, onClear }) {
 
 function StrengthSlider({ value, onChange }) {
   const [inputText, setInputText] = useState(Number(value).toFixed(2));
+  const [localValue, setLocalValue] = useState(value);
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     setInputText(Number(value).toFixed(2));
+    setLocalValue(value);
   }, [value]);
+
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const handleSliderChange = (e) => {
+    const next = Number(e.target.value) / 100;
+    setLocalValue(next);
+    setInputText(next.toFixed(2));
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onChange(next), 120);
+  };
 
   const handleTextChange = (e) => {
     setInputText(e.target.value);
@@ -111,8 +124,8 @@ function StrengthSlider({ value, onChange }) {
         min="0"
         max="100"
         step="1"
-        value={Math.round(value * 100)}
-        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        value={Math.round(localValue * 100)}
+        onChange={handleSliderChange}
         className="w-full accent-purple-600"
       />
       <div className="flex justify-between text-xs text-muted-foreground">

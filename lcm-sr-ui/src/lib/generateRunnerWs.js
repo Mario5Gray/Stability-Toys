@@ -123,7 +123,7 @@ export function generateViaWs(payload, signal) {
       if (msg.type === 'job:complete') {
         const out = msg.outputs?.[0] || {};
         const meta = msg.meta || {};
-        settle(resolve, {
+        const result = {
           imageUrl: out.url,
           serverImageUrl: out.url,
           serverImageKey: out.key,
@@ -133,7 +133,14 @@ export function generateViaWs(payload, signal) {
             superres: meta.sr,
             apiBase: 'ws',
           },
-        });
+        };
+        // Preload into browser cache before resolving so the <img> renders
+        // without a visible gap between the placeholder disappearing and the
+        // image appearing.
+        const preloader = new window.Image();
+        preloader.onload = () => settle(resolve, result);
+        preloader.onerror = () => settle(resolve, result);
+        preloader.src = out.url;
         return;
       }
     };
