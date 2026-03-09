@@ -449,6 +449,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
               seedMode: SEED_MODES.FIXED,
               seed: result?.metadata?.seed ?? payload.seed,
               superresLevel: payload.superresLevel,
+              denoiseStrength: payload.denoiseStrength ?? null,
             },
             meta: {
               backend: result?.metadata?.backend,

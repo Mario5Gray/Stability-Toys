@@ -511,7 +511,7 @@ export default function App() {
             onClearHistory={clearHistory}
             initImage={initImage}
             onClearInitImage={clearInitImage}
-            denoiseStrength={params.draft.denoiseStrength}
+            denoiseStrength={params.effective.denoiseStrength}
             onDenoiseStrengthChange={params.setDenoiseStrength}
             onRunComfy={(payload) => {
               const history = selectedMsg?.imageHistory || [];

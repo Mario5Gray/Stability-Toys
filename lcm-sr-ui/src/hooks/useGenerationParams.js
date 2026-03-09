@@ -202,6 +202,21 @@ export function useGenerationParams(
   );
 
   /**
+   * Set denoise strength - updates draft or triggers regen if selected.
+   */
+  const setDenoiseStrengthEffective = useCallback(
+    (value) => {
+      const v = Math.min(1, Math.max(0, Number(value)));
+      if (selectedParams) {
+        scheduleRegenSelected({ denoiseStrength: v });
+      } else {
+        setDenoiseStrength(v);
+      }
+    },
+    [selectedParams, scheduleRegenSelected]
+  );
+
+  /**
    * Randomize seed value.
    */
   const randomizeSeed = useCallback(() => {
@@ -293,7 +308,7 @@ export function useGenerationParams(
     setSrLevel: setSrLevelEffective,
     setSeedMode,
     setSeed,
-    setDenoiseStrength,
+    setDenoiseStrength: setDenoiseStrengthEffective,
 
     // Utilities
     randomizeSeed,

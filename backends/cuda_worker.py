@@ -247,6 +247,10 @@ class DiffusersCudaWorker(PipelineWorker):
         self._apply_style(None, 0)
 
         img: Image.Image = out.images[0]
+        # Free pipeline output tensors before saving; they're no longer needed
+        # and releasing them now reduces peak VRAM before the next generation.
+        del out
+        torch.cuda.empty_cache()
 
         pnginfo = PngImagePlugin.PngInfo()
         pnginfo.add_text("lcm", json.dumps({
@@ -307,6 +311,7 @@ class DiffusersCudaWorker(PipelineWorker):
         self._apply_style(None, 0)
 
         lat = out_lat.images
+        del out_lat  # free pipeline output before tensor ops
         if isinstance(lat, (list, tuple)):
             lat = lat[0]
 
@@ -319,10 +324,13 @@ class DiffusersCudaWorker(PipelineWorker):
         # Downsample to [1,4,8,8]
         # PERF NOTE: do pooling in fp32 to reduce pooling artifacts; then cast to fp16.
         lat_8 = torch.nn.functional.adaptive_avg_pool2d(lat.to(dtype=torch.float32), (8, 8))
+        del lat
         lat_8 = lat_8.to(dtype=torch.float16).contiguous()
 
         # PERF NOTE: astype(copy=False) avoids extra copy when already float16.
         lat_np = lat_8.detach().cpu().numpy().astype(np.float16, copy=False)
+        del lat_8
+        torch.cuda.empty_cache()
         return png_bytes, seed, lat_np.tobytes(order="C")
 
 
@@ -572,6 +580,8 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         self._apply_style(None, 0)
 
         img: Image.Image = out.images[0]
+        del out
+        torch.cuda.empty_cache()
 
         pnginfo = PngImagePlugin.PngInfo()
         pnginfo.add_text("lcm", json.dumps({
@@ -634,6 +644,7 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         self._apply_style(None, 0)
 
         lat = out_lat.images
+        del out_lat
         if isinstance(lat, (list, tuple)):
             lat = lat[0]
 
@@ -646,7 +657,10 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         # Downsample to [1,4,8,8]
         # PERF NOTE: do pooling in fp32 to reduce pooling artifacts; then cast to fp16.
         lat_8 = torch.nn.functional.adaptive_avg_pool2d(lat.to(dtype=torch.float32), (8, 8))
+        del lat
         lat_8 = lat_8.to(dtype=torch.float16).contiguous()
 
         lat_np = lat_8.detach().cpu().numpy().astype(np.float16, copy=False)
+        del lat_8
+        torch.cuda.empty_cache()
         return png_bytes, seed, lat_np.tobytes(order="C")

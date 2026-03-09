@@ -210,7 +210,7 @@ export function OptionsPanel({
       isSyncingSelection.current = true;
 
       if (selectedParams) {
-        // Selected an image - sync from its params
+        // Selected an image - sync all params from it
         const cfg = selectedParams.cfg ?? params.effective.cfg;
         setLocalPrompt(selectedParams.prompt ?? params.draft.prompt);
         setLocalSteps(selectedParams.steps ?? params.effective.steps);
@@ -234,13 +234,15 @@ export function OptionsPanel({
     }
   }, [selectedMsgId, selectedParams, params.draft.prompt, params.effective.steps, params.effective.cfg, params.effective.superresLevel]);
 
-  // Push debounced prompt to parent (skip during selection sync to avoid regen)
+  // Push debounced prompt to parent (skip during selection sync and while an
+  // image is selected — prompt commits only on Shift+Enter when selected)
   useEffect(() => {
     if (isSyncingSelection.current) return;
+    if (selectedParams) return;
     if (debouncedPrompt !== params.draft.prompt) {
       params.setPrompt(debouncedPrompt);
     }
-  }, [debouncedPrompt]);
+  }, [debouncedPrompt, selectedParams]);
 
   // Handlers that update local state AND push to parent
   const handleStepsChange = (v) => {
@@ -364,11 +366,17 @@ export function OptionsPanel({
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
           <div className="space-y-1">
             <Label>
-              {selectedParams ? 'Selected image prompt' : 'Draft prompt'}
+              {selectedParams ? 'Draft prompt — Shift+Enter to apply' : 'Draft prompt'}
             </Label>
             <Textarea
               value={localPrompt}
               onChange={(e) => setLocalPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.shiftKey && e.key === 'Enter' && selectedParams) {
+                  e.preventDefault();
+                  params.setPrompt(localPrompt);
+                }
+              }}
               className="min-h-[90px] resize-none rounded-2xl"
               placeholder="Describe what you want to generate…"
             />

@@ -270,6 +270,15 @@ class WorkerPool:
 
         vram_after = self._registry.get_used_vram()
         vram_used = vram_after - vram_before
+        vram_allocated = self._registry.get_allocated_vram()
+        vram_total = self._registry.get_total_vram()
+        logger.info(
+            f"[WorkerPool] VRAM after load: "
+            f"allocated={vram_allocated/1024**3:.2f}GB "
+            f"reserved={vram_after/1024**3:.2f}GB "
+            f"total={vram_total/1024**3:.2f}GB "
+            f"model_delta={vram_used/1024**3:.2f}GB"
+        )
 
         # Load LoRAs if specified in mode
         if mode.loras:
@@ -315,7 +324,16 @@ class WorkerPool:
         gc.collect()
         torch.cuda.empty_cache()
 
-        logger.info("[WorkerPool] Worker unloaded, VRAM freed")
+        if torch.cuda.is_available():
+            vram_allocated = torch.cuda.memory_allocated() / 1024**3
+            vram_reserved = torch.cuda.memory_reserved() / 1024**3
+            logger.info(
+                f"[WorkerPool] Worker unloaded — "
+                f"allocated={vram_allocated:.2f}GB reserved={vram_reserved:.2f}GB "
+                f"(reserved>allocated means PyTorch cache; call empty_cache to release)"
+            )
+        else:
+            logger.info("[WorkerPool] Worker unloaded, VRAM freed")
 
     def _start_worker_thread(self):
         """Start worker thread for processing jobs."""
