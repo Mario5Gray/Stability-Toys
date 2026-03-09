@@ -343,6 +343,7 @@ class ModesBulkSaveRequest(BaseModel):
 async def save_all_modes(request: ModesBulkSaveRequest):
     """Save full modes config, write to disk and reload."""
     config = get_mode_config()
+    pool = get_worker_pool()
     data = request.model_dump()
 
     if not data.get("modes"):
@@ -354,33 +355,90 @@ async def save_all_modes(request: ModesBulkSaveRequest):
             detail=f"default_mode '{data['default_mode']}' not found in modes",
         )
 
+    # Snapshot current mode config before saving so we can detect changes
+    current_mode = pool.get_current_mode()
+    old_model = None
+    old_loras = None
+    if current_mode:
+        try:
+            old_cfg = config.get_mode(current_mode)
+            old_model = old_cfg.model
+            old_loras = [lora.path for lora in old_cfg.loras]
+        except Exception:
+            pass
+
     try:
         config.save_config(data)
-        return {"status": "saved", "modes": list(data["modes"].keys())}
     except Exception as e:
         logger.error(f"[API] Save modes failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+    # If the currently loaded mode was edited, reload the worker
+    reload_queued = False
+    if current_mode and old_model is not None:
+        new_mode_data = data["modes"].get(current_mode)
+        if new_mode_data is None:
+            # Current mode was deleted in this bulk save — switch to default
+            default = data["default_mode"]
+            logger.info(f"[API] Current mode '{current_mode}' removed; switching to default '{default}'")
+            try:
+                pool.switch_mode(default)
+                reload_queued = True
+            except Exception as e:
+                logger.warning(f"[API] Could not queue switch to default after mode removal: {e}")
+        else:
+            new_model = new_mode_data.get("model", "")
+            new_loras = [
+                (lora["path"] if isinstance(lora, dict) else lora)
+                for lora in new_mode_data.get("loras", [])
+            ]
+            if new_model != old_model or new_loras != old_loras:
+                logger.info(f"[API] Config changed for loaded mode '{current_mode}'; queuing reload")
+                try:
+                    pool.switch_mode(current_mode, force=True)
+                    reload_queued = True
+                except Exception as e:
+                    logger.warning(f"[API] Could not queue reload for mode '{current_mode}': {e}")
+
+    return {
+        "status": "saved",
+        "modes": list(data["modes"].keys()),
+        "reload_queued": reload_queued,
+    }
 
 
 @router.post("/modes/{name}")
 async def create_or_update_mode(name: str, request: ModeCreateRequest):
     """Create or update a single mode."""
     config = get_mode_config()
+    pool = get_worker_pool()
     data = config.to_dict()
     data["modes"][name] = request.model_dump()
 
     try:
         config.save_config(data)
-        return {"status": "saved", "mode": name}
     except Exception as e:
         logger.error(f"[API] Save mode '{name}' failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+    # If this mode is currently loaded, reload the worker with the new config
+    reload_queued = False
+    if name == pool.get_current_mode():
+        logger.info(f"[API] Updated config for loaded mode '{name}'; queuing reload")
+        try:
+            pool.switch_mode(name, force=True)
+            reload_queued = True
+        except Exception as e:
+            logger.warning(f"[API] Could not queue reload for mode '{name}': {e}")
+
+    return {"status": "saved", "mode": name, "reload_queued": reload_queued}
 
 
 @router.delete("/modes/{name}")
 async def delete_mode(name: str):
     """Delete a mode. Cannot delete the default mode."""
     config = get_mode_config()
+    pool = get_worker_pool()
     data = config.to_dict()
 
     if name not in data["modes"]:
@@ -389,11 +447,24 @@ async def delete_mode(name: str):
     if name == data["default_mode"]:
         raise HTTPException(status_code=400, detail="Cannot delete the default mode")
 
+    was_loaded = name == pool.get_current_mode()
     del data["modes"][name]
 
     try:
         config.save_config(data)
-        return {"status": "deleted", "mode": name}
     except Exception as e:
         logger.error(f"[API] Delete mode '{name}' failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+    # If the deleted mode was running, switch to the default
+    switched_to = None
+    if was_loaded:
+        default = data["default_mode"]
+        logger.info(f"[API] Deleted loaded mode '{name}'; switching to default '{default}'")
+        try:
+            pool.switch_mode(default)
+            switched_to = default
+        except Exception as e:
+            logger.warning(f"[API] Could not queue switch to default after delete: {e}")
+
+    return {"status": "deleted", "mode": name, "switched_to": switched_to}

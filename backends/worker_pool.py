@@ -9,6 +9,7 @@ Manages worker lifecycle and job execution with support for:
 The queue is extensible - other parts of the app can submit jobs.
 """
 
+import gc
 import os
 import logging
 import queue
@@ -94,6 +95,7 @@ class ModeSwitchJob(Job):
     """Job for switching model mode."""
     target_mode: str
     on_complete: Optional[Callable] = None
+    force: bool = False  # Reload even if target_mode == current_mode
 
     def __post_init__(self):
         super().__post_init__()
@@ -181,9 +183,20 @@ class WorkerPool:
         self._mode_config = mode_config or get_mode_config()
         self._registry = registry or get_model_registry()
 
-        # Initialize with default mode
+        # Initialize with default mode — failure is non-fatal so the server
+        # can still start and accept mode-switch or load requests via API.
         default_mode = self._mode_config.get_default_mode()
-        self._load_mode(default_mode)
+        try:
+            self._load_mode(default_mode)
+        except Exception as e:
+            logger.error(
+                f"[WorkerPool] Initial model load failed for mode '{default_mode}': {e}. "
+                "Server will start without a loaded model. "
+                "Use the /api/modes/switch endpoint to load a model.",
+                exc_info=True,
+            )
+            # _load_mode already cleaned up; pool starts in no-model state
+            self._start_worker_thread()
 
     @staticmethod
     def _default_worker_factory(worker_id: int, model_path: str) -> PipelineWorker:
@@ -209,6 +222,10 @@ class WorkerPool:
 
         Args:
             mode_name: Name of mode to load
+
+        Raises:
+            Exception: Re-raises any load failure after cleaning up partial state.
+                       On failure, worker is None and current_mode is None.
         """
         logger.info(f"[WorkerPool] Loading mode: {mode_name}")
 
@@ -222,8 +239,25 @@ class WorkerPool:
         # Track VRAM before worker creation
         vram_before = self._registry.get_used_vram()
 
-        # Create worker using injected factory, passing fully-resolved model path
-        self._worker = self._worker_factory(worker_id=0, model_path=mode.model_path)
+        try:
+            # Create worker using injected factory, passing fully-resolved model path
+            self._worker = self._worker_factory(worker_id=0, model_path=mode.model_path)
+        except Exception as e:
+            logger.error(
+                f"[WorkerPool] Failed to load mode '{mode_name}': {e}",
+                exc_info=True,
+            )
+            # Clean up any partially allocated GPU memory
+            if self._worker is not None:
+                try:
+                    del self._worker
+                except Exception:
+                    pass
+                self._worker = None
+            gc.collect()
+            torch.cuda.empty_cache()
+            self._current_mode = None
+            raise
 
         vram_after = self._registry.get_used_vram()
         vram_used = vram_after - vram_before
@@ -269,7 +303,6 @@ class WorkerPool:
         self._worker = None
 
         # Force garbage collection and VRAM release
-        import gc
         gc.collect()
         torch.cuda.empty_cache()
 
@@ -303,8 +336,8 @@ class WorkerPool:
             try:
                 # Check if this is a mode switch job
                 if isinstance(job, ModeSwitchJob):
-                    # Check if already in target mode (skip if so)
-                    if self._current_mode == job.target_mode:
+                    # Check if already in target mode (skip unless forced)
+                    if self._current_mode == job.target_mode and not job.force:
                         logger.info(
                             f"[WorkerPool] Already in mode '{job.target_mode}', "
                             "skipping mode switch"
@@ -363,23 +396,24 @@ class WorkerPool:
                 "Try again later or increase QUEUE_MAX."
             )
 
-    def switch_mode(self, mode_name: str) -> Future:
+    def switch_mode(self, mode_name: str, force: bool = False) -> Future:
         """
         Queue a mode switch.
 
         Args:
             mode_name: Target mode name
+            force: Reload the worker even if mode_name is already current.
+                   Use this when the mode's config has changed on disk.
 
         Returns:
             Future that completes when mode switch is done
         """
-        logger.info(f"[WorkerPool] Queueing mode switch to: {mode_name}")
+        logger.info(f"[WorkerPool] Queueing mode switch to: {mode_name} (force={force})")
 
         # Validate mode exists
         self._mode_config.get_mode(mode_name)  # Raises if not found
 
-        # Create mode switch job
-        job = ModeSwitchJob(target_mode=mode_name)
+        job = ModeSwitchJob(target_mode=mode_name, force=force)
 
         return self.submit_job(job)
 
