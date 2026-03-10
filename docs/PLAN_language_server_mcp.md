@@ -27,11 +27,12 @@ semantic precision when it matters.
 
 ---
 
-## Phase 1 — Language Server Selection, Tools, and Environments
+## Phase 1 — Language Server Selection, Tools, and Environments ✅ COMPLETE
 
 ### 1.1 Python backend — Pyright
 
 **Selected:** `pyright` (Microsoft, npm-distributed)
+**Status: done — `pyright .` reports 0 errors, 0 warnings.**
 
 **Why over the alternatives:**
 - `pylsp` — community-maintained, modular but slower; Jedi-based go-to-def
@@ -44,46 +45,64 @@ semantic precision when it matters.
   dataclasses with `field()`). Handles `concurrent.futures.Future[T]` generics
   correctly, which matters for `WorkerPool`.
 
-**What it will resolve in this codebase:**
+**What it resolves in this codebase:**
 - `fut: Future` → `Future[tuple[bytes, int]]` through the generation job chain
 - `job.execute(self._worker)` → dispatched to the correct concrete subclass
 - `self._mode_config.get_mode(name)` → `ModeConfig` with all its fields
 - Diagnostics: missing type annotations, unreachable code, wrong argument types
 
-**Caveats:**
-- `torch` and `diffusers` ship partial stubs. Pyright will show `Unknown` for
-  some torch tensor operations. This is acceptable — the value is in the
-  server-side business logic, not the ML math.
-- The backend virtual environment must be pointed at in `pyrightconfig.json`
-  so pyright resolves imports from the right site-packages.
+**Caveats (known, accepted):**
+- `torch` and `diffusers` ship partial stubs. Pyright shows `Unknown` for
+  some tensor operations. Suppressed with targeted `# type: ignore[union-attr]`
+  at `.images` access points; the value is in server-side business logic.
+- `rknnlite` has no stubs — suppressed with `# type: ignore[import-untyped]`
+  at each import site.
+- venv resolution: pyright does **not** use a `venvPath`/`venv` key in
+  `pyrightconfig.json` for this project. Python is resolved at runtime by
+  passing `--pythonpath "$(which python)"` on the CLI (or through the IDE's
+  Python path setting). This avoids hardcoding a venv path in the config.
 
 **Installation:**
 ```bash
 npm install -g pyright
 # or: pip install pyright (self-contained binary)
 ```
+Installed version: **pyright 1.1.408**
 
-**Config file:** `pyrightconfig.json` at repo root:
+**Config file:** `pyrightconfig.json` at repo root (current actual state):
 ```json
 {
   "include": ["backends", "server", "invokers", "persistence"],
-  "exclude": ["lcm-sr-ui", "node_modules", "__pycache__"],
+  "exclude": [
+    "lcm-sr-ui", "node_modules", "**/__pycache__", ".git", ".mypy_cache",
+    "tests", "utils", "yume_lab"
+  ],
   "pythonVersion": "3.12",
   "pythonPlatform": "Linux",
-  "venvPath": ".",
-  "venv": ".venv",
-  "typeCheckingMode": "basic"
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "executionEnvironments": [{ "root": "." }]
 }
 ```
-`typeCheckingMode: "basic"` (not `strict`) because the codebase has no existing
-type annotations and strict mode would produce hundreds of low-signal warnings.
-Upgrade to `standard` once annotations are added incrementally.
+
+`typeCheckingMode: "basic"` (not `strict`). The codebase has had type
+annotations added incrementally during the pyright clean-up pass (2026-03).
+Many third-party boundaries (diffusers pipelines, rknnlite, redis-py) are
+suppressed with targeted `# type: ignore` comments rather than full
+annotations, keeping signal-to-noise high. Upgrade to `standard` when the core
+server modules have complete annotations.
+
+`tests/`, `utils/`, and `yume_lab/` are excluded — they are not production
+code and `pytest` / hardware-specific packages are not in the runtime pyright
+checks against.
 
 ---
 
-### 1.2 JavaScript/React frontend — typescript-language-server
+### 1.2 JavaScript/React frontend — typescript-language-server ✅ COMPLETE
 
 **Selected:** `typescript-language-server` (the official tsserver-based LSP)
+**Status: done — `lcm-sr-ui/jsconfig.json` in place and accepted by tsserver.**
 
 **Why:**
 - The frontend is `.jsx` (JavaScript, not TypeScript), but `typescript` is
@@ -92,7 +111,7 @@ Upgrade to `standard` once annotations are added incrementally.
 - Understands React JSX natively via `tsconfig`/`jsconfig` `jsx` setting.
 - Go-to-definition follows imports into `node_modules` with type declarations.
 
-**What it will resolve in this codebase:**
+**What it resolves in this codebase:**
 - `wsClient.send(msg)` → `WSClient.send(msg: object): string`
 - `jobQueue.enqueue({...})` → parameter shape validation
 - `params.setDenoiseStrength(v)` → which overload is actually called
@@ -132,9 +151,9 @@ npm install -g typescript-language-server typescript
 
 | Component | Runtime | Install | Config |
 |---|---|---|---|
-| Pyright LSP | Node 22 (already present) | `npm install -g pyright` | `pyrightconfig.json` |
-| typescript-language-server | Node 22 (already present) | `npm install -g typescript-language-server typescript` | `lcm-sr-ui/jsconfig.json` |
-| Python venv | Python 3.14 | already exists (`.venv` assumed) | path in pyrightconfig |
+| Pyright LSP v1.1.408 | Node 25.x (present) | `npm install -g pyright` | `pyrightconfig.json` |
+| typescript-language-server | Node 25.x (present) | `npm install -g typescript-language-server typescript` | `lcm-sr-ui/jsconfig.json` |
+| Python runtime | Python 3.12.10 | system/conda (base env) | `--pythonpath "$(which python)"` CLI flag |
 
 Both language servers communicate over **stdio** — they read/write JSON-RPC on
 stdin/stdout. The MCP bridge (Phase 3) manages these processes.
@@ -364,22 +383,24 @@ the question actually requires.
 ## Execution Order
 
 ```
-Phase 1 (no code changes, just config files)
-  ├── npm install -g pyright typescript-language-server typescript
-  ├── create pyrightconfig.json
-  ├── create lcm-sr-ui/jsconfig.json
-  └── smoke-test: pyright --outputjson . | head
+Phase 1 (config files + type annotation pass) ✅ DONE
+  ├── ✅ npm install -g pyright typescript-language-server typescript
+  ├── ✅ create pyrightconfig.json
+  ├── ✅ create lcm-sr-ui/jsconfig.json
+  ├── ✅ type annotation / # type: ignore pass across backends/, server/,
+  │       invokers/, persistence/ (2026-03)
+  └── ✅ pyright . → 0 errors, 0 warnings
 
-Phase 2 (process model decision, no new services yet)
+Phase 2 (process model decision, no new services yet)  ⬜ PENDING
   └── document the host-local deployment decision in env.custom or README
 
-Phase 3a (bridge MVP)
+Phase 3a (bridge MVP)  ⬜ PENDING
   ├── evaluate existing mcp-language-server
   ├── build or adopt bridge with lsp/hover, lsp/definition, lsp/references, lsp/diagnostics
   ├── wire into Claude Code MCP config
-  └── validate against a known type error in the codebase
+  └── validate: hover on worker_pool.py fut field returns correct type
 
-Phase 3b (extended tools)
+Phase 3b (extended tools)  ⬜ PENDING
   ├── lsp/rename (dry-run diff)
   ├── lsp/call_hierarchy_in + _out
   └── update CLAUDE.md tool selection table
@@ -389,9 +410,9 @@ Phase 3b (extended tools)
 
 ## Success Criteria
 
-| Phase | Done when |
-|---|---|
-| 1 | `pyright .` runs clean (or with known suppressions); `jsconfig.json` accepted by tsserver with no parse errors |
-| 2 | Bridge process model documented; env vars defined; startup/shutdown scripted |
-| 3a | Agent can ask "what type is `fut` on line 246 of `worker_pool.py`?" and get a correct answer |
-| 3b | Agent can rename `_free_worker` and receive a per-file diff it can review before applying |
+| Phase | Done when | Status |
+|---|---|---|
+| 1 | `pyright .` runs clean; `jsconfig.json` accepted by tsserver with no parse errors | ✅ **DONE** (2026-03) |
+| 2 | Bridge process model documented; env vars defined; startup/shutdown scripted | ⬜ pending |
+| 3a | Agent can ask "what type is `fut` on line X of `worker_pool.py`?" and get a correct answer | ⬜ pending |
+| 3b | Agent can rename `_free_worker` and receive a per-file diff it can review before applying | ⬜ pending |
