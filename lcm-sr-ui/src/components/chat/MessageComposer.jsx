@@ -27,13 +27,13 @@ export function MessageComposer({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             onKeyDown?.(e);
-            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            if (e.shiftKey && e.key === "Enter") {
               e.preventDefault();
               send();
             }
           }}
           onFocus={onFocus}
-          placeholder="Describe what you want to generate…"
+          placeholder="Describe what you want to generate… (Shift+Enter to send)"
           className="mx-4 bg-neutral-primary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand block w-full px-3 py-2.5 placeholder:text-body"
         />
 
