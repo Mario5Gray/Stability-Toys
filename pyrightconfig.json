@@ -1,0 +1,14 @@
+{
+  "include": ["backends", "server", "invokers", "persistence"],
+  "exclude": ["lcm-sr-ui", "node_modules", "**/__pycache__", ".git", ".mypy_cache", "tests", "utils", "yume_lab"],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ]
+}
