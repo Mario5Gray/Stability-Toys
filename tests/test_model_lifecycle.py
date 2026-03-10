@@ -163,8 +163,12 @@ class TestBasicLifecycle:
         assert result == b"\x89PNG_fake_image_data"
 
     def test_generate_after_unload_fails(self, pool):
-        """Unload → GenerationJob raises RuntimeError."""
+        """Unload → GenerationJob raises RuntimeError.
+
+        _current_mode is cleared so demand-reload doesn't silently succeed.
+        """
         pool._unload_current_worker()
+        pool._current_mode = None  # prevent demand-reload masking the failure
         assert pool._worker is None
 
         job = GenerationJob(req=Mock())

@@ -178,12 +178,11 @@ class WorkerPool:
         self._worker_thread: Optional[threading.Thread] = None
         self._watchdog_thread: Optional[threading.Thread] = None
         self._current_mode: Optional[str] = None
-        self._lock = threading.Lock()
-
         # Idle eviction config — 0 disables eviction
         self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
         self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
         self._last_activity = time.monotonic()
+        self._eviction_pending = False
 
         # Dependency injection with defaults to singletons
         self._worker_factory = worker_factory or self._default_worker_factory
@@ -257,14 +256,7 @@ class WorkerPool:
                 exc_info=True,
             )
             # Clean up any partially allocated GPU memory
-            if self._worker is not None:
-                try:
-                    del self._worker
-                except Exception:
-                    pass
-                self._worker = None
-            gc.collect()
-            torch.cuda.empty_cache()
+            self._free_worker()
             self._current_mode = None
             raise
 
@@ -305,6 +297,14 @@ class WorkerPool:
             f"(VRAM: {vram_used / 1024**3:.2f} GB)"
         )
 
+    def _free_worker(self):
+        """Drop the worker reference and flush the GPU allocator cache."""
+        if self._worker is not None:
+            del self._worker
+            self._worker = None
+        gc.collect()
+        torch.cuda.empty_cache()
+
     def _unload_current_worker(self):
         """Unload current worker and free VRAM."""
         if self._worker is None:
@@ -316,13 +316,7 @@ class WorkerPool:
         if self._current_mode:
             self._registry.unregister_model(self._current_mode)
 
-        # Delete worker and free VRAM
-        del self._worker
-        self._worker = None
-
-        # Force garbage collection and VRAM release
-        gc.collect()
-        torch.cuda.empty_cache()
+        self._free_worker()
 
         if torch.cuda.is_available():
             vram_allocated = torch.cuda.memory_allocated() / 1024**3
@@ -371,22 +365,30 @@ class WorkerPool:
         logger.debug("[WorkerPool] Idle watchdog loop running")
 
         while not self._stop.wait(timeout=self._idle_check_interval):
-            if self._worker is None:
-                continue
-
-            idle_secs = time.monotonic() - self._last_activity
-            if idle_secs < self._idle_timeout:
-                continue
-
-            logger.info(
-                f"[WorkerPool] Model idle for {idle_secs:.0f}s "
-                f"(timeout={self._idle_timeout:.0f}s); queuing eviction"
-            )
             try:
-                evict_job = CustomJob(handler=self._evict_if_idle)
-                self.q.put_nowait(evict_job)
-            except queue.Full:
-                logger.warning("[WorkerPool] Queue full; skipping idle eviction this cycle")
+                if self._worker is None:
+                    continue
+
+                idle_secs = time.monotonic() - self._last_activity
+                if idle_secs < self._idle_timeout:
+                    continue
+
+                if self._eviction_pending:
+                    continue
+
+                logger.info(
+                    f"[WorkerPool] Model idle for {idle_secs:.0f}s "
+                    f"(timeout={self._idle_timeout:.0f}s); queuing eviction"
+                )
+                try:
+                    evict_job = CustomJob(handler=self._evict_if_idle)
+                    self._eviction_pending = True
+                    self.q.put_nowait(evict_job)
+                except queue.Full:
+                    self._eviction_pending = False
+                    logger.warning("[WorkerPool] Queue full; skipping idle eviction this cycle")
+            except Exception:
+                logger.error("[WorkerPool] Idle watchdog error", exc_info=True)
 
         logger.debug("[WorkerPool] Idle watchdog loop stopped")
 
@@ -398,6 +400,7 @@ class WorkerPool:
         Re-checks the idle condition in case a job arrived after the watchdog
         enqueued this eviction.
         """
+        self._eviction_pending = False
         idle_secs = time.monotonic() - self._last_activity
         if idle_secs < self._idle_timeout:
             logger.debug("[WorkerPool] Eviction skipped: activity detected since enqueue")
@@ -443,20 +446,24 @@ class WorkerPool:
                             f"[WorkerPool] Worker was evicted; "
                             f"demand-reloading mode '{self._current_mode}'"
                         )
-                        self._load_mode(self._current_mode)
+                        try:
+                            self._load_mode(self._current_mode)
+                        except Exception as load_err:
+                            raise RuntimeError(
+                                f"Demand reload of '{self._current_mode}' failed: {load_err}"
+                            ) from load_err
 
                     result = job.execute(self._worker)
 
                     if not job.fut.done():
                         job.fut.set_result(result)
 
-                self._last_activity = time.monotonic()
-
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
                 if not job.fut.done():
                     job.fut.set_exception(e)
             finally:
+                self._last_activity = time.monotonic()
                 self.q.task_done()
 
         logger.info("[WorkerPool] Worker loop stopped")
@@ -508,8 +515,33 @@ class WorkerPool:
         return self.submit_job(job)
 
     def get_current_mode(self) -> Optional[str]:
-        """Get currently loaded mode name."""
+        """Get currently loaded mode name.
+
+        Note: returns the mode name even after idle eviction, so the pool can
+        demand-reload the same mode on the next request. Use is_model_loaded()
+        to distinguish "in VRAM" from "evicted but name retained".
+        """
         return self._current_mode
+
+    def is_model_loaded(self) -> bool:
+        """True if a worker is currently live in GPU memory."""
+        return self._worker is not None
+
+    def reload_if_current(self, mode_name: str) -> bool:
+        """Queue a force-reload if mode_name is the currently loaded mode.
+
+        Returns True if a reload was queued, False otherwise.
+        Intended for route handlers that need to hot-reload after a config change.
+        """
+        if self.get_current_mode() != mode_name:
+            return False
+        logger.info(f"[WorkerPool] Config changed for loaded mode '{mode_name}'; queuing reload")
+        try:
+            self.switch_mode(mode_name, force=True)
+            return True
+        except Exception as e:
+            logger.warning(f"[WorkerPool] Could not queue reload for mode '{mode_name}': {e}")
+            return False
 
     def get_queue_size(self) -> int:
         """Get current queue size."""

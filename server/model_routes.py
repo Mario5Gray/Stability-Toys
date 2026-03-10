@@ -115,6 +115,7 @@ async def get_models_status():
 
     return {
         "current_mode": current_mode,
+        "is_loaded": pool.is_model_loaded(),
         "queue_size": queue_size,
         "vram": vram_stats,
     }
@@ -393,12 +394,7 @@ async def save_all_modes(request: ModesBulkSaveRequest):
                 for lora in new_mode_data.get("loras", [])
             ]
             if new_model != old_model or new_loras != old_loras:
-                logger.info(f"[API] Config changed for loaded mode '{current_mode}'; queuing reload")
-                try:
-                    pool.switch_mode(current_mode, force=True)
-                    reload_queued = True
-                except Exception as e:
-                    logger.warning(f"[API] Could not queue reload for mode '{current_mode}': {e}")
+                reload_queued = pool.reload_if_current(current_mode)
 
     return {
         "status": "saved",
@@ -422,14 +418,7 @@ async def create_or_update_mode(name: str, request: ModeCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     # If this mode is currently loaded, reload the worker with the new config
-    reload_queued = False
-    if name == pool.get_current_mode():
-        logger.info(f"[API] Updated config for loaded mode '{name}'; queuing reload")
-        try:
-            pool.switch_mode(name, force=True)
-            reload_queued = True
-        except Exception as e:
-            logger.warning(f"[API] Could not queue reload for mode '{name}': {e}")
+    reload_queued = pool.reload_if_current(name)
 
     return {"status": "saved", "mode": name, "reload_queued": reload_queued}
 
