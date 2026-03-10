@@ -5,7 +5,7 @@ from backends.utils import parse_size, gen_seed_8_digits
 from backends.latents import extract_latents, latent_to_nchw, downsample_to_8x8_nchw
 
 from transformers import CLIPTokenizer
-from diffusers import LCMScheduler
+from diffusers.schedulers.scheduling_lcm import LCMScheduler
 from PIL import Image
 
 from typing import Optional, List, Dict, Tuple
@@ -30,7 +30,6 @@ class RKNNPipelineWorker(PipelineWorker):
         rknn_context_cfg: Optional[dict] = None,
         use_rknn_context_cfgs: bool = True,
     ):
-        super().__init__(worker_id)
         self.worker_id = worker_id
         self.paths = paths
         self.scheduler_config = scheduler_config
@@ -38,7 +37,7 @@ class RKNNPipelineWorker(PipelineWorker):
         self.rknn_context_cfg = rknn_context_cfg or {}
         self.use_rknn_context_cfgs = use_rknn_context_cfgs
 
-        self.pipe = None
+        self.pipe: RKNN2LatentConsistencyPipeline
         self._init_pipeline()
 
     def _mk_model(self, model_path: str, *, data_format: str) -> RKNN2Model:
@@ -47,7 +46,7 @@ class RKNNPipelineWorker(PipelineWorker):
         return RKNN2Model(model_path, data_format=data_format)
 
     def _init_pipeline(self):
-        scheduler = LCMScheduler.from_config(self.scheduler_config)
+        scheduler: LCMScheduler = LCMScheduler.from_config(self.scheduler_config)  # type: ignore[assignment]
         self.pipe = RKNN2LatentConsistencyPipeline(
             text_encoder=self._mk_model(self.paths.text_encoder, data_format="nchw"),
             unet=self._mk_model(self.paths.unet, data_format="nhwc"),
@@ -70,7 +69,7 @@ class RKNNPipelineWorker(PipelineWorker):
             generator=rng,
         )
 
-        pil_image = result["images"][0]
+        pil_image = result["images"][0]  # type: ignore[index]
         buf = io.BytesIO()
         pil_image.save(buf, format="PNG")
         return buf.getvalue(), seed
@@ -117,7 +116,7 @@ class RKNNPipelineWorker(PipelineWorker):
                     num_inference_steps=job.req.num_inference_steps,
                     guidance_scale=job.req.guidance_scale,
                     generator=rng,
-                    return_latents=True,
+                    return_latents=True,  # type: ignore[call-arg]
                 )
                 latent = extract_latents(res_lat)
             except TypeError:

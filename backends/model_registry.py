@@ -7,8 +7,8 @@ No artificial limits - uses all available VRAM.
 
 import logging
 import torch
-from typing import Dict, Optional, List
-from dataclasses import dataclass
+from typing import Any, Dict, Optional, List
+from dataclasses import dataclass, field
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -21,11 +21,7 @@ class LoadedModel:
     model_path: str
     vram_bytes: int
     worker_id: Optional[int] = None
-    loras: List[str] = None  # List of loaded LoRA paths
-
-    def __post_init__(self):
-        if self.loras is None:
-            self.loras = []
+    loras: List[str] = field(default_factory=list)  # List of loaded LoRA paths
 
 
 class ModelRegistry:
@@ -215,7 +211,7 @@ class ModelRegistry:
 
         return estimated
 
-    def get_vram_stats(self) -> Dict[str, any]:
+    def get_vram_stats(self) -> Dict[str, Any]:
         """
         Get comprehensive VRAM statistics.
 

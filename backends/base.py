@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Protocol, Tuple, Optional
+from typing import TYPE_CHECKING, Protocol, Tuple, Optional
+
+if TYPE_CHECKING:
+    from concurrent.futures import Future
+    from server.lcm_sr_server import GenerateRequest
 
 @dataclass
 class Job:
@@ -12,7 +16,7 @@ class Job:
     submitted_at: float
 
 
-dataclass(frozen=True)
+@dataclass(frozen=True)
 class StyleLora:
     style: Optional[str] = None  # e.g. "papercut"
     level: int = 0              # 0=off, 1..N preset index
@@ -31,12 +35,14 @@ class PipelineWorker(Protocol):
 
     def run_job(self, spec: GenSpec) -> Tuple[bytes, int]:
         """Return (png_bytes, seed_used)."""
+        ...
 
     def run_job_with_latents(self, spec: GenSpec) -> Tuple[bytes, int, bytes]:
         """
         Return (png_bytes, seed_used, latents_bytes) where latents_bytes is a raw tensor
         of shape [1,4,8,8] (NCHW) serialized as little-endian float16 bytes.
         """
+        ...
 @dataclass(frozen=True)
 class ModelPaths:
     root: str

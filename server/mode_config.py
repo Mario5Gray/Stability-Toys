@@ -79,7 +79,7 @@ class ModeConfigManager:
         
         self.config_path = Path(os.path.join(Path(config_path), "modes.yml"))
 
-        self.config: Optional[ModesYAML] = None
+        self.config: ModesYAML = None  # type: ignore[assignment]
         self._load_config()
 
     def _load_config(self):
@@ -171,6 +171,7 @@ class ModeConfigManager:
 
     def _validate_paths(self):
         """Validate that model and LoRA paths exist."""
+        assert self.config is not None
         errors = []
 
         # Check model_root exists
@@ -183,7 +184,7 @@ class ModeConfigManager:
 
         # Check each mode's model and LoRAs
         for mode_name, mode in self.config.modes.items():
-            if not Path(mode.model_path).exists():
+            if not Path(mode.model_path or "").exists():
                 errors.append(f"Mode '{mode_name}' model not found: {mode.model_path}")
 
             for i, lora_path in enumerate(mode.lora_paths):

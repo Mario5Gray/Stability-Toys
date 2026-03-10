@@ -93,7 +93,7 @@ from server.file_watcher import start_config_watcher, stop_config_watcher
 
 # Try to import RKNNLite for super-resolution
 try:
-    from rknnlite.api import RKNNLite
+    from rknnlite.api import RKNNLite  # type: ignore[import-untyped]
     RKNNLITE_AVAILABLE = True
 except ImportError:
     RKNNLITE_AVAILABLE = False
@@ -226,15 +226,15 @@ class PipelineService:
         for i in range(self.num_workers):
             if use_cuda:
                 from backends.worker_factory import create_cuda_worker
-                w = create_cuda_worker(worker_id=i)
+                w = create_cuda_worker(worker_id=i)  # type: ignore[call-arg]
             else:
                 from backends.rknn_worker import RKNNPipelineWorker
                 w = RKNNPipelineWorker(
                     worker_id=i,
                     paths=self.paths,
-                    scheduler_config=self.scheduler_config,
-                    tokenizer=self.tokenizer,
-                    rknn_context_cfg=rknn_context_cfgs[i],
+                    scheduler_config=self.scheduler_config,  # type: ignore[arg-type]
+                    tokenizer=self.tokenizer,  # type: ignore[arg-type]
+                    rknn_context_cfg=rknn_context_cfgs[i],  # type: ignore[index]
                     use_rknn_context_cfgs=use_rknn_context_cfgs,
                 )
             self.workers.append(w)
@@ -298,7 +298,7 @@ class PipelineService:
                 continue
 
             try:
-                png, seed = worker.run_job(job)
+                png, seed = worker.run_job(job)  # type: ignore[arg-type]
                 if not job.fut.done():
                     job.fut.set_result((png, seed))
             except Exception as e:
@@ -332,7 +332,7 @@ class SuperResWorker:
         self.input_size = int(input_size)
         self.output_size = int(output_size)
 
-        self.rknn = RKNNLite()
+        self.rknn = RKNNLite()  # type: ignore[name-defined]
         self._init_runtime()
 
     def _init_runtime(self):
@@ -396,8 +396,8 @@ class SuperResWorker:
             "YCbCr",
             [
                 Image.fromarray(out_y_u8, mode="L"),
-                img_cb.resize((out_w, out_h), Image.BICUBIC),
-                img_cr.resize((out_w, out_h), Image.BICUBIC),
+                img_cb.resize((out_w, out_h), Image.Resampling.BICUBIC),
+                img_cr.resize((out_w, out_h), Image.Resampling.BICUBIC),
             ],
         ).convert("RGB")
 
@@ -656,7 +656,7 @@ async def lifespan(app: FastAPI):
     # shutdown
     logger.info("Starting server shutdown...")
     try:
-        app.state.storage.close()
+        app.state.storage.close()  # type: ignore[union-attr]
     except Exception as e:
         logger.error(f"Error closing storage: {e}", exc_info=True)
 
@@ -1044,7 +1044,7 @@ def _run_generate_from_dict(gen_req: dict):
 @app.get("/storage/health")
 def storage_health():
     st: StorageProvider = app.state.storage
-    return st.health()
+    return st.health()  # type: ignore[attr-defined]
 
 @app.put("/storage/{key}")
 def storage_put(key: str, payload: str = Body(..., embed=True)):

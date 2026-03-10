@@ -7,10 +7,10 @@ from typing import Any, Callable, List, Optional, Union, Tuple
 import numpy as np
 import torch  # Only used for `torch.from_tensor` in `pipe.scheduler.step()`
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
-from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.schedulers import LCMScheduler
+from diffusers.pipelines.stable_diffusion.pipeline_output import StableDiffusionPipelineOutput
+from diffusers.schedulers.scheduling_lcm import LCMScheduler
 from PIL import Image
-from rknnlite.api import RKNNLite
+from rknnlite.api import RKNNLite  # type: ignore[import-untyped]
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 logging.basicConfig()
@@ -242,7 +242,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
         image = image.transpose((0, 2, 3, 1))
 
         if output_type == "pil":
-            image = numpy_to_pil(image)
+            image = numpy_to_pil(image)  # type: ignore[assignment]
 
         return image
 
@@ -306,7 +306,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
 
             prompt_embeds = self.text_encoder(input_ids=text_input_ids.astype(np.int32))[0]
 
-        prompt_embeds = np.repeat(prompt_embeds, num_images_per_prompt, axis=0)
+        prompt_embeds = np.repeat(prompt_embeds, num_images_per_prompt, axis=0)  # type: ignore[arg-type]
 
         # get unconditional embeddings for classifier free guidance
         if do_classifier_free_guidance and negative_prompt_embeds is None:
@@ -329,7 +329,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
             else:
                 uncond_tokens = negative_prompt
 
-            max_length = prompt_embeds.shape[1]
+            max_length = prompt_embeds.shape[1]  # type: ignore[union-attr]
             uncond_input = self.tokenizer(
                 uncond_tokens,
                 padding="max_length",
@@ -340,12 +340,12 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
             negative_prompt_embeds = self.text_encoder(input_ids=uncond_input.input_ids.astype(np.int32))[0]
 
         if do_classifier_free_guidance:
-            negative_prompt_embeds = np.repeat(negative_prompt_embeds, num_images_per_prompt, axis=0)
+            negative_prompt_embeds = np.repeat(negative_prompt_embeds, num_images_per_prompt, axis=0)  # type: ignore[arg-type]
 
             # For classifier free guidance, we need to do two forward passes.
             # Here we concatenate the unconditional and text embeddings into a single batch
             # to avoid doing two forward passes
-            prompt_embeds = np.concatenate([negative_prompt_embeds, prompt_embeds])
+            prompt_embeds = np.concatenate([negative_prompt_embeds, prompt_embeds])  # type: ignore[arg-type]
 
         return prompt_embeds
 
@@ -360,7 +360,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
         prompt_embeds: Optional[np.ndarray] = None,
         negative_prompt_embeds: Optional[np.ndarray] = None,
     ):
-        if height % 8 != 0 or width % 8 != 0:
+        if height % 8 != 0 or width % 8 != 0:  # type: ignore[operator]
             raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
 
         if (callback_steps is None) or (
@@ -436,7 +436,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
         height: Optional[int] = None,
         width: Optional[int] = None,
         num_inference_steps: int = 4,
-        original_inference_steps: int = None,
+        original_inference_steps: Optional[int] = None,
         guidance_scale: float = 8.5,
         num_images_per_prompt: int = 1,
         generator: Optional[Union[np.random.RandomState, torch.Generator]] = None,
@@ -547,16 +547,16 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
             self.unet.config["in_channels"],
             height,
             width,
-            prompt_embeds.dtype,
+            prompt_embeds.dtype,  # type: ignore[union-attr]
             generator,
             latents,
         )
 
         bs = batch_size * num_images_per_prompt
         # get Guidance Scale Embedding
-        w = np.full(bs, guidance_scale - 1, dtype=prompt_embeds.dtype)
+        w = np.full(bs, guidance_scale - 1, dtype=prompt_embeds.dtype)  # type: ignore[union-attr]
         w_embedding = self.get_guidance_scale_embedding(
-            w, embedding_dim=self.unet.config["time_cond_proj_dim"], dtype=prompt_embeds.dtype
+            w, embedding_dim=self.unet.config["time_cond_proj_dim"], dtype=prompt_embeds.dtype  # type: ignore[union-attr]
         )
 
         # Adapted from diffusers to extend it for other runtimes than ORT
@@ -579,16 +579,17 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
             latents, denoised = self.scheduler.step(
                 torch.from_numpy(noise_pred), t, torch.from_numpy(latents), return_dict=False
             )
-            latents, denoised = latents.numpy(), denoised.numpy()
+            latents, denoised = latents.numpy(), denoised.numpy()  # type: ignore[union-attr]
 
             # call the callback, if provided
             if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                 if callback is not None and i % callback_steps == 0:
-                    callback(i, t, latents)
+                    callback(i, t, latents)  # type: ignore[arg-type]
         inference_time = time.time() - inference_start
         print(f"Inference time: {inference_time:.2f}s")
 
         decode_start = time.time()
+        t0 = t1 = t_inf0 = t_inf1 = t_cat0 = t_cat1 = 0.0
         if output_type == "latent":
             image = denoised
             has_nsfw_concept = None
@@ -610,7 +611,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
         if has_nsfw_concept is None:
             do_denormalize = [True] * image.shape[0]
         else:
-            do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]
+            do_denormalize = [not has_nsfw for has_nsfw in has_nsfw_concept]  # type: ignore[misc]
 
         t_post0 = time.time()
         image = self.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)

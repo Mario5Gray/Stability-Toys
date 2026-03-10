@@ -1,5 +1,6 @@
 # server/run.py
 import logging
+import logging.config
 import uvicorn
 from server.logging_config import LOGGING_CONFIG, LOG_LEVEL
 from server.lcm_sr_server import app

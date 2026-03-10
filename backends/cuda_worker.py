@@ -9,13 +9,11 @@ from typing import Tuple
 import numpy as np
 import torch
 from PIL import Image, PngImagePlugin
-from diffusers import (
-    LCMScheduler,
-    StableDiffusionPipeline,
-    StableDiffusionXLPipeline,
-    StableDiffusionImg2ImgPipeline,
-    StableDiffusionXLImg2ImgPipeline,
-)
+from diffusers.schedulers.scheduling_lcm import LCMScheduler
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import StableDiffusionPipeline
+from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import StableDiffusionXLPipeline
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
+from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipeline
 
 from .base import PipelineWorker
 from backends.styles import STYLE_REGISTRY, parse_style_request
@@ -39,8 +37,6 @@ class DiffusersCudaWorker(PipelineWorker):
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
     def __init__(self, worker_id: int, model_path: str):
-        super().__init__(worker_id)
-
         self.worker_id = worker_id
         self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
         self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
@@ -246,7 +242,7 @@ class DiffusersCudaWorker(PipelineWorker):
         # reset style to avoid state bleed
         self._apply_style(None, 0)
 
-        img: Image.Image = out.images[0]
+        img: Image.Image = out.images[0]  # type: ignore[union-attr]
         # Free pipeline output tensors before saving; they're no longer needed
         # and releasing them now reduces peak VRAM before the next generation.
         del out
@@ -310,7 +306,7 @@ class DiffusersCudaWorker(PipelineWorker):
 
         self._apply_style(None, 0)
 
-        lat = out_lat.images
+        lat = out_lat.images  # type: ignore[union-attr]
         del out_lat  # free pipeline output before tensor ops
         if isinstance(lat, (list, tuple)):
             lat = lat[0]
@@ -358,8 +354,6 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
     """
 
     def __init__(self, worker_id: int, model_path: str):
-        super().__init__(worker_id)
-
         self.worker_id = worker_id
         self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
         self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
@@ -579,7 +573,7 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         # reset style to avoid state bleed
         self._apply_style(None, 0)
 
-        img: Image.Image = out.images[0]
+        img: Image.Image = out.images[0]  # type: ignore[union-attr]
         del out
         torch.cuda.empty_cache()
 
@@ -643,7 +637,7 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
 
         self._apply_style(None, 0)
 
-        lat = out_lat.images
+        lat = out_lat.images  # type: ignore[union-attr]
         del out_lat
         if isinstance(lat, (list, tuple)):
             lat = lat[0]

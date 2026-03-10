@@ -54,7 +54,7 @@ class Job(ABC):
     Extensible job system - subclass this to create new job types.
     """
     job_type: JobType = field(init=False)
-    fut: Future = field(init=False, default=None)  # Result future
+    fut: Future = field(init=False, default_factory=Future)  # Result future
 
     def __post_init__(self):
         if self.fut is None:
@@ -88,7 +88,7 @@ class GenerationJob(Job):
         """Execute generation job."""
         if worker is None:
             raise RuntimeError("No worker available for generation")
-        return worker.run_job(self)
+        return worker.run_job(self)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -123,7 +123,7 @@ class CustomJob(Job):
     """
     handler: Callable
     args: tuple = ()
-    kwargs: dict = None
+    kwargs: Optional[dict] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -133,7 +133,7 @@ class CustomJob(Job):
 
     def execute(self, worker: Optional[PipelineWorker]) -> Any:
         """Execute custom handler."""
-        return self.handler(*self.args, **self.kwargs)
+        return self.handler(*self.args, **self.kwargs)  # type: ignore[arg-type]
 
 
 class WorkerPool:
@@ -247,6 +247,7 @@ class WorkerPool:
         # Track VRAM before worker creation
         vram_before = self._registry.get_used_vram()
 
+        assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
         try:
             # Create worker using injected factory, passing fully-resolved model path
             self._worker = self._worker_factory(worker_id=0, model_path=mode.model_path)
@@ -281,7 +282,7 @@ class WorkerPool:
         # Register model in registry
         self._registry.register_model(
             name=mode_name,
-            model_path=mode.model_path,
+            model_path=mode.model_path or "",
             vram_bytes=vram_used,
             worker_id=0,
             loras=[lora.path for lora in mode.loras],

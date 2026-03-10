@@ -7,7 +7,9 @@ import uuid
 import requests
 import websocket  # websocket-client
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+Json = Dict[str, Any]
 
 class ComfyUIError(RuntimeError):
     pass
@@ -92,7 +94,7 @@ class ComfyUIInvoker:
         self,
         ws,
         prompt_id: str,
-        on_node: callable,
+        on_node: Callable,
         max_wait_s: float = 900,
     ) -> None:
         """
@@ -279,7 +281,8 @@ class ComfyUIInvoker:
             if not isinstance(v, dict):
                 continue
             for k in ("images", "gifs", "audio", "files"):
-                if isinstance(v.get(k), list) and len(v.get(k)) > 0:
+                val = v.get(k)
+                if isinstance(val, list) and len(val) > 0:
                     return True
         return False
 

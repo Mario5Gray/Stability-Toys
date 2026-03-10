@@ -72,7 +72,7 @@ async def start_job(
     )
 
     # Upload exactly once
-    up = inv.upload_image(content, filename=image.filename, image_type="input")
+    up = inv.upload_image(content, filename=image.filename or "", image_type="input")
     uploaded = {
         "name": up.get("name") or up.get("filename"),
         "subfolder": up.get("subfolder", ""),

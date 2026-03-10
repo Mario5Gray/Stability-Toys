@@ -13,7 +13,7 @@ import time
 import uuid
 import queue
 from urllib.error import URLError, HTTPError
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from server.http_utils import post_bytes
 
@@ -70,7 +70,7 @@ def register_job_hook() -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _error(msg: str, corr_id: str = None) -> dict:
+def _error(msg: str, corr_id: Optional[str] = None) -> dict:
     d = {"type": "error", "error": msg}
     if corr_id:
         d["id"] = corr_id
@@ -178,7 +178,7 @@ async def handle_telemetry_otlp(ws: WebSocket, msg: dict, client_id: str) -> dic
 @_handler("job:cancel")
 async def handle_job_cancel(ws: WebSocket, msg: dict, client_id: str) -> dict:
     job_id = msg.get("jobId")
-    task = _running_tasks.get(job_id)
+    task = _running_tasks.get(job_id)  # type: ignore[arg-type]
     if task and not task.done():
         task.cancel()
         return {"type": "job:cancel:ack", "id": msg.get("id"), "jobId": job_id, "detail": "cancelled"}

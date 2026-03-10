@@ -42,7 +42,8 @@ class ConfigFileHandler(FileSystemEventHandler):
             return
 
         # Check if this is our target file
-        event_path = Path(event.src_path).resolve()
+        src = event.src_path.decode() if isinstance(event.src_path, bytes) else event.src_path
+        event_path = Path(src).resolve()
         if event_path != self.file_path:
             return
 

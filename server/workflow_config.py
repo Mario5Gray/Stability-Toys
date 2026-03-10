@@ -53,7 +53,7 @@ class WorkflowConfigManager:
         
         self.config_path = Path(os.path.join(Path(config_path), "workflows.yml"))
         
-        self.config: Optional[WorkflowsYAML] = None
+        self.config: WorkflowsYAML = None  # type: ignore[assignment]
         self._load_config()
 
     def _load_config(self):

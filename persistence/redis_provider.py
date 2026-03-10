@@ -94,10 +94,7 @@ class RedisStorageProvider(StorageProvider):
         if not isinstance(value, (bytes, bytearray, memoryview)):
             raise TypeError("value must be bytes-like")
 
-        if ttl is None
-          ttl = STORAGE_TTL_IMAGE
-
-        ttl = int(ttl_s)
+        ttl = int(ttl_s) if ttl_s is not None else None
         if ttl is not None and ttl <= 0:
             # treat non-positive TTL as "expire immediately"
             ttl = 1
@@ -165,7 +162,7 @@ class RedisStorageProvider(StorageProvider):
         # StorageItem contract (adjust if your dataclass differs)
         return StorageItem(
             key=str(key),
-            value=val if isinstance(val, (bytes, bytearray)) else bytes(val),
+            value=val if isinstance(val, bytes) else bytes(val),
             content_type=content_type,
             meta=meta,
             created_at=created_at,
@@ -175,7 +172,7 @@ class RedisStorageProvider(StorageProvider):
         k = self._k(key)
         km = self._km(key)
         n = self.client.delete(k, km)
-        return n > 0
+        return n > 0  # type: ignore[operator]
 
     def health(self) -> Dict[str, Any]:
         """

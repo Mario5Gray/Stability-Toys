@@ -45,7 +45,7 @@ class StorageProvider:
         pass
 
     @staticmethod
-    def make_storage_provider_from_env() -> StorageProvider:
+    def make_storage_provider_from_env() -> Optional["StorageProvider"]:
         provider = os.environ.get("STORAGE_PROVIDER", "DISABLED").upper()
         print("storage:", provider)
         if provider == "MEMORY":
