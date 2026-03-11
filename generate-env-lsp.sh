@@ -53,20 +53,6 @@ echo "Resolving binaries..."
 
 fail=0
 
-resolve_bin() {
-    local name="$1" var="$2"
-    local path
-    path="$(which "$name" 2>/dev/null || true)"
-    if [ -z "$path" ]; then
-        miss "$name"
-        fail=1
-        echo ""
-    else
-        ok "$name → $path"
-        echo "$path"
-    fi
-}
-
 LSP_PYTHON="$(which python 2>/dev/null || true)"
 if [ -z "$LSP_PYTHON" ]; then
     miss "python"
@@ -109,8 +95,8 @@ HAS_JS=0
 for f in setup.py setup.cfg pyproject.toml requirements.txt; do
     [ -f "$REPO_ROOT/$f" ] && HAS_PYTHON=1 && break
 done
-[ -d "$REPO_ROOT/src" ] || [ -d "$REPO_ROOT/backends" ] || \
-    [ -d "$REPO_ROOT/server" ] || [ -d "$REPO_ROOT/lib" ] && HAS_PYTHON=1
+if [ -d "$REPO_ROOT/src" ] || [ -d "$REPO_ROOT/backends" ] || \
+   [ -d "$REPO_ROOT/server" ] || [ -d "$REPO_ROOT/lib" ]; then HAS_PYTHON=1; fi
 
 [ -f "$REPO_ROOT/package.json" ] && HAS_JS=1
 [ -f "$REPO_ROOT/jsconfig.json" ] && HAS_JS=1
@@ -225,6 +211,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$SCRIPT_DIR/env.custom" ] && source "$SCRIPT_DIR/env.custom"
+
+if [ ! -f "$SCRIPT_DIR/env.lsp" ]; then
+    echo "env.lsp not found. Run: ./generate-env-lsp.sh"
+    exit 1
+fi
 source "$SCRIPT_DIR/env.lsp"
 
 if [ ! -f "$LSP_PID" ]; then

@@ -5,6 +5,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 [ -f "$SCRIPT_DIR/env.custom" ] && source "$SCRIPT_DIR/env.custom"
+
+if [ ! -f "$SCRIPT_DIR/env.lsp" ]; then
+    echo "env.lsp not found. Run: ./generate-env-lsp.sh"
+    exit 1
+fi
 source "$SCRIPT_DIR/env.lsp"
 
 if [ ! -f "$LSP_PID" ]; then
