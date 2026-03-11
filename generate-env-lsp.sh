@@ -77,6 +77,15 @@ else
     ok "typescript-language-server → $LSP_TSS_BIN"
 fi
 
+# mcp-language-server is optional — warn but don't fail
+LSP_MCP_BIN="$(which mcp-language-server 2>/dev/null || true)"
+if [ -z "$LSP_MCP_BIN" ]; then
+    printf "  \033[33mwarn\033[0m   mcp-language-server not found (.mcp.json will be skipped)\n"
+    printf "         Install: go install github.com/isaacs/mcp-language-server@latest\n"
+else
+    ok "mcp-language-server → $LSP_MCP_BIN"
+fi
+
 if [ "$fail" -ne 0 ]; then
     echo ""
     echo "Install missing tools, then re-run:"
@@ -327,12 +336,53 @@ EOF
     fi
 fi
 
+# ── 9. write .mcp.json ────────────────────────────────────────────────────
+
+if [ -n "$LSP_MCP_BIN" ]; then
+    echo ""
+    echo "Writing .mcp.json..."
+
+    # Determine which LSP binary to wire up (prefer pyright for Python projects)
+    if [ "$HAS_PYTHON" -eq 1 ]; then
+        MCP_LSP_BIN="pyright-langserver"
+        MCP_LSP_ARGS='"--stdio"'
+    else
+        MCP_LSP_BIN="typescript-language-server"
+        MCP_LSP_ARGS='"--stdio"'
+    fi
+
+    write_file "$REPO_ROOT/.mcp.json" << EOF
+{
+  "mcpServers": {
+    "language-server": {
+      "command": "$LSP_MCP_BIN",
+      "args": [
+        "-workspace",
+        "$REPO_ROOT",
+        "-lsp",
+        "$MCP_LSP_BIN",
+        "--",
+        $MCP_LSP_ARGS
+      ],
+      "env": {
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+EOF
+    # .mcp.json contains machine-specific absolute paths — gitignore it
+    gitignore_add ".mcp.json"
+fi
+
 # ── done ──────────────────────────────────────────────────────────────────
 
 echo ""
 echo "Done. Next steps:"
 echo "  ./check-types.sh          # run pyright now"
 echo "  ./start-lsp.sh            # verify prereqs (bridge stub)"
+[ -n "$LSP_MCP_BIN" ] && \
+    echo "  .mcp.json written         # restart Claude Code to pick up the MCP server"
 [ "$HAS_PYTHON" -eq 1 ] && [ "$FORCE" -eq 0 ] && \
     echo "  Review pyrightconfig.json — adjust 'include'/'exclude' for this project"
 echo ""
