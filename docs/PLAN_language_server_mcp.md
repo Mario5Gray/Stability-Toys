@@ -160,7 +160,24 @@ stdin/stdout. The MCP bridge (Phase 3) manages these processes.
 
 ---
 
-## Phase 2 — Deployment Planning
+## Phase 2 — Deployment Planning ✅ COMPLETE
+
+### 2.0 Delivered scripts
+
+| File | Purpose |
+|---|---|
+| `env.lsp` | Sourced config: workspace root, binary paths, port, log/PID locations. All vars have self-resolving defaults; override in `env.custom`. |
+| `start-lsp.sh` | Prereq check (node, pyright-langserver, typescript-language-server, python); idempotent start with PID guard; Phase 3 bridge stub clearly marked. |
+| `stop-lsp.sh` | PID-based daemon stop; handles stale PID file gracefully. |
+| `check-types.sh` | Runs `pyright --pythonpath "$LSP_PYTHON"` with pass-through args. |
+
+**`env.custom` pattern (identical to the rest of the project):** create `env.custom`
+at repo root to override any `env.lsp` default without modifying tracked files:
+```bash
+# env.custom — git-ignored, machine-specific
+LSP_PYTHON=/usr/local/bin/python3.12
+LSP_PORT=7891
+```
 
 ### 2.1 Decision: host-local vs Docker
 
@@ -391,8 +408,11 @@ Phase 1 (config files + type annotation pass) ✅ DONE
   │       invokers/, persistence/ (2026-03)
   └── ✅ pyright . → 0 errors, 0 warnings
 
-Phase 2 (process model decision, no new services yet)  ⬜ PENDING
-  └── document the host-local deployment decision in env.custom or README
+Phase 2 (process model + repeatable rollout scripts)  ✅ DONE
+  ├── ✅ env.lsp          — all config vars with self-resolving defaults
+  ├── ✅ start-lsp.sh     — prereq check + bridge lifecycle (Phase 3 stub in place)
+  ├── ✅ stop-lsp.sh      — PID-based daemon teardown
+  └── ✅ check-types.sh   — pyright check-mode with correct --pythonpath
 
 Phase 3a (bridge MVP)  ⬜ PENDING
   ├── evaluate existing mcp-language-server
@@ -413,6 +433,6 @@ Phase 3b (extended tools)  ⬜ PENDING
 | Phase | Done when | Status |
 |---|---|---|
 | 1 | `pyright .` runs clean; `jsconfig.json` accepted by tsserver with no parse errors | ✅ **DONE** (2026-03) |
-| 2 | Bridge process model documented; env vars defined; startup/shutdown scripted | ⬜ pending |
+| 2 | Bridge process model documented; env vars defined; startup/shutdown scripted | ✅ **DONE** (2026-03) |
 | 3a | Agent can ask "what type is `fut` on line X of `worker_pool.py`?" and get a correct answer | ⬜ pending |
 | 3b | Agent can rename `_free_worker` and receive a per-file diff it can review before applying | ⬜ pending |
