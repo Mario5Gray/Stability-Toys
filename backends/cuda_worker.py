@@ -57,6 +57,8 @@ class CudaWorkerBase:
         self.dtype_str = dtype_str
         self._enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
         self._attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
+        self._quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
+        self._offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
 
     def _setup_pipe_memory_opts(self, pipe):
         """Apply device placement and memory optimizations to a loaded pipeline.
@@ -211,7 +213,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
 
         print(
             f"[cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {self.device} dtype={self.dtype_str} style_api={self._style_api}"
+            f"({format_name}) on {self.device} dtype={self.dtype_str} "
+            f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
         )
 
     # ---------------------------
@@ -464,7 +467,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
 
         print(
             f"[sdxl-cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {self.device} dtype={self.dtype_str} style_api={self._style_api}"
+            f"({format_name}) on {self.device} dtype={self.dtype_str} "
+            f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
         )
 
     # ---------------------------
