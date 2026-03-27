@@ -30,7 +30,7 @@ It has since evolved into a **playground for experimenting with various generati
 
 The original RKNN-focused repository exists at the upstream project. **Going forward, you will see continual support for RKNN**, as it was the original motivation. Development continues toward making RKNN and IoT NPU rendering nearly as fast as full-blown GPU rendering.
 
-**THIS project** is the experimental branch where new features are prototyped, tested, and refined before potentially being backported to the RKNN-optimized upstream.
+**T:HIS project** is the experimental branch where new features are prototyped, tested, and refined before potentially being backported to the RKNN-optimized upstream.
 
 ---
 
@@ -175,6 +175,19 @@ DEFAULT_SIZE=512x512
 DEFAULT_STEPS=4
 DEFAULT_GUIDANCE=1.0
 DEFAULT_TIMEOUT=120
+
+# CUDA (GPU backend) — all optional, safe to omit
+CUDA_DEVICE=cuda:0         # Which GPU to use
+CUDA_DTYPE=fp16            # Weight dtype: fp16 | bf16 | fp32
+CUDA_ENABLE_XFORMERS=0     # Enable xformers memory-efficient attention: 0 | 1
+CUDA_ATTENTION_SLICING=0   # Enable attention slicing (lower VRAM, slower): 0 | 1
+CUDA_QUANTIZE=none         # fp8 weight quantization via optimum-quanto: none | fp8
+                           # Halves UNet VRAM footprint; requires optimum-quanto installed
+                           # Combine with CUDA_OFFLOAD=model for maximum savings
+CUDA_OFFLOAD=none          # CPU offload strategy: none | model | sequential
+                           # model: moves each sub-model to GPU only when needed (recommended)
+                           # sequential: layer-by-layer offload (lowest VRAM, slowest)
+                           # Must NOT set CUDA_DEVICE when using model or sequential
 
 # RKNN-specific (NPU backend)
 USE_RKNN_CONTEXT_CFGS=1    # Enable multi-context support

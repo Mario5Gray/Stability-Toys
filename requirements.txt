@@ -8,6 +8,7 @@ nvidia-ml-py
 # Newer models need this
 peft>=0.10
 accelerate>=0.30
+optimum-quanto>=0.2.0
 xformers
 
 # utils
