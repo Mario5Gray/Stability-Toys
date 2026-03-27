@@ -64,10 +64,11 @@ class CudaWorkerBase:
         """Apply device placement and memory optimizations to a loaded pipeline.
 
         Call after pipeline load and scheduler config, before storing self.pipe.
+        xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
-        pipe = pipe.to(self.device)
         pipe.vae.enable_tiling()
+        pipe.vae.enable_vae_slicing()
         if self._attention_slicing:
             pipe.enable_attention_slicing()
         if self._enable_xformers:
@@ -76,6 +77,12 @@ class CudaWorkerBase:
                 print(f"[cuda] worker {self.worker_id}: xformers enabled")
             except Exception as e:
                 print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+        if self._offload == "sequential":
+            pipe.enable_sequential_cpu_offload()
+        elif self._offload == "model":
+            pipe.enable_model_cpu_offload()
+        else:
+            pipe = pipe.to(self.device)
         return pipe
 
     # ---------------------------
