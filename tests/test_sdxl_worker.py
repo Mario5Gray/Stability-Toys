@@ -102,7 +102,7 @@ def sdxl_worker():
     from backends.cuda_worker import DiffusersSDXLCudaWorker
 
     print(f"\n[test] Loading SDXL model from {ckpt_path}")
-    worker = DiffusersSDXLCudaWorker(worker_id=0)
+    worker = DiffusersSDXLCudaWorker(worker_id=0, model_path=ckpt_path)
     print(f"[test] SDXL worker initialized successfully")
 
     yield worker

@@ -313,12 +313,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
           - raw tensor bytes for NCHW float16 with shape [1,4,8,8]
           - intended for hashing / similarity bookkeeping
 
-        Implementation:
-          - preserves existing image-generation logic by calling run_job()
-          - runs a second pass ONLY to obtain latents (output_type="latent")
+        Single-pass: runs pipeline once with output_type="latent", then
+        decodes via VAE. Eliminates the previous double-denoising approach.
         """
+        from backends.latents import latent_to_nchw, downsample_to_8x8_nchw
+
         req = job.req
-        png_bytes, seed = self.run_job(job)
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
@@ -326,10 +326,11 @@ class DiffusersCudaWorker(CudaWorkerBase):
         except Exception:
             raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
 
-        gen = torch.Generator(device=self.device)
-        gen.manual_seed(int(seed))
+        seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
 
-        # Apply the same style for latent pass so latents match the image pass.
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(seed)
+
         sl = getattr(req, "style_lora", None)
         style_id = getattr(sl, "style", None) if sl else None
         level = int(getattr(sl, "level", 0)) if sl else 0
@@ -337,7 +338,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
 
         with torch.inference_mode():
-            out_lat = self.pipe(
+            out = self.pipe(
                 prompt=req.prompt,
                 width=width,
                 height=height,
@@ -350,28 +351,34 @@ class DiffusersCudaWorker(CudaWorkerBase):
 
         self._apply_style(None, 0)
 
-        lat = out_lat.images  # type: ignore[union-attr]
-        del out_lat  # free pipeline output before tensor ops
-        if isinstance(lat, (list, tuple)):
-            lat = lat[0]
+        lat = out.images  # type: ignore[union-attr]
+        del out
 
-        if not torch.is_tensor(lat):
-            lat = torch.as_tensor(lat)
+        # Decode latents → pixel image
+        with torch.inference_mode():
+            decoded = self.pipe.vae.decode(lat / self.pipe.vae.config.scaling_factor).sample
+        img = decoded.clamp(-1, 1).add(1).div(2)  # [-1,1] → [0,1]
+        img = img[0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+        img = Image.fromarray(img)
 
-        if lat.ndim != 4:
-            raise RuntimeError(f"Unexpected latent rank {lat.ndim}, shape={tuple(lat.shape)}")
+        pnginfo = PngImagePlugin.PngInfo()
+        pnginfo.add_text("lcm", json.dumps({
+            "prompt": req.prompt,
+            "seed": seed,
+            "size": req.size,
+            "steps": int(req.num_inference_steps),
+            "cfg": float(req.guidance_scale),
+        }))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", pnginfo=pnginfo)
+        png_bytes = buf.getvalue()
 
-        # Downsample to [1,4,8,8]
-        # PERF NOTE: do pooling in fp32 to reduce pooling artifacts; then cast to fp16.
-        lat_8 = torch.nn.functional.adaptive_avg_pool2d(lat.to(dtype=torch.float32), (8, 8))
-        del lat
-        lat_8 = lat_8.to(dtype=torch.float16).contiguous()
-
-        # PERF NOTE: astype(copy=False) avoids extra copy when already float16.
-        lat_np = lat_8.detach().cpu().numpy().astype(np.float16, copy=False)
-        del lat_8
+        # Downsample latents to [1,4,8,8] float16 for similarity bookkeeping
+        lat_nchw = latent_to_nchw(lat)
+        lat_8 = downsample_to_8x8_nchw(lat_nchw).astype(np.float16)
+        del lat, decoded
         torch.cuda.empty_cache()
-        return png_bytes, seed, lat_np.tobytes(order="C")
+        return png_bytes, seed, lat_8.tobytes(order="C")
 
 
 class DiffusersSDXLCudaWorker(CudaWorkerBase):
@@ -577,12 +584,13 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
           - raw tensor bytes for NCHW float16 with shape [1,4,8,8]
           - intended for hashing / similarity bookkeeping
 
-        Implementation:
-          - preserves existing image-generation logic by calling run_job()
-          - runs a second pass ONLY to obtain latents (output_type="latent")
+        Single-pass: runs pipeline once with output_type="latent", then
+        decodes via VAE. Eliminates the previous double-denoising approach.
+        Note: SDXL VAE scaling_factor=0.13025 (from pipe.vae.config, no hardcode).
         """
+        from backends.latents import latent_to_nchw, downsample_to_8x8_nchw
+
         req = job.req
-        png_bytes, seed = self.run_job(job)
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
@@ -590,10 +598,11 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         except Exception:
             raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
 
-        gen = torch.Generator(device=self.device)
-        gen.manual_seed(int(seed))
+        seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
 
-        # Apply the same style for latent pass so latents match the image pass.
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(seed)
+
         sl = getattr(req, "style_lora", None)
         style_id = getattr(sl, "style", None) if sl else None
         level = int(getattr(sl, "level", 0)) if sl else 0
@@ -601,7 +610,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
 
         with torch.inference_mode():
-            out_lat = self.pipe(
+            out = self.pipe(
                 prompt=req.prompt,
                 width=width,
                 height=height,
@@ -614,24 +623,31 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
 
         self._apply_style(None, 0)
 
-        lat = out_lat.images  # type: ignore[union-attr]
-        del out_lat
-        if isinstance(lat, (list, tuple)):
-            lat = lat[0]
+        lat = out.images  # type: ignore[union-attr]
+        del out
 
-        if not torch.is_tensor(lat):
-            lat = torch.as_tensor(lat)
+        # Decode latents → pixel image
+        with torch.inference_mode():
+            decoded = self.pipe.vae.decode(lat / self.pipe.vae.config.scaling_factor).sample
+        img = decoded.clamp(-1, 1).add(1).div(2)  # [-1,1] → [0,1]
+        img = img[0].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+        img = Image.fromarray(img)
 
-        if lat.ndim != 4:
-            raise RuntimeError(f"Unexpected latent rank {lat.ndim}, shape={tuple(lat.shape)}")
+        pnginfo = PngImagePlugin.PngInfo()
+        pnginfo.add_text("lcm", json.dumps({
+            "prompt": req.prompt,
+            "seed": seed,
+            "size": req.size,
+            "steps": int(req.num_inference_steps),
+            "cfg": float(req.guidance_scale),
+        }))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", pnginfo=pnginfo)
+        png_bytes = buf.getvalue()
 
-        # Downsample to [1,4,8,8]
-        # PERF NOTE: do pooling in fp32 to reduce pooling artifacts; then cast to fp16.
-        lat_8 = torch.nn.functional.adaptive_avg_pool2d(lat.to(dtype=torch.float32), (8, 8))
-        del lat
-        lat_8 = lat_8.to(dtype=torch.float16).contiguous()
-
-        lat_np = lat_8.detach().cpu().numpy().astype(np.float16, copy=False)
-        del lat_8
+        # Downsample latents to [1,4,8,8] float16 for similarity bookkeeping
+        lat_nchw = latent_to_nchw(lat)
+        lat_8 = downsample_to_8x8_nchw(lat_nchw).astype(np.float16)
+        del lat, decoded
         torch.cuda.empty_cache()
-        return png_bytes, seed, lat_np.tobytes(order="C")
+        return png_bytes, seed, lat_8.tobytes(order="C")
