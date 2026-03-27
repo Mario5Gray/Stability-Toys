@@ -85,13 +85,23 @@ class CudaWorkerBase:
                 print(f"[cuda] worker {self.worker_id}: xformers enabled")
             except Exception as e:
                 print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+        gpu_id = self._device_index()
         if self._offload == "sequential":
-            pipe.enable_sequential_cpu_offload()
+            pipe.enable_sequential_cpu_offload(gpu_id=gpu_id)
         elif self._offload == "model":
-            pipe.enable_model_cpu_offload()
+            pipe.enable_model_cpu_offload(gpu_id=gpu_id)
         else:
             pipe = pipe.to(self.device)
         return pipe
+
+    def _device_index(self) -> int:
+        """Parse the integer device index from self.device (e.g. 'cuda:1' → 1)."""
+        if ":" in self.device:
+            try:
+                return int(self.device.split(":")[-1])
+            except ValueError:
+                return 0
+        return 0
 
     # ---------------------------
     # Style application (exclusive)

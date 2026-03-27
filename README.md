@@ -187,7 +187,7 @@ CUDA_QUANTIZE=none         # fp8 weight quantization via optimum-quanto: none | 
 CUDA_OFFLOAD=none          # CPU offload strategy: none | model | sequential
                            # model: moves each sub-model to GPU only when needed (recommended)
                            # sequential: layer-by-layer offload (lowest VRAM, slowest)
-                           # Must NOT set CUDA_DEVICE when using model or sequential
+                           # CUDA_DEVICE is respected; set it to target a specific GPU
 
 # RKNN-specific (NPU backend)
 USE_RKNN_CONTEXT_CFGS=1    # Enable multi-context support
