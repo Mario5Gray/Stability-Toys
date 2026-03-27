@@ -79,10 +79,8 @@ class WorkflowConfigManager:
 
         if "workflows" not in data or not data["workflows"]:
             logger.error("workflows.yml missing or empty: workflows")
-        else:
             data["workflows"] = {}
-
-        
+            
         workflows: Dict[str, WorkflowConfig] = {}
 
         for wf_name, wf_data in data["workflows"].items():

@@ -31,3 +31,6 @@ env.custom
 =======
 .mcp.json
 >>>>>>> Stashed changes
+
+# Fiberplane local issue tracking
+.fp/
