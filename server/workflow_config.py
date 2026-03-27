@@ -58,7 +58,7 @@ class WorkflowConfigManager:
 
     def _load_config(self):
         if not self.config_path.exists():
-            raise FileNotFoundError(
+            logger.error(
                 f"workflows.yml not found at {self.config_path}. "
                 f"Create this file to define ComfyUI workflows."
             )
@@ -69,14 +69,20 @@ class WorkflowConfigManager:
             data = yaml.safe_load(f)
 
         if not data:
-            raise ValueError("workflows.yml is empty")
+            logger.error("workflows.yml is empty")
+            data = {}
 
         if "default_workflow" not in data:
-            raise ValueError("workflows.yml missing required field: default_workflow")
-        if "workflows" not in data or not data["workflows"]:
-            raise ValueError("workflows.yml missing or empty: workflows")
+            logger.error("workflows.yml missing required field: default_workflow")
+        else:
+            default_workflow = data["default_workflow"]
 
-        default_workflow = data["default_workflow"]
+        if "workflows" not in data or not data["workflows"]:
+            logger.error("workflows.yml missing or empty: workflows")
+        else:
+            data["workflows"] = {}
+
+        
         workflows: Dict[str, WorkflowConfig] = {}
 
         for wf_name, wf_data in data["workflows"].items():
