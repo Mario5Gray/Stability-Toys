@@ -319,6 +319,45 @@ class TestEstimateVRAM:
         estimated = registry.estimate_model_vram("/models/nonexistent.safetensors")
         assert estimated == 0
 
+    @patch('os.path.exists')
+    @patch('os.path.getsize')
+    @patch('builtins.open', new_callable=MagicMock)
+    def test_estimate_vram_fp8_safetensors(self, mock_open, mock_getsize, mock_exists, registry):
+        """fp8 safetensors uses multiplier 1.1, not 1.2."""
+        import json
+        import struct
+
+        mock_exists.return_value = True
+        mock_getsize.return_value = 4 * 1024**3  # 4 GB fp8 file
+
+        # Build a minimal safetensors header with fp8 dtype
+        header = {"model.weight": {"dtype": "F8_E4M3", "shape": [1024, 1024], "data_offsets": [0, 2097152]}}
+        header_bytes = json.dumps(header).encode()
+        header_size_bytes = struct.pack("<Q", len(header_bytes))
+
+        mock_file = MagicMock()
+        mock_file.__enter__ = lambda s: s
+        mock_file.__exit__ = MagicMock(return_value=False)
+        mock_file.read.side_effect = [header_size_bytes, header_bytes]
+        mock_open.return_value = mock_file
+
+        estimated = registry.estimate_model_vram("/models/sdxl_fp8.safetensors")
+
+        # fp8 multiplier is 1.1
+        assert estimated == pytest.approx(4 * 1.1 * 1024**3, rel=0.01)
+
+    @patch('os.path.exists')
+    @patch('os.path.getsize')
+    @patch('builtins.open', side_effect=OSError("unreadable"))
+    def test_estimate_vram_header_read_error_falls_back(self, mock_open, mock_getsize, mock_exists, registry):
+        """Header read failure falls back to 1.2 multiplier."""
+        mock_exists.return_value = True
+        mock_getsize.return_value = 6 * 1024**3
+
+        estimated = registry.estimate_model_vram("/models/broken.safetensors")
+
+        assert estimated == pytest.approx(6 * 1.2 * 1024**3, rel=0.01)
+
 
 class TestThreadSafety:
     """Test thread-safe operations."""

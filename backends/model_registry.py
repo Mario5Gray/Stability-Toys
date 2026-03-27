@@ -184,8 +184,13 @@ class ModelRegistry:
         """
         Estimate VRAM requirement for a model.
 
-        Uses file size as rough estimate. Actual usage will be measured
-        after loading via torch.cuda.memory_allocated().
+        Uses file size with a dtype-aware multiplier:
+          fp8  (float8_e4m3fn / float8_e5m2) → 1.1  (file IS the compressed size)
+          fp16 / bf16                         → 1.2  (standard overhead)
+          fp32                                → 0.6  (loaded as fp16, halved)
+          fallback / non-safetensors          → 1.2
+
+        Actual usage is measured after loading via torch.cuda.memory_allocated().
 
         Args:
             model_path: Path to model file
@@ -200,16 +205,46 @@ class ModelRegistry:
             return 0
 
         file_size = os.path.getsize(model_path)
-
-        # Rough estimate: model file size + 20% overhead for inference
-        estimated = int(file_size * 1.2)
+        multiplier = self._safetensors_vram_multiplier(model_path)
+        estimated = int(file_size * multiplier)
 
         logger.debug(
             f"[ModelRegistry] Estimated VRAM for {model_path}: "
-            f"{estimated / 1024**3:.2f} GB"
+            f"{estimated / 1024**3:.2f} GB (multiplier={multiplier})"
         )
 
         return estimated
+
+    def _safetensors_vram_multiplier(self, model_path: str) -> float:
+        """Return a dtype-aware file-size multiplier for safetensors files.
+
+        Reads only the safetensors header (no tensor data loaded).
+        Falls back to 1.2 on any error or for non-safetensors files.
+        """
+        if not model_path.endswith(".safetensors"):
+            return 1.2
+
+        try:
+            import json
+            import struct
+
+            with open(model_path, "rb") as f:
+                header_size = struct.unpack("<Q", f.read(8))[0]
+                header = json.loads(f.read(header_size))
+
+            sample_dtypes = {
+                v["dtype"].upper()
+                for k, v in header.items()
+                if k != "__metadata__" and isinstance(v, dict) and "dtype" in v
+            }
+
+            if sample_dtypes & {"F8_E4M3", "F8_E5M2"}:
+                return 1.1
+            if sample_dtypes & {"F32"}:
+                return 0.6
+            return 1.2
+        except Exception:
+            return 1.2
 
     def get_vram_stats(self) -> Dict[str, Any]:
         """
