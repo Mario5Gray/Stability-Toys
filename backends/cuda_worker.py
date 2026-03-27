@@ -67,6 +67,14 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
+        if self._quantize == "fp8":
+            from optimum.quanto import freeze, quantize, qfloat8
+            quantize(pipe.unet, weights=qfloat8)
+            freeze(pipe.unet)
+            if hasattr(pipe, "text_encoder_2"):  # SDXL only (~1.4 GB)
+                quantize(pipe.text_encoder_2, weights=qfloat8)
+                freeze(pipe.text_encoder_2)
+            print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
         pipe.vae.enable_tiling()
         pipe.vae.enable_vae_slicing()
         if self._attention_slicing:
