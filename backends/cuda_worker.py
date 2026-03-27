@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 import json
 import os
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -15,14 +15,105 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import
 from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipeline
 
-from .base import PipelineWorker
-from backends.styles import STYLE_REGISTRY, parse_style_request
+from backends.styles import STYLE_REGISTRY
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).lower() in ("1", "true", "yes", "on")
 
-class DiffusersCudaWorker(PipelineWorker):
+
+class CudaWorkerBase:
+    """Shared base for CUDA diffusers workers.
+
+    Centralises env-var parsing, device placement, and style-LoRA application
+    so SD1.5 and SDXL workers stay in sync without code duplication.
+
+    Subclass contract:
+      - Call super().__init__(worker_id) first.
+      - Load the pipeline, set the scheduler, then call:
+            pipe = self._setup_pipe_memory_opts(pipe)
+      - Store self.pipe after that call returns.
+    """
+
+    pipe: Any  # set by subclass __init__ after pipeline load
+
+    def __init__(self, worker_id: int) -> None:
+        self.worker_id = worker_id
+        self._style_loaded: dict[str, bool] = {}
+        self._style_api: str = "unknown"
+        self._img2img_pipe = None
+        self._parse_env()
+
+    def _parse_env(self) -> None:
+        """Parse all CUDA_* env vars into instance attributes."""
+        self.device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
+        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
+        if dtype_str == "bf16":
+            self.dtype = torch.bfloat16
+        elif dtype_str == "fp32":
+            self.dtype = torch.float32
+        else:
+            self.dtype = torch.float16
+        self.dtype_str = dtype_str
+        self._enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
+        self._attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
+
+    def _setup_pipe_memory_opts(self, pipe):
+        """Apply device placement and memory optimizations to a loaded pipeline.
+
+        Call after pipeline load and scheduler config, before storing self.pipe.
+        Returns the (possibly modified) pipe.
+        """
+        pipe = pipe.to(self.device)
+        pipe.vae.enable_tiling()
+        if self._attention_slicing:
+            pipe.enable_attention_slicing()
+        if self._enable_xformers:
+            try:
+                pipe.enable_xformers_memory_efficient_attention()
+                print(f"[cuda] worker {self.worker_id}: xformers enabled")
+            except Exception as e:
+                print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+        return pipe
+
+    # ---------------------------
+    # Style application (exclusive)
+    # ---------------------------
+    def _apply_style(self, style_id: str | None, level: int) -> None:
+        """Apply or disable a style LoRA."""
+        if not style_id or int(level) <= 0:
+            if hasattr(self.pipe, "disable_lora"):
+                self.pipe.disable_lora()
+            elif hasattr(self.pipe, "set_adapters"):
+                self.pipe.set_adapters([])
+            return
+
+        sd = STYLE_REGISTRY.get(style_id)
+        if not sd:
+            if hasattr(self.pipe, "disable_lora"):
+                self.pipe.disable_lora()
+            return
+
+        # clamp level 1..N
+        lvl = max(1, min(int(level), len(sd.levels)))
+        weight = float(sd.levels[lvl - 1])
+
+        if not self._style_loaded.get(sd.adapter_name, False):
+            return
+
+        if hasattr(self.pipe, "set_adapters"):
+            self.pipe.set_adapters([sd.adapter_name], adapter_weights=[weight])
+        elif hasattr(self.pipe, "fuse_lora"):
+            # fallback: not ideal if concurrent, but your CUDA path is 1 worker
+            if hasattr(self.pipe, "unfuse_lora"):
+                try:
+                    self.pipe.unfuse_lora()
+                except Exception:
+                    pass
+            self.pipe.fuse_lora(lora_scale=weight)
+
+
+class DiffusersCudaWorker(CudaWorkerBase):
     """
     CUDA Diffusers worker for SD1.5 LCM models.
 
@@ -37,25 +128,10 @@ class DiffusersCudaWorker(PipelineWorker):
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
     def __init__(self, worker_id: int, model_path: str):
-        self.worker_id = worker_id
-        self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
-        self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
+        super().__init__(worker_id)
 
         ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
-
-        device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
-
-        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
-        if dtype_str == "bf16":
-            dtype = torch.bfloat16
-        elif dtype_str == "fp32":
-            dtype = torch.float32
-        else:
-            dtype = torch.float16
-
-        enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
-        attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
 
         is_diffusers_dir = os.path.isdir(ckpt_path) and os.path.exists(
             os.path.join(ckpt_path, "model_index.json")
@@ -65,7 +141,7 @@ class DiffusersCudaWorker(PipelineWorker):
             print("loading diffusers")
             pipe = StableDiffusionPipeline.from_pretrained(
                 ckpt_path,
-                torch_dtype=dtype,
+                torch_dtype=self.dtype,
                 safety_checker=None,
                 requires_safety_checker=False,
             )
@@ -74,7 +150,7 @@ class DiffusersCudaWorker(PipelineWorker):
             print("loading safetensors")
             pipe = StableDiffusionPipeline.from_single_file(
                 ckpt_path,
-                torch_dtype=dtype,
+                torch_dtype=self.dtype,
                 safety_checker=None,
                 requires_safety_checker=False,
             )
@@ -82,23 +158,9 @@ class DiffusersCudaWorker(PipelineWorker):
 
         # LCM scheduler
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-        pipe = pipe.to(device)
-
-        pipe.vae.enable_tiling()
-
-        if attention_slicing:
-            pipe.enable_attention_slicing()
-
-        if enable_xformers:
-            try:
-                pipe.enable_xformers_memory_efficient_attention()
-            except Exception as e:
-                print(f"[cuda] worker {worker_id}: xformers enable failed: {e!r}")
+        pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
-        self.device = device
-        self.dtype = dtype
-        self._img2img_pipe = None  # Lazily created from self.pipe.components
 
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
         te_dim = getattr(te_dim, "hidden_size", None)
@@ -148,45 +210,9 @@ class DiffusersCudaWorker(PipelineWorker):
             self._style_api = "none"
 
         print(
-            f"[cuda] worker {worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {device} dtype={dtype_str} style_api={self._style_api}"
+            f"[cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
+            f"({format_name}) on {self.device} dtype={self.dtype_str} style_api={self._style_api}"
         )
-
-    # ---------------------------
-    # Style application (exclusive)
-    # ---------------------------
-    def _apply_style(self, style_id: str | None, level: int) -> None:
-        # turn off
-        if not style_id or int(level) <= 0:
-            if hasattr(self.pipe, "disable_lora"):
-                self.pipe.disable_lora()
-            elif hasattr(self.pipe, "set_adapters"):
-                self.pipe.set_adapters([])
-            return
-
-        sd = STYLE_REGISTRY.get(style_id)
-        if not sd:
-            if hasattr(self.pipe, "disable_lora"):
-                self.pipe.disable_lora()
-            return
-
-        # clamp level 1..N
-        lvl = max(1, min(int(level), len(sd.levels)))
-        weight = float(sd.levels[lvl - 1])
-
-        if not self._style_loaded.get(sd.adapter_name, False):
-            return
-
-        if hasattr(self.pipe, "set_adapters"):
-            self.pipe.set_adapters([sd.adapter_name], adapter_weights=[weight])
-        elif hasattr(self.pipe, "fuse_lora"):
-            # fallback: not ideal if concurrent, but your CUDA path is 1 worker
-            if hasattr(self.pipe, "unfuse_lora"):
-                try:
-                    self.pipe.unfuse_lora()
-                except Exception:
-                    pass
-            self.pipe.fuse_lora(lora_scale=weight)
 
     # ---------------------------
     # Job execution
@@ -330,7 +356,7 @@ class DiffusersCudaWorker(PipelineWorker):
         return png_bytes, seed, lat_np.tobytes(order="C")
 
 
-class DiffusersSDXLCudaWorker(PipelineWorker):
+class DiffusersSDXLCudaWorker(CudaWorkerBase):
     """
     CUDA Diffusers worker for SDXL (Stable Diffusion XL) models.
 
@@ -354,25 +380,10 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
     """
 
     def __init__(self, worker_id: int, model_path: str):
-        self.worker_id = worker_id
-        self._style_loaded: dict[str, bool] = {}  # adapter_name -> bool
-        self._style_api: str = "unknown"  # "adapters" | "fuse" | "none"
+        super().__init__(worker_id)
 
         ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
-
-        device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
-
-        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
-        if dtype_str == "bf16":
-            dtype = torch.bfloat16
-        elif dtype_str == "fp32":
-            dtype = torch.float32
-        else:
-            dtype = torch.float16
-
-        enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
-        attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
 
         # Check if diffusers format
         is_diffusers_dir = os.path.isdir(ckpt_path) and os.path.exists(
@@ -383,40 +394,24 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
         if is_diffusers_dir:
             pipe = StableDiffusionXLPipeline.from_pretrained(
                 ckpt_path,
-                torch_dtype=dtype,
+                torch_dtype=self.dtype,
                 use_safetensors=True,
-                variant="fp16" if dtype == torch.float16 else None,
+                variant="fp16" if self.dtype == torch.float16 else None,
             )
             format_name = "diffusers"
         else:
             # Single-file SDXL checkpoint
             pipe = StableDiffusionXLPipeline.from_single_file(
                 ckpt_path,
-                torch_dtype=dtype,
+                torch_dtype=self.dtype,
             )
             format_name = "single-file"
 
         # Convert to LCM scheduler for fast inference
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-        pipe = pipe.to(device)
-
-        # Enable VAE tiling for memory efficiency (important for SDXL)
-        pipe.vae.enable_tiling()
-
-        if attention_slicing:
-            pipe.enable_attention_slicing()
-
-        if enable_xformers:
-            try:
-                pipe.enable_xformers_memory_efficient_attention()
-                print(f"[sdxl-cuda] worker {worker_id}: xformers enabled")
-            except Exception as e:
-                print(f"[sdxl-cuda] worker {worker_id}: xformers enable failed: {e!r}")
+        pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
-        self.device = device
-        self.dtype = dtype
-        self._img2img_pipe = None  # Lazily created from self.pipe.components
 
         # Get text encoder dimensions
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
@@ -468,46 +463,9 @@ class DiffusersSDXLCudaWorker(PipelineWorker):
             self._style_api = "none"
 
         print(
-            f"[sdxl-cuda] worker {worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {device} dtype={dtype_str} style_api={self._style_api}"
+            f"[sdxl-cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
+            f"({format_name}) on {self.device} dtype={self.dtype_str} style_api={self._style_api}"
         )
-
-    # ---------------------------
-    # Style application (exclusive)
-    # ---------------------------
-    def _apply_style(self, style_id: str | None, level: int) -> None:
-        """Apply or disable a style LoRA."""
-        # turn off
-        if not style_id or int(level) <= 0:
-            if hasattr(self.pipe, "disable_lora"):
-                self.pipe.disable_lora()
-            elif hasattr(self.pipe, "set_adapters"):
-                self.pipe.set_adapters([])
-            return
-
-        sd = STYLE_REGISTRY.get(style_id)
-        if not sd:
-            if hasattr(self.pipe, "disable_lora"):
-                self.pipe.disable_lora()
-            return
-
-        # clamp level 1..N
-        lvl = max(1, min(int(level), len(sd.levels)))
-        weight = float(sd.levels[lvl - 1])
-
-        if not self._style_loaded.get(sd.adapter_name, False):
-            return
-
-        if hasattr(self.pipe, "set_adapters"):
-            self.pipe.set_adapters([sd.adapter_name], adapter_weights=[weight])
-        elif hasattr(self.pipe, "fuse_lora"):
-            # fallback: not ideal if concurrent, but your CUDA path is 1 worker
-            if hasattr(self.pipe, "unfuse_lora"):
-                try:
-                    self.pipe.unfuse_lora()
-                except Exception:
-                    pass
-            self.pipe.fuse_lora(lora_scale=weight)
 
     # ---------------------------
     # Job execution
