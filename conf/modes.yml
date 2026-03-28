@@ -12,3 +12,8 @@ modes:
     default_size: 512x512
     default_steps: 8
     default_guidance: 2.5
+  sdxl:
+    model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
+    default_size: 512x512
+    default_steps: 8
+    default_guidance: 2.8

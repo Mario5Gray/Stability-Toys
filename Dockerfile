@@ -64,6 +64,14 @@ RUN update-ca-certificates && \
 # Install python deps
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt /app/requirements.txt
+
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir nvidia-ml-py; \
+    fi
+
+# Install cuda12.8 because we have to for xformers.
 RUN if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir \
         torch==2.10.0 \
@@ -71,11 +79,6 @@ RUN if [ "$BACKEND" = "cuda" ]; then \
         torchaudio==2.10.0 \
         xformers==0.0.34 \
         --index-url https://download.pytorch.org/whl/cu128; \
-    fi
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-RUN if [ "$BACKEND" = "cuda" ]; then \
-      pip install --no-cache-dir nvidia-ml-py; \
     fi
 
 # Copy server code 
