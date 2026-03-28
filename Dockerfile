@@ -62,9 +62,16 @@ RUN update-ca-certificates && \
 
 
 # Install python deps
-# (Put your real requirements in requirements.txt)
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt /app/requirements.txt
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir \
+        torch==2.10.0 \
+        torchvision==0.25.0 \
+        torchaudio==2.10.0 \
+        xformers==0.0.34 \
+        --index-url https://download.pytorch.org/whl/cu128; \
+    fi
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 RUN if [ "$BACKEND" = "cuda" ]; then \

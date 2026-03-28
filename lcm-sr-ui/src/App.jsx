@@ -333,6 +333,15 @@ export default function App() {
     runSuperResUpload(uploadFile, srMagnitude);
   }, [uploadFile, srMagnitude, runSuperResUpload]);
 
+  const onSuperResSelected = useCallback(async () => {
+    const url = selectedMsg?.serverImageUrl || selectedMsg?.imageUrl;
+    if (!url) return;
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const file = new File([blob], `sr_${selectedMsg.id}.png`, { type: blob.type || 'image/png' });
+    runSuperResUpload(file, srMagnitude);
+  }, [selectedMsg, srMagnitude, runSuperResUpload]);
+
   /**
    * Copy current prompt to clipboard.
    */
@@ -501,6 +510,7 @@ export default function App() {
               onIntervalChange: setDreamInterval,
             }}
             onSuperResUpload={onSuperResUpload}
+            onSuperResSelected={onSuperResSelected}
             uploadFile={uploadFile}
             onUploadFileChange={setUploadFile}
             srMagnitude={srMagnitude}

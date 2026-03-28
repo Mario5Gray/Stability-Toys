@@ -153,6 +153,7 @@ export function OptionsPanel({
   onUploadFileChange,
   srMagnitude,
   onSrMagnitudeChange,
+  onSuperResSelected,
   serverLabel,
   onRunComfy,
   onClearCache,
@@ -576,9 +577,11 @@ export function OptionsPanel({
               value={params.draft.seed}
               onChange={(e) => {
                 const sanitized = sanitizeSeedInput(e.target.value);
+                if (params.draft.seedMode !== SEED_MODES.FIXED) {
+                  params.setSeedMode(SEED_MODES.FIXED);
+                }
                 params.setSeed(sanitized);
               }}
-              disabled={params.draft.seedMode !== SEED_MODES.FIXED}
               className={CSS_CLASSES.INPUT}
               inputMode="numeric"
               placeholder="seed"
@@ -587,9 +590,20 @@ export function OptionsPanel({
             {/* Seed Modifier - only when image is selected */}
           </div>
 
-          {/* Super-Resolution - Segmented Control */}
+          {/* Super-Resolution - current selected image */}
+          {selectedParams && (
+            <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
+              <div className="font-medium">Super-resolve selected image</div>
+              <Button
+                className="w-full rounded-2xl"
+                onClick={onSuperResSelected}
+                disabled={!onSuperResSelected}
+              >
+                Super-res this image
+              </Button>
+            </div>
+          )}
 
-          
           <Separator />
 
           <ComfyOptions   inputImage={comfyInputImage}
