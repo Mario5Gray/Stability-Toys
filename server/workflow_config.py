@@ -58,10 +58,12 @@ class WorkflowConfigManager:
 
     def _load_config(self):
         if not self.config_path.exists():
-            logger.error(
-                f"workflows.yml not found at {self.config_path}. "
-                f"Create this file to define ComfyUI workflows."
+            logger.warning(
+                f"[WorkflowConfig] workflows.yml not found at {self.config_path}. "
+                "Workflows will be empty until the file is created."
             )
+            self.config = WorkflowsYAML(default_workflow="", workflows={})
+            return
 
         logger.info(f"[WorkflowConfig] Loading configuration from {self.config_path}")
 
@@ -69,18 +71,19 @@ class WorkflowConfigManager:
             data = yaml.safe_load(f)
 
         if not data:
-            logger.error("workflows.yml is empty")
-            data = {}
+            logger.warning("[WorkflowConfig] workflows.yml is empty; no workflows loaded")
+            self.config = WorkflowsYAML(default_workflow="", workflows={})
+            return
 
-        if "default_workflow" not in data:
-            logger.error("workflows.yml missing required field: default_workflow")
-        else:
-            default_workflow = data["default_workflow"]
+        default_workflow = data.get("default_workflow", "")
+        if not default_workflow:
+            logger.warning("[WorkflowConfig] workflows.yml missing default_workflow")
 
-        if "workflows" not in data or not data["workflows"]:
-            logger.error("workflows.yml missing or empty: workflows")
-            data["workflows"] = {}
-            
+        if not data.get("workflows"):
+            logger.warning("[WorkflowConfig] workflows.yml has no workflows defined")
+            self.config = WorkflowsYAML(default_workflow=default_workflow, workflows={})
+            return
+
         workflows: Dict[str, WorkflowConfig] = {}
 
         for wf_name, wf_data in data["workflows"].items():
@@ -108,10 +111,10 @@ class WorkflowConfigManager:
                 tags=tags,
             )
 
-        if default_workflow not in workflows:
-            raise ValueError(
-                f"default_workflow '{default_workflow}' not found in workflows. "
-                f"Available workflows: {list(workflows.keys())}"
+        if default_workflow and default_workflow not in workflows:
+            logger.warning(
+                f"[WorkflowConfig] default_workflow '{default_workflow}' not found in workflows. "
+                f"Available: {list(workflows.keys())}"
             )
 
         self.config = WorkflowsYAML(
@@ -120,7 +123,8 @@ class WorkflowConfigManager:
         )
 
         logger.info(f"[WorkflowConfig] Loaded {len(workflows)} workflows")
-        logger.info(f"[WorkflowConfig] Default workflow: {default_workflow}")
+        if default_workflow:
+            logger.info(f"[WorkflowConfig] Default workflow: {default_workflow}")
 
     def save_config(self, data: Dict[str, Any]):
         """
