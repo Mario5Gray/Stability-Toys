@@ -78,7 +78,7 @@ class CudaWorkerBase:
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
         if self._attention_slicing:
-            pipe.enable_attention_slicing()
+            pipe.enable_attention_slicing(1)
         if self._enable_xformers:
             try:
                 pipe.enable_xformers_memory_efficient_attention()
