@@ -76,7 +76,7 @@ class CudaWorkerBase:
                 freeze(pipe.text_encoder_2)
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
         pipe.vae.enable_tiling()
-        pipe.vae.enable_vae_slicing()
+        pipe.vae.enable_slicing()
         if self._attention_slicing:
             pipe.enable_attention_slicing()
         if self._enable_xformers:
