@@ -63,13 +63,13 @@ class StyleRequest:
 
 # ---- Your registry of styles (add more over time) ----
 STYLE_REGISTRY: Dict[str, StyleDef] = {
-    "papercut": StyleDef(
-        id="papercut",
-        title="Papercut",
-        lora_path="/models/loras/PaperCut_SDXL.safetensors",
-        adapter_name="style_papercut",
-        levels=[0.80, 0.90, 1.00, 1.15]  # level 1..4
-    ),
+    # "papercut": StyleDef(
+    #     id="papercut",
+    #     title="Papercut",
+    #     lora_path="/models/loras/PaperCut_SDXL.safetensors",
+    #     adapter_name="style_papercut",
+    #     levels=[0.80, 0.90, 1.00, 1.15]  # level 1..4
+    #),
 
     # Example: another style
     # "clay": StyleDef(
