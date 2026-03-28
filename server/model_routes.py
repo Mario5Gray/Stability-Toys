@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
@@ -30,6 +30,7 @@ class ModeSwitchRequest(BaseModel):
 
 class ModelLoadRequest(BaseModel):
     """Request to load a specific model."""
+    model_config = ConfigDict(protected_namespaces=())
     model_path: str
     mode_name: Optional[str] = None  # Optional mode name for registration
 
@@ -334,6 +335,7 @@ class ModeCreateRequest(BaseModel):
 
 
 class ModesBulkSaveRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     model_root: str
     lora_root: str
     default_mode: str
