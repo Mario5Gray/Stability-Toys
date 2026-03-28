@@ -1,19 +1,14 @@
 model_root: /models
 lora_root: /models/loras
-default_mode: Juggernaut
+default_mode: lcm-general
 modes:
   lcm-general:
     model: diffusers/lcm-dreamshaper-v7
     default_size: 768x768
     default_steps: 8
     default_guidance: 3
-  lcm-chenkin:
+  lcm-runwayml:
     model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512
     default_steps: 8
-    default_guidance: 2.5
-  Juggernaut:
-    model: checkpoints/JuggernautXL_by_RunDiffusion.safetensors
-    default_size: 1024x1024
-    default_steps: 6
     default_guidance: 2.5
