@@ -461,6 +461,18 @@ class WorkerPool:
 
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
+                _oom = (
+                    hasattr(torch.cuda, "OutOfMemoryError")
+                    and isinstance(e, torch.cuda.OutOfMemoryError)
+                ) or "out of memory" in str(e).lower()
+                if _oom:
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    logger.warning(
+                        "[WorkerPool] OOM recovery: gc + empty_cache — "
+                        f"allocated={torch.cuda.memory_allocated()/1024**3:.2f}GB "
+                        f"reserved={torch.cuda.memory_reserved()/1024**3:.2f}GB"
+                    )
                 if not job.fut.done():
                     job.fut.set_exception(e)
             finally:

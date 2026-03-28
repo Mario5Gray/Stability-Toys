@@ -266,53 +266,52 @@ class DiffusersCudaWorker(CudaWorkerBase):
 
         self._apply_style(style_id, level)
 
-        if init_image is not None:
-            # img2img path: reuse loaded weights at zero extra VRAM cost
-            init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
-            if self._img2img_pipe is None:
-                self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
-            denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
-            with torch.inference_mode():
-                out = self._img2img_pipe(
-                    prompt=req.prompt,
-                    image=init_pil,
-                    strength=denoise_strength,
-                    num_inference_steps=int(req.num_inference_steps),
-                    guidance_scale=float(req.guidance_scale),
-                    generator=gen,
-                )
-        else:
-            # txt2img path (unchanged)
-            with torch.inference_mode():
-                out = self.pipe(
-                    prompt=req.prompt,
-                    width=width,
-                    height=height,
-                    num_inference_steps=int(req.num_inference_steps),
-                    guidance_scale=float(req.guidance_scale),
-                    generator=gen,
-                )
+        out = None
+        try:
+            if init_image is not None:
+                # img2img path: reuse loaded weights at zero extra VRAM cost
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+                if self._img2img_pipe is None:
+                    self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
+                denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                with torch.inference_mode():
+                    out = self._img2img_pipe(
+                        prompt=req.prompt,
+                        image=init_pil,
+                        strength=denoise_strength,
+                        num_inference_steps=int(req.num_inference_steps),
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                    )
+            else:
+                with torch.inference_mode():
+                    out = self.pipe(
+                        prompt=req.prompt,
+                        width=width,
+                        height=height,
+                        num_inference_steps=int(req.num_inference_steps),
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                    )
 
-        # reset style to avoid state bleed
-        self._apply_style(None, 0)
+            img: Image.Image = out.images[0]  # type: ignore[union-attr]
+            out = None  # release tensor reference before PNG encoding
 
-        img: Image.Image = out.images[0]  # type: ignore[union-attr]
-        # Free pipeline output tensors before saving; they're no longer needed
-        # and releasing them now reduces peak VRAM before the next generation.
-        del out
-        torch.cuda.empty_cache()
-
-        pnginfo = PngImagePlugin.PngInfo()
-        pnginfo.add_text("lcm", json.dumps({
-            "prompt": req.prompt,
-            "seed": seed,
-            "size": req.size,
-            "steps": int(req.num_inference_steps),
-            "cfg": float(req.guidance_scale),
-        }))
-        buf = io.BytesIO()
-        img.save(buf, format="PNG", pnginfo=pnginfo)
-        return buf.getvalue(), seed
+            pnginfo = PngImagePlugin.PngInfo()
+            pnginfo.add_text("lcm", json.dumps({
+                "prompt": req.prompt,
+                "seed": seed,
+                "size": req.size,
+                "steps": int(req.num_inference_steps),
+                "cfg": float(req.guidance_scale),
+            }))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", pnginfo=pnginfo)
+            return buf.getvalue(), seed
+        finally:
+            out = None  # release on OOM/exception; no-op on success
+            self._apply_style(None, 0)
+            torch.cuda.empty_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
         """
@@ -537,51 +536,52 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
 
         self._apply_style(style_id, level)
 
-        if init_image is not None:
-            # img2img path: reuse loaded weights at zero extra VRAM cost
-            init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
-            if self._img2img_pipe is None:
-                self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
-            denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
-            with torch.inference_mode():
-                out = self._img2img_pipe(
-                    prompt=req.prompt,
-                    image=init_pil,
-                    strength=denoise_strength,
-                    num_inference_steps=int(req.num_inference_steps),
-                    guidance_scale=float(req.guidance_scale),
-                    generator=gen,
-                )
-        else:
-            # txt2img path (unchanged)
-            with torch.inference_mode():
-                out = self.pipe(
-                    prompt=req.prompt,
-                    width=width,
-                    height=height,
-                    num_inference_steps=int(req.num_inference_steps),
-                    guidance_scale=float(req.guidance_scale),
-                    generator=gen,
-                )
+        out = None
+        try:
+            if init_image is not None:
+                # img2img path: reuse loaded weights at zero extra VRAM cost
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+                if self._img2img_pipe is None:
+                    self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
+                denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                with torch.inference_mode():
+                    out = self._img2img_pipe(
+                        prompt=req.prompt,
+                        image=init_pil,
+                        strength=denoise_strength,
+                        num_inference_steps=int(req.num_inference_steps),
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                    )
+            else:
+                with torch.inference_mode():
+                    out = self.pipe(
+                        prompt=req.prompt,
+                        width=width,
+                        height=height,
+                        num_inference_steps=int(req.num_inference_steps),
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                    )
 
-        # reset style to avoid state bleed
-        self._apply_style(None, 0)
+            img: Image.Image = out.images[0]  # type: ignore[union-attr]
+            out = None  # release tensor reference before PNG encoding
 
-        img: Image.Image = out.images[0]  # type: ignore[union-attr]
-        del out
-        torch.cuda.empty_cache()
-
-        pnginfo = PngImagePlugin.PngInfo()
-        pnginfo.add_text("lcm", json.dumps({
-            "prompt": req.prompt,
-            "seed": seed,
-            "size": req.size,
-            "steps": int(req.num_inference_steps),
-            "cfg": float(req.guidance_scale),
-        }))
-        buf = io.BytesIO()
-        img.save(buf, format="PNG", pnginfo=pnginfo)
-        return buf.getvalue(), seed
+            pnginfo = PngImagePlugin.PngInfo()
+            pnginfo.add_text("lcm", json.dumps({
+                "prompt": req.prompt,
+                "seed": seed,
+                "size": req.size,
+                "steps": int(req.num_inference_steps),
+                "cfg": float(req.guidance_scale),
+            }))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", pnginfo=pnginfo)
+            return buf.getvalue(), seed
+        finally:
+            out = None  # release on OOM/exception; no-op on success
+            self._apply_style(None, 0)
+            torch.cuda.empty_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
         """
