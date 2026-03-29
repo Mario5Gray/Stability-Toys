@@ -52,6 +52,11 @@ def mock_mode_config():
     mode_sdxl.default_size = "1024x1024"
     mode_sdxl.default_steps = 30
     mode_sdxl.default_guidance = 7.5
+    mode_sdxl.loader_format = "single_file"
+    mode_sdxl.checkpoint_precision = "fp8"
+    mode_sdxl.checkpoint_variant = "sdxl-base"
+    mode_sdxl.scheduler_profile = "native"
+    mode_sdxl.recommended_size = "512x512"
 
     mode_sd15 = Mock()
     mode_sd15.name = "sd15-fast"
@@ -61,6 +66,11 @@ def mock_mode_config():
     mode_sd15.default_size = "512x512"
     mode_sd15.default_steps = 4
     mode_sd15.default_guidance = 1.0
+    mode_sd15.loader_format = None
+    mode_sd15.checkpoint_precision = None
+    mode_sd15.checkpoint_variant = None
+    mode_sd15.scheduler_profile = None
+    mode_sd15.recommended_size = None
 
     config.get_mode.side_effect = lambda name: {
         "sdxl-general": mode_sdxl,
@@ -105,7 +115,40 @@ def mock_cuda_runtime():
          patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
          patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
          patch("backends.worker_pool.torch.cuda.OutOfMemoryError", new=fake_oom), \
-         patch("backends.worker_pool.torch.cuda.empty_cache"):
+        patch("backends.worker_pool.torch.cuda.empty_cache"):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_model_detection():
+    """Provide lightweight detected model info for worker-pool tests."""
+    from utils.model_detector import ModelInfo, ModelVariant
+
+    def _detect(path: str):
+        if "sdxl" in path:
+            info = ModelInfo(
+                path=path,
+                variant=ModelVariant.SDXL_BASE,
+                cross_attention_dim=2048,
+                confidence=0.95,
+                loader_format="single_file",
+                checkpoint_precision="unknown",
+                checkpoint_variant="sdxl-base",
+                scheduler_profile="native",
+            )
+            return info
+        return ModelInfo(
+            path=path,
+            variant=ModelVariant.SD15,
+            cross_attention_dim=768,
+            confidence=0.95,
+            loader_format="single_file",
+            checkpoint_precision="unknown",
+            checkpoint_variant="sd15",
+            scheduler_profile="lcm",
+        )
+
+    with patch("backends.worker_pool.detect_model", side_effect=_detect):
         yield
 
 
@@ -150,7 +193,12 @@ class TestWorkerPoolInit:
         mock_worker_factory.assert_called_once_with(
             worker_id=0,
             model_path="/models/sdxl.safetensors",
+            model_info=mock_worker_factory.call_args.kwargs["model_info"],
         )
+        model_info = mock_worker_factory.call_args.kwargs["model_info"]
+        assert model_info.loader_format == "single_file"
+        assert model_info.checkpoint_precision == "fp8"
+        assert model_info.scheduler_profile == "native"
 
         pool.shutdown()
         reset_worker_pool()
@@ -353,7 +401,9 @@ class TestWorkerLifecycle:
         mock_worker_factory.assert_called_once_with(
             worker_id=0,
             model_path="/models/sdxl.safetensors",
+            model_info=mock_worker_factory.call_args.kwargs["model_info"],
         )
+        assert mock_worker_factory.call_args.kwargs["model_info"].checkpoint_variant == "sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()
@@ -374,6 +424,46 @@ class TestWorkerLifecycle:
         mock_registry.register_model.assert_called()
         call_args = mock_registry.register_model.call_args
         assert call_args.kwargs['name'] == "sdxl-general"
+
+        pool.shutdown()
+        reset_worker_pool()
+
+    def test_load_mode_merges_capabilities_before_worker_creation(
+        self,
+        mock_mode_config,
+        mock_registry,
+        mock_worker_factory,
+    ):
+        """Mode overrides should become authoritative ModelInfo before factory dispatch."""
+        from backends.worker_pool import reset_worker_pool
+        from utils.model_detector import ModelInfo, ModelVariant
+
+        reset_worker_pool()
+        detected = ModelInfo(
+            path="/models/sdxl.safetensors",
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            confidence=0.95,
+            loader_format="unknown",
+            checkpoint_precision="unknown",
+            checkpoint_variant="unknown",
+        )
+        detected.scheduler_profile = "lcm"
+
+        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
+            pool = WorkerPool(
+                queue_max=10,
+                worker_factory=mock_worker_factory,
+                mode_config=mock_mode_config,
+                registry=mock_registry,
+            )
+
+        kwargs = mock_worker_factory.call_args.kwargs
+        model_info = kwargs["model_info"]
+        assert model_info.loader_format == "single_file"
+        assert model_info.checkpoint_precision == "fp8"
+        assert model_info.checkpoint_variant == "sdxl-base"
+        assert model_info.scheduler_profile == "native"
 
         pool.shutdown()
         reset_worker_pool()

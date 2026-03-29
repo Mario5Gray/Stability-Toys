@@ -85,6 +85,8 @@ def mock_registry():
     """Mock model registry tracking register/unregister calls."""
     registry = Mock()
     registry.get_used_vram.return_value = 0
+    registry.get_allocated_vram.return_value = 0
+    registry.get_total_vram.return_value = 8 * 1024**3
     registry.can_fit.return_value = True
     registry.register_model = Mock()
     registry.unregister_model = Mock()
@@ -97,12 +99,56 @@ def mock_worker_factory():
     """Returns Mock workers with run_job returning fake PNG bytes."""
     fake_png = b"\x89PNG_fake_image_data"
 
-    def factory(worker_id: int):
+    def factory(worker_id: int, model_path: str, model_info=None):
         worker = Mock()
         worker.run_job = Mock(return_value=fake_png)
         return worker
 
     return Mock(side_effect=factory)
+
+
+@pytest.fixture(autouse=True)
+def mock_cuda_runtime():
+    """Provide numeric CUDA stats and a real OOM base type for worker-pool logging."""
+    fake_oom = type("FakeOutOfMemoryError", (RuntimeError,), {})
+    with patch("backends.worker_pool.torch.cuda.is_available", return_value=True), \
+         patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.OutOfMemoryError", new=fake_oom), \
+         patch("backends.worker_pool.torch.cuda.empty_cache"):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_model_detection():
+    """Return cheap detected model info for lifecycle tests."""
+    from utils.model_detector import ModelInfo, ModelVariant
+
+    def _detect(path: str):
+        if "sdxl" in path:
+            return ModelInfo(
+                path=path,
+                variant=ModelVariant.SDXL_BASE,
+                cross_attention_dim=2048,
+                confidence=0.95,
+                loader_format="single_file",
+                checkpoint_precision="unknown",
+                checkpoint_variant="sdxl-base",
+                scheduler_profile="native",
+            )
+        return ModelInfo(
+            path=path,
+            variant=ModelVariant.SD15,
+            cross_attention_dim=768,
+            confidence=0.95,
+            loader_format="single_file",
+            checkpoint_precision="unknown",
+            checkpoint_variant="sd15",
+            scheduler_profile="lcm",
+        )
+
+    with patch("backends.worker_pool.detect_model", side_effect=_detect):
+        yield
 
 
 @pytest.fixture
@@ -220,6 +266,7 @@ class TestModeSwitchingLifecycle:
         assert result == b"\x89PNG_fake_image_data"
 
         pool._unload_current_worker()
+        pool._current_mode = None
 
         job2 = GenerationJob(req=Mock())
         with pytest.raises(RuntimeError, match="No worker available"):
@@ -315,14 +362,9 @@ class TestEdgeCases:
     @patch('backends.worker_pool.torch.cuda.empty_cache')
     def test_unload_triggers_gc_and_cache_clear(self, mock_empty_cache, pool):
         """Unload calls gc.collect and torch.cuda.empty_cache."""
-        mock_gc = Mock()
-        with patch.dict('sys.modules', {'gc': mock_gc}):
-            # gc is imported locally in _unload_current_worker, so we
-            # patch it via the gc module itself
-            import gc as real_gc
-            with patch.object(real_gc, 'collect') as mock_collect:
-                pool._unload_current_worker()
-                mock_collect.assert_called()
+        with patch('backends.worker_pool.gc.collect') as mock_collect:
+            pool._unload_current_worker()
+            mock_collect.assert_called()
         mock_empty_cache.assert_called()
 
 
@@ -355,6 +397,7 @@ class TestFullLifecycleMatrix:
 
             # Step 2: Unload model → generate (fail)
             pool._unload_current_worker()
+            pool._current_mode = None
             job2 = GenerationJob(req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job2).result(timeout=5.0)
@@ -368,6 +411,7 @@ class TestFullLifecycleMatrix:
 
             # Step 4: Unload mode → generate (fail)
             pool._unload_current_worker()
+            pool._current_mode = None
             job4 = GenerationJob(req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job4).result(timeout=5.0)

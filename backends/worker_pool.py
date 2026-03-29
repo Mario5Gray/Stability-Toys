@@ -15,6 +15,7 @@ import logging
 import queue
 import threading
 import time
+from copy import deepcopy
 import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Callable, Protocol
@@ -25,6 +26,7 @@ from enum import Enum
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
 from backends.model_registry import get_model_registry, ModelRegistry
 from backends.base import PipelineWorker
+from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +34,29 @@ logger = logging.getLogger(__name__)
 # Type hints for dependency injection
 class WorkerFactory(Protocol):
     """Protocol for worker creation functions."""
-    def __call__(self, worker_id: int, model_path: str) -> PipelineWorker:
+    def __call__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[ModelInfo] = None,
+    ) -> PipelineWorker:
         """Create a worker with the given ID and resolved model path."""
         ...
+
+
+def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInfo:
+    """Overlay authoritative mode-level capability overrides onto detected model info."""
+    resolved = deepcopy(model_info)
+    for field in (
+        "loader_format",
+        "checkpoint_precision",
+        "checkpoint_variant",
+        "scheduler_profile",
+    ):
+        value = getattr(mode, field, None)
+        if value is not None:
+            setattr(resolved, field, value)
+    return resolved
 
 
 class JobType(Enum):
@@ -249,8 +271,13 @@ class WorkerPool:
 
         assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
         try:
+            model_info = merge_mode_capabilities(detect_model(mode.model_path), mode)
             # Create worker using injected factory, passing fully-resolved model path
-            self._worker = self._worker_factory(worker_id=0, model_path=mode.model_path)
+            self._worker = self._worker_factory(
+                worker_id=0,
+                model_path=mode.model_path,
+                model_info=model_info,
+            )
         except Exception as e:
             logger.error(
                 f"[WorkerPool] Failed to load mode '{mode_name}': {e}",

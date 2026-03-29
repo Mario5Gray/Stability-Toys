@@ -81,6 +81,17 @@ RUN if [ "$BACKEND" = "cuda" ]; then \
         --index-url https://download.pytorch.org/whl/cu128; \
     fi
 
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      python - <<'PY'\
+import torch, xformers\
+print("torch", torch.__version__)\
+print("torch.cuda", torch.version.cuda)\
+print("xformers", xformers.__version__)\
+PY\
+      python -m xformers.info; \
+    fi
+
+
 # Copy server code 
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/

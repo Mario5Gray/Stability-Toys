@@ -92,6 +92,7 @@ class ModelInfo:
     loader_format: str = "unknown"
     checkpoint_precision: str = "unknown"
     checkpoint_variant: str = "unknown"
+    scheduler_profile: str = "unknown"
 
     # Compatibility
     compatible_worker: Optional[str] = None
@@ -113,6 +114,10 @@ class ModelInfo:
             "compatible_worker": self.compatible_worker,
             "required_cross_attention_dim": self.required_cross_attention_dim,
             "metadata": self.metadata,
+            "loader_format": self.loader_format,
+            "checkpoint_precision": self.checkpoint_precision,
+            "checkpoint_variant": self.checkpoint_variant,
+            "scheduler_profile": self.scheduler_profile,
         }
         return result
 
@@ -205,6 +210,8 @@ class SafetensorsDetector(BaseDetector):
 
         with safe_open(path, framework="pt", device="cpu") as f:
             keys = list(f.keys())
+            info.loader_format = "single_file"
+            info.checkpoint_precision = _infer_checkpoint_precision(path, keys)
 
             # Check if LoRA
             if any("lora" in k.lower() for k in keys):
@@ -301,6 +308,7 @@ class DiffusersDetector(BaseDetector):
 
     def detect(self, path: str, info: ModelInfo) -> ModelInfo:
         info.format = "diffusers"
+        info.loader_format = "diffusers_dir"
         path_obj = Path(path)
 
         # Read model_index.json
@@ -355,6 +363,8 @@ class CheckpointDetector(BaseDetector):
             return info
 
         info.format = "checkpoint"
+        info.loader_format = "single_file"
+        info.checkpoint_precision = _infer_checkpoint_precision(path)
 
         try:
             checkpoint = torch.load(path, map_location="cpu", weights_only=False)
@@ -486,14 +496,26 @@ class CompatibilityResolver(BaseDetector):
             worker = "backends.cuda_worker.DiffusersSDXLCudaWorker"
             req_cad = 2048
             native_px_fallback = 1024
+            info.scheduler_profile = "native"
         elif info.variant.is_sd15:
             worker = "backends.cuda_worker.DiffusersCudaWorker"
             req_cad = 768
             native_px_fallback = 512
+            info.scheduler_profile = "lcm"
         else:
             worker = None
             req_cad = None
             native_px_fallback = None
+            info.scheduler_profile = "unknown"
+
+        if info.variant == ModelVariant.SDXL_BASE:
+            info.checkpoint_variant = "sdxl-base"
+        elif info.variant == ModelVariant.SDXL_REFINER:
+            info.checkpoint_variant = "sdxl-refiner"
+        elif info.variant == ModelVariant.SD15:
+            info.checkpoint_variant = "sd15"
+        elif info.variant in (ModelVariant.SD20, ModelVariant.SD21):
+            info.checkpoint_variant = "sd2"
 
         info.compatible_worker = worker
         info.required_cross_attention_dim = req_cad
@@ -746,6 +768,7 @@ class ModelDetector:
 
         # Initialize info
         info = ModelInfo(path=path)
+        info.loader_format = _infer_loader_format(path)
 
         # Run each detector in sequence
         for detector in self.detectors:
@@ -771,6 +794,25 @@ def detect_model(path: str) -> ModelInfo:
     """
     detector = ModelDetector()
     return detector.detect(path)
+
+
+def _infer_loader_format(path: str) -> str:
+    path_obj = Path(path)
+    if path_obj.is_dir() and (path_obj / "model_index.json").exists():
+        return "diffusers_dir"
+    if path_obj.suffix.lower() in {".safetensors", ".ckpt", ".pt", ".pth"}:
+        return "single_file"
+    return "unknown"
+
+
+def _infer_checkpoint_precision(path: str, keys: Optional[List[str]] = None) -> str:
+    hints = [path]
+    if keys:
+        hints.extend(keys)
+    lowered = " ".join(str(hint) for hint in hints).lower()
+    if "fp8" in lowered or "float8" in lowered:
+        return "fp8"
+    return "unknown"
 
 
 # ============================================================================

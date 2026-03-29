@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 import json
 import os
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
@@ -67,7 +67,8 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
-        if self._quantize == "fp8":
+        checkpoint_precision = getattr(getattr(self, "model_info", None), "checkpoint_precision", "unknown")
+        if self._quantize == "fp8" and checkpoint_precision != "fp8":
             from optimum.quanto import freeze, quantize, qfloat8
             quantize(pipe.unet, weights=qfloat8)
             freeze(pipe.unet)
@@ -75,6 +76,11 @@ class CudaWorkerBase:
                 quantize(pipe.text_encoder_2, weights=qfloat8)
                 freeze(pipe.text_encoder_2)
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
+        elif self._quantize == "fp8":
+            print(
+                f"[cuda] worker {self.worker_id}: "
+                "skipping runtime fp8 quantization for pre-quantized checkpoint"
+            )
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
         if self._attention_slicing:
@@ -154,14 +160,18 @@ class DiffusersCudaWorker(CudaWorkerBase):
       CUDA_ENABLE_XFORMERS=1     (default 0)
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
-    def __init__(self, worker_id: int, model_path: str):
+    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
         super().__init__(worker_id)
+        self.model_info = model_info
 
         ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
 
-        is_diffusers_dir = os.path.isdir(ckpt_path) and os.path.exists(
-            os.path.join(ckpt_path, "model_index.json")
+        format_hint = getattr(model_info, "loader_format", "unknown")
+        is_diffusers_dir = format_hint == "diffusers_dir" or (
+            format_hint == "unknown"
+            and os.path.isdir(ckpt_path)
+            and os.path.exists(os.path.join(ckpt_path, "model_index.json"))
         )
 
         if is_diffusers_dir:
@@ -183,8 +193,9 @@ class DiffusersCudaWorker(CudaWorkerBase):
             )
             format_name = "single-file"
 
-        # LCM scheduler
-        pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+        scheduler_profile = getattr(model_info, "scheduler_profile", "lcm")
+        if scheduler_profile != "native":
+            pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
@@ -413,15 +424,18 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
 
-    def __init__(self, worker_id: int, model_path: str):
+    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
         super().__init__(worker_id)
+        self.model_info = model_info
 
         ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
 
-        # Check if diffusers format
-        is_diffusers_dir = os.path.isdir(ckpt_path) and os.path.exists(
-            os.path.join(ckpt_path, "model_index.json")
+        format_hint = getattr(model_info, "loader_format", "unknown")
+        is_diffusers_dir = format_hint == "diffusers_dir" or (
+            format_hint == "unknown"
+            and os.path.isdir(ckpt_path)
+            and os.path.exists(os.path.join(ckpt_path, "model_index.json"))
         )
 
         # Load SDXL pipeline
@@ -441,8 +455,9 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             )
             format_name = "single-file"
 
-        # Convert to LCM scheduler for fast inference
-        pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+        scheduler_profile = getattr(model_info, "scheduler_profile", "native")
+        if scheduler_profile == "lcm":
+            pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
