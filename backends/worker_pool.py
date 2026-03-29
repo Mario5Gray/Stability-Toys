@@ -229,7 +229,11 @@ class WorkerPool:
         self._start_watchdog_thread()
 
     @staticmethod
-    def _default_worker_factory(worker_id: int, model_path: str) -> PipelineWorker:
+    def _default_worker_factory(
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[ModelInfo] = None,
+    ) -> PipelineWorker:
         """
         Default worker factory.
 
@@ -239,12 +243,13 @@ class WorkerPool:
         Args:
             worker_id: Worker ID to assign
             model_path: Resolved absolute path to the model
+            model_info: Optional pre-resolved model capabilities
 
         Returns:
             Created PipelineWorker instance
         """
         from backends.worker_factory import create_cuda_worker
-        return create_cuda_worker(worker_id, model_path)
+        return create_cuda_worker(worker_id, model_path, model_info=model_info)
 
     def _load_mode(self, mode_name: str):
         """

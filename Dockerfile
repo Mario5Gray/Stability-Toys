@@ -40,8 +40,8 @@ RUN if [ "$BACKEND" = "rknn" ]; then \
 
 RUN if [ "$BACKEND" = "cuda" ]; then \
     apt-get update && apt-get install -y \
-     ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
-     && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
+     ca-certificatfdes curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
+     && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86ds_64/cuda-keyring_1.1-1_all.deb \
      && dpkg -i cuda-keyring_1.1-1_all.deb \
      && apt-get update && apt-get install -y \
      cuda-cudart-12-8 \
@@ -70,26 +70,15 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir nvidia-ml-py; \
     fi
-
+RUN pip install --no-cache-dir nvidia-ml-py
 # Install cuda12.8 because we have to for xformers.
-RUN if [ "$BACKEND" = "cuda" ]; then \
-      pip install --no-cache-dir \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
-        torchaudio==2.10.0 \
-        xformers==0.0.34 \
-        --index-url https://download.pytorch.org/whl/cu128; \
-    fi
+RUN <<EOI
+if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; 
+fi
+EOI
 
-RUN if [ "$BACKEND" = "cuda" ]; then \
-      python - <<'PY'\
-import torch, xformers\
-print("torch", torch.__version__)\
-print("torch.cuda", torch.version.cuda)\
-print("xformers", xformers.__version__)\
-PY\
-      python -m xformers.info; \
-    fi
+RUN pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; 
 
 
 # Copy server code 

@@ -588,6 +588,29 @@ class TestErrorHandling:
             future.result(timeout=5.0)
 
 
+class TestDefaultFactory:
+    """Test the built-in worker factory used in production."""
+
+    def test_default_worker_factory_forwards_model_info(self):
+        """Default factory must accept and forward resolved model_info."""
+        from backends.worker_pool import WorkerPool
+
+        model_info = Mock()
+
+        with patch("backends.worker_factory.create_cuda_worker") as mock_create:
+            WorkerPool._default_worker_factory(
+                worker_id=0,
+                model_path="/models/checkpoints/test.safetensors",
+                model_info=model_info,
+            )
+
+        mock_create.assert_called_once_with(
+            0,
+            "/models/checkpoints/test.safetensors",
+            model_info=model_info,
+        )
+
+
 class TestShutdown:
     """Test worker pool shutdown."""
 
