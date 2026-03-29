@@ -29,6 +29,7 @@ RUN yarn build
 
 # ---------- Python server stage ----------
 FROM python:3.12-slim AS server
+ARG BACKEND
 WORKDIR /app
 
 COPY librknnrt.so /tmp/librknnrt.so
@@ -70,15 +71,12 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir nvidia-ml-py; \
     fi
-RUN pip install --no-cache-dir nvidia-ml-py
 # Install cuda12.8 because we have to for xformers.
 RUN <<EOI
 if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; 
 fi
 EOI
-
-RUN pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; 
 
 
 # Copy server code 
