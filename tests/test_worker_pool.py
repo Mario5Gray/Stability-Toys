@@ -77,6 +77,8 @@ def mock_registry():
     """Mock model registry."""
     registry = Mock()
     registry.get_used_vram.return_value = 0
+    registry.get_allocated_vram.return_value = 0
+    registry.get_total_vram.return_value = 8 * 1024**3
     registry.can_fit.return_value = True  # Default: always fits
     registry.register_model = Mock()
     registry.unregister_model = Mock()
@@ -95,21 +97,37 @@ def mock_worker_factory():
     return factory
 
 
+@pytest.fixture(autouse=True)
+def mock_cuda_runtime():
+    """Provide numeric CUDA stats for worker-pool logging paths."""
+    fake_oom = type("FakeOutOfMemoryError", (RuntimeError,), {})
+    with patch("backends.worker_pool.torch.cuda.is_available", return_value=True), \
+         patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.OutOfMemoryError", new=fake_oom), \
+         patch("backends.worker_pool.torch.cuda.empty_cache"):
+        yield
+
+
 @pytest.fixture
 def worker_pool(mock_mode_config, mock_registry, mock_worker_factory):
     """Create WorkerPool with mocked dependencies using DI."""
     from backends.worker_pool import reset_worker_pool
     reset_worker_pool()  # Ensure clean state
 
-    pool = WorkerPool(
-        queue_max=10,
-        worker_factory=mock_worker_factory,
-        mode_config=mock_mode_config,
-        registry=mock_registry,
-    )
-    yield pool
-    pool.shutdown()
-    reset_worker_pool()
+    with patch("backends.worker_pool.torch.cuda.is_available", return_value=True), \
+         patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
+         patch("backends.worker_pool.torch.cuda.empty_cache"):
+        pool = WorkerPool(
+            queue_max=10,
+            worker_factory=mock_worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+        yield pool
+        pool.shutdown()
+        reset_worker_pool()
 
 
 class TestWorkerPoolInit:
@@ -129,7 +147,10 @@ class TestWorkerPoolInit:
 
         assert pool._current_mode == "sdxl-general"
         assert pool._worker is not None
-        mock_worker_factory.assert_called_once_with(worker_id=0)
+        mock_worker_factory.assert_called_once_with(
+            worker_id=0,
+            model_path="/models/sdxl.safetensors",
+        )
 
         pool.shutdown()
         reset_worker_pool()
@@ -329,7 +350,10 @@ class TestWorkerLifecycle:
         assert pool._worker is not None
         assert pool._current_mode == "sdxl-general"
         # Called once during init for default mode
-        mock_worker_factory.assert_called_once_with(worker_id=0)
+        mock_worker_factory.assert_called_once_with(
+            worker_id=0,
+            model_path="/models/sdxl.safetensors",
+        )
 
         pool.shutdown()
         reset_worker_pool()

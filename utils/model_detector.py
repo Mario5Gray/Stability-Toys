@@ -88,6 +88,11 @@ class ModelInfo:
     detected_by: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # Capability (loader policy)
+    loader_format: str = "unknown"
+    checkpoint_precision: str = "unknown"
+    checkpoint_variant: str = "unknown"
+
     # Compatibility
     compatible_worker: Optional[str] = None
     required_cross_attention_dim: Optional[int] = None

@@ -143,6 +143,11 @@ async def list_modes():
                 "default_size": mode_data["default_size"],
                 "default_steps": mode_data["default_steps"],
                 "default_guidance": mode_data["default_guidance"],
+                "loader_format": mode_data.get("loader_format"),
+                "checkpoint_precision": mode_data.get("checkpoint_precision"),
+                "checkpoint_variant": mode_data.get("checkpoint_variant"),
+                "scheduler_profile": mode_data.get("scheduler_profile"),
+                "recommended_size": mode_data.get("recommended_size"),
             }
             for name, mode_data in modes_dict["modes"].items()
         },

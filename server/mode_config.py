@@ -40,6 +40,11 @@ class ModeConfig:
     default_size: str = "512x512"
     default_steps: int = 4
     default_guidance: float = 1.0
+    loader_format: Optional[str] = None
+    checkpoint_precision: Optional[str] = None
+    checkpoint_variant: Optional[str] = None
+    scheduler_profile: Optional[str] = None
+    recommended_size: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Resolved absolute paths (set after loading)
@@ -138,6 +143,11 @@ class ModeConfigManager:
                 default_size=mode_data.get("default_size", "512x512"),
                 default_steps=mode_data.get("default_steps", 4),
                 default_guidance=mode_data.get("default_guidance", 1.0),
+                loader_format=mode_data.get("loader_format"),
+                checkpoint_precision=mode_data.get("checkpoint_precision"),
+                checkpoint_variant=mode_data.get("checkpoint_variant"),
+                scheduler_profile=mode_data.get("scheduler_profile"),
+                recommended_size=mode_data.get("recommended_size"),
                 metadata=mode_data.get("metadata", {}),
             )
 
@@ -221,6 +231,11 @@ class ModeConfigManager:
                 "default_steps": mode_data.get("default_steps", 4),
                 "default_guidance": mode_data.get("default_guidance", 1.0),
             }
+            for cap_field in ("loader_format", "checkpoint_precision", "checkpoint_variant",
+                              "scheduler_profile", "recommended_size"):
+                val = mode_data.get(cap_field)
+                if val is not None:
+                    mode_entry[cap_field] = val
             loras = mode_data.get("loras", [])
             if loras:
                 mode_entry["loras"] = [
@@ -297,6 +312,11 @@ class ModeConfigManager:
                     "default_size": mode.default_size,
                     "default_steps": mode.default_steps,
                     "default_guidance": mode.default_guidance,
+                    "loader_format": mode.loader_format,
+                    "checkpoint_precision": mode.checkpoint_precision,
+                    "checkpoint_variant": mode.checkpoint_variant,
+                    "scheduler_profile": mode.scheduler_profile,
+                    "recommended_size": mode.recommended_size,
                     "metadata": mode.metadata,
                 }
                 for name, mode in self.config.modes.items()
