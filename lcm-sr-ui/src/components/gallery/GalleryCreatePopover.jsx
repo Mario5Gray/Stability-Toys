@@ -1,5 +1,5 @@
 // src/components/gallery/GalleryCreatePopover.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -9,15 +9,29 @@ export function GalleryCreatePopover({ onCreateGallery }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const inputId = useId();
 
   useEffect(() => {
     if (open) {
       setName('');
-      setTimeout(() => inputRef.current?.focus(), 0);
+      const id = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(id);
     }
   }, [open]);
 
-  function confirm() {
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [open]);
+
+  function handleConfirm() {
     const trimmed = name.trim();
     if (!trimmed) return;
     onCreateGallery(trimmed);
@@ -25,7 +39,7 @@ export function GalleryCreatePopover({ onCreateGallery }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <button
         type="button"
         aria-label="New gallery"
@@ -38,21 +52,21 @@ export function GalleryCreatePopover({ onCreateGallery }) {
 
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 w-56 rounded-2xl border bg-background shadow-xl p-3 space-y-2">
-          <Label htmlFor="gallery-name-input">Gallery name</Label>
+          <Label htmlFor={inputId}>Gallery name</Label>
           <Input
-            id="gallery-name-input"
+            id={inputId}
             ref={inputRef}
             value={name}
             maxLength={16}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') confirm();
+              if (e.key === 'Enter') handleConfirm();
               if (e.key === 'Escape') setOpen(false);
             }}
             placeholder="e.g. Nature"
             className="rounded-2xl"
           />
-          <Button type="button" size="sm" className="w-full" onClick={confirm}>
+          <Button type="button" size="sm" className="w-full" onClick={handleConfirm}>
             Create
           </Button>
         </div>

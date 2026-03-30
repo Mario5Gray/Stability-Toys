@@ -37,6 +37,16 @@ describe('GalleryCreatePopover', () => {
     fireEvent.change(screen.getByLabelText(/gallery name/i), { target: { value: 'Portraits' } });
     fireEvent.click(screen.getByRole('button', { name: /^create$/i }));
     expect(onCreate).toHaveBeenCalledWith('Portraits');
+    expect(screen.queryByLabelText(/gallery name/i)).not.toBeInTheDocument();
+  });
+
+  it('does not call onCreateGallery when name is whitespace only', () => {
+    const onCreate = vi.fn();
+    render(<GalleryCreatePopover onCreateGallery={onCreate} />);
+    fireEvent.click(screen.getByRole('button', { name: /new gallery/i }));
+    fireEvent.change(screen.getByLabelText(/gallery name/i), { target: { value: '   ' } });
+    fireEvent.keyDown(screen.getByLabelText(/gallery name/i), { key: 'Enter' });
+    expect(onCreate).not.toHaveBeenCalled();
   });
 
   it('does not call onCreateGallery when name is empty', () => {
