@@ -18,6 +18,7 @@ if (!Element.prototype.releasePointerCapture) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
 });
 
@@ -119,6 +120,61 @@ function renderOptionsPanel(modeState, params = makeParams()) {
 }
 
 describe('OptionsPanel mode-driven controls', () => {
+  it('forwards denoise slider changes immediately when init image is present', () => {
+    vi.useFakeTimers();
+    const onDenoiseStrengthChange = vi.fn();
+
+    render(
+      <OptionsPanel
+        params={makeParams()}
+        inputImage={null}
+        comfyInputImage={null}
+        selectedParams={null}
+        blurredSelectedParams={null}
+        selectedMsgId={null}
+        onClearSelection={vi.fn()}
+        onApplyPromptDelta={vi.fn()}
+        onApplySeedDelta={vi.fn()}
+        onRerunSelected={vi.fn()}
+        onPersistSelectedParams={vi.fn()}
+        dreamState={{
+          isDreaming: false,
+          temperature: 0.5,
+          interval: 10,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onGuide: vi.fn(),
+          onTemperatureChange: vi.fn(),
+          onIntervalChange: vi.fn(),
+        }}
+        onSuperResUpload={vi.fn()}
+        uploadFile={null}
+        onUploadFileChange={vi.fn()}
+        srMagnitude={1}
+        onSrMagnitudeChange={vi.fn()}
+        onSuperResSelected={vi.fn()}
+        serverLabel="test"
+        onRunComfy={vi.fn()}
+        onClearCache={vi.fn()}
+        getCacheStats={vi.fn().mockResolvedValue(null)}
+        onClearHistory={vi.fn()}
+        queueState={{ items: [] }}
+        initImage={{
+          file: new File(['x'], 'init.png', { type: 'image/png' }),
+          objectUrl: 'blob:init-image',
+        }}
+        onClearInitImage={vi.fn()}
+        denoiseStrength={0.75}
+        onDenoiseStrengthChange={onDenoiseStrengthChange}
+        modeState={makeModeState('cinematic', {})}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '42' } });
+
+    expect(onDenoiseStrengthChange).toHaveBeenCalledWith(0.42);
+  });
+
   it('forwards negative prompt edits through the selected-image params path', () => {
     const params = makeParams({
       effective: {

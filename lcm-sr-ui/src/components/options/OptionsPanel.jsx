@@ -83,21 +83,17 @@ function InitImagePreview({ initImage, onClear }) {
 function StrengthSlider({ value, onChange }) {
   const [inputText, setInputText] = useState(Number(value).toFixed(2));
   const [localValue, setLocalValue] = useState(value);
-  const debounceRef = useRef(null);
 
   useEffect(() => {
     setInputText(Number(value).toFixed(2));
     setLocalValue(value);
   }, [value]);
 
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
-
   const handleSliderChange = (e) => {
     const next = Number(e.target.value) / 100;
     setLocalValue(next);
     setInputText(next.toFixed(2));
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onChange(next), 120);
+    onChange(next);
   };
 
   const handleTextChange = (e) => {
