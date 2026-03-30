@@ -45,6 +45,11 @@ class ModeConfig:
     checkpoint_variant: Optional[str] = None
     scheduler_profile: Optional[str] = None
     recommended_size: Optional[str] = None
+    negative_prompt_templates: Dict[str, str] = field(default_factory=dict)
+    default_negative_prompt_template: Optional[str] = None
+    allow_custom_negative_prompt: bool = False
+    allowed_scheduler_ids: Optional[List[str]] = None
+    default_scheduler_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Resolved absolute paths (set after loading)
@@ -148,6 +153,11 @@ class ModeConfigManager:
                 checkpoint_variant=mode_data.get("checkpoint_variant"),
                 scheduler_profile=mode_data.get("scheduler_profile"),
                 recommended_size=mode_data.get("recommended_size"),
+                negative_prompt_templates=mode_data.get("negative_prompt_templates", {}) or {},
+                default_negative_prompt_template=mode_data.get("default_negative_prompt_template"),
+                allow_custom_negative_prompt=bool(mode_data.get("allow_custom_negative_prompt", False)),
+                allowed_scheduler_ids=mode_data.get("allowed_scheduler_ids"),
+                default_scheduler_id=mode_data.get("default_scheduler_id"),
                 metadata=mode_data.get("metadata", {}),
             )
 
@@ -236,6 +246,14 @@ class ModeConfigManager:
                 val = mode_data.get(cap_field)
                 if val is not None:
                     mode_entry[cap_field] = val
+            mode_entry["negative_prompt_templates"] = mode_data.get("negative_prompt_templates", {}) or {}
+            if mode_data.get("default_negative_prompt_template") is not None:
+                mode_entry["default_negative_prompt_template"] = mode_data.get("default_negative_prompt_template")
+            mode_entry["allow_custom_negative_prompt"] = bool(mode_data.get("allow_custom_negative_prompt", False))
+            if "allowed_scheduler_ids" in mode_data:
+                mode_entry["allowed_scheduler_ids"] = mode_data.get("allowed_scheduler_ids")
+            if mode_data.get("default_scheduler_id") is not None:
+                mode_entry["default_scheduler_id"] = mode_data.get("default_scheduler_id")
             loras = mode_data.get("loras", [])
             if loras:
                 mode_entry["loras"] = [
@@ -317,6 +335,11 @@ class ModeConfigManager:
                     "checkpoint_variant": mode.checkpoint_variant,
                     "scheduler_profile": mode.scheduler_profile,
                     "recommended_size": mode.recommended_size,
+                    "negative_prompt_templates": mode.negative_prompt_templates,
+                    "default_negative_prompt_template": mode.default_negative_prompt_template,
+                    "allow_custom_negative_prompt": mode.allow_custom_negative_prompt,
+                    "allowed_scheduler_ids": mode.allowed_scheduler_ids,
+                    "default_scheduler_id": mode.default_scheduler_id,
                     "metadata": mode.metadata,
                 }
                 for name, mode in self.config.modes.items()

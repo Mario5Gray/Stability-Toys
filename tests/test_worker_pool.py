@@ -57,6 +57,11 @@ def mock_mode_config():
     mode_sdxl.checkpoint_variant = "sdxl-base"
     mode_sdxl.scheduler_profile = "native"
     mode_sdxl.recommended_size = "512x512"
+    mode_sdxl.negative_prompt_templates = {"safe_photo": "blurry, watermark"}
+    mode_sdxl.default_negative_prompt_template = "safe_photo"
+    mode_sdxl.allow_custom_negative_prompt = True
+    mode_sdxl.allowed_scheduler_ids = ["euler", "dpmpp_2m"]
+    mode_sdxl.default_scheduler_id = "euler"
 
     mode_sd15 = Mock()
     mode_sd15.name = "sd15-fast"
@@ -71,6 +76,11 @@ def mock_mode_config():
     mode_sd15.checkpoint_variant = None
     mode_sd15.scheduler_profile = None
     mode_sd15.recommended_size = None
+    mode_sd15.negative_prompt_templates = {}
+    mode_sd15.default_negative_prompt_template = None
+    mode_sd15.allow_custom_negative_prompt = False
+    mode_sd15.allowed_scheduler_ids = None
+    mode_sd15.default_scheduler_id = None
 
     config.get_mode.side_effect = lambda name: {
         "sdxl-general": mode_sdxl,
@@ -135,6 +145,11 @@ def mock_model_detection():
                 checkpoint_precision="unknown",
                 checkpoint_variant="sdxl-base",
                 scheduler_profile="native",
+                negative_prompt_templates={},
+                default_negative_prompt_template=None,
+                allow_custom_negative_prompt=False,
+                allowed_scheduler_ids=None,
+                default_scheduler_id=None,
             )
             return info
         return ModelInfo(
@@ -146,6 +161,11 @@ def mock_model_detection():
             checkpoint_precision="unknown",
             checkpoint_variant="sd15",
             scheduler_profile="lcm",
+            negative_prompt_templates={},
+            default_negative_prompt_template=None,
+            allow_custom_negative_prompt=False,
+            allowed_scheduler_ids=None,
+            default_scheduler_id=None,
         )
 
     with patch("backends.worker_pool.detect_model", side_effect=_detect):
@@ -449,6 +469,11 @@ class TestWorkerLifecycle:
             checkpoint_variant="unknown",
         )
         detected.scheduler_profile = "lcm"
+        detected.negative_prompt_templates = {}
+        detected.default_negative_prompt_template = None
+        detected.allow_custom_negative_prompt = False
+        detected.allowed_scheduler_ids = None
+        detected.default_scheduler_id = None
 
         with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
             pool = WorkerPool(
@@ -464,6 +489,11 @@ class TestWorkerLifecycle:
         assert model_info.checkpoint_precision == "fp8"
         assert model_info.checkpoint_variant == "sdxl-base"
         assert model_info.scheduler_profile == "native"
+        assert model_info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
+        assert model_info.default_negative_prompt_template == "safe_photo"
+        assert model_info.allow_custom_negative_prompt is True
+        assert model_info.allowed_scheduler_ids == ["euler", "dpmpp_2m"]
+        assert model_info.default_scheduler_id == "euler"
 
         pool.shutdown()
         reset_worker_pool()

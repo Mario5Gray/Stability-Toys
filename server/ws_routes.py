@@ -206,6 +206,8 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
 
         req = GenerateRequest(
             prompt=params.get("prompt", ""),
+            negative_prompt=params.get("negative_prompt"),
+            scheduler_id=params.get("scheduler_id"),
             size=params.get("size", os.environ.get("DEFAULT_SIZE", "512x512")),
             num_inference_steps=params.get("num_inference_steps", params.get("steps", 4)),
             guidance_scale=params.get("guidance_scale", params.get("cfg", 1.0)),

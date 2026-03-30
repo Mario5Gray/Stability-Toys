@@ -148,6 +148,11 @@ async def list_modes():
                 "checkpoint_variant": mode_data.get("checkpoint_variant"),
                 "scheduler_profile": mode_data.get("scheduler_profile"),
                 "recommended_size": mode_data.get("recommended_size"),
+                "negative_prompt_templates": mode_data.get("negative_prompt_templates", {}),
+                "default_negative_prompt_template": mode_data.get("default_negative_prompt_template"),
+                "allow_custom_negative_prompt": mode_data.get("allow_custom_negative_prompt", False),
+                "allowed_scheduler_ids": mode_data.get("allowed_scheduler_ids"),
+                "default_scheduler_id": mode_data.get("default_scheduler_id"),
             }
             for name, mode_data in modes_dict["modes"].items()
         },

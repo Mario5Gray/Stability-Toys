@@ -137,6 +137,46 @@ class TestJobSubmit:
             assert err["type"] == "job:error"
             assert err["jobId"] == ack["jobId"]
 
+    def test_generate_mode_system_forwards_negative_prompt_and_scheduler(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        fut = MagicMock()
+        fut.result.return_value = (b"png", 123)
+        pool.submit_job.return_value = fut
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        try:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({
+                    "type": "job:submit",
+                    "id": "t-neg",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "negative_prompt": "blurry, watermark",
+                        "scheduler_id": "euler",
+                        "size": "512x512",
+                        "num_inference_steps": 4,
+                        "guidance_scale": 1.0,
+                        "seed": 12345678,
+                    },
+                })
+                ack = ws.receive_json()
+                assert ack["type"] == "job:ack"
+
+                done = ws.receive_json()
+                assert done["type"] == "job:done"
+                assert done["jobId"] == ack["jobId"]
+
+            submitted_job = pool.submit_job.call_args.args[0]
+            assert submitted_job.req.negative_prompt == "blurry, watermark"
+            assert submitted_job.req.scheduler_id == "euler"
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
     def test_unknown_job_type(self):
         with client.websocket_connect("/v1/ws") as ws:
             ws.receive_json()  # consume status

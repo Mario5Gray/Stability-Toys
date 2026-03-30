@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import os
+from copy import deepcopy
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -16,6 +17,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img impo
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipeline
 
 from backends.styles import STYLE_REGISTRY
+from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
@@ -42,6 +44,8 @@ class CudaWorkerBase:
         self._style_loaded: dict[str, bool] = {}
         self._style_api: str = "unknown"
         self._img2img_pipe = None
+        self._baseline_scheduler_class = None
+        self._baseline_scheduler_config = None
         self._parse_env()
 
     def _parse_env(self) -> None:
@@ -105,6 +109,55 @@ class CudaWorkerBase:
             except ValueError:
                 return 0
         return 0
+
+    def _capture_baseline_scheduler(self, pipe: Any) -> None:
+        scheduler = getattr(pipe, "scheduler", None)
+        if scheduler is None:
+            self._baseline_scheduler_class = None
+            self._baseline_scheduler_config = None
+            return
+        self._baseline_scheduler_class = scheduler.__class__
+        self._baseline_scheduler_config = deepcopy(getattr(scheduler, "config", None))
+
+    def _restore_baseline_scheduler(self) -> None:
+        if self._baseline_scheduler_class is None or self._baseline_scheduler_config is None:
+            return
+        scheduler = self._baseline_scheduler_class.from_config(deepcopy(self._baseline_scheduler_config))
+        self.pipe.scheduler = scheduler
+        if self._img2img_pipe is not None:
+            self._img2img_pipe.scheduler = scheduler
+
+    def _allowed_scheduler_ids(self) -> Optional[set[str]]:
+        allowed = getattr(self.model_info, "allowed_scheduler_ids", None)
+        if not allowed:
+            return None
+        return {normalize_scheduler_id(scheduler_id) for scheduler_id in allowed}
+
+    def _resolve_scheduler_id(self, req: Any) -> Optional[str]:
+        requested = getattr(req, "scheduler_id", None)
+        if requested:
+            return normalize_scheduler_id(requested)
+        default = getattr(self.model_info, "default_scheduler_id", None)
+        if default:
+            return normalize_scheduler_id(default)
+        return None
+
+    def _apply_request_scheduler(self, req: Any) -> Optional[str]:
+        selected = self._resolve_scheduler_id(req)
+        allowed = self._allowed_scheduler_ids()
+        if selected is None:
+            self._restore_baseline_scheduler()
+            return None
+
+        if allowed is not None and selected not in allowed:
+            raise RuntimeError(f"scheduler_id '{selected}' is not allowed for the active mode")
+
+        baseline_config = deepcopy(self._baseline_scheduler_config)
+        scheduler = build_scheduler(selected, baseline_config)
+        self.pipe.scheduler = scheduler
+        if self._img2img_pipe is not None:
+            self._img2img_pipe.scheduler = scheduler
+        return selected
 
     # ---------------------------
     # Style application (exclusive)
@@ -196,6 +249,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
+        self._capture_baseline_scheduler(self.pipe)
 
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
         te_dim = getattr(te_dim, "hidden_size", None)
@@ -273,6 +327,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         level = int(getattr(sl, "level", 0)) if sl else 0
 
         self._apply_style(style_id, level)
+        scheduler_id = self._apply_request_scheduler(req)
 
         out = None
         try:
@@ -285,6 +340,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 with torch.inference_mode():
                     out = self._img2img_pipe(
                         prompt=req.prompt,
+                        negative_prompt=getattr(req, "negative_prompt", None),
                         image=init_pil,
                         strength=denoise_strength,
                         num_inference_steps=int(req.num_inference_steps),
@@ -295,6 +351,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 with torch.inference_mode():
                     out = self.pipe(
                         prompt=req.prompt,
+                        negative_prompt=getattr(req, "negative_prompt", None),
                         width=width,
                         height=height,
                         num_inference_steps=int(req.num_inference_steps),
@@ -312,6 +369,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 "size": req.size,
                 "steps": int(req.num_inference_steps),
                 "cfg": float(req.guidance_scale),
+                "negative_prompt": getattr(req, "negative_prompt", None),
+                "scheduler_id": scheduler_id,
             }))
             buf = io.BytesIO()
             img.save(buf, format="PNG", pnginfo=pnginfo)
@@ -353,10 +412,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
         level = int(getattr(sl, "level", 0)) if sl else 0
 
         self._apply_style(style_id, level)
+        scheduler_id = self._apply_request_scheduler(req)
 
         with torch.inference_mode():
             out = self.pipe(
                 prompt=req.prompt,
+                negative_prompt=getattr(req, "negative_prompt", None),
                 width=width,
                 height=height,
                 num_inference_steps=int(req.num_inference_steps),
@@ -385,6 +446,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
             "size": req.size,
             "steps": int(req.num_inference_steps),
             "cfg": float(req.guidance_scale),
+            "negative_prompt": getattr(req, "negative_prompt", None),
+            "scheduler_id": scheduler_id,
         }))
         buf = io.BytesIO()
         img.save(buf, format="PNG", pnginfo=pnginfo)
@@ -458,6 +521,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
+        self._capture_baseline_scheduler(self.pipe)
 
         # Get text encoder dimensions
         te_dim = getattr(getattr(self.pipe, "text_encoder", None), "config", None)
@@ -547,6 +611,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         level = int(getattr(sl, "level", 0)) if sl else 0
 
         self._apply_style(style_id, level)
+        scheduler_id = self._apply_request_scheduler(req)
 
         out = None
         try:
@@ -559,6 +624,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 with torch.inference_mode():
                     out = self._img2img_pipe(
                         prompt=req.prompt,
+                        negative_prompt=getattr(req, "negative_prompt", None),
                         image=init_pil,
                         strength=denoise_strength,
                         num_inference_steps=int(req.num_inference_steps),
@@ -569,6 +635,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 with torch.inference_mode():
                     out = self.pipe(
                         prompt=req.prompt,
+                        negative_prompt=getattr(req, "negative_prompt", None),
                         width=width,
                         height=height,
                         num_inference_steps=int(req.num_inference_steps),
@@ -586,6 +653,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 "size": req.size,
                 "steps": int(req.num_inference_steps),
                 "cfg": float(req.guidance_scale),
+                "negative_prompt": getattr(req, "negative_prompt", None),
+                "scheduler_id": scheduler_id,
             }))
             buf = io.BytesIO()
             img.save(buf, format="PNG", pnginfo=pnginfo)
@@ -630,10 +699,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         level = int(getattr(sl, "level", 0)) if sl else 0
 
         self._apply_style(style_id, level)
+        scheduler_id = self._apply_request_scheduler(req)
 
         with torch.inference_mode():
             out = self.pipe(
                 prompt=req.prompt,
+                negative_prompt=getattr(req, "negative_prompt", None),
                 width=width,
                 height=height,
                 num_inference_steps=int(req.num_inference_steps),
@@ -662,6 +733,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             "size": req.size,
             "steps": int(req.num_inference_steps),
             "cfg": float(req.guidance_scale),
+            "negative_prompt": getattr(req, "negative_prompt", None),
+            "scheduler_id": scheduler_id,
         }))
         buf = io.BytesIO()
         img.save(buf, format="PNG", pnginfo=pnginfo)

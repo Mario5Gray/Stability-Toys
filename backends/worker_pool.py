@@ -52,6 +52,11 @@ def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInf
         "checkpoint_precision",
         "checkpoint_variant",
         "scheduler_profile",
+        "negative_prompt_templates",
+        "default_negative_prompt_template",
+        "allow_custom_negative_prompt",
+        "allowed_scheduler_ids",
+        "default_scheduler_id",
     ):
         value = getattr(mode, field, None)
         if value is not None:

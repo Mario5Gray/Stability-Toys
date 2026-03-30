@@ -123,7 +123,9 @@ class StyleLoraRequest(BaseModel):
 # -----------------------------
 class GenerateRequest(BaseModel):
     prompt: str
+    negative_prompt: Optional[str] = Field(default=None, description="Optional negative prompt passed through to the diffusion pipeline.")
     mode: Optional[str] = Field(default=None, description="Optional mode to switch to before generation (e.g. 'sdxl-portrait')")
+    scheduler_id: Optional[str] = Field(default=None, description="Optional canonical scheduler override for the active mode.")
     size: str = Field(default=os.environ.get("DEFAULT_SIZE", "512x512"), pattern=r"^\d+x\d+$")
     num_inference_steps: int = Field(default=int(os.environ.get("DEFAULT_STEPS", "4")), ge=1, le=50)
     guidance_scale: float = Field(default=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")), ge=0.0, le=20.0)

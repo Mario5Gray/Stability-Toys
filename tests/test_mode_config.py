@@ -99,3 +99,144 @@ modes:
     assert mode_d["checkpoint_variant"] == "sdxl-base"
     assert mode_d["scheduler_profile"] == "native"
     assert mode_d["recommended_size"] == "512x512"
+
+
+def test_mode_config_parses_generation_control_policy_fields(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    negative_prompt_templates:
+      safe_photo: "blurry, distorted, low quality"
+      illustration_clean: "text, watermark, extra fingers"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    allowed_scheduler_ids:
+      - euler
+      - dpmpp_2m
+    default_scheduler_id: euler
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode = manager.get_mode("sdxl")
+
+    assert mode.negative_prompt_templates == {
+        "safe_photo": "blurry, distorted, low quality",
+        "illustration_clean": "text, watermark, extra fingers",
+    }
+    assert mode.default_negative_prompt_template == "safe_photo"
+    assert mode.allow_custom_negative_prompt is True
+    assert mode.allowed_scheduler_ids == ["euler", "dpmpp_2m"]
+    assert mode.default_scheduler_id == "euler"
+
+
+def test_mode_config_generation_control_fields_default_safely(tmp_path):
+    """Absent policy fields should preserve open/unspecified backend semantics."""
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sd15
+modes:
+  sd15:
+    model: checkpoints/sd15/model.safetensors
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode = manager.get_mode("sd15")
+
+    assert mode.negative_prompt_templates == {}
+    assert mode.default_negative_prompt_template is None
+    assert mode.allow_custom_negative_prompt is False
+    assert mode.allowed_scheduler_ids is None
+    assert mode.default_scheduler_id is None
+
+
+def test_mode_config_to_dict_preserves_empty_scheduler_allowlist(tmp_path):
+    """Explicit empty allowlists must round-trip distinctly from absent/null."""
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    negative_prompt_templates:
+      base: "bad anatomy"
+    allow_custom_negative_prompt: false
+    allowed_scheduler_ids: []
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode_d = manager.to_dict()["modes"]["sdxl"]
+
+    assert mode_d["negative_prompt_templates"] == {"base": "bad anatomy"}
+    assert mode_d["default_negative_prompt_template"] is None
+    assert mode_d["allow_custom_negative_prompt"] is False
+    assert mode_d["allowed_scheduler_ids"] == []
+    assert mode_d["default_scheduler_id"] is None
+
+
+def test_mode_config_save_config_round_trips_generation_control_fields(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: base
+modes:
+  base:
+    model: checkpoints/base.safetensors
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    manager.save_config(
+        {
+            "model_root": "/models",
+            "lora_root": "/models/loras",
+            "default_mode": "base",
+            "modes": {
+                "base": {
+                    "model": "checkpoints/base.safetensors",
+                    "default_size": "512x512",
+                    "default_steps": 20,
+                    "default_guidance": 7.0,
+                    "negative_prompt_templates": {
+                        "safe_photo": "blurry, watermark",
+                    },
+                    "default_negative_prompt_template": "safe_photo",
+                    "allow_custom_negative_prompt": True,
+                    "allowed_scheduler_ids": ["euler"],
+                    "default_scheduler_id": "euler",
+                }
+            },
+        }
+    )
+
+    reloaded = ModeConfigManager(str(tmp_path)).get_mode("base")
+
+    assert reloaded.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
+    assert reloaded.default_negative_prompt_template == "safe_photo"
+    assert reloaded.allow_custom_negative_prompt is True
+    assert reloaded.allowed_scheduler_ids == ["euler"]
+    assert reloaded.default_scheduler_id == "euler"

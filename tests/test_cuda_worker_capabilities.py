@@ -11,6 +11,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
 # Stub heavy dependencies before importing cuda_worker.
 _STUBS = [
     "numpy",
@@ -101,6 +103,63 @@ class TestCapabilityAwareMemoryOpts:
         pipe.to.assert_called_once_with("cuda:0")
 
 
+class TestSchedulerSelection:
+    def test_explicit_scheduler_id_is_applied_under_open_policy(self):
+        pipe = _make_pipe()
+        base = _make_base()
+        base.pipe = pipe
+        base.model_info = SimpleNamespace(
+            default_scheduler_id=None,
+            allowed_scheduler_ids=None,
+        )
+        base._baseline_scheduler_class = MagicMock()
+        base._baseline_scheduler_config = {"name": "base"}
+
+        req = SimpleNamespace(scheduler_id="euler")
+        built_scheduler = object()
+
+        with patch("backends.cuda_worker.build_scheduler", return_value=built_scheduler) as mock_build:
+            selected = base._apply_request_scheduler(req)
+
+        assert selected == "euler"
+        mock_build.assert_called_once_with("euler", {"name": "base"})
+        assert pipe.scheduler is built_scheduler
+
+    def test_disallowed_scheduler_id_is_rejected(self):
+        pipe = _make_pipe()
+        base = _make_base()
+        base.pipe = pipe
+        base.model_info = SimpleNamespace(
+            default_scheduler_id=None,
+            allowed_scheduler_ids=["lcm"],
+        )
+        base._baseline_scheduler_class = MagicMock()
+        base._baseline_scheduler_config = {"name": "base"}
+
+        with pytest.raises(RuntimeError, match="not allowed"):
+            base._apply_request_scheduler(SimpleNamespace(scheduler_id="euler"))
+
+    def test_missing_scheduler_selection_restores_baseline(self):
+        pipe = _make_pipe()
+        base = _make_base()
+        base.pipe = pipe
+        restored_scheduler = object()
+        baseline_cls = MagicMock()
+        baseline_cls.from_config.return_value = restored_scheduler
+        base._baseline_scheduler_class = baseline_cls
+        base._baseline_scheduler_config = {"name": "base"}
+        base.model_info = SimpleNamespace(
+            default_scheduler_id=None,
+            allowed_scheduler_ids=[],
+        )
+
+        selected = base._apply_request_scheduler(SimpleNamespace(scheduler_id=None))
+
+        assert selected is None
+        baseline_cls.from_config.assert_called_once_with({"name": "base"})
+        assert pipe.scheduler is restored_scheduler
+
+
 class TestSdxlCapabilityLoader:
     def test_sdxl_single_file_native_scheduler_keeps_pipeline_scheduler(self):
         pipe = _make_pipe()
@@ -149,3 +208,43 @@ class TestSdxlCapabilityLoader:
         )
         mock_lcm.assert_called_once_with(original_config)
         assert worker.pipe.scheduler is lcm_scheduler
+
+
+class TestNegativePromptForwarding:
+    def test_sdxl_run_job_forwards_negative_prompt(self):
+        worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
+        worker.device = "cuda:0"
+        worker.worker_id = 0
+        worker.pipe = MagicMock()
+        worker.pipe.return_value = SimpleNamespace(images=[MagicMock()])
+        worker._img2img_pipe = None
+        worker._apply_style = Mock()
+        worker._apply_request_scheduler = Mock(return_value="euler")
+
+        req = SimpleNamespace(
+            prompt="a castle",
+            negative_prompt="blurry, watermark",
+            size="512x512",
+            num_inference_steps=8,
+            guidance_scale=3.0,
+            seed=123,
+            style_lora=None,
+        )
+        job = SimpleNamespace(req=req, init_image=None)
+
+        fake_generator = MagicMock()
+        fake_generator.manual_seed.return_value = fake_generator
+
+        with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+             patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+             patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+             patch("backends.cuda_worker.PngImagePlugin.PngInfo") as mock_pnginfo:
+            mock_inference.return_value.__enter__.return_value = None
+            mock_inference.return_value.__exit__.return_value = None
+            pnginfo = mock_pnginfo.return_value
+
+            worker.run_job(job)
+
+        worker._apply_request_scheduler.assert_called_once_with(req)
+        assert worker.pipe.call_args.kwargs["negative_prompt"] == "blurry, watermark"
+        pnginfo.add_text.assert_called_once()
