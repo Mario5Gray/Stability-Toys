@@ -13,6 +13,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    setupFiles: ["./src/test-setup.js"],
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost",
+      },
+    },
+  },
   server: {
     allowedHosts: process.env.VITE_ALLOWED_HOSTS 
       ? process.env.VITE_ALLOWED_HOSTS.split(',')
