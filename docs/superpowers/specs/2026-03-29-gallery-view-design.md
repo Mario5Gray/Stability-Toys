@@ -20,7 +20,7 @@ Let users capture generated images into named galleries. A gallery is opt-in: im
 - Send a generated image to the active gallery via a pill action
 - View a gallery in a lightbox with a 5-column grid, pagination, and per-image metadata
 - Open any gallery image in a new tab
-- Persist gallery data in the browser using the existing IndexedDB cache infrastructure
+- Persist gallery data durably in a dedicated browser IndexedDB that is never evicted or cleared by normal app operations
 
 **Out of scope (v1):**
 
@@ -33,7 +33,7 @@ Let users capture generated images into named galleries. A gallery is opt-in: im
 
 ## Data Layer
 
-### Gallery list
+### Gallery list — localStorage
 
 Stored in `localStorage` under key `lcm-galleries`.
 
@@ -46,22 +46,46 @@ Stored in `localStorage` under key `lcm-galleries`.
 
 Gallery names are truncated to 16 characters at creation time. This truncation rule applies to all dropdowns in the UI that display gallery names.
 
-### Image assignments
+The active gallery selection is persisted in `localStorage` under key `lcm-active-gallery` (string gallery id, or absent/`null` for "none"). This survives page refresh without re-selecting.
 
-New `gallery_items` object store added to the existing `lcm-image-cache` IndexedDB, bumping the DB version from 2 to **3**. The upgrade follows the existing `onupgradeneeded` pattern in `cache.js` and touches no existing data.
+### Image assignments — separate `lcm-galleries` IndexedDB
+
+Gallery item rows live in a **dedicated** `lcm-galleries` IndexedDB (DB version 1), completely separate from `lcm-image-cache`. This isolation means:
+
+- Gallery contents are **never evicted** — the `_evictIfNeeded` logic in `cache.js` only touches `lcm-image-cache` and cannot reach this DB.
+- Gallery contents **survive "Clear Messages"** — the `cache.clear()` call clears `lcm-image-cache`; it has no connection to `lcm-galleries`.
+- No version coordination with the existing cache is needed. `cache.js` is **not modified**.
+
+Schema of the `gallery_items` object store:
 
 ```text
-gallery_items store {
-  id:             string   // keyPath, same value as cacheKey
+gallery_items {
+  id:             string   // keyPath — auto-generated UUID (crypto.randomUUID())
   galleryId:      string
-  cacheKey:       string   // key into imageMeta / imageBlobs stores
-  serverImageKey: string?  // backend image key if the image was server-saved
+  cacheKey:       string   // hint for local blob lookup; may become stale if blob evicted
+  serverImageUrl: string?  // fully-resolved URL stored at assignment time
+                           // e.g. `${apiBase}/storage/${serverImageKey}`
+                           // derived using the same pattern as api.js:208 at call time
   params:         object   // snapshot: { prompt, seed, size, steps, cfg, ... }
   addedAt:        number   // Date.now() at time of assignment
 }
 
-index: "galleryId" (non-unique) — enables O(log n) per-gallery queries
+indexes:
+  "galleryId"  (non-unique) — per-gallery queries
+  "cacheKey"   (non-unique) — detect if a cacheKey is already in a given gallery
 ```
+
+Using a UUID keyPath means the same image can appear in multiple galleries without collision. The `cacheKey` index allows a pre-insert check for `(galleryId, cacheKey)` duplicates if desired.
+
+### Image display fallback
+
+When rendering a gallery thumbnail or viewer:
+
+1. Try to resolve a blob URL from `lcm-image-cache` using `cacheKey`.
+2. If the blob is absent (evicted or cleared), fall back to `serverImageUrl`.
+3. If both are absent, show a broken-image placeholder.
+
+This means images with no `serverImageUrl` (e.g. generated before server-side caching was enabled) degrade to placeholder under cache pressure. The spec accepts this as a known limitation of v1.
 
 ### Backend sync shape (v2, not implemented in v1)
 
@@ -69,11 +93,9 @@ index: "galleryId" (non-unique) — enables O(log n) per-gallery queries
 POST /api/galleries
 {
   "galleries": [{ id, name, createdAt }],
-  "items": [{ galleryId, cacheKey, serverImageKey, params, addedAt }]
+  "items": [{ id, galleryId, cacheKey, serverImageUrl, params, addedAt }]
 }
 ```
-
-Keyed on `serverImageKey` for deduplication on the server.
 
 ---
 
@@ -81,23 +103,24 @@ Keyed on `serverImageKey` for deduplication on the server.
 
 **File:** `lcm-sr-ui/src/hooks/useGalleries.js`
 
-Owned by `App.jsx` and passed to child components as `galleryState`.
+Owned by `App.jsx` and passed to child components as `galleryState`. Manages its own `lcm-galleries` DB handle independently.
 
 ```js
 useGalleries() → {
   galleries,              // [{ id, name, createdAt }]  — from localStorage
-  activeGalleryId,        // string | null  (null = "none" / no active gallery)
-  setActiveGalleryId,     // (id: string | null) => void
+  activeGalleryId,        // string | null  — from localStorage (lcm-active-gallery)
+  setActiveGalleryId,     // (id: string | null) => void  — also persists to localStorage
   createGallery,          // (name: string) => void  — truncates to 16 chars, auto-selects
-  addToGallery,           // (cacheKey, { serverImageKey, params }) => Promise<void>
+  addToGallery,           // (cacheKey, { serverImageUrl, params }) => Promise<void>
   getGalleryImages,       // (galleryId) => Promise<GalleryItem[]>
 }
 ```
 
 - `galleries` and `activeGalleryId` are React state initialised from `localStorage` on mount.
-- `createGallery` writes to `localStorage` synchronously and calls `setActiveGalleryId` with the new gallery's id.
-- `addToGallery` and `getGalleryImages` operate on `gallery_items` in the `lcm-image-cache` IndexedDB.
-- **The hook must not open its own DB connection.** IndexedDB serialises version upgrades per origin — a second connection at v2 would block the v3 upgrade. Instead, `openDatabase()` in `cache.js` is the single opener for the DB. It is updated to v3 (adding `gallery_items`) and exported so `useGalleries` calls it directly. This guarantees one connection, one upgrade path.
+- `createGallery` writes to `lcm-galleries` localStorage key synchronously, generates a UUID id, and calls `setActiveGalleryId`.
+- `setActiveGalleryId` updates both React state and `localStorage` key `lcm-active-gallery`.
+- `addToGallery` opens `lcm-galleries` IndexedDB and puts a new row with a fresh `crypto.randomUUID()` as the keyPath id.
+- `getGalleryImages` queries the `galleryId` index and returns all matching rows.
 
 ---
 
@@ -137,19 +160,19 @@ Full-viewport fixed overlay. Contains the toolbar, grid, and viewer sub-componen
 Renders a 5-column CSS grid of image thumbnails.
 
 - 20 images per page; pagination controls below the grid (Prev / Page N of M / Next)
-- Images fetched from cache blobs via their `cacheKey`
+- Each cell resolves its display URL using the fallback order: cache blob → `serverImageUrl` → placeholder
 - Click on image → renders `GalleryImageViewer` inside the lightbox
-- Keyboard: Space on a focused/hovered thumbnail → `window.open(imageUrl, '_blank')`
+- Keyboard: Space on a focused/hovered thumbnail → `window.open(resolvedUrl, '_blank')`
 - Thumbnails use `object-fit: cover` in a fixed square cell
 
 #### `GalleryImageViewer.jsx`
 
 Single image view within the lightbox, opened by clicking a grid thumbnail.
 
-- Full image centered in the available area
+- Full image centered in the available area, using the same blob → `serverImageUrl` → placeholder fallback
 - **Metadata bar:** absolutely positioned at the bottom, hidden by default. Becomes visible when the pointer enters the lower 20% of the image container — detected by comparing `e.clientY` against the container's `getBoundingClientRect`. Fields: prompt, seed, size, steps, cfg, backend, addedAt.
 - Back arrow (top-left within viewer) returns to the grid
-- Spacebar → `window.open(imageUrl, '_blank')`
+- Spacebar → `window.open(resolvedUrl, '_blank')`
 
 ---
 
@@ -157,26 +180,25 @@ Single image view within the lightbox, opened by clicking a grid thumbnail.
 
 #### `App.jsx`
 
-1. Add `useGalleries()` and spread `galleryState` into props.
+1. Add `useGalleries()` and store result as `galleryState`.
 2. In the tab bar, after the "Configuration" tab trigger, add:
-   - A `<GalleryCreatePopover>` trigger: folder icon (`FolderPlus` from lucide) + `[+]` label.
-   - For each gallery in `galleries`, render a clickable folder tab (`Folder` icon + truncated name). Clicking calls `setOpenGalleryId(gallery.id)`.
+   - A `<GalleryCreatePopover>` trigger: `FolderPlus` lucide icon + `[+]` label.
+   - For each gallery in `galleryState.galleries`, render a clickable folder tab (`Folder` icon + truncated name). Clicking sets local state `openGalleryId`.
 3. Render `<GalleryLightbox>` conditionally when `openGalleryId` is set.
-4. Pass `galleryState` down to `<OptionsPanel>` and relevant props to `<ChatContainer>` → `<MessageBubble>`.
+4. Pass `galleryState` to `<OptionsPanel>` and `activeGalleryId` + `onAddToGallery` to `<ChatContainer>` → `<MessageBubble>`.
 
 #### `OptionsPanel.jsx`
 
-Add a `GallerySelector` block **below the draft-prompt textarea**, above whatever currently follows it.
+Add a `GallerySelector` block **below the draft-prompt textarea**.
 
 - Uses the existing `<Select>` / `<SelectTrigger>` / `<SelectItem>` components (same style as Negative Prompt Template selector)
 - First item: value `null`, label `None`
 - Remaining items: one per gallery, label truncated to 16 chars
-- `onValueChange` calls `setActiveGalleryId`
-- Receives `galleryState` via props
+- `onValueChange` calls `galleryState.setActiveGalleryId`
 
 #### `MessageBubble.jsx`
 
-In the metadata pills row (line ~312), add a `→ Gallery` pill **next to the Download link**:
+In the metadata pills row (~line 312), add a `→ Gallery` pill **next to the Download link**:
 
 ```jsx
 {onAddToGallery && (
@@ -186,7 +208,7 @@ In the metadata pills row (line ~312), add a `→ Gallery` pill **next to the Do
     onClick={(e) => {
       e.stopPropagation();
       onAddToGallery(msg.meta?.cacheKey, {
-        serverImageKey: msg.serverImageKey ?? null,
+        serverImageUrl: msg.serverImageUrl ?? null,
         params: msg.params ?? {},
       });
     }}
@@ -199,6 +221,7 @@ In the metadata pills row (line ~312), add a `→ Gallery` pill **next to the Do
 ```
 
 - Uses `MoveRight` from lucide-react (graphic arrow)
+- Passes `serverImageUrl` directly (already resolved on the message object — no helper call needed at display time)
 - Disabled and dimmed when `activeGalleryId` is null
 - Receives `activeGalleryId` and `onAddToGallery` as new props
 
@@ -232,8 +255,11 @@ Gallery names are truncated to **16 characters** at creation (in `createGallery`
 | Active gallery is "none" | `→ Gallery` pill is disabled and dimmed |
 | `cacheKey` is absent on a message | `→ Gallery` pill is not rendered |
 | Gallery has no images | `GalleryGrid` shows an empty state: "No images in this gallery yet" |
-| Image blob missing from cache (evicted) | Thumbnail shows a broken-image placeholder; spacebar/click still works via `serverImageKey` URL if present |
-| Two galleries created with the same name | Allowed — they get distinct IDs |
+| Blob evicted, `serverImageUrl` present | Thumbnail and viewer use `serverImageUrl`; spacebar/click opens that URL |
+| Blob evicted, no `serverImageUrl` | Thumbnail shows broken-image placeholder; click/spacebar disabled for that item |
+| Two galleries created with the same name | Allowed — they get distinct UUIDs |
+| Same image added to same gallery twice | `addToGallery` checks the `cacheKey` index before inserting; silently no-ops on duplicate |
+| Same image added to two different galleries | Two rows with distinct UUIDs — allowed by design |
 | ESC pressed while a child window is open | Lightbox closes and calls `.close()` on all tracked child window refs |
 
 ---
@@ -242,12 +268,13 @@ Gallery names are truncated to **16 characters** at creation (in `createGallery`
 
 | File | Change |
 |---|---|
-| `src/hooks/useGalleries.js` | **new** |
+| `src/hooks/useGalleries.js` | **new** — manages `lcm-galleries` DB + localStorage |
 | `src/components/gallery/GalleryCreatePopover.jsx` | **new** |
 | `src/components/gallery/GalleryLightbox.jsx` | **new** |
 | `src/components/gallery/GalleryGrid.jsx` | **new** |
 | `src/components/gallery/GalleryImageViewer.jsx` | **new** |
-| `src/utils/cache.js` | modify — add `gallery_items` store in `onupgradeneeded`, bump DB to v3, export `openDatabase` |
 | `src/App.jsx` | modify — `useGalleries`, tab bar buttons, lightbox render, prop threading |
 | `src/components/options/OptionsPanel.jsx` | modify — add `GallerySelector` |
 | `src/components/chat/MessageBubble.jsx` | modify — add `→ Gallery` pill |
+
+`src/utils/cache.js` is **not modified**. The gallery DB is fully independent.
