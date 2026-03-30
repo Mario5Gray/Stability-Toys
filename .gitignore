@@ -27,10 +27,10 @@ docker tag harbor:443/rknn-lcm-sd-ui:latest darkbit1001/rknn-lcm-sd-ui:latest
 .claude
 env.lsp
 env.custom
-<<<<<<< Updated upstream
-=======
 .mcp.json
->>>>>>> Stashed changes
 
 # Fiberplane local issue tracking
 .fp/
+
+# Git worktrees
+.worktrees/
