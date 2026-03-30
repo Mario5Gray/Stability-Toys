@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OptionsPanel } from './OptionsPanel';
 
 if (!Element.prototype.hasPointerCapture) {
@@ -16,6 +16,10 @@ if (!Element.prototype.setPointerCapture) {
 if (!Element.prototype.releasePointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
+
+afterEach(() => {
+  cleanup();
+});
 
 function makeParams(overrides = {}) {
   return {
@@ -115,6 +119,80 @@ function renderOptionsPanel(modeState, params = makeParams()) {
 }
 
 describe('OptionsPanel mode-driven controls', () => {
+  it('forwards negative prompt edits through the selected-image params path', () => {
+    const params = makeParams({
+      effective: {
+        negativePrompt: 'blurry',
+        schedulerId: 'ddim',
+      },
+    });
+    const modeState = makeModeState('cinematic', {
+      negative_prompt_templates: {
+        cinematic: 'blurry',
+      },
+      allow_custom_negative_prompt: true,
+      allowed_scheduler_ids: ['ddim'],
+      default_scheduler_id: 'ddim',
+    });
+
+    render(
+      <OptionsPanel
+        params={params}
+        inputImage={null}
+        comfyInputImage={null}
+        selectedParams={{
+          prompt: 'portrait',
+          negativePrompt: 'blurry',
+          schedulerId: 'ddim',
+          size: '512x512',
+          steps: 8,
+          cfg: 2.8,
+          superresLevel: 1,
+        }}
+        blurredSelectedParams={null}
+        selectedMsgId="msg-1"
+        onClearSelection={vi.fn()}
+        onApplyPromptDelta={vi.fn()}
+        onApplySeedDelta={vi.fn()}
+        onRerunSelected={vi.fn()}
+        onPersistSelectedParams={vi.fn()}
+        dreamState={{
+          isDreaming: false,
+          temperature: 0.5,
+          interval: 10,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onGuide: vi.fn(),
+          onTemperatureChange: vi.fn(),
+          onIntervalChange: vi.fn(),
+        }}
+        onSuperResUpload={vi.fn()}
+        uploadFile={null}
+        onUploadFileChange={vi.fn()}
+        srMagnitude={1}
+        onSrMagnitudeChange={vi.fn()}
+        onSuperResSelected={vi.fn()}
+        serverLabel="test"
+        onRunComfy={vi.fn()}
+        onClearCache={vi.fn()}
+        getCacheStats={vi.fn().mockResolvedValue(null)}
+        onClearHistory={vi.fn()}
+        queueState={{ items: [] }}
+        initImage={null}
+        onClearInitImage={vi.fn()}
+        denoiseStrength={0.75}
+        onDenoiseStrengthChange={vi.fn()}
+        modeState={modeState}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Negative prompt'), {
+      target: { value: 'washed out' },
+    });
+
+    expect(params.setNegativePrompt).toHaveBeenCalledWith('washed out');
+  });
+
   it('refreshes negative prompt and sampler controls when the active mode changes', async () => {
     const cinematicMode = {
       negative_prompt_templates: {

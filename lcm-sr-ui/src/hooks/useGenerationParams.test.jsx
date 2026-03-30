@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useGenerationParams } from './useGenerationParams';
 
 describe('useGenerationParams', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('applies mode-driven negative prompt and scheduler defaults to the draft state', () => {
     const { result } = renderHook(() =>
       useGenerationParams(null, null, vi.fn(), null)
@@ -52,5 +56,51 @@ describe('useGenerationParams', () => {
     expect(result.current.draft.schedulerId).toBe('euler');
     expect(result.current.effective.negativePrompt).toBe('washed out, flat lighting');
     expect(result.current.effective.schedulerId).toBe('euler');
+  });
+
+  it('regenerates the selected image when negative prompt changes', () => {
+    vi.useFakeTimers();
+    const runGenerate = vi.fn();
+    const patchSelectedParams = vi.fn();
+    const selectedParams = {
+      prompt: 'portrait',
+      negativePrompt: 'blurry',
+      schedulerId: 'ddim',
+      size: '512x512',
+      steps: 8,
+      cfg: 3,
+      seed: 1234,
+      superresLevel: 0,
+      denoiseStrength: 0.75,
+    };
+
+    const { result } = renderHook(() =>
+      useGenerationParams(
+        selectedParams,
+        patchSelectedParams,
+        runGenerate,
+        'msg-1'
+      )
+    );
+
+    act(() => {
+      result.current.setNegativePrompt('washed out');
+    });
+
+    expect(patchSelectedParams).toHaveBeenCalledWith({ negativePrompt: 'washed out' });
+    expect(runGenerate).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(runGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetMessageId: 'msg-1',
+        prompt: 'portrait',
+        negativePrompt: 'washed out',
+        schedulerId: 'ddim',
+      })
+    );
   });
 });
