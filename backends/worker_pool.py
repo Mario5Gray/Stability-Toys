@@ -510,6 +510,10 @@ class WorkerPool:
                         f"allocated={torch.cuda.memory_allocated()/1024**3:.2f}GB "
                         f"reserved={torch.cuda.memory_reserved()/1024**3:.2f}GB"
                     )
+                    # OOM can leave the pipeline allocator state partially poisoned.
+                    # Drop the live worker and let the next job demand-reload the
+                    # current mode through the normal load path.
+                    self._unload_current_worker()
                 if not job.fut.done():
                     job.fut.set_exception(e)
             finally:

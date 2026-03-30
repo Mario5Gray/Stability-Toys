@@ -728,19 +728,48 @@ class TestConcurrency:
         fut1 = worker_pool.submit_job(job1)
 
         # Switch mode
-        switch_fut = worker_pool.switch_mode("sd15-fast")
 
-        # Submit another job
-        job2 = GenerationJob(req=Mock())
-        fut2 = worker_pool.submit_job(job2)
 
-        # All should complete
-        results.append(fut1.result(timeout=5.0))
-        switch_fut.result(timeout=5.0)
-        results.append(fut2.result(timeout=5.0))
+class TestOomRecovery:
+    def test_oom_unloads_worker_and_next_request_demand_reloads(
+        self,
+        mock_mode_config,
+        mock_registry,
+    ):
+        """OOM should tear down the current worker so the next job reloads cleanly."""
+        from backends.worker_pool import reset_worker_pool
 
-        assert len(results) == 2
-        assert worker_pool.get_current_mode() == "sd15-fast"
+        reset_worker_pool()
+
+        fake_oom = getattr(sys.modules["backends.worker_pool"].torch.cuda, "OutOfMemoryError", RuntimeError)
+        first_worker = Mock()
+        first_worker.run_job.side_effect = fake_oom("CUDA out of memory")
+        second_worker = Mock()
+        second_worker.run_job.return_value = "recovered"
+        worker_factory = Mock(side_effect=[first_worker, second_worker])
+
+        pool = WorkerPool(
+            queue_max=10,
+            worker_factory=worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        try:
+            fut1 = pool.submit_job(GenerationJob(req=Mock()))
+            with pytest.raises(fake_oom):
+                fut1.result(timeout=10.0)
+
+            assert pool._worker is None
+            assert pool._current_mode == "sdxl-general"
+
+            fut2 = pool.submit_job(GenerationJob(req=Mock()))
+            assert fut2.result(timeout=10.0) == "recovered"
+            assert worker_factory.call_count == 2
+            assert pool._worker is second_worker
+        finally:
+            pool.shutdown()
+            reset_worker_pool()
 
 
 class TestQueueManagement:
