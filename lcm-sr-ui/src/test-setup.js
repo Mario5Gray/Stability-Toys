@@ -2,6 +2,7 @@
 // Node 25 provides a built-in global localStorage that lacks the full Storage
 // interface (no clear/getItem/setItem/removeItem). This file replaces it with
 // a proper in-memory implementation so tests can use localStorage normally.
+import '@testing-library/jest-dom/vitest';
 
 function makeInMemoryStorage() {
   let store = {};
