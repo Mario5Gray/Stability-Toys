@@ -272,6 +272,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         size: sizeParam,
         steps: stepsParam,
         cfg: cfgParam,
+        negativePrompt: negativePromptParam = '',
+        schedulerId: schedulerIdParam = null,
         superresLevel: srLevelParam,
         seedMode: seedModeParam,
         seed: seedParam,
@@ -316,6 +318,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
               steps: useSteps,
               cfg: useCfg,
               seed: reqSeed,
+              negative_prompt: negativePromptParam || null,
+              scheduler_id: schedulerIdParam || null,
               superres: superresOn,
               superres_magnitude: superresOn ? useSrLevel : 1,
             },
@@ -331,6 +335,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         source: isDream ? 'dream' : 'generate',
         payload: {
           prompt: p,
+          negativePrompt: negativePromptParam,
+          schedulerId: schedulerIdParam,
           size: useSize,
           steps: useSteps,
           cfg: useCfg,
@@ -358,6 +364,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
           const cacheParams = {
             prompt: payload.prompt,
+            negativePrompt: payload.negativePrompt,
+            schedulerId: payload.schedulerId,
             size: payload.size,
             steps: payload.steps,
             cfg: payload.cfg,
@@ -443,6 +451,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
             serverImageKey: result?.serverImageKey || null,
             params: {
               prompt: payload.prompt,
+              negativePrompt: payload.negativePrompt,
+              schedulerId: payload.schedulerId,
               size: payload.size,
               steps: payload.steps,
               cfg: payload.cfg,
@@ -502,6 +512,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
         const savedParams = {
           prompt: promptParam,
+          negativePrompt: negativePromptParam,
+          schedulerId: schedulerIdParam,
           size: sizeParam,
           steps: stepsParam,
           cfg: cfgParam,

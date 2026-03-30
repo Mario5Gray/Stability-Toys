@@ -123,10 +123,18 @@ export function useLatentExploration(runGenerate) {
    */
   const lockPrompt = useCallback(
     async (params) => {
-      const { prompt, seed, size = '512x512' } = params;
+      const {
+        prompt,
+        negativePrompt = '',
+        schedulerId = null,
+        seed,
+        size = '512x512',
+      } = params;
 
       const lockParams = {
         prompt,
+        negativePrompt,
+        schedulerId,
         seed,
         size,
         steps: 0, // Zero steps = latent encoding only
@@ -168,6 +176,8 @@ export function useLatentExploration(runGenerate) {
     async (params) => {
       const {
         prompt,
+        negativePrompt = '',
+        schedulerId = null,
         seed,
         denoise = 0.7,
         steps = 10,
@@ -176,6 +186,8 @@ export function useLatentExploration(runGenerate) {
 
       const cousinParams = {
         prompt,
+        negativePrompt,
+        schedulerId,
         seed,
         size,
         steps: clampInt(steps, 7, STEPS_CONFIG.MAX), // Min 7 for cousins
@@ -213,6 +225,8 @@ export function useLatentExploration(runGenerate) {
     async (params, numPasses = 3, denoisePerPass = 0.8) => {
       const {
         prompt,
+        negativePrompt = '',
+        schedulerId = null,
         seed,
         size = '512x512',
         steps = 8,
@@ -225,6 +239,8 @@ export function useLatentExploration(runGenerate) {
       for (let pass = 0; pass < numPasses; pass++) {
         const passParams = {
           prompt,
+          negativePrompt,
+          schedulerId,
           seed,
           size,
           steps,
@@ -335,6 +351,8 @@ export function useLatentExploration(runGenerate) {
         seedEnd,
         steps: walkSteps = 5,
         prompt,
+        negativePrompt = '',
+        schedulerId = null,
         size = '512x512',
         renderSteps = 10,
         cfg = 0.0,
@@ -353,6 +371,8 @@ export function useLatentExploration(runGenerate) {
 
         const walkParams = {
           prompt,
+          negativePrompt,
+          schedulerId,
           seed: interpolatedSeed,
           size,
           steps: renderSteps,

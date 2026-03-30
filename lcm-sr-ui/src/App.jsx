@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { useChatMessages } from './hooks/useChatMessages';
 import { useGenerationParams } from './hooks/useGenerationParams';
 import { useImageGeneration } from './hooks/useImageGeneration';
+import { useModeConfig } from './hooks/useModeConfig';
 import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
@@ -174,6 +175,7 @@ export default function App() {
   // Copy feedback
   const [copied, setCopied] = useState(false);
   const [blurredSelection, setBlurredSelection] = useState(null);
+  const modeState = useModeConfig();
 
   // Generation parameters (draft + selected)
   const params = useGenerationParams(
@@ -183,6 +185,11 @@ export default function App() {
     selectedMsgId,
     initImage?.file || null
   );
+
+  useEffect(() => {
+    if (!modeState.activeMode) return;
+    params.applyModeControlDefaults(modeState.activeMode);
+  }, [modeState.activeModeName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist edits on selection change so message state reflects current controls
   const persistSelectedParams = useCallback((id, patch) => {
@@ -220,6 +227,8 @@ export default function App() {
 
     runGenerate({
       prompt: params.effective.prompt,
+      negativePrompt: params.effective.negativePrompt,
+      schedulerId: params.effective.schedulerId,
       size: params.effective.size,
       steps: params.effective.steps,
       cfg: params.effective.cfg,
@@ -241,6 +250,8 @@ export default function App() {
     }
     const snapshot = {
       prompt: params.effective.prompt,
+      negativePrompt: params.effective.negativePrompt,
+      schedulerId: params.effective.schedulerId,
       size: params.effective.size,
       steps: params.effective.steps,
       cfg: params.effective.cfg,
@@ -263,6 +274,8 @@ export default function App() {
 
     runGenerate({
       prompt: selectedParams.prompt,
+      negativePrompt: selectedParams.negativePrompt,
+      schedulerId: selectedParams.schedulerId,
       size: selectedParams.size,
       steps: selectedParams.steps,
       cfg: selectedParams.cfg,
@@ -296,6 +309,8 @@ export default function App() {
       // Trigger regeneration with new seed
       runGenerate({
         prompt: selectedParams.prompt,
+        negativePrompt: selectedParams.negativePrompt,
+        schedulerId: selectedParams.schedulerId,
         size: selectedParams.size,
         steps: selectedParams.steps,
         cfg: selectedParams.cfg,
@@ -418,6 +433,8 @@ export default function App() {
 
       runGenerate({
         prompt: text,
+        negativePrompt: params.effective.negativePrompt,
+        schedulerId: params.effective.schedulerId,
         size: params.effective.size,
         steps: params.effective.steps,
         cfg: params.effective.cfg,
@@ -541,6 +558,7 @@ export default function App() {
             onClearInitImage={clearInitImage}
             denoiseStrength={params.effective.denoiseStrength}
             onDenoiseStrengthChange={params.setDenoiseStrength}
+            modeState={modeState}
             onRunComfy={(payload) => {
               const history = selectedMsg?.imageHistory || [];
               // Bootstrap history with current image if message exists but has no history

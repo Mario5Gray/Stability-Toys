@@ -4,6 +4,7 @@
 // but uses the WS job:submit protocol.
 
 import { wsClient, nextCorrId } from './wsClient';
+import { buildGenerateWsParams } from '../utils/generationControls';
 
 const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
 
@@ -59,17 +60,7 @@ export function generateViaWs(payload, signal) {
       id: corrId,
       type: 'job:submit',
       jobType: 'generate',
-      params: {
-        prompt: payload.prompt,
-        size: payload.size,
-        steps: payload.steps,
-        cfg: payload.cfg,
-        seed: payload.seed,
-        superres: payload.superres,
-        superres_magnitude: payload.superresLevel || 1,
-        init_image_ref: payload.initImageRef || undefined,
-        denoise_strength: payload.initImageRef ? payload.denoiseStrength : undefined,
-      },
+      params: buildGenerateWsParams(payload),
     });
 
     // Timeout — reject if server never responds; cancel server-side job

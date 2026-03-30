@@ -11,6 +11,7 @@ import {
   SEED_MODES,
   DEBOUNCE_CONFIG,
 } from '../utils/constants';
+import { applyModeControlDefaultsToDraft } from '../utils/generationControls';
 
 /**
  * Hook for managing image generation parameters.
@@ -50,6 +51,8 @@ export function useGenerationParams(
   const [seedMode, setSeedMode] = useState(SEED_MODES.RANDOM);
   const [seed, setSeed] = useState(() => String(eightDigitSeed()));
   const [denoiseStrength, setDenoiseStrength] = useState(0.75);
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [schedulerId, setSchedulerId] = useState(null);
 
   // Debounce timer for regeneration
   const regenTimerRef = useRef(null);
@@ -67,8 +70,10 @@ export function useGenerationParams(
       seed: seedMode === SEED_MODES.FIXED ? Number(seed || 0) : null,
       superresLevel: srLevel,
       denoiseStrength,
+      negativePrompt,
+      schedulerId,
     }),
-    [prompt, size, steps, cfg, seedMode, seed, srLevel, denoiseStrength]
+    [prompt, size, steps, cfg, seedMode, seed, srLevel, denoiseStrength, negativePrompt, schedulerId]
   );
 
   /**
@@ -90,6 +95,8 @@ export function useGenerationParams(
         SR_CONFIG.MIN,
         SR_CONFIG.BACKEND_MAX
       ),
+      negativePrompt: String(src.negativePrompt ?? DEFAULTS.negativePrompt ?? ''),
+      schedulerId: src.schedulerId ?? DEFAULTS.schedulerId ?? null,
       denoiseStrength: Number.isFinite(Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength))
         ? Math.min(1.0, Math.max(0.01, Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength)))
         : 0.75,
@@ -216,6 +223,30 @@ export function useGenerationParams(
     [selectedParams, scheduleRegenSelected]
   );
 
+  const setNegativePromptEffective = useCallback(
+    (value) => {
+      const next = safeJsonString(value);
+      if (selectedParams) {
+        scheduleRegenSelected({ negativePrompt: next });
+      } else {
+        setNegativePrompt(next);
+      }
+    },
+    [selectedParams, scheduleRegenSelected]
+  );
+
+  const setSchedulerIdEffective = useCallback(
+    (value) => {
+      const next = value || null;
+      if (selectedParams) {
+        scheduleRegenSelected({ schedulerId: next });
+      } else {
+        setSchedulerId(next);
+      }
+    },
+    [selectedParams, scheduleRegenSelected]
+  );
+
   /**
    * Randomize seed value.
    */
@@ -247,7 +278,24 @@ export function useGenerationParams(
     setSrLevel(SR_CONFIG.DEFAULT);
     setSeedMode(SEED_MODES.RANDOM);
     setSeed(String(eightDigitSeed()));
+    setNegativePrompt('');
+    setSchedulerId(null);
   }, []);
+
+  const applyModeControlDefaults = useCallback(
+    (mode) => {
+      const next = applyModeControlDefaultsToDraft(
+        {
+          negativePrompt,
+          schedulerId,
+        },
+        mode
+      );
+      setNegativePrompt(next.negativePrompt || '');
+      setSchedulerId(next.schedulerId || null);
+    },
+    [negativePrompt, schedulerId]
+  );
 
   /**
    * Load parameters from message metadata.
@@ -295,6 +343,8 @@ export function useGenerationParams(
       seedMode,
       seed,
       denoiseStrength,
+      negativePrompt,
+      schedulerId,
     },
 
     // Effective values (selected or draft, validated)
@@ -309,6 +359,9 @@ export function useGenerationParams(
     setSeedMode,
     setSeed,
     setDenoiseStrength: setDenoiseStrengthEffective,
+    setNegativePrompt: setNegativePromptEffective,
+    setSchedulerId: setSchedulerIdEffective,
+    applyModeControlDefaults,
 
     // Utilities
     randomizeSeed,
@@ -322,5 +375,7 @@ export function useGenerationParams(
     setStepsDirect: setSteps,
     setCfgDirect: setCfg,
     setSrLevelDirect: setSrLevel,
+    setNegativePromptDirect: setNegativePrompt,
+    setSchedulerIdDirect: setSchedulerId,
   };
 }

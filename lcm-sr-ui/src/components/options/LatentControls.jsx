@@ -49,6 +49,8 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
 
     await latentState.applyPreset(selectedPreset, {
       prompt: currentParams.prompt,
+      negativePrompt: currentParams.negativePrompt,
+      schedulerId: currentParams.schedulerId,
       seed: currentParams.seed || Math.floor(Math.random() * 100000000),
       size: currentParams.size,
     });
@@ -68,6 +70,8 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
       seedEnd,
       steps: 5,
       prompt: currentParams.prompt,
+      negativePrompt: currentParams.negativePrompt,
+      schedulerId: currentParams.schedulerId,
       size: currentParams.size,
     });
   };
@@ -195,6 +199,8 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
             onClick={async () => {
               await latentState.lockPrompt({
                 prompt: currentParams.prompt,
+                negativePrompt: currentParams.negativePrompt,
+                schedulerId: currentParams.schedulerId,
                 seed: currentParams.seed || Math.floor(Math.random() * 100000000),
                 size: currentParams.size,
               });
@@ -212,6 +218,8 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
             onClick={async () => {
               await latentState.exploreCousins({
                 prompt: currentParams.prompt,
+                negativePrompt: currentParams.negativePrompt,
+                schedulerId: currentParams.schedulerId,
                 seed: currentParams.seed || Math.floor(Math.random() * 100000000),
                 size: currentParams.size,
                 denoise: 0.7,
@@ -232,6 +240,8 @@ export function LatentControls({ latentState, currentParams, hasSelectedImage })
               await latentState.multiPassRefine(
                 {
                   prompt: currentParams.prompt,
+                  negativePrompt: currentParams.negativePrompt,
+                  schedulerId: currentParams.schedulerId,
                   seed: currentParams.seed || Math.floor(Math.random() * 100000000),
                   size: currentParams.size,
                 },

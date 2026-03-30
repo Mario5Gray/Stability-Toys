@@ -151,6 +151,8 @@ export function createRoundRobinPicker(apiConfig) {
 export async function generateImage(apiBase, params, signal = null) {
   const {
     prompt,
+    negativePrompt,
+    schedulerId,
     size,
     steps,
     cfg,
@@ -164,6 +166,8 @@ export async function generateImage(apiBase, params, signal = null) {
 
   const body = {
     prompt,
+    negative_prompt: negativePrompt || undefined,
+    scheduler_id: schedulerId || undefined,
     size,
     num_inference_steps: steps,
     guidance_scale: cfg,

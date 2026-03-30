@@ -31,6 +31,12 @@ import {
 } from '../../utils/constants';
 import { formatSizeDisplay, sanitizeSeedInput } from '../../utils/helpers';
 import { ComfyOptions } from "./ComfyOptions";
+import {
+  CUSTOM_NEGATIVE_PROMPT_ID,
+  getNegativePromptTemplateOptions,
+  getSchedulerOptions,
+  resolveNegativePromptTemplateId,
+} from '../../utils/generationControls';
 
 /**
  * Options panel component - right sidebar with all generation controls.
@@ -165,6 +171,7 @@ export function OptionsPanel({
   onClearInitImage,
   denoiseStrength,
   onDenoiseStrengthChange,
+  modeState,
 }) {
   const optionsScrollRef = useRef(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -189,6 +196,7 @@ export function OptionsPanel({
   const [localCfgBase, setLocalCfgBase] = useState(Math.floor(params.effective.cfg));
   const [localCfgFine, setLocalCfgFine] = useState(Math.round((params.effective.cfg % 1) * 10));
   const [localSrLevel, setLocalSrLevel] = useState(params.effective.superresLevel);
+  const [localNegativePrompt, setLocalNegativePrompt] = useState(params.effective.negativePrompt || '');
   // Seed modifier sign: 1 for positive, -1 for negative
   const [seedSign, setSeedSign] = useState(1);
   const displaySelectedParams = selectedParams ?? blurredSelectedParams;
@@ -221,6 +229,7 @@ export function OptionsPanel({
         setLocalCfgBase(Math.floor(cfg));
         setLocalCfgFine(Math.round((cfg % 1) * 10));
         setLocalSrLevel(selectedParams.superresLevel ?? params.effective.superresLevel);
+        setLocalNegativePrompt(selectedParams.negativePrompt ?? params.draft.negativePrompt ?? '');
       } else {
         // Deselected - sync from draft params
         const cfg = params.effective.cfg;
@@ -229,6 +238,7 @@ export function OptionsPanel({
         setLocalCfgBase(Math.floor(cfg));
         setLocalCfgFine(Math.round((cfg % 1) * 10));
         setLocalSrLevel(params.effective.superresLevel);
+        setLocalNegativePrompt(params.effective.negativePrompt ?? '');
       }
 
       // Clear sync flag after debounce settles (must exceed useDebounceValue delay)
@@ -236,7 +246,13 @@ export function OptionsPanel({
         isSyncingSelection.current = false;
       }, 600);
     }
-  }, [selectedMsgId, selectedParams, params.draft.prompt, params.effective.steps, params.effective.cfg, params.effective.superresLevel]);
+  }, [selectedMsgId, selectedParams, params.draft.prompt, params.draft.negativePrompt, params.effective.steps, params.effective.cfg, params.effective.superresLevel, params.effective.negativePrompt]);
+
+  useEffect(() => {
+    if (!selectedParams) {
+      setLocalNegativePrompt(params.effective.negativePrompt ?? '');
+    }
+  }, [params.effective.negativePrompt, selectedParams]);
 
   // Push debounced prompt to parent (skip during selection sync and while an
   // image is selected — prompt commits only on Shift+Enter when selected)
@@ -319,6 +335,13 @@ export function OptionsPanel({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   };
+
+  const activeMode = modeState?.activeMode || null;
+  const negativePromptOptions = getNegativePromptTemplateOptions(activeMode);
+  const schedulerOptions = getSchedulerOptions(activeMode);
+  const negativePromptTemplateId =
+    resolveNegativePromptTemplateId(activeMode, localNegativePrompt) ||
+    (activeMode?.allow_custom_negative_prompt ? CUSTOM_NEGATIVE_PROMPT_ID : '');
 
   return (
     <Card className="rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
@@ -539,9 +562,106 @@ export function OptionsPanel({
           </div>
           <Separator />
 
-          <ModeOptions />
+          <ModeOptions
+            modeConfig={modeState?.config}
+            activeModeName={modeState?.activeModeName}
+            onModeChange={modeState?.switchMode}
+            isSwitching={modeState?.isSwitching}
+            error={modeState?.error}
+          />
 
           <Separator />
+
+          {(negativePromptOptions.length > 0 || activeMode?.allow_custom_negative_prompt || schedulerOptions.length > 0) && (
+            <>
+              <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
+                {negativePromptOptions.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Negative Prompt Template</Label>
+                    <Select
+                      value={negativePromptTemplateId || undefined}
+                      onValueChange={(value) => {
+                        if (value === CUSTOM_NEGATIVE_PROMPT_ID) {
+                          params.setNegativePrompt(localNegativePrompt);
+                          return;
+                        }
+                        const selected = negativePromptOptions.find((option) => option.value === value);
+                        const nextPrompt = selected?.prompt || '';
+                        setLocalNegativePrompt(nextPrompt);
+                        params.setNegativePrompt(nextPrompt);
+                      }}
+                    >
+                      <SelectTrigger aria-label="Negative prompt template" className={CSS_CLASSES.SELECT_TRIGGER}>
+                        <SelectValue placeholder="Select negative prompt" />
+                      </SelectTrigger>
+                      <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
+                        {negativePromptOptions.map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            className={CSS_CLASSES.SELECT_ITEM}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                        {activeMode?.allow_custom_negative_prompt && (
+                          <SelectItem
+                            className={CSS_CLASSES.SELECT_ITEM}
+                            value={CUSTOM_NEGATIVE_PROMPT_ID}
+                          >
+                            Custom
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {activeMode?.allow_custom_negative_prompt && (
+                  <div className="space-y-2">
+                    <Label>Negative Prompt</Label>
+                    <Textarea
+                      aria-label="Negative prompt"
+                      value={localNegativePrompt}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setLocalNegativePrompt(next);
+                        params.setNegativePrompt(next);
+                      }}
+                      className="min-h-[90px] resize-none rounded-2xl"
+                      placeholder="Optional negative prompt"
+                    />
+                  </div>
+                )}
+
+                {schedulerOptions.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Sampler</Label>
+                    <Select
+                      value={params.effective.schedulerId || undefined}
+                      onValueChange={(value) => params.setSchedulerId(value || null)}
+                    >
+                      <SelectTrigger aria-label="Sampler" className={CSS_CLASSES.SELECT_TRIGGER}>
+                        <SelectValue placeholder="Select sampler" />
+                      </SelectTrigger>
+                      <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
+                        {schedulerOptions.map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            className={CSS_CLASSES.SELECT_ITEM}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              <Separator />
+            </>
+          )}
 
           {/* Seed */}
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
