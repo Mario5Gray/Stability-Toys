@@ -66,6 +66,7 @@ gallery_items {
   serverImageUrl: string?  // fully-resolved URL stored at assignment time
                            // e.g. `${apiBase}/storage/${serverImageKey}`
                            // derived using the same pattern as api.js:208 at call time
+                           // treated as immutable — cross-environment portability is out of scope for v1
   params:         object   // snapshot: { prompt, seed, size, steps, cfg, ... }
   addedAt:        number   // Date.now() at time of assignment
 }
@@ -120,7 +121,7 @@ useGalleries() → {
 - `createGallery` writes to `lcm-galleries` localStorage key synchronously, generates a UUID id, and calls `setActiveGalleryId`.
 - `setActiveGalleryId` updates both React state and `localStorage` key `lcm-active-gallery`.
 - `addToGallery` opens `lcm-galleries` IndexedDB and puts a new row with a fresh `crypto.randomUUID()` as the keyPath id.
-- `getGalleryImages` queries the `galleryId` index and returns all matching rows.
+- `getGalleryImages` queries the `galleryId` index and returns all matching rows ordered by `addedAt` descending (newest first). This ordering is consistent across the grid and any viewer navigation.
 
 ---
 
