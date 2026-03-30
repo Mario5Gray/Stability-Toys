@@ -11,16 +11,22 @@ import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
 import { SR_CONFIG } from './utils/constants';
-import { MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare, Settings, Folder } from 'lucide-react';
 import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
 import { emitUiEvent } from './utils/otelTelemetry';
+import { useGalleries } from './hooks/useGalleries';
+import { GalleryCreatePopover } from './components/gallery/GalleryCreatePopover';
+// TODO: uncomment when GalleryLightbox is implemented (Task 8)
+// import { GalleryLightbox } from './components/gallery/GalleryLightbox';
 
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
+  const galleryState = useGalleries();
+  const [openGalleryId, setOpenGalleryId] = useState(null);
   const didReportRender = useRef(false);
 
   useEffect(() => {
@@ -358,6 +364,15 @@ export default function App() {
     runSuperResUpload(file, srMagnitude);
   }, [selectedMsg, srMagnitude, runSuperResUpload]);
 
+  const onAddToGallery = useCallback(async (cacheKey, { serverImageUrl, params: imgParams }) => {
+    if (!galleryState.activeGalleryId || !cacheKey) return;
+    await galleryState.addToGallery(cacheKey, {
+      serverImageUrl,
+      params: imgParams,
+      galleryId: galleryState.activeGalleryId,
+    });
+  }, [galleryState]);
+
   /**
    * Copy current prompt to clipboard.
    */
@@ -480,6 +495,19 @@ export default function App() {
           <Settings className="h-4 w-4" />
           Configuration
         </TabsTrigger>
+        <GalleryCreatePopover onCreateGallery={galleryState.createGallery} />
+        {galleryState.galleries.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            onClick={() => setOpenGalleryId(g.id)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors truncate max-w-[120px]"
+            title={g.name}
+          >
+            <Folder className="h-4 w-4 shrink-0" />
+            {g.name}
+          </button>
+        ))}
       </TabsList>
     </div>
 
@@ -519,6 +547,8 @@ export default function App() {
             serverLabel={serverLabel}
             onImageDisplayed={onImageDisplayed}
             onImageError={onImageError}
+            activeGalleryId={galleryState.activeGalleryId}
+            onAddToGallery={onAddToGallery}
           />
 
           {/* Options Panel */}
@@ -578,6 +608,7 @@ export default function App() {
               });
             }}
             queueState={queueState}
+            galleryState={galleryState}
           />
         </div>
       </div>
@@ -593,6 +624,15 @@ export default function App() {
           </TabsContent>
   
         </div>
+        {/* TODO: uncomment when GalleryLightbox is implemented (Task 8) */}
+        {/* {openGalleryId && (
+          <GalleryLightbox
+            galleryId={openGalleryId}
+            galleryName={galleryState.galleries.find((g) => g.id === openGalleryId)?.name ?? ''}
+            getGalleryImages={galleryState.getGalleryImages}
+            onClose={() => setOpenGalleryId(null)}
+          />
+        )} */}
       </Tabs>
 
     </div>
