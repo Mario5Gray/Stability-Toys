@@ -485,7 +485,7 @@ export default function App() {
 <div className="h-screen overflow-hidden bg-indigo-200 bg-background text-foreground">
   <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
     {/* Tab Navigation */}
-    <div className="border-b px-4">
+    <div className="border-b px-4 flex items-center">
       <TabsList className="h-12">
         <TabsTrigger value="chat" className="gap-2">
           <MessageSquare className="h-4 w-4" />
@@ -495,6 +495,10 @@ export default function App() {
           <Settings className="h-4 w-4" />
           Configuration
         </TabsTrigger>
+      </TabsList>
+
+      {/* Gallery controls — siblings of TabsList, not children */}
+      <div className="flex items-center gap-1 ml-2">
         <GalleryCreatePopover onCreateGallery={galleryState.createGallery} />
         {galleryState.galleries.map((g) => (
           <button
@@ -508,7 +512,7 @@ export default function App() {
             {g.name}
           </button>
         ))}
-      </TabsList>
+      </div>
     </div>
 
 {/* Tab Content */}
