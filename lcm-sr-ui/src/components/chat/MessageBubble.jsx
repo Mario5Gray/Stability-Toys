@@ -1,7 +1,7 @@
 // src/components/chat/MessageBubble.jsx
 
 import React from 'react';
-import { X, Loader2, ChevronLeft, ChevronRight, Radio, RotateCcw } from 'lucide-react';
+import { X, Loader2, ChevronLeft, ChevronRight, Radio, RotateCcw, MoveRight } from 'lucide-react';
 import { MESSAGE_ROLES, MESSAGE_KINDS } from '../../utils/constants';
 
 /**
@@ -117,6 +117,8 @@ export function MessageBubble({
   onImageDisplayed,
   onImageError,
   onRetry,
+  activeGalleryId,
+  onAddToGallery,
 }) {
   const isUser = msg.role === MESSAGE_ROLES.USER;
 
@@ -337,6 +339,27 @@ export function MessageBubble({
               >
                 Download
               </a>
+
+              {onAddToGallery && msg.meta?.cacheKey && (
+                <button
+                  className={
+                    'inline-flex items-center gap-0.5 underline hover:no-underline ' +
+                    (activeGalleryId ? '' : 'opacity-40 cursor-not-allowed')
+                  }
+                  disabled={!activeGalleryId}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToGallery(msg.meta.cacheKey, {
+                      serverImageUrl: msg.serverImageUrl ?? null,
+                      params: msg.params ?? {},
+                    });
+                  }}
+                  title={activeGalleryId ? 'Add to gallery' : 'Select a gallery first'}
+                >
+                  <MoveRight className="h-3 w-3" />
+                  Gallery
+                </button>
+              )}
             </div>
           </div>
         ) : null}

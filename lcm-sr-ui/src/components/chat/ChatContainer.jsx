@@ -22,6 +22,8 @@ export function ChatContainer({
   onDreamHistoryLive,
   onRetry,
   serverLabel,
+  activeGalleryId,
+  onAddToGallery,
 }) {
   return (
     <Card className="option-panel-area overflow-hidden rounded-xl shadow-sm h-full flex flex-col">
@@ -52,6 +54,8 @@ export function ChatContainer({
                     onDreamHistoryNext={() => onDreamHistoryNext?.(msg)}
                     onDreamHistoryLive={() => onDreamHistoryLive?.(msg)}
                     onRetry={onRetry}
+                    activeGalleryId={activeGalleryId}
+                    onAddToGallery={onAddToGallery}
                   />
                 </div>
               ))}
