@@ -141,6 +141,7 @@ export function OptionsPanel({
   inputImage,
   comfyInputImage,
   selectedParams,
+  blurredSelectedParams,
   selectedMsgId,
   onClearSelection,
   onApplyPromptDelta,
@@ -190,6 +191,8 @@ export function OptionsPanel({
   const [localSrLevel, setLocalSrLevel] = useState(params.effective.superresLevel);
   // Seed modifier sign: 1 for positive, -1 for negative
   const [seedSign, setSeedSign] = useState(1);
+  const displaySelectedParams = selectedParams ?? blurredSelectedParams;
+  const isSelectionBlurred = !selectedParams && !!blurredSelectedParams;
 
   // Combined CFG value for display
   const localCfg = localCfgBase + localCfgFine / 10;
@@ -462,12 +465,12 @@ export function OptionsPanel({
                 </button>
               ))}
             </div>
-            {selectedParams && (
-              <div className="space-y-2 mt-3">
+            {displaySelectedParams && (
+              <div className={`space-y-2 mt-3 ${isSelectionBlurred ? 'opacity-50 grayscale pointer-events-none select-none' : ''}`}>
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Seed Modifier</Label>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    current: {selectedParams.seed}
+                    current: {displaySelectedParams.seed}
                   </span>
                 </div>
                 <div
@@ -505,6 +508,11 @@ export function OptionsPanel({
                 <div className="text-xs text-muted-foreground">
                   {seedSign > 0 ? 'Add to' : 'Subtract from'} current seed and regenerate.
                 </div>
+                {isSelectionBlurred && (
+                  <div className="text-xs text-muted-foreground">
+                    Selection paused while typing.
+                  </div>
+                )}
               </div>
             )}
                     {/* Size */}
@@ -591,8 +599,8 @@ export function OptionsPanel({
           </div>
 
           {/* Super-Resolution - current selected image */}
-          {selectedParams && (
-            <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
+          {displaySelectedParams && (
+            <div className={`space-y-3 rounded-2xl border p-4 option-panel-area ${isSelectionBlurred ? 'opacity-50 grayscale pointer-events-none select-none' : ''}`}>
               <div className="font-medium">Super-resolve selected image</div>
               <Button
                 className="w-full rounded-2xl"

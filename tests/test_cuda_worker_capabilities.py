@@ -80,19 +80,24 @@ def _make_pipe():
 
 
 class TestCapabilityAwareMemoryOpts:
-    def test_prequantized_fp8_checkpoint_skips_runtime_quanto(self):
+    def test_fp8_single_file_checkpoint_still_applies_runtime_quanto_when_requested(self):
         pipe = _make_pipe()
         base = _make_base({"CUDA_QUANTIZE": "fp8"})
-        base.model_info = SimpleNamespace(checkpoint_precision="fp8")
+        base.model_info = SimpleNamespace(checkpoint_precision="fp8", loader_format="single_file")
+        fake_qfloat8 = object()
         fake_quanto = SimpleNamespace(
-            quantize=Mock(side_effect=AssertionError("quantize should not be called")),
-            freeze=Mock(side_effect=AssertionError("freeze should not be called")),
-            qfloat8=object(),
+            quantize=Mock(),
+            freeze=Mock(),
+            qfloat8=fake_qfloat8,
         )
 
         with patch.dict(sys.modules, {"optimum.quanto": fake_quanto}):
             base._setup_pipe_memory_opts(pipe)
 
+        fake_quanto.quantize.assert_any_call(pipe.unet, weights=fake_qfloat8)
+        fake_quanto.quantize.assert_any_call(pipe.text_encoder_2, weights=fake_qfloat8)
+        assert fake_quanto.quantize.call_count == 2
+        assert fake_quanto.freeze.call_count == 2
         pipe.to.assert_called_once_with("cuda:0")
 
 

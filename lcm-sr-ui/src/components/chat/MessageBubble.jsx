@@ -89,6 +89,7 @@ function ImagePlaceholder({ size, onCancel, queuePosition }) {
  * @param {object} props
  * @param {object} props.msg - Message object
  * @param {boolean} props.isSelected - Whether this message is selected
+ * @param {boolean} props.isBlurredSelected - Whether this message is the last blurred selection
  * @param {function} props.onSelect - Selection callback
  * @param {function} [props.onCancel] - Cancel callback for pending messages
  * @param {boolean} [props.isDreamMessage] - Whether this is the active dream message
@@ -104,6 +105,7 @@ function ImagePlaceholder({ size, onCancel, queuePosition }) {
 export function MessageBubble({
   msg,
   isSelected,
+  isBlurredSelected,
   onSelect,
   onCancel,
   isDreamMessage,
@@ -146,6 +148,7 @@ export function MessageBubble({
 
   // Selection ring for non-image messages only (images use CSS glow via image-frame)
   const selectedRing = isSelected && !isImageOnly ? 'ring-2 ring-primary ring-offset-2' : '';
+  const blurredSelectionTone = isBlurredSelected && !isSelected ? 'opacity-60 grayscale saturate-0' : '';
   const clickable = msg.kind === MESSAGE_KINDS.IMAGE || msg.isRegenerating
     ? 'cursor-pointer'
     : '';
@@ -153,8 +156,8 @@ export function MessageBubble({
 
   // Different wrapper styles for image-only vs text messages
   const wrapperClass = isImageOnly
-    ? 'max-w-[100%] transition-all' + clickable
-    : 'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm transition-all ' + bubbleColor + ' ' + selectedRing + ' ' + clickable;
+    ? `max-w-[100%] transition-all ${clickable} ${blurredSelectionTone}`.trim()
+    : `max-w-[92%] rounded-2xl px-4 py-3 shadow-sm transition-all ${bubbleColor} ${selectedRing} ${clickable} ${blurredSelectionTone}`.trim();
 
   return (
       <div
@@ -163,6 +166,7 @@ export function MessageBubble({
       rounded-2xl items-center justify-center 
       px-2 py-0
       ${isSelected ? "bg-violet-200 dark:bg-ping/3" : ""}
+      ${isBlurredSelected && !isSelected ? "bg-muted/40" : ""}
       transition-colors
     `}
   >

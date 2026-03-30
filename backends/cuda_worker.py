@@ -67,8 +67,10 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
-        checkpoint_precision = getattr(getattr(self, "model_info", None), "checkpoint_precision", "unknown")
-        if self._quantize == "fp8" and checkpoint_precision != "fp8":
+        if self._quantize == "fp8":
+            # Checkpoint precision is storage metadata only. The current loaders
+            # still materialize runtime modules as fp16/bf16/fp32 based on
+            # CUDA_DTYPE, so CUDA_QUANTIZE must remain authoritative here.
             from optimum.quanto import freeze, quantize, qfloat8
             quantize(pipe.unet, weights=qfloat8)
             freeze(pipe.unet)
@@ -76,11 +78,6 @@ class CudaWorkerBase:
                 quantize(pipe.text_encoder_2, weights=qfloat8)
                 freeze(pipe.text_encoder_2)
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
-        elif self._quantize == "fp8":
-            print(
-                f"[cuda] worker {self.worker_id}: "
-                "skipping runtime fp8 quantization for pre-quantized checkpoint"
-            )
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
         if self._attention_slicing:

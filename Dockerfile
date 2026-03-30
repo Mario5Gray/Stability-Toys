@@ -33,25 +33,31 @@ ARG BACKEND
 WORKDIR /app
 
 COPY librknnrt.so /tmp/librknnrt.so
-RUN if [ "$BACKEND" = "rknn" ]; then \
-   apt-get update && apt-get install -y --no-install-recommends \    
-    ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
-    #&& rm -rf /var/lib/apt/lists/* ; \
-  ;fi && cp /tmp/librknnrt.so /usr/lib/librknnrt.so
+RUN <<SOFA
+if [ "$BACKEND" = "rknn" ]; then
+   apt-get update
+   apt-get install -y --no-install-recommends ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg
+fi 
 
-RUN if [ "$BACKEND" = "cuda" ]; then \
-    apt-get update && apt-get install -y \
-     ca-certificatfdes curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg \
-     && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86ds_64/cuda-keyring_1.1-1_all.deb \
-     && dpkg -i cuda-keyring_1.1-1_all.deb \
-     && apt-get update && apt-get install -y \
+cp /tmp/librknnrt.so /usr/lib/librknnrt.so
+SOFA
+
+RUN <<EOFA
+if [ "$BACKEND" = "cuda" ]; then
+    apt-get update
+    apt-get install -y ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg
+    wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb
+    dpkg -i cuda-keyring_1.1-1_all.deb
+    apt update -o APT::Key::GPGVCommand=1        
+    apt-get install -y \
      cuda-cudart-12-8 \
      libcublas-12-8 \
      libcufft-12-8 \
      libcurand-12-8 \
      libcusolver-12-8 \
-     libcusparse-12-8; \
-     fi
+     libcusparse-12-8
+fi
+EOFA
 
 # Install certs
 COPY certs/cert.crt /usr/local/share/ca-certificates/cert.crt

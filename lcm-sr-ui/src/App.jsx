@@ -173,6 +173,7 @@ export default function App() {
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
+  const [blurredSelection, setBlurredSelection] = useState(null);
 
   // Generation parameters (draft + selected)
   const params = useGenerationParams(
@@ -390,10 +391,25 @@ export default function App() {
     return { kind: "file", file: uploadFile, source: "upload" };
   }, [uploadFile]);
 
-    const generatorInputImage = useMemo(() => {
+  const generatorInputImage = useMemo(() => {
     // generator prefers explicit upload if present, else selected chat image
       return uploadImage ?? selectedChatImage ?? null;
   }, [uploadImage, selectedChatImage]);
+
+  const handleComposerFocus = useCallback(() => {
+    if (selectedMsgId && selectedParams) {
+      setBlurredSelection({
+        msgId: selectedMsgId,
+        params: selectedParams,
+      });
+    }
+    clearSelection();
+  }, [selectedMsgId, selectedParams, clearSelection]);
+
+  const handleToggleSelectMsg = useCallback((id) => {
+    setBlurredSelection(null);
+    toggleSelectMsg(id);
+  }, [toggleSelectMsg]);
 
   const defaultComposer = useMemo(() => ({
     onSendPrompt: (promptText) => {
@@ -414,7 +430,7 @@ export default function App() {
     },
     onCancelAll: cancelAll,
     onKeyDown,
-    onFocus: clearSelection,
+    onFocus: handleComposerFocus,
   }), [
     runGenerate,
     params.effective.size,
@@ -427,7 +443,7 @@ export default function App() {
     initImage,
     cancelAll,
     onKeyDown,
-    clearSelection,
+    handleComposerFocus,
   ]);
   // ============================================================================
   // RENDER
@@ -467,7 +483,8 @@ export default function App() {
           <ChatContainer
             messages={messages}
             selectedMsgId={selectedMsgId}
-            onToggleSelect={toggleSelectMsg}
+            blurredSelectedMsgId={blurredSelection?.msgId ?? null}
+            onToggleSelect={handleToggleSelectMsg}
             onCancelRequest={(id) => { cleanupMessage(id); cancelRequest(id); deleteMessage(id); }}
             setMsgRef={setMsgRef}
             composer={defaultComposer}
@@ -493,6 +510,7 @@ export default function App() {
             comfyInputImage={selectedChatImage}
             params={params}
             selectedParams={selectedParams}
+            blurredSelectedParams={blurredSelection?.params ?? null}
             selectedMsgId={selectedMsgId}
             onClearSelection={clearSelection}
             onApplyPromptDelta={onApplyPromptDelta}

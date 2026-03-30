@@ -8,6 +8,7 @@ import { MessageBubble } from "./MessageBubble";
 export function ChatContainer({
   messages,
   selectedMsgId,
+  blurredSelectedMsgId,
   onToggleSelect,
   onCancelRequest,
   setMsgRef,
@@ -41,6 +42,7 @@ export function ChatContainer({
                   <MessageBubble
                     msg={msg}
                     isSelected={msg.id === selectedMsgId}
+                    isBlurredSelected={msg.id === blurredSelectedMsgId}
                     onSelect={() => onToggleSelect(msg.id)}
                     onCancel={msg.kind === "pending" ? () => onCancelRequest(msg.id) : null}
                     isDreamMessage={isDreaming && msg.id === dreamMessageId}
