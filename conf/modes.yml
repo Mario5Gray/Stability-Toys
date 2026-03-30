@@ -7,6 +7,15 @@ modes:
     default_size: 768x768
     default_steps: 8
     default_guidance: 3
+    negative_prompt_templates:
+      safe_photo: "blurry, watermark, text, low quality"
+      portrait: "bad anatomy, extra fingers, deformed"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    allowed_scheduler_ids:
+      - euler
+      - lcm
+    default_scheduler_id: lcm    
   lcm-runwayml:
     model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512
@@ -18,24 +27,16 @@ modes:
     default_negative_prompt_template: safe_photo
     allow_custom_negative_prompt: true
     allowed_scheduler_ids:
-      - ddim
-      - dpmpp_2m
-      - dpmpp_sde
       - euler
       - lcm
     default_scheduler_id: lcm    
-  sdxl:
-    model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
-    default_size: 512x512
-    default_steps: 8
-    default_guidance: 2.8
-  nSDXL:
+  SDXL:
     model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
     default_size: 512x512
     default_steps: 11
     default_guidance: 3.0
     negative_prompt_templates:
-      safe_photo: "blurry, watermark, text, low quality"
+      safe_photo: "blurry, compression artifacts, bad anatomy, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"
     default_negative_prompt_template: safe_photo
     allow_custom_negative_prompt: true
@@ -45,4 +46,4 @@ modes:
       - dpmpp_sde
       - euler
       - lcm
-    default_scheduler_id: ddim
+    default_scheduler_id: dpmpp_2m
