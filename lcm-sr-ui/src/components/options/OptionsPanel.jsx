@@ -148,7 +148,7 @@ export function GallerySelector({ galleries, activeGalleryId, setActiveGalleryId
       <Label className="text-sm font-medium">Active Gallery</Label>
       <Select
         value={activeGalleryId ?? 'none'}
-        onValueChange={(v) => setActiveGalleryId(v === 'none' ? null : v)}
+        onValueChange={(v) => setActiveGalleryId?.(v === 'none' ? null : v)}
       >
         <SelectTrigger aria-label="Active gallery" className={CSS_CLASSES.SELECT_TRIGGER}>
           <SelectValue placeholder="None" />
@@ -157,13 +157,10 @@ export function GallerySelector({ galleries, activeGalleryId, setActiveGalleryId
           <SelectItem className={CSS_CLASSES.SELECT_ITEM} value="none">
             None
           </SelectItem>
+          {/* SelectItem values must not equal 'none' — gallery IDs are always 'gal_<uuid>' by convention */}
           {(galleries ?? []).map((g) => (
-            <SelectItem
-              key={g.id}
-              className={CSS_CLASSES.SELECT_ITEM}
-              value={g.id}
-            >
-              {g.name}
+            <SelectItem key={g.id} className={CSS_CLASSES.SELECT_ITEM} value={g.id}>
+              {g.name || '(unnamed)'}
             </SelectItem>
           ))}
         </SelectContent>
