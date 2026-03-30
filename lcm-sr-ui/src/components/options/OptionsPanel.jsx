@@ -142,6 +142,36 @@ function StrengthSlider({ value, onChange }) {
   );
 }
 
+export function GallerySelector({ galleries, activeGalleryId, setActiveGalleryId }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-sm font-medium">Active Gallery</Label>
+      <Select
+        value={activeGalleryId ?? 'none'}
+        onValueChange={(v) => setActiveGalleryId(v === 'none' ? null : v)}
+      >
+        <SelectTrigger aria-label="Active gallery" className={CSS_CLASSES.SELECT_TRIGGER}>
+          <SelectValue placeholder="None" />
+        </SelectTrigger>
+        <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
+          <SelectItem className={CSS_CLASSES.SELECT_ITEM} value="none">
+            None
+          </SelectItem>
+          {(galleries ?? []).map((g) => (
+            <SelectItem
+              key={g.id}
+              className={CSS_CLASSES.SELECT_ITEM}
+              value={g.id}
+            >
+              {g.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export function OptionsPanel({
   params,
   inputImage,
@@ -172,6 +202,7 @@ export function OptionsPanel({
   denoiseStrength,
   onDenoiseStrengthChange,
   modeState,
+  galleryState,
 }) {
   const optionsScrollRef = useRef(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -408,6 +439,14 @@ export function OptionsPanel({
               placeholder="Describe what you want to generate…"
             />
           </div>
+
+          {galleryState && (
+            <GallerySelector
+              galleries={galleryState.galleries}
+              activeGalleryId={galleryState.activeGalleryId}
+              setActiveGalleryId={galleryState.setActiveGalleryId}
+            />
+          )}
 
           {/* Steps - Segmented Control */}
           <div className="space-y-2">
