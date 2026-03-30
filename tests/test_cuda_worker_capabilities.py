@@ -248,3 +248,45 @@ class TestNegativePromptForwarding:
         worker._apply_request_scheduler.assert_called_once_with(req)
         assert worker.pipe.call_args.kwargs["negative_prompt"] == "blurry, watermark"
         pnginfo.add_text.assert_called_once()
+
+    def test_sdxl_img2img_normalizes_vae_dtype_before_execution(self):
+        worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
+        worker.device = "cuda:0"
+        worker.dtype = "fp16_sentinel"
+        worker.worker_id = 0
+        worker.pipe = _make_pipe()
+        worker._img2img_pipe = MagicMock()
+        worker._img2img_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+        worker._apply_style = Mock()
+        worker._apply_request_scheduler = Mock(return_value="ddim")
+
+        req = SimpleNamespace(
+            prompt="a castle",
+            negative_prompt="blurry, watermark",
+            size="512x512",
+            num_inference_steps=8,
+            guidance_scale=3.0,
+            seed=123,
+            style_lora=None,
+            denoise_strength=0.75,
+        )
+        job = SimpleNamespace(req=req, init_image=b"fake-image")
+
+        fake_generator = MagicMock()
+        fake_generator.manual_seed.return_value = fake_generator
+        fake_init = MagicMock()
+        fake_init.convert.return_value.resize.return_value = fake_init
+
+        with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+             patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+             patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+             patch("backends.cuda_worker.Image.open", return_value=fake_init), \
+             patch("backends.cuda_worker.PngImagePlugin.PngInfo"):
+            mock_inference.return_value.__enter__.return_value = None
+            mock_inference.return_value.__exit__.return_value = None
+
+            worker.run_job(job)
+
+        worker.pipe.vae.to.assert_called_once_with("cuda:0", dtype="fp16_sentinel")
+        assert worker._img2img_pipe.vae is worker.pipe.vae
+        assert worker._img2img_pipe.call_args.kwargs["negative_prompt"] == "blurry, watermark"

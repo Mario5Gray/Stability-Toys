@@ -110,6 +110,21 @@ class CudaWorkerBase:
                 return 0
         return 0
 
+    def _normalize_img2img_modules(self) -> None:
+        """
+        Re-align shared img2img modules to the worker runtime dtype/device.
+
+        Diffusers can upcast shared modules such as the VAE during prior runs.
+        The next img2img encode then fails if the input tensor remains fp16
+        while module bias tensors stayed fp32. Keep the correction narrow to
+        the img2img path to avoid a broader VRAM penalty.
+        """
+        vae = getattr(getattr(self, "pipe", None), "vae", None)
+        if vae is not None and hasattr(vae, "to"):
+            vae.to(self.device, dtype=self.dtype)
+        if self._img2img_pipe is not None and vae is not None:
+            self._img2img_pipe.vae = vae
+
     def _capture_baseline_scheduler(self, pipe: Any) -> None:
         scheduler = getattr(pipe, "scheduler", None)
         if scheduler is None:
@@ -336,6 +351,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
                     self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
+                self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 with torch.inference_mode():
                     out = self._img2img_pipe(
@@ -620,6 +636,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
                     self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
+                self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 with torch.inference_mode():
                     out = self._img2img_pipe(
