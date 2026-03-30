@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { useGalleries } from './useGalleries';
 
 beforeEach(() => {
   localStorage.clear();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
+  // Replace the global IndexedDB with a fresh factory so each test gets a
+  // clean database state without needing to close/delete the previous one.
+  globalThis.indexedDB = new IDBFactory();
 });
 
 describe('useGalleries — localStorage', () => {

@@ -8,6 +8,9 @@ const DB_VERSION = 1;
 const STORE_NAME = 'gallery_items';
 
 function openGalleryDb() {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.reject(new Error('[useGalleries] IndexedDB is not available'));
+  }
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error);
@@ -50,9 +53,9 @@ export function useGalleries() {
   const [activeGalleryId, setActiveGalleryIdState] = useState(() => loadActiveFromStorage());
   const dbRef = useRef(null);
 
-  const getDb = useCallback(async () => {
-    if (!dbRef.current) dbRef.current = await openGalleryDb();
-    return dbRef.current;
+  const getDb = useCallback(() => {
+    if (!dbRef.current) dbRef.current = openGalleryDb();
+    return dbRef.current;          // returns a Promise<IDBDatabase>
   }, []);
 
   const setActiveGalleryId = useCallback((id) => {
@@ -78,31 +81,41 @@ export function useGalleries() {
 
   const addToGallery = useCallback(async (cacheKey, { serverImageUrl, params, galleryId, _addedAt }) => {
     if (!cacheKey || !galleryId) return;
-    const db = await getDb();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const idx = store.index('cacheKey');
-    const existing = await promisifyRequest(idx.getAll(cacheKey));
-    if (existing.some((row) => row.galleryId === galleryId)) return;
-    const row = {
-      id: crypto.randomUUID(),
-      galleryId,
-      cacheKey,
-      serverImageUrl: serverImageUrl ?? null,
-      params: params ?? {},
-      addedAt: _addedAt ?? Date.now(),
-    };
-    await promisifyRequest(store.put(row));
+    try {
+      const db = await getDb();
+
+      // Duplicate check — readonly tx (completes immediately)
+      const roTx = db.transaction(STORE_NAME, 'readonly');
+      const existing = await promisifyRequest(roTx.objectStore(STORE_NAME).index('cacheKey').getAll(cacheKey));
+      if (existing.some((row) => row.galleryId === galleryId)) return;
+
+      // Insert — separate readwrite tx
+      const rwTx = db.transaction(STORE_NAME, 'readwrite');
+      const row = {
+        id: crypto.randomUUID(),
+        galleryId,
+        cacheKey,
+        serverImageUrl: serverImageUrl ?? null,
+        params: params ?? {},
+        addedAt: _addedAt ?? Date.now(),
+      };
+      await promisifyRequest(rwTx.objectStore(STORE_NAME).put(row));
+    } catch (err) {
+      console.warn('[useGalleries] addToGallery failed:', err);
+    }
   }, [getDb]);
 
   const getGalleryImages = useCallback(async (galleryId) => {
     if (!galleryId) return [];
-    const db = await getDb();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const idx = store.index('galleryId');
-    const rows = await promisifyRequest(idx.getAll(galleryId));
-    return rows.slice().sort((a, b) => b.addedAt - a.addedAt);
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const rows = await promisifyRequest(tx.objectStore(STORE_NAME).index('galleryId').getAll(galleryId));
+      return rows.slice().sort((a, b) => b.addedAt - a.addedAt);
+    } catch (err) {
+      console.warn('[useGalleries] getGalleryImages failed:', err);
+      return [];
+    }
   }, [getDb]);
 
   return {
