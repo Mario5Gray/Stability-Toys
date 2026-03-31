@@ -73,7 +73,8 @@ export function buildSelectedSeedDeltaPayload(
   selectedParams,
   selectedMsgId,
   delta,
-  initImageFile = null
+  initImageFile = null,
+  denoiseStrength = null
 ) {
   if (!selectedParams) return null;
   const currentSeed = Number(selectedParams.seed) || 0;
@@ -90,6 +91,8 @@ export function buildSelectedSeedDeltaPayload(
     seed: newSeed,
     superresLevel: selectedParams.superresLevel ?? 0,
     initImageFile: initImageFile || null,
+    denoiseStrength:
+      denoiseStrength ?? selectedParams.denoiseStrength ?? null,
     targetMessageId: selectedMsgId,
   };
 }
@@ -553,12 +556,13 @@ export default function App() {
         selectedParams,
         selectedMsgId,
         delta,
-        initImage?.file || null
+        initImage?.file || null,
+        params.effective.denoiseStrength
       );
       if (!payload) return;
       runGenerate(payload);
     },
-    [selectedParams, selectedMsgId, initImage, runGenerate]
+    [selectedParams, selectedMsgId, initImage, params.effective.denoiseStrength, runGenerate]
   );
 
   /* explicit selectedmessage state */

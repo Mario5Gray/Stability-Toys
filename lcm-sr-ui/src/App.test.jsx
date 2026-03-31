@@ -85,7 +85,7 @@ describe('App img2img source promotion helpers', () => {
     expect(await result.blob.text()).toBe('chat-bytes');
   });
 
-  it('keeps the active init image attached when applying a seed delta', () => {
+  it('keeps the active init image and denoise strength attached when applying a seed delta', () => {
     const initImageFile = new File(['init'], 'init.png', { type: 'image/png' });
     const payload = buildSelectedSeedDeltaPayload(
       {
@@ -97,15 +97,18 @@ describe('App img2img source promotion helpers', () => {
         cfg: 2.8,
         seed: 100,
         superresLevel: 0,
+        denoiseStrength: 0.42,
       },
       'msg-123',
       10,
-      initImageFile
+      initImageFile,
+      0.42
     );
 
     expect(payload.seed).toBe(110);
     expect(payload.seedMode).toBe('fixed');
     expect(payload.targetMessageId).toBe('msg-123');
     expect(payload.initImageFile).toBe(initImageFile);
+    expect(payload.denoiseStrength).toBe(0.42);
   });
 });
