@@ -64,6 +64,52 @@ describe('useGenerationParams', () => {
     expect(result.current.effective.denoiseStrength).toBe(0.82);
   });
 
+  it('preserves a user-edited draft denoise across source default and selection changes', () => {
+    const { result, rerender } = renderHook(
+      ({ selectedParams, sourceDefault }) =>
+        useGenerationParams(
+          selectedParams,
+          vi.fn(),
+          vi.fn(),
+          selectedParams ? 'msg-1' : null,
+          null,
+          sourceDefault
+        ),
+      {
+        initialProps: {
+          selectedParams: null,
+          sourceDefault: 0.5,
+        },
+      }
+    );
+
+    act(() => {
+      result.current.setDenoiseStrength(0.33);
+    });
+
+    rerender({
+      selectedParams: {
+        prompt: 'selected',
+        size: '512x512',
+        steps: 8,
+        cfg: 1,
+        seedMode: 'fixed',
+        seed: 123,
+        superresLevel: 0,
+        denoiseStrength: 0.91,
+      },
+      sourceDefault: 0.8,
+    });
+
+    rerender({
+      selectedParams: null,
+      sourceDefault: 0.8,
+    });
+
+    expect(result.current.draft.denoiseStrength).toBe(0.33);
+    expect(result.current.effective.denoiseStrength).toBe(0.33);
+  });
+
   it('lets the draft state override mode defaults for negative prompt and scheduler', () => {
     const { result } = renderHook(() =>
       useGenerationParams(null, null, vi.fn(), null)

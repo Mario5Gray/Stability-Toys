@@ -1,6 +1,6 @@
 // src/hooks/useGenerationParams.js
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { eightDigitSeed, clampInt, safeJsonString } from '../utils/helpers';
 import {
   DEFAULT_PROMPT,
@@ -128,12 +128,6 @@ export function useGenerationParams(
             : DEFAULT_IMG2IMG_DENOISE_STRENGTH,
     };
   }, [selectedParams, DEFAULTS, normalizeDenoiseStrength, normalizedSourceDefaultDenoiseStrength]);
-
-  useEffect(() => {
-    if (!selectedParams) {
-      setDenoiseStrength(normalizedSourceDefaultDenoiseStrength);
-    }
-  }, [selectedParams, normalizedSourceDefaultDenoiseStrength]);
 
   /**
    * Schedule a regeneration with debouncing.
