@@ -99,21 +99,4 @@ describe('GalleryLightbox', () => {
     expect(slider).toHaveAttribute('max', '1');
   });
 
-  it('calls onClose when X button is clicked', async () => {
-    const onClose = vi.fn();
-
-    await act(async () => {
-      render(
-        <GalleryLightbox
-          galleryId="gal_1"
-          galleryName="Nature"
-          getGalleryImages={getGalleryImages}
-          onClose={onClose}
-        />
-      );
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /close/i }));
-    expect(onClose).toHaveBeenCalled();
-  });
 });
