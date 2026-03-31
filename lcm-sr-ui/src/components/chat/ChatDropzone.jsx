@@ -10,14 +10,14 @@ import { useDropIngest } from "@/hooks/useDropIngest";
  *  - addMessage
  *  - setSelectedMsgId
  *  - setUploadFile (optional; recommended so drop selects image, not upload)
- *  - setInitImage (optional; sets the init image for img2img generation)
+ *  - onInitImageSelect (optional; persists the init image for img2img generation)
  *  - children
  */
 export function ChatDropzone({
   addMessage,
   setSelectedMsgId,
   setUploadFile,
-  setInitImage,
+  onInitImageSelect,
   children,
 }) {
   const { ingestFiles } = useDropIngest({
@@ -28,12 +28,15 @@ export function ChatDropzone({
 
   const onDrop = useMemo(
     () => async (acceptedFiles) => {
-      // Do not throw; dropzone should never break UI
       try {
         // Set the first dropped file as init image for img2img
-        if (acceptedFiles.length > 0 && setInitImage) {
+        if (acceptedFiles.length > 0 && onInitImageSelect) {
           const file = acceptedFiles[0];
-          setInitImage({ file, objectUrl: URL.createObjectURL(file) });
+          try {
+            await onInitImageSelect(file);
+          } catch (persistError) {
+            console.error("[ChatDropzone] init image persistence failed:", persistError);
+          }
         }
         // Also run ingest (extracts embedded params from PNG metadata if present)
         await ingestFiles(acceptedFiles);
@@ -41,7 +44,7 @@ export function ChatDropzone({
         console.error("[ChatDropzone] ingest failed:", e);
       }
     },
-    [ingestFiles, setInitImage]
+    [ingestFiles, onInitImageSelect]
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({

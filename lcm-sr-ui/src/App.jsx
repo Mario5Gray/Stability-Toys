@@ -10,13 +10,22 @@ import { useModeConfig } from './hooks/useModeConfig';
 import { ChatContainer } from './components/chat/ChatContainer';
 import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
-import { SR_CONFIG } from './utils/constants';
+import {
+  DEFAULT_IMG2IMG_DENOISE_STRENGTH,
+  SR_CONFIG,
+} from './utils/constants';
 import { MessageSquare, Settings } from 'lucide-react';
 import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
 import { emitUiEvent } from './utils/otelTelemetry';
+import {
+  clearActiveSource,
+  loadActiveSource,
+  saveSource,
+  setActiveSourceId,
+} from './utils/img2imgSourceStore';
 
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
@@ -165,12 +174,90 @@ export default function App() {
 
   // Init image for img2img generation
   const [initImage, setInitImage] = useState(null);
-  const clearInitImage = useCallback(() => {
+  const [sourceDefaultDenoiseStrength, setSourceDefaultDenoiseStrength] = useState(
+    DEFAULT_IMG2IMG_DENOISE_STRENGTH
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreActiveInitImage = async () => {
+      const restored = await loadActiveSource();
+      if (!restored || cancelled) return;
+
+      const file = new File([restored.blob], restored.filename, {
+        type: restored.mimeType || restored.blob?.type || 'application/octet-stream',
+      });
+      const objectUrl = URL.createObjectURL(restored.blob);
+
+      setInitImage({
+        sourceId: restored.id,
+        originType: restored.originType,
+        file,
+        objectUrl,
+        filename: restored.filename,
+        cacheKey: restored.cacheKey ?? null,
+        serverImageUrl: restored.serverImageUrl ?? null,
+      });
+      const nextDefault =
+        restored.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
+      setSourceDefaultDenoiseStrength(nextDefault);
+      params.setDenoiseStrength(nextDefault);
+    };
+
+    restoreActiveInitImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (initImage?.objectUrl) {
+        URL.revokeObjectURL(initImage.objectUrl);
+      }
+    };
+  }, [initImage]);
+
+  const persistInitImageSelection = useCallback(
+    async (file) => {
+      if (!file) return;
+
+      const row = await saveSource({
+        originType: 'upload',
+        blob: file,
+        mimeType: file.type,
+        filename: file.name,
+        defaultDenoiseStrength: DEFAULT_IMG2IMG_DENOISE_STRENGTH,
+      });
+
+      setActiveSourceId(row.id);
+      const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
+      setSourceDefaultDenoiseStrength(nextDefault);
+      params.setDenoiseStrength(nextDefault);
+      setInitImage({
+        sourceId: row.id,
+        originType: row.originType,
+        file,
+        objectUrl: URL.createObjectURL(file),
+        filename: row.filename,
+        cacheKey: row.cacheKey ?? null,
+        serverImageUrl: row.serverImageUrl ?? null,
+      });
+    },
+    [params.setDenoiseStrength]
+  );
+
+  const clearInitImage = useCallback(async () => {
     if (initImage?.objectUrl) {
       URL.revokeObjectURL(initImage.objectUrl);
     }
     setInitImage(null);
-  }, [initImage]);
+    setSourceDefaultDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
+    params.setDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
+    await clearActiveSource();
+  }, [initImage, params]);
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
@@ -183,7 +270,8 @@ export default function App() {
     patchSelectedParams,
     runGenerate,
     selectedMsgId,
-    initImage?.file || null
+    initImage?.file || null,
+    sourceDefaultDenoiseStrength
   );
 
   useEffect(() => {
@@ -487,12 +575,12 @@ export default function App() {
 <div className="flex-1 overflow-hidden">
   {/* Main Chat Tab */}
 
-  <TabsContent value="chat" className="h-full m-0"> 
+      <TabsContent value="chat" className="h-full m-0"> 
           <ChatDropzone
         addMessage={addMessage}
         setSelectedMsgId={setSelectedMsgId}
         setUploadFile={setUploadFile}
-        setInitImage={setInitImage}
+        onInitImageSelect={persistInitImageSelection}
       >       
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">

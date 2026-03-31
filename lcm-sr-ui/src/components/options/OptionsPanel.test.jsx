@@ -120,6 +120,59 @@ function renderOptionsPanel(modeState, params = makeParams()) {
 }
 
 describe('OptionsPanel mode-driven controls', () => {
+  it('renders restored init image controls when an init image is provided', () => {
+    render(
+      <OptionsPanel
+        params={makeParams()}
+        inputImage={null}
+        comfyInputImage={null}
+        selectedParams={null}
+        blurredSelectedParams={null}
+        selectedMsgId={null}
+        onClearSelection={vi.fn()}
+        onApplyPromptDelta={vi.fn()}
+        onApplySeedDelta={vi.fn()}
+        onRerunSelected={vi.fn()}
+        onPersistSelectedParams={vi.fn()}
+        dreamState={{
+          isDreaming: false,
+          temperature: 0.5,
+          interval: 10,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onGuide: vi.fn(),
+          onTemperatureChange: vi.fn(),
+          onIntervalChange: vi.fn(),
+        }}
+        onSuperResUpload={vi.fn()}
+        uploadFile={null}
+        onUploadFileChange={vi.fn()}
+        srMagnitude={1}
+        onSrMagnitudeChange={vi.fn()}
+        onSuperResSelected={vi.fn()}
+        serverLabel="test"
+        onRunComfy={vi.fn()}
+        onClearCache={vi.fn()}
+        getCacheStats={vi.fn().mockResolvedValue(null)}
+        onClearHistory={vi.fn()}
+        queueState={{ items: [] }}
+        initImage={{
+          sourceId: 'src-1',
+          file: new File(['x'], 'restored.png', { type: 'image/png' }),
+          objectUrl: 'blob:restored',
+          filename: 'restored.png',
+        }}
+        onClearInitImage={vi.fn()}
+        denoiseStrength={0.5}
+        onDenoiseStrengthChange={vi.fn()}
+        modeState={makeModeState('cinematic', {})}
+      />
+    );
+
+    expect(screen.getByText('Init Image')).toBeTruthy();
+    expect(screen.getByText('restored.png')).toBeTruthy();
+  });
+
   it('forwards denoise slider changes immediately when init image is present', () => {
     vi.useFakeTimers();
     const onDenoiseStrengthChange = vi.fn();
