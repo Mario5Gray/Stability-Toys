@@ -1,10 +1,11 @@
 // src/hooks/useGenerationParams.js
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { eightDigitSeed, clampInt, safeJsonString } from '../utils/helpers';
 import {
   DEFAULT_PROMPT,
   DEFAULT_SIZE,
+  DEFAULT_IMG2IMG_DENOISE_STRENGTH,
   STEPS_CONFIG,
   CFG_CONFIG,
   SR_CONFIG,
@@ -40,8 +41,20 @@ export function useGenerationParams(
   patchSelectedParams,
   runGenerate,
   selectedMsgId,
-  initImageFile = null
+  initImageFile = null,
+  sourceDefaultDenoiseStrength = DEFAULT_IMG2IMG_DENOISE_STRENGTH
 ) {
+  const normalizeDenoiseStrength = useCallback(
+    (value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) {
+        return Math.min(1, Math.max(0.01, numeric));
+      }
+      return DEFAULT_IMG2IMG_DENOISE_STRENGTH;
+    },
+    []
+  );
+
   // Draft parameters (when no image is selected)
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [size, setSize] = useState(DEFAULT_SIZE);
@@ -50,7 +63,13 @@ export function useGenerationParams(
   const [srLevel, setSrLevel] = useState(SR_CONFIG.DEFAULT);
   const [seedMode, setSeedMode] = useState(SEED_MODES.RANDOM);
   const [seed, setSeed] = useState(() => String(eightDigitSeed()));
-  const [denoiseStrength, setDenoiseStrength] = useState(0.75);
+  const normalizedSourceDefaultDenoiseStrength = useMemo(
+    () => normalizeDenoiseStrength(sourceDefaultDenoiseStrength),
+    [normalizeDenoiseStrength, sourceDefaultDenoiseStrength]
+  );
+  const [denoiseStrength, setDenoiseStrength] = useState(
+    () => normalizedSourceDefaultDenoiseStrength
+  );
   const [negativePrompt, setNegativePrompt] = useState('');
   const [schedulerId, setSchedulerId] = useState(null);
 
@@ -82,6 +101,9 @@ export function useGenerationParams(
    */
   const effective = useMemo(() => {
     const src = selectedParams ?? DEFAULTS;
+    const selectedDenoiseStrength = Number(src.denoiseStrength);
+    const draftDenoiseStrength = Number(DEFAULTS.denoiseStrength);
+    const sourceDefaultDenoise = normalizedSourceDefaultDenoiseStrength;
 
     return {
       prompt: String(src.prompt ?? DEFAULTS.prompt),
@@ -97,11 +119,21 @@ export function useGenerationParams(
       ),
       negativePrompt: String(src.negativePrompt ?? DEFAULTS.negativePrompt ?? ''),
       schedulerId: src.schedulerId ?? DEFAULTS.schedulerId ?? null,
-      denoiseStrength: Number.isFinite(Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength))
-        ? Math.min(1.0, Math.max(0.01, Number(src.denoiseStrength ?? DEFAULTS.denoiseStrength)))
-        : 0.75,
+      denoiseStrength: Number.isFinite(selectedDenoiseStrength)
+        ? normalizeDenoiseStrength(selectedDenoiseStrength)
+        : Number.isFinite(draftDenoiseStrength)
+          ? normalizeDenoiseStrength(draftDenoiseStrength)
+          : Number.isFinite(sourceDefaultDenoise)
+            ? normalizeDenoiseStrength(sourceDefaultDenoise)
+            : DEFAULT_IMG2IMG_DENOISE_STRENGTH,
     };
-  }, [selectedParams, DEFAULTS]);
+  }, [selectedParams, DEFAULTS, normalizeDenoiseStrength, normalizedSourceDefaultDenoiseStrength]);
+
+  useEffect(() => {
+    if (!selectedParams) {
+      setDenoiseStrength(normalizedSourceDefaultDenoiseStrength);
+    }
+  }, [selectedParams, normalizedSourceDefaultDenoiseStrength]);
 
   /**
    * Schedule a regeneration with debouncing.
@@ -278,9 +310,10 @@ export function useGenerationParams(
     setSrLevel(SR_CONFIG.DEFAULT);
     setSeedMode(SEED_MODES.RANDOM);
     setSeed(String(eightDigitSeed()));
+    setDenoiseStrength(normalizedSourceDefaultDenoiseStrength);
     setNegativePrompt('');
     setSchedulerId(null);
-  }, []);
+  }, [normalizedSourceDefaultDenoiseStrength]);
 
   const applyModeControlDefaults = useCallback(
     (mode) => {

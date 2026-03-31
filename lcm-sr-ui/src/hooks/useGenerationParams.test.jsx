@@ -31,6 +31,39 @@ describe('useGenerationParams', () => {
     expect(result.current.effective.schedulerId).toBe('ddim');
   });
 
+  it('falls back to source default denoise when no selected or draft value is set', () => {
+    const { result } = renderHook(() =>
+      useGenerationParams(null, null, vi.fn(), null, null, 0.5)
+    );
+
+    expect(result.current.draft.denoiseStrength).toBe(0.5);
+    expect(result.current.effective.denoiseStrength).toBe(0.5);
+  });
+
+  it('prefers selected image denoise over source default', () => {
+    const { result } = renderHook(() =>
+      useGenerationParams(
+        {
+          prompt: 'selected',
+          size: '512x512',
+          steps: 8,
+          cfg: 1,
+          seedMode: 'fixed',
+          seed: 123,
+          superresLevel: 0,
+          denoiseStrength: 0.82,
+        },
+        vi.fn(),
+        vi.fn(),
+        'msg-1',
+        null,
+        0.5
+      )
+    );
+
+    expect(result.current.effective.denoiseStrength).toBe(0.82);
+  });
+
   it('lets the draft state override mode defaults for negative prompt and scheduler', () => {
     const { result } = renderHook(() =>
       useGenerationParams(null, null, vi.fn(), null)
