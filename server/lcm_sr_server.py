@@ -50,7 +50,6 @@ from concurrent.futures import Future
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-import numpy as np
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request
 from fastapi.responses import Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -59,8 +58,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from transformers import CLIPTokenizer
-from PIL import Image
-
 from server.comfy_routes import router as comfy_router
 
 from server.ws_routes import ws_router, register_job_hook, _build_status
