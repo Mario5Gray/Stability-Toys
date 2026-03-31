@@ -196,13 +196,20 @@ MODEL=model.safetensors      # Model filename (legacy)
 
 # Super-resolution (optional)
 SR_ENABLED=1
+SR_QUEUE_MAX=32
+SR_REQUEST_TIMEOUT=120
+
+# RKNN super-resolution
 SR_MODEL_PATH=/models/super-resolution-10.rknn
 SR_INPUT_SIZE=224
 SR_OUTPUT_SIZE=672
 SR_NUM_WORKERS=1
-SR_QUEUE_MAX=32
 SR_MAX_PIXELS=24000000
-SR_REQUEST_TIMEOUT=120
+
+# CUDA super-resolution
+CUDA_SR_MODEL=/models/sr/RealESRGAN_x4plus.pth
+CUDA_SR_TILE=0            # 0 disables tiling; raise on lower-VRAM GPUs
+CUDA_SR_FP16=1            # 1 uses fp16 when supported; 0 keeps fp32
 ```
 
 ### Backend Selection
@@ -218,6 +225,19 @@ The server automatically detects which backend to use:
    - Supports: LCM-SD 1.5 (optimized for RKNN)
    - Features: Multi-worker, super-resolution
    - Optimized: Tensor layouts (NCHW/NHWC), deterministic generation
+
+### Super-Resolution Backend Selection
+
+Super-resolution follows the active deployment backend:
+
+- `BACKEND=rknn` uses the RKNN SR service and `SR_MODEL_PATH`
+- `BACKEND=cuda` uses the CUDA SR service and `CUDA_SR_MODEL`
+- `BACKEND=auto` selects CUDA SR when generation is using CUDA, otherwise RKNN SR
+
+The public API stays the same on both backends:
+
+- `POST /generate` with `"superres": true`
+- `POST /superres`
 
 ### Mode System vs Legacy Environment Variables
 
@@ -370,7 +390,9 @@ Upload an image for super-resolution without generation.
 **Conversion:**
 Use RKNN-Toolkit2 to convert ONNX models to RKNN format for your target platform (rk3588, rk3566, etc.).
 
-### Super-Resolution Model
+### Super-Resolution Models
+
+#### RKNN / NPU
 
 **File:** `super-resolution-10.rknn`
 
@@ -378,7 +400,26 @@ Use RKNN-Toolkit2 to convert ONNX models to RKNN format for your target platform
 - ONNX Model Zoo: [Sub-Pixel CNN 2016](https://github.com/onnx/models/tree/main/validated/vision/super_resolution/sub_pixel_cnn_2016)
 - Convert with RKNN-Toolkit2 for NPU acceleration
 
-**Note:** SR model not included. Must be converted and supplied separately.
+**Note:** RKNN SR model is not included. It must be converted and supplied separately.
+
+#### CUDA / GPU
+
+**Recommended file:** `RealESRGAN_x4plus.pth`
+
+**Recommended location:** `/models/sr/RealESRGAN_x4plus.pth`
+
+**Configuration:**
+- `CUDA_SR_MODEL=/models/sr/RealESRGAN_x4plus.pth`
+- `CUDA_SR_TILE=0` on larger GPUs, increase it when VRAM is tight
+- `CUDA_SR_FP16=1` for the default low-VRAM path
+
+**Source:**
+- Real-ESRGAN project: [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
+
+**Notes:**
+- CUDA SR is lazy-loaded on first SR request
+- If CUDA SR OOMs, the SR worker unloads and the next SR request cold-reloads it
+- `superres_magnitude` still means repeated upscale passes on both backends
 
 ---
 
@@ -427,6 +468,10 @@ docker run --rm -it \
   --gpus all \
   -v ./modes.yaml:/app/modes.yaml \
   -v ./models:/models \
+  -e SR_ENABLED=1 \
+  -e CUDA_SR_MODEL=/models/sr/RealESRGAN_x4plus.pth \
+  -e CUDA_SR_TILE=0 \
+  -e CUDA_SR_FP16=1 \
   -p 4200:4200 \
   dream-lab
 ```
@@ -447,6 +492,67 @@ docker run --rm -it \
 ```
 
 See `docker-compose.yml` for additional configuration options.
+
+### CUDA Super-Resolution Acceptance
+
+Use these checks on a real CUDA machine after the service starts:
+
+1. Confirm lazy-load at startup
+   - Start with `BACKEND=cuda`
+   - Verify startup succeeds without an immediate SR model load failure
+   - Do not call `/superres` or `/generate` with `superres=true` yet
+
+2. Validate standalone `/superres`
+
+```bash
+curl -sS -D /tmp/sr.headers \
+  -o /tmp/sr.png \
+  -F file=@input.png \
+  -F magnitude=1 \
+  -F out_format=png \
+  -F quality=92 \
+  http://localhost:4200/superres
+```
+
+Expected:
+- HTTP 200
+- image returned
+- `X-SR-Model` matches the CUDA SR model filename
+- `X-SR-Passes` and `X-SR-Scale-Per-Pass` are present
+
+3. Validate `/generate` postprocess SR
+
+```bash
+curl -sS -D /tmp/generate-sr.headers \
+  -o /tmp/generate-sr.png \
+  -H 'Content-Type: application/json' \
+  -X POST http://localhost:4200/generate \
+  -d '{
+    "prompt": "a studio photo of a ceramic owl",
+    "size": "512x512",
+    "num_inference_steps": 8,
+    "guidance_scale": 2.5,
+    "superres": true,
+    "superres_magnitude": 1,
+    "superres_format": "png",
+    "superres_quality": 92
+  }'
+```
+
+Expected:
+- HTTP 200
+- `X-SuperRes: 1`
+- `X-SR-Model` matches the standalone `/superres` response
+- `X-SR-Passes` and `X-SR-Scale-Per-Pass` are present
+
+4. Validate OOM recovery
+   - Raise `CUDA_SR_TILE` only if needed to reduce memory pressure
+   - If an SR request OOMs, confirm the request fails cleanly
+   - Submit another SR request afterward and confirm it succeeds after a cold reload
+
+If VRAM is tight, increase `CUDA_SR_TILE` first. Start with `0`, then try values such as `256` or `512`.
+
+See [docs/CUDA_SUPERRES.md](docs/CUDA_SUPERRES.md) for the focused operator guide.
 
 ---
 
