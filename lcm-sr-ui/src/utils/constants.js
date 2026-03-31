@@ -52,6 +52,8 @@ export const DENOISE_CONFIG = {
   COUSINS_WILD: 0.9,
 };
 
+export const DEFAULT_IMG2IMG_DENOISE_STRENGTH = 0.5;
+
 /* ============================================================================
  * SUPER-RESOLUTION
  * ========================================================================== */
