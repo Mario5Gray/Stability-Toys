@@ -1,4 +1,5 @@
 from concurrent.futures import Future
+import types
 
 import pytest
 
@@ -189,3 +190,22 @@ def test_cuda_superres_service_unloads_worker_after_oom_and_recovers():
     assert fut2.result(timeout=1) == b"img:second"
 
     service.shutdown()
+
+
+def test_torchvision_functional_tensor_shim_installs_alias_when_missing():
+    from server.superres_service import ensure_torchvision_functional_tensor_compat
+
+    fake_functional = types.SimpleNamespace(rgb_to_grayscale=lambda x: x)
+    sys_modules = {}
+
+    def fake_import(name: str):
+        if name == "torchvision.transforms.functional_tensor":
+            raise ModuleNotFoundError(name)
+        if name == "torchvision.transforms.functional":
+            return fake_functional
+        raise AssertionError(f"unexpected import: {name}")
+
+    ensure_torchvision_functional_tensor_compat(import_module=fake_import, sys_modules=sys_modules)
+
+    shim = sys_modules["torchvision.transforms.functional_tensor"]
+    assert shim.rgb_to_grayscale is fake_functional.rgb_to_grayscale

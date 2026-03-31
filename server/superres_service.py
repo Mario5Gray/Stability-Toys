@@ -1,6 +1,8 @@
 import io
+import importlib
 import os
 import queue
+import sys
 import threading
 import time
 from concurrent.futures import Future
@@ -75,6 +77,24 @@ def load_cuda_superres_config(environ: Optional[Mapping[str, str]] = None) -> Cu
         use_fp16=use_fp16,
         device=device,
     )
+
+
+def ensure_torchvision_functional_tensor_compat(
+    *,
+    import_module: Callable[[str], object] = importlib.import_module,
+    sys_modules: Optional[dict[str, object]] = None,
+) -> None:
+    modules = sys_modules if sys_modules is not None else sys.modules
+    try:
+        import_module("torchvision.transforms.functional_tensor")
+        return
+    except ModuleNotFoundError:
+        pass
+
+    functional = import_module("torchvision.transforms.functional")
+    shim = type("TorchvisionFunctionalTensorShim", (), {})()
+    shim.rgb_to_grayscale = getattr(functional, "rgb_to_grayscale")
+    modules["torchvision.transforms.functional_tensor"] = shim
 
 
 def resolve_superres_backend(*, backend: str, use_cuda: bool) -> SuperResBackend:
@@ -348,6 +368,7 @@ class CudaSuperResWorker:
 
     def _build_upsampler(self):
         try:
+            ensure_torchvision_functional_tensor_compat()
             from basicsr.archs.rrdbnet_arch import RRDBNet
             from realesrgan import RealESRGANer
         except ImportError as exc:
