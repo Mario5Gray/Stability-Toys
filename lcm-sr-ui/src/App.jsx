@@ -177,6 +177,24 @@ export default function App() {
   const [sourceDefaultDenoiseStrength, setSourceDefaultDenoiseStrength] = useState(
     DEFAULT_IMG2IMG_DENOISE_STRENGTH
   );
+  const initImageRef = useRef(initImage);
+  const chatPromotionRef = useRef(null);
+
+  useEffect(() => {
+    initImageRef.current = initImage;
+  }, [initImage]);
+
+  const updateInitImage = useCallback((nextInitImage) => {
+    setInitImage((current) => {
+      if (
+        current?.objectUrl &&
+        (!nextInitImage || current.objectUrl !== nextInitImage.objectUrl)
+      ) {
+        URL.revokeObjectURL(current.objectUrl);
+      }
+      return nextInitImage;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +208,7 @@ export default function App() {
       });
       const objectUrl = URL.createObjectURL(restored.blob);
 
-      setInitImage({
+      updateInitImage({
         sourceId: restored.id,
         originType: restored.originType,
         file,
@@ -202,6 +220,7 @@ export default function App() {
       const nextDefault =
         restored.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
+      chatPromotionRef.current = restored.originType === 'chat' ? restored.id : null;
     };
 
     restoreActiveInitImage();
@@ -209,7 +228,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [updateInitImage]);
 
   useEffect(() => {
     return () => {
@@ -234,7 +253,8 @@ export default function App() {
       setActiveSourceId(row.id);
       const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      setInitImage({
+      chatPromotionRef.current = null;
+      updateInitImage({
         sourceId: row.id,
         originType: row.originType,
         file,
@@ -244,17 +264,97 @@ export default function App() {
         serverImageUrl: row.serverImageUrl ?? null,
       });
     },
-    []
+    [updateInitImage]
   );
 
   const clearInitImage = useCallback(async () => {
-    if (initImage?.objectUrl) {
-      URL.revokeObjectURL(initImage.objectUrl);
-    }
-    setInitImage(null);
+    updateInitImage(null);
     setSourceDefaultDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
+    chatPromotionRef.current = null;
     await clearActiveSource();
-  }, [initImage]);
+  }, [updateInitImage]);
+
+  const persistChatInitImage = useCallback(
+    async (selectedImage) => {
+      if (!selectedImage || selectedImage.kind !== 'image') return null;
+      if (chatPromotionRef.current === selectedImage.id) {
+        return null;
+      }
+
+      const cacheUrl = selectedImage.params
+        ? await getImageFromCache(selectedImage.params)
+        : null;
+      const candidateUrl =
+        selectedImage.serverImageUrl ||
+        selectedImage.imageUrl ||
+        cacheUrl ||
+        null;
+
+      if (!candidateUrl) return null;
+
+      const response = await fetch(candidateUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch init image: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const filename = `chat_${selectedImage.id}.png`;
+      const serverImageUrl = selectedImage.serverImageUrl || (
+        typeof candidateUrl === 'string' && candidateUrl.startsWith('http')
+          ? candidateUrl
+          : null
+      );
+      const row = await saveSource({
+        originType: 'chat',
+        originMessageId: selectedImage.id,
+        blob,
+        mimeType: blob.type || 'image/png',
+        filename,
+        cacheKey: selectedImage.meta?.cacheKey || null,
+        serverImageUrl,
+        defaultDenoiseStrength: DEFAULT_IMG2IMG_DENOISE_STRENGTH,
+      });
+
+      setActiveSourceId(row.id);
+      const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
+      setSourceDefaultDenoiseStrength(nextDefault);
+      chatPromotionRef.current = selectedImage.id;
+
+      const file = new File([blob], row.filename, { type: row.mimeType });
+      updateInitImage({
+        sourceId: row.id,
+        originType: row.originType,
+        file,
+        objectUrl: URL.createObjectURL(blob),
+        filename: row.filename,
+        cacheKey: row.cacheKey ?? null,
+        serverImageUrl: row.serverImageUrl ?? null,
+      });
+
+      return { row, file };
+    },
+    [getImageFromCache, updateInitImage]
+  );
+
+  useEffect(() => {
+    if (!selectedMsg || selectedMsg.kind !== 'image') return;
+    const activeInitImage = initImageRef.current;
+    if (activeInitImage?.originType === 'upload') return;
+    if (activeInitImage?.originType === 'chat' && activeInitImage?.sourceId === selectedMsg.id) return;
+
+    void persistChatInitImage(selectedMsg).catch((err) => {
+      console.error('[App] Failed to persist chat init image:', err);
+    });
+  }, [
+    selectedMsg,
+    selectedMsgId,
+    selectedMsg?.kind,
+    selectedMsg?.imageUrl,
+    selectedMsg?.serverImageUrl,
+    selectedMsg?.params,
+    selectedMsg?.meta?.cacheKey,
+    persistChatInitImage,
+  ]);
 
   // Copy feedback
   const [copied, setCopied] = useState(false);

@@ -48,6 +48,31 @@ describe("img2imgSourceStore", () => {
     expect(getActiveSourceId()).toBe(saved.id);
   });
 
+  it("persists a chat-origin source with provenance fields", async () => {
+    const blob = new Blob(["chat-bytes"], { type: "image/png" });
+    const saved = await saveSource({
+      originType: "chat",
+      originMessageId: "msg-123",
+      blob,
+      mimeType: "image/png",
+      filename: "chat_123.png",
+      cacheKey: "abc123",
+      serverImageUrl: "http://localhost:4200/storage/key123",
+      defaultDenoiseStrength: 0.5,
+    });
+
+    setActiveSourceId(saved.id);
+
+    const restored = await loadActiveSource();
+    expect(restored.id).toBe(saved.id);
+    expect(restored.originType).toBe("chat");
+    expect(restored.originMessageId).toBe("msg-123");
+    expect(restored.cacheKey).toBe("abc123");
+    expect(restored.serverImageUrl).toBe("http://localhost:4200/storage/key123");
+    expect(restored.defaultDenoiseStrength).toBe(0.5);
+    expect(await restored.blob.text()).toBe("chat-bytes");
+  });
+
   it("clears the active pointer when the source row is missing", async () => {
     setActiveSourceId("missing-source");
 
