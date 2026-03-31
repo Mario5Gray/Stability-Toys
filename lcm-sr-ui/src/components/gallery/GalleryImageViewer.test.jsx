@@ -126,6 +126,21 @@ describe('GalleryImageViewer', () => {
     expect(screen.getByTestId('metadata-bar').textContent).toContain('cuda');
   });
 
+  it('shows placeholder when resolveImageUrl returns null', async () => {
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={item}
+          resolveImageUrl={() => Promise.resolve(null)}
+          onBack={vi.fn()}
+          onWindowOpen={vi.fn()}
+        />
+      );
+    });
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
+
   it('addedAt is formatted via toLocaleString', async () => {
     await act(async () => {
       render(

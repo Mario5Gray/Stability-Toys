@@ -15,6 +15,8 @@ export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen
         urlRef.current = resolved;
         setUrl(resolved);
       }
+    }).catch(() => {
+      if (active) setUrl(null);
     });
     return () => { active = false; };
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
