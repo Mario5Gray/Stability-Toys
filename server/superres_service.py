@@ -97,6 +97,7 @@ def create_superres_service(
     input_size: int,
     output_size: int,
     max_pixels: Optional[int] = None,
+    cuda_config: Optional[CudaSuperResConfig] = None,
     rknn_factory: Optional[Callable[..., SuperResServiceProtocol]] = None,
     cuda_factory: Optional[Callable[..., SuperResServiceProtocol]] = None,
 ) -> SuperResServiceProtocol:
@@ -116,6 +117,8 @@ def create_superres_service(
 
     if backend_kind == "cuda":
         factory = cuda_factory or CudaSuperResService
+        if cuda_config is not None:
+            kwargs["config"] = cuda_config
         return factory(**kwargs)
 
     raise RuntimeError(f"Unsupported super-resolution backend: {backend_kind}")
@@ -230,6 +233,9 @@ class RknnSuperResService:
     ):
         self.model_path = model_path
         self.num_workers = max(1, int(num_workers))
+        self.scale_per_pass = (
+            output_size // input_size if output_size % input_size == 0 else output_size / input_size
+        )
         self.q: "queue.Queue[SRJob]" = queue.Queue(maxsize=int(queue_max))
 
         self.workers: list[RknnSuperResWorker] = []
@@ -422,6 +428,8 @@ class CudaSuperResService:
             use_fp16=True,
             device="cuda:0",
         )
+        self.model_path = self.config.model_path
+        self.scale_per_pass = 4
         self.worker_factory = worker_factory or CudaSuperResWorker
         self.q: "queue.Queue[SRJob]" = queue.Queue(maxsize=int(queue_max))
         self._stop = threading.Event()

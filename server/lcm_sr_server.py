@@ -88,7 +88,7 @@ from server.model_routes import router as model_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
 from server.file_watcher import start_config_watcher, stop_config_watcher
-from server.superres_service import RknnSuperResService
+from server.superres_http import build_superres_headers, initialize_superres_service, submit_superres
 
 from .mode_config import MODE_CONFIG_PATH
 
@@ -405,24 +405,23 @@ async def lifespan(app: FastAPI):
         raise
 
     app.state.sr_service = None
-    if SR_ENABLED:
-        if not os.path.isfile(SR_MODEL_PATH):
-            logger.error(f"SR model not found at SR_MODEL_PATH={SR_MODEL_PATH}")
-            raise RuntimeError(f"SR model not found at SR_MODEL_PATH={SR_MODEL_PATH}")
-
-        try:
-            app.state.sr_service = RknnSuperResService(
-                model_path=SR_MODEL_PATH,
-                num_workers=SR_NUM_WORKERS,
-                queue_max=SR_QUEUE_MAX,
-                input_size=SR_INPUT_SIZE,
-                output_size=SR_OUTPUT_SIZE,
-                max_pixels=SR_MAX_PIXELS,
-            )
+    try:
+        app.state.sr_service = initialize_superres_service(
+            enabled=SR_ENABLED,
+            backend=BACKEND,
+            use_cuda=use_cuda,
+            sr_model_path=SR_MODEL_PATH,
+            sr_num_workers=SR_NUM_WORKERS,
+            sr_queue_max=SR_QUEUE_MAX,
+            sr_input_size=SR_INPUT_SIZE,
+            sr_output_size=SR_OUTPUT_SIZE,
+            sr_max_pixels=SR_MAX_PIXELS,
+        )
+        if app.state.sr_service is not None:
             logger.info("Super-resolution service initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize SR service: {e}", exc_info=True)
-            raise
+    except Exception as e:
+        logger.error(f"Failed to initialize SR service: {e}", exc_info=True)
+        raise
 
     try:
         app.state.storage = StorageProvider.make_storage_provider_from_env()
@@ -617,15 +616,16 @@ def generate(req: GenerateRequest):
         if sr is None:
             raise HTTPException(status_code=503, detail="Super-resolution requested but SR service is disabled")
 
-        sr_fut = sr.submit(
-            image_bytes=png_bytes,
-            out_format=req.superres_format,
-            quality=req.superres_quality,
-            magnitude=sr_mag,
-            timeout_s=0.25,
-        )
         try:
-            out_bytes = sr_fut.result(timeout=SR_REQUEST_TIMEOUT)
+            out_bytes = submit_superres(
+                sr_service=sr,
+                image_bytes=png_bytes,
+                out_format=req.superres_format,
+                quality=req.superres_quality,
+                magnitude=sr_mag,
+                queue_timeout_s=0.25,
+                request_timeout_s=SR_REQUEST_TIMEOUT,
+            )
             did_superres = True
             media_type = "image/jpeg" if req.superres_format == "jpeg" else "image/png"
 
@@ -661,16 +661,7 @@ def generate(req: GenerateRequest):
 
     if did_superres:
         headers.update(
-            {
-                "X-SR-Model": os.path.basename(SR_MODEL_PATH),
-                "X-SR-Passes": str(sr_mag),
-                "X-SR-Scale-Per-Pass": (
-                    str(SR_OUTPUT_SIZE // SR_INPUT_SIZE)
-                    if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
-                    else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
-                ),
-                "X-SR-Format": req.superres_format,
-            }
+            build_superres_headers(sr, magnitude=sr_mag, out_format=req.superres_format)
         )
 
     return Response(content=out_bytes, media_type=media_type, headers=headers)
@@ -710,15 +701,16 @@ async def superres(
     if not data:
         raise HTTPException(status_code=400, detail="Empty upload")
 
-    fut = sr.submit(
-        data,
-        out_format=out_format,
-        quality=quality,
-        magnitude=magnitude,
-        timeout_s=0.25,
-    )
     try:
-        out_bytes = fut.result(timeout=SR_REQUEST_TIMEOUT)
+        out_bytes = submit_superres(
+            sr_service=sr,
+            image_bytes=data,
+            out_format=out_format,
+            quality=quality,
+            magnitude=magnitude,
+            queue_timeout_s=0.25,
+            request_timeout_s=SR_REQUEST_TIMEOUT,
+        )
     except Exception as e:
         logger.error(f"Super-resolution failed in /superres: {e}", exc_info=True)
         msg = str(e)
@@ -748,15 +740,9 @@ async def superres(
 
     headers = {
         "Cache-Control": "no-store",
-        "X-SR-Model": os.path.basename(SR_MODEL_PATH),
         "X-SR-Magnitude": str(magnitude),
-        "X-SR-Passes": str(magnitude),
-        "X-SR-Scale-Per-Pass": (
-            str(SR_OUTPUT_SIZE // SR_INPUT_SIZE)
-            if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
-            else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
-        ),
     }
+    headers.update(build_superres_headers(sr, magnitude=magnitude, out_format=out_format))
 
     if image_key:
         headers["X-LCM-Image-Key"] = image_key
@@ -807,27 +793,18 @@ def _run_generate_from_dict(gen_req: dict):
 
         sr_mag = int(req.superres_magnitude or 2)
 
-        sr_fut = sr.submit(
+        out_bytes = submit_superres(
+            sr_service=sr,
             image_bytes=png_bytes,
             out_format=req.superres_format,
             quality=req.superres_quality,
             magnitude=sr_mag,
-            timeout_s=0.25,
+            queue_timeout_s=0.25,
+            request_timeout_s=SR_REQUEST_TIMEOUT,
         )
-        out_bytes = sr_fut.result(timeout=SR_REQUEST_TIMEOUT)
 
         meta_headers.update(
-            {
-                "X-SuperRes": "1",
-                "X-SR-Passes": str(sr_mag),
-                "X-SR-Model": os.path.basename(SR_MODEL_PATH),
-                "X-SR-Scale-Per-Pass": (
-                    str(SR_OUTPUT_SIZE // SR_INPUT_SIZE)
-                    if SR_OUTPUT_SIZE % SR_INPUT_SIZE == 0
-                    else str(SR_OUTPUT_SIZE / SR_INPUT_SIZE)
-                ),
-                "X-SR-Format": req.superres_format,
-            }
+            {"X-SuperRes": "1", **build_superres_headers(sr, magnitude=sr_mag, out_format=req.superres_format)}
         )
 
     return out_bytes, seed, meta_headers
