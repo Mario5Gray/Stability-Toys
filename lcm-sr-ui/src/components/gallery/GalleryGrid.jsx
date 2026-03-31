@@ -20,6 +20,8 @@ function GalleryThumbnail({ item, resolveImageUrl, onOpenViewer }) {
       }
     });
     return () => { active = false; };
+  // resolveImageUrl is excluded: callers must ensure a stable reference (useCallback)
+  // Re-running the effect on item.id change is sufficient for gallery item rendering
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e) {
@@ -58,6 +60,12 @@ export function GalleryGrid({ items, resolveImageUrl, onOpenViewer }) {
   const [page, setPage] = useState(0);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+
+  // resets page when item count changes (e.g. parent re-fetches gallery)
+  useEffect(() => {
+    setPage(0);
+  }, [items.length]);
+
   const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   if (items.length === 0) {
