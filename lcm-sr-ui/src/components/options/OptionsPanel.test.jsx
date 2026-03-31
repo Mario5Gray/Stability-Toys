@@ -120,6 +120,67 @@ function renderOptionsPanel(modeState, params = makeParams()) {
 }
 
 describe('OptionsPanel mode-driven controls', () => {
+  it('uses logarithmic seed modifier steps when log mode is selected', () => {
+    const onApplySeedDelta = vi.fn();
+
+    render(
+      <OptionsPanel
+        params={makeParams()}
+        inputImage={null}
+        comfyInputImage={null}
+        selectedParams={{
+          prompt: 'portrait',
+          negativePrompt: 'blurry',
+          schedulerId: 'ddim',
+          size: '512x512',
+          steps: 8,
+          cfg: 2.8,
+          superresLevel: 1,
+          seed: 12345678,
+        }}
+        blurredSelectedParams={null}
+        selectedMsgId="msg-1"
+        onClearSelection={vi.fn()}
+        onApplyPromptDelta={vi.fn()}
+        onApplySeedDelta={onApplySeedDelta}
+        onRerunSelected={vi.fn()}
+        onPersistSelectedParams={vi.fn()}
+        dreamState={{
+          isDreaming: false,
+          temperature: 0.5,
+          interval: 10,
+          onStart: vi.fn(),
+          onStop: vi.fn(),
+          onGuide: vi.fn(),
+          onTemperatureChange: vi.fn(),
+          onIntervalChange: vi.fn(),
+        }}
+        onSuperResUpload={vi.fn()}
+        uploadFile={null}
+        onUploadFileChange={vi.fn()}
+        srMagnitude={1}
+        onSrMagnitudeChange={vi.fn()}
+        onSuperResSelected={vi.fn()}
+        serverLabel="test"
+        onRunComfy={vi.fn()}
+        onClearCache={vi.fn()}
+        getCacheStats={vi.fn().mockResolvedValue(null)}
+        onClearHistory={vi.fn()}
+        queueState={{ items: [] }}
+        initImage={null}
+        onClearInitImage={vi.fn()}
+        denoiseStrength={0.75}
+        onDenoiseStrengthChange={vi.fn()}
+        modeState={makeModeState('cinematic', {})}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log' }));
+    fireEvent.click(screen.getByRole('button', { name: '+1M' }));
+
+    expect(onApplySeedDelta).toHaveBeenCalledWith(1000000);
+  });
+
   it('renders restored init image controls when an init image is provided', () => {
     render(
       <OptionsPanel

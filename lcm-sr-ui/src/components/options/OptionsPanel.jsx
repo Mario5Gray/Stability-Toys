@@ -138,6 +138,23 @@ function StrengthSlider({ value, onChange }) {
   );
 }
 
+const SEED_MODIFIER_LINEAR_STEPS = [1, 10, 100, 1000, 10000];
+const SEED_MODIFIER_LOG_OFFSETS = [-2, -1, 0, 1, 2];
+
+function formatSeedDeltaLabel(value) {
+  const absValue = Math.abs(Number(value) || 0);
+  if (absValue >= 1_000_000_000) return `${absValue / 1_000_000_000}B`;
+  if (absValue >= 1_000_000) return `${absValue / 1_000_000}M`;
+  if (absValue >= 1_000) return `${absValue / 1_000}k`;
+  return String(absValue);
+}
+
+function getLogSeedModifierSteps(seed) {
+  const numericSeed = Math.abs(Number(seed) || 0);
+  const magnitude = Math.max(0, Math.floor(Math.log10(Math.max(1, numericSeed))));
+  return SEED_MODIFIER_LOG_OFFSETS.map((offset) => 10 ** Math.max(0, magnitude + offset));
+}
+
 export function OptionsPanel({
   params,
   inputImage,
@@ -195,8 +212,12 @@ export function OptionsPanel({
   const [localNegativePrompt, setLocalNegativePrompt] = useState(params.effective.negativePrompt || '');
   // Seed modifier sign: 1 for positive, -1 for negative
   const [seedSign, setSeedSign] = useState(1);
+  const [seedModifierScale, setSeedModifierScale] = useState('linear');
   const displaySelectedParams = selectedParams ?? blurredSelectedParams;
   const isSelectionBlurred = !selectedParams && !!blurredSelectedParams;
+  const seedModifierSteps = seedModifierScale === 'log'
+    ? getLogSeedModifierSteps(displaySelectedParams?.seed)
+    : SEED_MODIFIER_LINEAR_STEPS;
 
   // Combined CFG value for display
   const localCfg = localCfgBase + localCfgFine / 10;
@@ -496,6 +517,35 @@ export function OptionsPanel({
                   className="relative flex rounded-xl p-0.5 overflow-hidden"
                   style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%)' }}
                 >
+                  <button
+                    type="button"
+                    onClick={() => setSeedModifierScale('linear')}
+                    className={
+                      'flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ' +
+                      (seedModifierScale === 'linear'
+                        ? 'bg-white text-purple-700 shadow-sm'
+                        : 'text-white/90 hover:bg-white/20')
+                    }
+                  >
+                    Linear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSeedModifierScale('log')}
+                    className={
+                      'flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ' +
+                      (seedModifierScale === 'log'
+                        ? 'bg-white text-purple-700 shadow-sm'
+                        : 'text-white/90 hover:bg-white/20')
+                    }
+                  >
+                    Log
+                  </button>
+                </div>
+                <div
+                  className="relative flex rounded-xl p-0.5 overflow-hidden"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%)' }}
+                >
                   {/* Sign toggle button */}
                   <button
                     type="button"
@@ -507,25 +557,21 @@ export function OptionsPanel({
                   >
                     {seedSign > 0 ? '+/−' : '−/+'}
                   </button>
-                  {[
-                    { delta: 1, label: '1' },
-                    { delta: 10, label: '10' },
-                    { delta: 100, label: '100' },
-                    { delta: 1000, label: '1k' },
-                    { delta: 10000, label: '10k' },
-                  ].map(({ delta, label }) => (
+                  {seedModifierSteps.map((delta) => (
                     <button
                       key={delta}
                       type="button"
                       onClick={() => onApplySeedDelta?.(delta * seedSign)}
                       className="flex-1 py-1.5 text-xs font-medium rounded-lg transition-all text-white/90 hover:bg-white/20 active:bg-white active:text-purple-700"
                     >
-                      {seedSign > 0 ? '+' : '−'}{label}
+                      {seedSign > 0 ? '+' : '−'}{formatSeedDeltaLabel(delta)}
                     </button>
                   ))}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {seedSign > 0 ? 'Add to' : 'Subtract from'} current seed and regenerate.
+                  {seedModifierScale === 'log'
+                    ? `${seedSign > 0 ? 'Add' : 'Subtract'} a log-scaled step based on the current seed magnitude.`
+                    : `${seedSign > 0 ? 'Add to' : 'Subtract from'} current seed and regenerate.`}
                 </div>
                 {isSelectionBlurred && (
                   <div className="text-xs text-muted-foreground">
