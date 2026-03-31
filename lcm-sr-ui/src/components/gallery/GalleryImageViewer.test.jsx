@@ -105,4 +105,56 @@ describe('GalleryImageViewer', () => {
     expect(onWindowOpen).toHaveBeenCalledWith(mockWin);
     openSpy.mockRestore();
   });
+
+  it('backend field renders when present in params', async () => {
+    const itemWithBackend = {
+      ...item,
+      params: { ...item.params, backend: 'cuda' },
+    };
+
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={itemWithBackend}
+          resolveImageUrl={resolve}
+          onBack={vi.fn()}
+          onWindowOpen={vi.fn()}
+        />
+      );
+    });
+
+    expect(screen.getByTestId('metadata-bar').textContent).toContain('cuda');
+  });
+
+  it('addedAt is formatted via toLocaleString', async () => {
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={item}
+          resolveImageUrl={resolve}
+          onBack={vi.fn()}
+          onWindowOpen={vi.fn()}
+        />
+      );
+    });
+
+    const expected = new Date(item.addedAt).toLocaleString();
+    expect(screen.getByTestId('metadata-bar').textContent).toContain(expected);
+  });
+
+  it('pointer-events-none is present on hidden metadata bar', async () => {
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={item}
+          resolveImageUrl={resolve}
+          onBack={vi.fn()}
+          onWindowOpen={vi.fn()}
+        />
+      );
+    });
+
+    const metaBar = screen.getByTestId('metadata-bar');
+    expect(metaBar.className).toContain('pointer-events-none');
+  });
 });
