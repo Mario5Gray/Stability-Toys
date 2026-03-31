@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Protocol
+from typing import Callable, Literal, Mapping, Optional, Protocol
 
 import numpy as np
 from PIL import Image
@@ -23,6 +23,14 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 SuperResBackend = Literal["rknn", "cuda"]
+
+
+@dataclass(frozen=True)
+class CudaSuperResConfig:
+    model_path: str
+    tile: int
+    use_fp16: bool
+    device: str
 
 
 class SuperResServiceProtocol(Protocol):
@@ -47,6 +55,26 @@ class SRJob:
     magnitude: int
     fut: Future
     submitted_at: float
+
+
+def _env_flag(value: Optional[str], default: bool) -> bool:
+    if value is None:
+        return default
+    return value not in ("0", "false", "False", "no", "No")
+
+
+def load_cuda_superres_config(environ: Optional[Mapping[str, str]] = None) -> CudaSuperResConfig:
+    env = environ or os.environ
+    model_path = (env.get("CUDA_SR_MODEL") or "").strip()
+    tile = int(env.get("CUDA_SR_TILE", "0"))
+    use_fp16 = _env_flag(env.get("CUDA_SR_FP16"), True)
+    device = (env.get("CUDA_DEVICE") or "cuda:0").strip() or "cuda:0"
+    return CudaSuperResConfig(
+        model_path=model_path,
+        tile=tile,
+        use_fp16=use_fp16,
+        device=device,
+    )
 
 
 def resolve_superres_backend(*, backend: str, use_cuda: bool) -> SuperResBackend:
@@ -87,9 +115,8 @@ def create_superres_service(
         return factory(**kwargs)
 
     if backend_kind == "cuda":
-        if cuda_factory is None:
-            raise RuntimeError("CUDA super-resolution service is not configured")
-        return cuda_factory(**kwargs)
+        factory = cuda_factory or CudaSuperResService
+        return factory(**kwargs)
 
     raise RuntimeError(f"Unsupported super-resolution backend: {backend_kind}")
 
@@ -292,3 +319,209 @@ class RknnSuperResService:
                     job.fut.set_exception(exc)
             finally:
                 self.q.task_done()
+
+
+class CudaSuperResWorker:
+    def __init__(self, config: CudaSuperResConfig):
+        if not config.model_path:
+            raise RuntimeError("CUDA_SR_MODEL must be set for CUDA super-resolution")
+
+        self.config = config
+        self._torch = self._import_torch()
+        self._upsampler = self._build_upsampler()
+
+    def _import_torch(self):
+        try:
+            import torch
+        except ImportError as exc:
+            raise RuntimeError("PyTorch is required for CUDA super-resolution") from exc
+
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available for CUDA super-resolution")
+        return torch
+
+    def _build_upsampler(self):
+        try:
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            from realesrgan import RealESRGANer
+        except ImportError as exc:
+            raise RuntimeError(
+                "CUDA super-resolution dependencies missing. Install realesrgan and basicsr."
+            ) from exc
+
+        model_name = os.path.basename(self.config.model_path).lower()
+        num_block = 6 if "anime_6b" in model_name else 23
+        net = RRDBNet(
+            num_in_ch=3,
+            num_out_ch=3,
+            num_feat=64,
+            num_block=num_block,
+            num_grow_ch=32,
+            scale=4,
+        )
+
+        return RealESRGANer(
+            scale=4,
+            model_path=self.config.model_path,
+            model=net,
+            tile=max(0, int(self.config.tile)),
+            tile_pad=10,
+            pre_pad=0,
+            half=bool(self.config.use_fp16),
+            device=self.config.device,
+        )
+
+    def close(self):
+        torch = self._torch
+        gc = __import__("gc")
+        del self._upsampler
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    def upscale_bytes(self, image_bytes: bytes, *, magnitude: int, out_format: str, quality: int) -> bytes:
+        mag = int(magnitude)
+        if mag < 1 or mag > 3:
+            raise RuntimeError("magnitude must be 1..3")
+
+        out = image_bytes
+        for _ in range(mag):
+            img = Image.open(io.BytesIO(out)).convert("RGB")
+            rgb = np.array(img, dtype=np.uint8)
+            bgr = rgb[:, :, ::-1]
+            pred_bgr, _ = self._upsampler.enhance(bgr, outscale=4)
+            pred_rgb = pred_bgr[:, :, ::-1]
+            out_img = Image.fromarray(pred_rgb.astype(np.uint8), mode="RGB")
+
+            buf = io.BytesIO()
+            if out_format == "jpeg":
+                out_img.save(buf, format="JPEG", quality=int(quality))
+            else:
+                out_img.save(buf, format="PNG")
+            out = buf.getvalue()
+        return out
+
+
+class CudaSuperResService:
+    def __init__(
+        self,
+        model_path: str = "",
+        num_workers: int = 1,
+        queue_max: int = 32,
+        input_size: int = 0,
+        output_size: int = 0,
+        max_pixels: Optional[int] = None,
+        *,
+        config: Optional[CudaSuperResConfig] = None,
+        worker_factory: Optional[Callable[[CudaSuperResConfig], object]] = None,
+    ):
+        del num_workers, input_size, output_size, max_pixels
+        self.config = config or CudaSuperResConfig(
+            model_path=model_path,
+            tile=0,
+            use_fp16=True,
+            device="cuda:0",
+        )
+        self.worker_factory = worker_factory or CudaSuperResWorker
+        self.q: "queue.Queue[SRJob]" = queue.Queue(maxsize=int(queue_max))
+        self._stop = threading.Event()
+        self._worker_lock = threading.Lock()
+        self._worker: Optional[object] = None
+        self._thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._thread.start()
+
+    def _ensure_worker(self):
+        with self._worker_lock:
+            if self._worker is None:
+                self._worker = self.worker_factory(self.config)
+            return self._worker
+
+    def _unload_worker(self):
+        with self._worker_lock:
+            worker = self._worker
+            self._worker = None
+        if worker is not None:
+            close = getattr(worker, "close", None)
+            if callable(close):
+                close()
+
+    def shutdown(self):
+        self._stop.set()
+        while True:
+            try:
+                job = self.q.get_nowait()
+            except queue.Empty:
+                break
+            if not job.fut.done():
+                job.fut.set_exception(RuntimeError("CudaSuperResService shutting down"))
+            self.q.task_done()
+        self._unload_worker()
+
+    def submit(
+        self,
+        image_bytes: bytes,
+        *,
+        out_format: str,
+        quality: int,
+        magnitude: int,
+        timeout_s: float = 0.25,
+    ) -> Future:
+        fut: Future = Future()
+        job = SRJob(
+            image_bytes=image_bytes,
+            out_format=out_format,
+            quality=int(quality),
+            magnitude=int(magnitude),
+            fut=fut,
+            submitted_at=time.time(),
+        )
+        try:
+            self.q.put(job, timeout=timeout_s)
+        except queue.Full:
+            fut.set_exception(RuntimeError("Queue full"))
+        return fut
+
+    def _worker_loop(self):
+        while not self._stop.is_set():
+            try:
+                job = self.q.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+            if job.fut.cancelled():
+                self.q.task_done()
+                continue
+
+            try:
+                worker = self._ensure_worker()
+                out_bytes = worker.upscale_bytes(
+                    job.image_bytes,
+                    magnitude=job.magnitude,
+                    out_format=job.out_format,
+                    quality=job.quality,
+                )
+                if not job.fut.done():
+                    job.fut.set_result(out_bytes)
+            except Exception as exc:
+                if _is_cuda_oom(exc):
+                    logger.error("CUDA SR worker hit OOM; unloading worker", exc_info=True)
+                    self._unload_worker()
+                else:
+                    logger.error(f"CUDA SR worker job failed: {exc}", exc_info=True)
+                if not job.fut.done():
+                    job.fut.set_exception(exc)
+            finally:
+                self.q.task_done()
+
+
+def _is_cuda_oom(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    if "out of memory" in msg and "cuda" in msg:
+        return True
+
+    try:
+        import torch
+    except Exception:
+        return False
+
+    return isinstance(exc, torch.cuda.OutOfMemoryError)
