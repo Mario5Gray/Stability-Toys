@@ -14,6 +14,9 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
   const blobUrlsRef = useRef(new Map()); // cacheKey -> blobUrl
   const childWindowsRef = useRef([]);
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   // Lazy-init the lcm-image-cache handle
   function getCache() {
     if (!cacheRef.current) cacheRef.current = createCache();
@@ -42,13 +45,14 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // closeAll is excluded: onClose is accessed via onCloseRef (always current) — re-adding the listener on every render is unnecessary
 
   function closeAll() {
     for (const win of childWindowsRef.current) {
       try { if (win && !win.closed) win.close(); } catch {}
     }
     childWindowsRef.current = [];
-    onClose();
+    onCloseRef.current();
   }
 
   function handleWindowOpen(win) {

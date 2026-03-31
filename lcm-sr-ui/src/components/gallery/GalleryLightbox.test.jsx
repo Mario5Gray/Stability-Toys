@@ -99,10 +99,8 @@ describe('GalleryLightbox', () => {
     expect(slider).toHaveAttribute('max', '1');
   });
 
-  it('closes all tracked child windows when X is clicked', async () => {
+  it('calls onClose when X button is clicked', async () => {
     const onClose = vi.fn();
-    const fakeWin = { close: vi.fn(), closed: false };
-    vi.spyOn(window, 'open').mockReturnValue(fakeWin);
 
     await act(async () => {
       render(
