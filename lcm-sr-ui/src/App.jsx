@@ -14,7 +14,7 @@ import {
   DEFAULT_IMG2IMG_DENOISE_STRENGTH,
   SR_CONFIG,
 } from './utils/constants';
-import { MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare, Settings, Folder } from 'lucide-react';
 import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
@@ -26,6 +26,9 @@ import {
   saveSource,
   setActiveSourceId,
 } from './utils/img2imgSourceStore';
+import { useGalleries } from './hooks/useGalleries';
+import { GalleryCreatePopover } from './components/gallery/GalleryCreatePopover';
+import { GalleryLightbox } from './components/gallery/GalleryLightbox';
 
 export function shouldPersistSelectedChatInitImage(
   activeInitImage,
@@ -100,6 +103,8 @@ export function buildSelectedSeedDeltaPayload(
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
+  const galleryState = useGalleries();
+  const [openGalleryId, setOpenGalleryId] = useState(null);
   const didReportRender = useRef(false);
 
   useEffect(() => {
@@ -600,6 +605,15 @@ export default function App() {
     runSuperResUpload(file, srMagnitude);
   }, [selectedMsg, srMagnitude, runSuperResUpload]);
 
+  const onAddToGallery = useCallback(async (cacheKey, { serverImageUrl, params: imgParams }) => {
+    if (!galleryState.activeGalleryId || !cacheKey) return;
+    await galleryState.addToGallery(cacheKey, {
+      serverImageUrl,
+      params: imgParams,
+      galleryId: galleryState.activeGalleryId,
+    });
+  }, [galleryState]);
+
   /**
    * Copy current prompt to clipboard.
    */
@@ -712,7 +726,7 @@ export default function App() {
 <div className="h-screen overflow-hidden bg-indigo-200 bg-background text-foreground">
   <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
     {/* Tab Navigation */}
-    <div className="border-b px-4">
+    <div className="border-b px-4 flex items-center">
       <TabsList className="h-12">
         <TabsTrigger value="chat" className="gap-2">
           <MessageSquare className="h-4 w-4" />
@@ -723,6 +737,23 @@ export default function App() {
           Configuration
         </TabsTrigger>
       </TabsList>
+
+      {/* Gallery controls — siblings of TabsList, not children */}
+      <div className="flex items-center gap-1 ml-2">
+        <GalleryCreatePopover onCreateGallery={galleryState.createGallery} />
+        {galleryState.galleries.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            onClick={() => setOpenGalleryId(g.id)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors truncate max-w-[120px]"
+            title={g.name}
+          >
+            <Folder className="h-4 w-4 shrink-0" />
+            {g.name}
+          </button>
+        ))}
+      </div>
     </div>
 
 {/* Tab Content */}
@@ -761,6 +792,8 @@ export default function App() {
             serverLabel={serverLabel}
             onImageDisplayed={onImageDisplayed}
             onImageError={onImageError}
+            activeGalleryId={galleryState.activeGalleryId}
+            onAddToGallery={onAddToGallery}
           />
 
           {/* Options Panel */}
@@ -820,6 +853,7 @@ export default function App() {
               });
             }}
             queueState={queueState}
+            galleryState={galleryState}
           />
         </div>
       </div>
@@ -835,6 +869,14 @@ export default function App() {
           </TabsContent>
   
         </div>
+        {openGalleryId && (
+          <GalleryLightbox
+            galleryId={openGalleryId}
+            galleryName={galleryState.galleries.find((g) => g.id === openGalleryId)?.name ?? ''}
+            getGalleryImages={galleryState.getGalleryImages}
+            onClose={() => setOpenGalleryId(null)}
+          />
+        )}
       </Tabs>
 
     </div>
