@@ -69,6 +69,31 @@ export async function fetchBlobFromCandidates(candidateUrls) {
   throw lastError || new Error('Failed to fetch init image from available candidates');
 }
 
+export function buildSelectedSeedDeltaPayload(
+  selectedParams,
+  selectedMsgId,
+  delta,
+  initImageFile = null
+) {
+  if (!selectedParams) return null;
+  const currentSeed = Number(selectedParams.seed) || 0;
+  const newSeed = currentSeed + delta;
+
+  return {
+    prompt: selectedParams.prompt,
+    negativePrompt: selectedParams.negativePrompt,
+    schedulerId: selectedParams.schedulerId,
+    size: selectedParams.size,
+    steps: selectedParams.steps,
+    cfg: selectedParams.cfg,
+    seedMode: 'fixed',
+    seed: newSeed,
+    superresLevel: selectedParams.superresLevel ?? 0,
+    initImageFile: initImageFile || null,
+    targetMessageId: selectedMsgId,
+  };
+}
+
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
@@ -524,23 +549,16 @@ export default function App() {
   const onApplySeedDelta = useCallback(
     (delta) => {
       if (!selectedParams) return;
-      const currentSeed = Number(selectedParams.seed) || 0;
-      const newSeed = currentSeed + delta;
-      // Trigger regeneration with new seed
-      runGenerate({
-        prompt: selectedParams.prompt,
-        negativePrompt: selectedParams.negativePrompt,
-        schedulerId: selectedParams.schedulerId,
-        size: selectedParams.size,
-        steps: selectedParams.steps,
-        cfg: selectedParams.cfg,
-        seedMode: 'fixed',
-        seed: newSeed,
-        superresLevel: selectedParams.superresLevel ?? 0,
-        targetMessageId: selectedMsgId,
-      });
+      const payload = buildSelectedSeedDeltaPayload(
+        selectedParams,
+        selectedMsgId,
+        delta,
+        initImage?.file || null
+      );
+      if (!payload) return;
+      runGenerate(payload);
     },
-    [selectedParams, selectedMsgId, runGenerate]
+    [selectedParams, selectedMsgId, initImage, runGenerate]
   );
 
   /* explicit selectedmessage state */
