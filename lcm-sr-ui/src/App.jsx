@@ -19,8 +19,7 @@ import { useJobQueue } from './hooks/useJobQueue';
 import { emitUiEvent } from './utils/otelTelemetry';
 import { useGalleries } from './hooks/useGalleries';
 import { GalleryCreatePopover } from './components/gallery/GalleryCreatePopover';
-// TODO: uncomment when GalleryLightbox is implemented (Task 8)
-// import { GalleryLightbox } from './components/gallery/GalleryLightbox';
+import { GalleryLightbox } from './components/gallery/GalleryLightbox';
 
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
@@ -628,15 +627,14 @@ export default function App() {
           </TabsContent>
   
         </div>
-        {/* TODO: uncomment when GalleryLightbox is implemented (Task 8) */}
-        {/* {openGalleryId && (
+        {openGalleryId && (
           <GalleryLightbox
             galleryId={openGalleryId}
             galleryName={galleryState.galleries.find((g) => g.id === openGalleryId)?.name ?? ''}
             getGalleryImages={galleryState.getGalleryImages}
             onClose={() => setOpenGalleryId(null)}
           />
-        )} */}
+        )}
       </Tabs>
 
     </div>
