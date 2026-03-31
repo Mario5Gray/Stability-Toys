@@ -202,7 +202,6 @@ export default function App() {
       const nextDefault =
         restored.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      params.setDenoiseStrength(nextDefault);
     };
 
     restoreActiveInitImage();
@@ -235,7 +234,6 @@ export default function App() {
       setActiveSourceId(row.id);
       const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      params.setDenoiseStrength(nextDefault);
       setInitImage({
         sourceId: row.id,
         originType: row.originType,
@@ -246,7 +244,7 @@ export default function App() {
         serverImageUrl: row.serverImageUrl ?? null,
       });
     },
-    [params.setDenoiseStrength]
+    []
   );
 
   const clearInitImage = useCallback(async () => {
@@ -255,9 +253,8 @@ export default function App() {
     }
     setInitImage(null);
     setSourceDefaultDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
-    params.setDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
     await clearActiveSource();
-  }, [initImage, params]);
+  }, [initImage]);
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
