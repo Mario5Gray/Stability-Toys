@@ -27,6 +27,48 @@ import {
   setActiveSourceId,
 } from './utils/img2imgSourceStore';
 
+export function shouldPersistSelectedChatInitImage(
+  activeInitImage,
+  selectedImage,
+  suppressedOriginMessageId = null
+) {
+  if (!selectedImage || selectedImage.kind !== 'image') return false;
+  if (suppressedOriginMessageId && suppressedOriginMessageId === selectedImage.id) return false;
+  if (activeInitImage?.originType === 'upload') return false;
+  if (activeInitImage?.originType === 'chat' && activeInitImage?.originMessageId === selectedImage.id) {
+    return false;
+  }
+  return true;
+}
+
+export function getChatInitImageSuppressionKey(source) {
+  if (!source || source.originType !== 'chat') return null;
+  return source.originMessageId ?? null;
+}
+
+export async function fetchBlobFromCandidates(candidateUrls) {
+  const urls = Array.from(new Set((candidateUrls || []).filter(Boolean)));
+  let lastError = null;
+
+  for (const candidateUrl of urls) {
+    try {
+      const response = await fetch(candidateUrl);
+      if (!response.ok) {
+        lastError = new Error(`Failed to fetch init image: ${response.status}`);
+        continue;
+      }
+      return {
+        blob: await response.blob(),
+        resolvedUrl: candidateUrl,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Failed to fetch init image from available candidates');
+}
+
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
@@ -211,6 +253,7 @@ export default function App() {
       updateInitImage({
         sourceId: restored.id,
         originType: restored.originType,
+        originMessageId: restored.originMessageId ?? null,
         file,
         objectUrl,
         filename: restored.filename,
@@ -220,7 +263,7 @@ export default function App() {
       const nextDefault =
         restored.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      chatPromotionRef.current = restored.originType === 'chat' ? restored.id : null;
+      chatPromotionRef.current = getChatInitImageSuppressionKey(restored);
     };
 
     restoreActiveInitImage();
@@ -257,6 +300,7 @@ export default function App() {
       updateInitImage({
         sourceId: row.id,
         originType: row.originType,
+        originMessageId: null,
         file,
         objectUrl: URL.createObjectURL(file),
         filename: row.filename,
@@ -268,11 +312,12 @@ export default function App() {
   );
 
   const clearInitImage = useCallback(async () => {
+    const nextSuppressionKey = initImage?.originMessageId ?? null;
     updateInitImage(null);
     setSourceDefaultDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
-    chatPromotionRef.current = null;
+    chatPromotionRef.current = nextSuppressionKey;
     await clearActiveSource();
-  }, [updateInitImage]);
+  }, [initImage, updateInitImage]);
 
   const persistChatInitImage = useCallback(
     async (selectedImage) => {
@@ -284,24 +329,15 @@ export default function App() {
       const cacheUrl = selectedImage.params
         ? await getImageFromCache(selectedImage.params)
         : null;
-      const candidateUrl =
-        selectedImage.serverImageUrl ||
-        selectedImage.imageUrl ||
-        cacheUrl ||
-        null;
-
-      if (!candidateUrl) return null;
-
-      const response = await fetch(candidateUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch init image: ${response.status}`);
-      }
-
-      const blob = await response.blob();
+      const { blob, resolvedUrl } = await fetchBlobFromCandidates([
+        selectedImage.serverImageUrl,
+        selectedImage.imageUrl,
+        cacheUrl,
+      ]);
       const filename = `chat_${selectedImage.id}.png`;
       const serverImageUrl = selectedImage.serverImageUrl || (
-        typeof candidateUrl === 'string' && candidateUrl.startsWith('http')
-          ? candidateUrl
+        typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')
+          ? resolvedUrl
           : null
       );
       const row = await saveSource({
@@ -324,6 +360,7 @@ export default function App() {
       updateInitImage({
         sourceId: row.id,
         originType: row.originType,
+        originMessageId: selectedImage.id,
         file,
         objectUrl: URL.createObjectURL(blob),
         filename: row.filename,
@@ -337,10 +374,8 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!selectedMsg || selectedMsg.kind !== 'image') return;
     const activeInitImage = initImageRef.current;
-    if (activeInitImage?.originType === 'upload') return;
-    if (activeInitImage?.originType === 'chat' && activeInitImage?.sourceId === selectedMsg.id) return;
+    if (!shouldPersistSelectedChatInitImage(activeInitImage, selectedMsg, chatPromotionRef.current)) return;
 
     void persistChatInitImage(selectedMsg).catch((err) => {
       console.error('[App] Failed to persist chat init image:', err);
