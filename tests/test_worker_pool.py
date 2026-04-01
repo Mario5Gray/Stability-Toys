@@ -355,7 +355,11 @@ class TestJobSubmission:
 
         assert worker_pool._get_job_record("job-full") is None
 
-    def test_cancel_queued_generation_job_marks_future_cancelled(self, worker_pool):
+    def test_cancel_queued_generation_job_marks_future_cancelled(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
         blocker_started = threading.Event()
         release = threading.Event()
 
@@ -368,14 +372,20 @@ class TestJobSubmission:
         blocker_future = worker_pool.submit_job(blocker)
         assert blocker_started.wait(timeout=1.0)
 
+        worker = mock_worker_factory.return_value
+        worker.run_job.reset_mock()
+
         req = Mock()
         job = GenerationJob(req=req, job_id="job-1")
         fut = worker_pool.submit_job(job)
         assert worker_pool.cancel_job("job-1") is True
         assert fut.cancelled()
-        assert worker_pool._get_job_record("job-1") is None
+        assert worker_pool._get_job_record("job-1") is not None
         release.set()
         assert blocker_future.result(timeout=1.0) == "blocked"
+        worker_pool.q.join()
+        assert worker.run_job.call_count == 0
+        assert worker_pool._get_job_record("job-1") is None
 
     def test_cancel_running_generation_job_discards_late_result(
         self,

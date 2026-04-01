@@ -469,7 +469,6 @@ class WorkerPool:
             record.cancel_requested = True
             if record.state == "queued" and record.job.fut.cancel():
                 record.state = "cancelled"
-                self._finalize_job_record(job_id)
                 return True
 
             record.state = "running"
