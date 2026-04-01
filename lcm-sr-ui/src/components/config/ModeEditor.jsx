@@ -67,6 +67,10 @@ export default function ModeEditor({ modeState }) {
     }
   }, [modeState]);
 
+  const refreshSharedModeState = useCallback(async () => {
+    await modeState?.loadModes?.();
+  }, [modeState]);
+
   const startEdit = (name) => {
     const mode = config.modes[name];
     setEditing(name);
@@ -125,6 +129,7 @@ export default function ModeEditor({ modeState }) {
       setTimeout(() => setSuccess(null), 2000);
       cancelEdit();
       await load();
+      await refreshSharedModeState();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -141,6 +146,7 @@ export default function ModeEditor({ modeState }) {
       setSuccess('Deleted');
       setTimeout(() => setSuccess(null), 2000);
       await load();
+      await refreshSharedModeState();
     } catch (e) {
       setError(e.message);
     }
@@ -159,6 +165,7 @@ export default function ModeEditor({ modeState }) {
       setSuccess(`"${name}" is now the default mode`);
       setTimeout(() => setSuccess(null), 2000);
       await load();
+      await refreshSharedModeState();
     } catch (e) {
       setError(e.message);
     }

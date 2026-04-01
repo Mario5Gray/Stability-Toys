@@ -22,6 +22,64 @@ afterEach(() => {
 });
 
 describe('useModeConfig', () => {
+  it('keeps default mode separate when runtime status is missing current_mode', async () => {
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: { model: 'base-cinematic' },
+            portrait: { model: 'base-portrait' },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        return {
+          is_loaded: false,
+        };
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    expect(result.current.defaultModeName).toBe('cinematic');
+    expect(result.current.activeModeName).toBeNull();
+    expect(result.current.activeMode).toBeNull();
+  });
+
+  it('keeps default mode separate when runtime status fetch fails', async () => {
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: { model: 'base-cinematic' },
+            portrait: { model: 'base-portrait' },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        throw new Error('status unavailable');
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    expect(result.current.defaultModeName).toBe('cinematic');
+    expect(result.current.activeModeName).toBeNull();
+    expect(result.current.activeMode).toBeNull();
+  });
+
   it('polls runtime status and updates the active mode after time advances', async () => {
     vi.useFakeTimers();
     const statuses = [

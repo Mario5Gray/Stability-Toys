@@ -24,6 +24,7 @@ export function useModeConfig() {
       setError(null);
       return statusRes;
     } catch (e) {
+      setRuntimeStatus(null);
       setError(e.message || 'Failed to load runtime status');
       throw e;
     }
@@ -80,7 +81,7 @@ export function useModeConfig() {
   );
 
   const defaultModeName = config?.default_mode || null;
-  const activeModeName = runtimeStatus?.current_mode || defaultModeName;
+  const activeModeName = runtimeStatus?.current_mode ?? null;
   const activeMode = getActiveMode(config, activeModeName);
   const isLoaded = Boolean(runtimeStatus?.is_loaded);
 

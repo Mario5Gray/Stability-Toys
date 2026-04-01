@@ -67,6 +67,31 @@ function renderModeEditor(modeState) {
 }
 
 describe('ModeEditor runtime controls', () => {
+  it('refreshes shared mode state after changing the default mode', async () => {
+    const modeState = {
+      config: null,
+      defaultModeName: 'cinematic',
+      activeModeName: 'cinematic',
+      activeMode: {
+        model: 'model-a',
+      },
+      isLoaded: true,
+      error: null,
+      loadModes: vi.fn().mockResolvedValue(undefined),
+      refreshStatus: vi.fn().mockResolvedValue(undefined),
+      reloadActiveModel: vi.fn().mockResolvedValue(undefined),
+      freeVram: vi.fn().mockResolvedValue(undefined),
+      switchMode: vi.fn(),
+    };
+
+    renderModeEditor(modeState);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Set as default/i }));
+
+    await waitFor(() => expect(api.client.fetchPut).toHaveBeenCalled());
+    await waitFor(() => expect(modeState.loadModes).toHaveBeenCalledTimes(1));
+  });
+
   it('shows runtime status and refreshes it after reloading the active model', async () => {
     const modeState = {
       config: null,
