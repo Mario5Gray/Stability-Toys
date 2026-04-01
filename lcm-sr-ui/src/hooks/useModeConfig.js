@@ -64,7 +64,8 @@ export function useModeConfig() {
 
   const switchMode = useCallback(
     async (name) => {
-      if (!config || name === (runtimeStatus?.current_mode || config.default_mode)) return;
+      const currentRuntimeMode = runtimeStatus?.current_mode ?? null;
+      if (!config || (currentRuntimeMode && name === currentRuntimeMode)) return;
       setIsSwitching(true);
       try {
         await api.fetchPost('/api/modes/switch', { mode: name });

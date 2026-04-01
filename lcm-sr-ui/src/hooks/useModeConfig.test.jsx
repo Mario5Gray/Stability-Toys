@@ -22,6 +22,45 @@ afterEach(() => {
 });
 
 describe('useModeConfig', () => {
+  it('posts a switch for the default mode when runtime status is unavailable', async () => {
+    let statusCalls = 0;
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: { model: 'base-cinematic' },
+            portrait: { model: 'base-portrait' },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          throw new Error('status unavailable');
+        }
+        return {
+          current_mode: 'cinematic',
+          is_loaded: true,
+        };
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+    api.client.fetchPost.mockResolvedValue({ status: 'ok' });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await waitFor(() => expect(result.current.defaultModeName).toBe('cinematic'));
+
+    await act(async () => {
+      await result.current.switchMode(result.current.defaultModeName);
+    });
+
+    expect(api.client.fetchPost).toHaveBeenCalledWith('/api/modes/switch', { mode: 'cinematic' });
+  });
+
   it('keeps default mode separate when runtime status is missing current_mode', async () => {
     api.client.fetchGet.mockImplementation(async (endpoint) => {
       if (endpoint === '/api/modes') {
