@@ -241,6 +241,19 @@ async def reload_modes_config():
         )
 
 
+@router.post("/models/reload")
+async def reload_current_model():
+    """Reload the currently loaded model mode in place."""
+    pool = get_worker_pool()
+    try:
+        return pool.reload_current_mode()
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[API] Model reload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/vram")
 async def get_vram_stats():
     """
@@ -264,19 +277,22 @@ async def unload_current_model():
         Status message
     """
     pool = get_worker_pool()
-    current_mode = pool.get_current_mode()
+    try:
+        return pool.free_vram(reason="manual_unload")
+    except Exception as e:
+        logger.error(f"[API] Model unload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    if current_mode is None:
-        raise HTTPException(status_code=400, detail="No model currently loaded")
 
-    # TODO: Implement explicit unload in worker pool
-    # For now, switching to a lightweight mode is recommended instead
-
-    return {
-        "status": "not_implemented",
-        "message": "Model unload not yet implemented. Use mode switching instead.",
-        "current_mode": current_mode,
-    }
+@router.post("/vram/free")
+async def free_vram():
+    """Force the worker pool to drop the active worker and free VRAM."""
+    pool = get_worker_pool()
+    try:
+        return pool.free_vram(reason="manual_free_vram")
+    except Exception as e:
+        logger.error(f"[API] Free VRAM failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/models/load")

@@ -108,3 +108,25 @@ async def test_list_modes_includes_generation_control_policy_fields():
     assert sd15["allow_custom_negative_prompt"] is False
     assert sd15["allowed_scheduler_ids"] is None
     assert sd15["default_scheduler_id"] is None
+
+
+async def test_reload_and_free_vram_routes_call_pool_methods():
+    pool = Mock()
+    pool.reload_current_mode.return_value = {
+        "status": "reloaded",
+        "mode": "sdxl-general",
+    }
+    pool.free_vram.return_value = {
+        "status": "ok",
+        "is_loaded": False,
+        "current_mode": "sdxl-general",
+        "vram": {
+            "allocated_bytes": 0,
+            "reserved_bytes": 0,
+            "total_bytes": 8 * 1024**3,
+        },
+    }
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool):
+        assert (await model_routes.reload_current_model())["status"] == "reloaded"
+        assert (await model_routes.free_vram())["status"] == "ok"

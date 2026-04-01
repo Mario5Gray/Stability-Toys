@@ -459,6 +459,90 @@ class WorkerPool:
         with self._job_lock:
             return self._job_records.get(job_id)
 
+    def _mark_running_generation_jobs_cancel_requested(self, reason: str) -> list[str]:
+        """Mark running generation jobs so their futures resolve as cancelled."""
+        cancelled: list[str] = []
+        with self._job_lock:
+            for record in self._job_records.values():
+                if record.state == "running" and not record.cancel_requested:
+                    record.cancel_requested = True
+                    cancelled.append(record.job_id)
+
+        if cancelled:
+            logger.info(
+                f"[WorkerPool] Marked {len(cancelled)} running generation job(s) cancel requested "
+                f"({reason})"
+            )
+
+        return cancelled
+
+    def cancel_pending_generation_jobs(self, reason: str) -> list[str]:
+        """Cancel queued generation jobs that have not started yet."""
+        cancelled: list[str] = []
+        kept_jobs: list[Job] = []
+
+        with self.q.mutex:
+            pending_jobs = list(self.q.queue)
+            self.q.queue.clear()
+
+            for job in pending_jobs:
+                if isinstance(job, GenerationJob):
+                    cancelled.append(job.job_id)
+                    if not job.fut.done():
+                        job.fut.cancel()
+                else:
+                    kept_jobs.append(job)
+
+            for job in kept_jobs:
+                self.q.queue.append(job)
+
+        for _job_id in cancelled:
+            self.q.task_done()
+        for job_id in cancelled:
+            record = self._get_job_record(job_id)
+            if record is not None:
+                record.cancel_requested = True
+                record.state = "cancelled"
+            self._finalize_job_record(job_id)
+
+        if cancelled:
+            logger.info(
+                f"[WorkerPool] Cancelled {len(cancelled)} pending generation job(s) ({reason})"
+            )
+
+        return cancelled
+
+    def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
+        """Shared cleanup path for explicit free-VRAM and OOM recovery."""
+        cancelled = self.cancel_pending_generation_jobs(reason=reason)
+        if cancel_running:
+            cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
+        self._unload_current_worker()
+        gc.collect()
+        torch.cuda.empty_cache()
+        return cancelled
+
+    def _build_runtime_status(self, cancelled_jobs: Optional[list[str]] = None) -> dict:
+        """Return a stable runtime snapshot used by recovery endpoints."""
+        allocated_bytes = int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
+        reserved_bytes = int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0
+        total_bytes = int(self._registry.get_total_vram())
+
+        status = {
+            "status": "ok",
+            "is_loaded": self.is_model_loaded(),
+            "current_mode": self._current_mode,
+            "queue_size": self.get_queue_size(),
+            "vram": {
+                "allocated_bytes": allocated_bytes,
+                "reserved_bytes": reserved_bytes,
+                "total_bytes": total_bytes,
+            },
+        }
+        if cancelled_jobs is not None:
+            status["cancelled_jobs"] = cancelled_jobs
+        return status
+
     def cancel_job(self, job_id: str) -> bool:
         """Cancel a queued or running generation job by backend job ID."""
         with self._job_lock:
@@ -564,21 +648,23 @@ class WorkerPool:
                     and isinstance(e, torch.cuda.OutOfMemoryError)
                 ) or "out of memory" in str(e).lower()
                 if _oom:
-                    gc.collect()
-                    torch.cuda.empty_cache()
                     logger.warning(
-                        "[WorkerPool] OOM recovery: gc + empty_cache — "
+                        "[WorkerPool] OOM recovery: cancelling queued jobs and unloading worker — "
                         f"allocated={torch.cuda.memory_allocated()/1024**3:.2f}GB "
                         f"reserved={torch.cuda.memory_reserved()/1024**3:.2f}GB"
                     )
                     # OOM can leave the pipeline allocator state partially poisoned.
-                    # Drop the live worker and let the next job demand-reload the
-                    # current mode through the normal load path.
-                    self._unload_current_worker()
+                    # Use the same cleanup path as explicit free-VRAM, but keep the
+                    # failing job's original exception so callers see the OOM.
+                    self._cleanup_vram(reason="oom", cancel_running=False)
                 if isinstance(job, GenerationJob):
                     job_record = self._get_job_record(job.job_id)
                     if job_record is not None:
-                        if job_record.cancel_requested:
+                        if _oom:
+                            if not job.fut.done():
+                                job.fut.set_exception(e)
+                            job_record.state = "failed"
+                        elif job_record.cancel_requested:
                             if not job.fut.done():
                                 job.fut.set_exception(CancelledError())
                             job_record.state = "cancelled"
@@ -644,6 +730,20 @@ class WorkerPool:
         job = ModeSwitchJob(target_mode=mode_name, force=force)
 
         return self.submit_job(job)
+
+    def reload_current_mode(self) -> dict:
+        """Reload the currently loaded mode in place."""
+        if self._current_mode is None:
+            raise RuntimeError("No active mode to reload")
+
+        self.cancel_pending_generation_jobs(reason="reload_current_mode")
+        self.switch_mode(self._current_mode, force=True).result(timeout=30.0)
+        return {"status": "reloaded", "mode": self._current_mode}
+
+    def free_vram(self, reason: str) -> dict:
+        """Cancel queued work, unload the worker, and return a runtime snapshot."""
+        cancelled = self._cleanup_vram(reason=reason, cancel_running=True)
+        return self._build_runtime_status(cancelled_jobs=cancelled)
 
     def get_current_mode(self) -> Optional[str]:
         """Get currently loaded mode name.

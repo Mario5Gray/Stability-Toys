@@ -355,6 +355,26 @@ class TestJobSubmission:
 
         assert worker_pool._get_job_record("job-full") is None
 
+    def test_oom_cancels_pending_generation_jobs_and_unloads_worker(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        import backends.worker_pool as worker_pool_module
+
+        fake_oom = worker_pool_module.torch.cuda.OutOfMemoryError
+        worker = mock_worker_factory.return_value
+        worker.run_job.side_effect = fake_oom("CUDA out of memory")
+
+        first_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-1"))
+        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-2"))
+
+        with pytest.raises(fake_oom):
+            first_future.result(timeout=1.0)
+
+        assert queued_future.cancelled()
+        assert worker_pool.is_model_loaded() is False
+
     def test_cancel_queued_generation_job_marks_future_cancelled(
         self,
         worker_pool,
@@ -490,6 +510,17 @@ class TestModeSwitching:
 
         # Worker should not be recreated
         assert mock_worker_factory.call_count == initial_call_count
+
+    def test_reload_current_mode_recreates_worker(self, worker_pool, mock_worker_factory):
+        """Test explicit reload of the current mode."""
+        initial_call_count = mock_worker_factory.call_count
+
+        result = worker_pool.reload_current_mode()
+
+        assert result == {"status": "reloaded", "mode": "sdxl-general"}
+        assert worker_pool.get_current_mode() == "sdxl-general"
+        assert worker_pool.is_model_loaded() is True
+        assert mock_worker_factory.call_count == initial_call_count + 1
 
 
 class TestWorkerLifecycle:
