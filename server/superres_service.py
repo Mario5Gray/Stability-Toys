@@ -25,6 +25,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 SuperResBackend = Literal["rknn", "cuda"]
+CudaSuperResLifecycle = Literal["sticky", "per_request"]
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ class CudaSuperResConfig:
     tile: int
     use_fp16: bool
     device: str
+    lifecycle: CudaSuperResLifecycle
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,8 @@ class SuperResServiceProtocol(Protocol):
         magnitude: int,
         timeout_s: float = 0.25,
     ) -> Future: ...
+
+    def unload(self) -> None: ...
 
     def shutdown(self) -> None: ...
 
@@ -77,11 +81,15 @@ def load_cuda_superres_config(environ: Optional[Mapping[str, str]] = None) -> Cu
     tile = int(env.get("CUDA_SR_TILE", "0"))
     use_fp16 = _env_flag(env.get("CUDA_SR_FP16"), True)
     device = (env.get("CUDA_DEVICE") or "cuda:0").strip() or "cuda:0"
+    lifecycle = ((env.get("CUDA_SR_LIFECYCLE") or "sticky").strip().lower() or "sticky")
+    if lifecycle not in ("sticky", "per_request"):
+        raise RuntimeError("CUDA_SR_LIFECYCLE must be 'sticky' or 'per_request'")
     return CudaSuperResConfig(
         model_path=model_path,
         tile=tile,
         use_fp16=use_fp16,
         device=device,
+        lifecycle=lifecycle,  # type: ignore[arg-type]
     )
 
 
@@ -320,6 +328,9 @@ class RknnSuperResService:
             except Exception:
                 pass
 
+    def unload(self) -> None:
+        return None
+
     def submit(
         self,
         image_bytes: bytes,
@@ -483,6 +494,7 @@ class CudaSuperResService:
             tile=0,
             use_fp16=True,
             device="cuda:0",
+            lifecycle="sticky",
         )
         self.model_path = self.config.model_path
         self.scale_per_pass = 4
@@ -519,6 +531,9 @@ class CudaSuperResService:
             if not job.fut.done():
                 job.fut.set_exception(RuntimeError("CudaSuperResService shutting down"))
             self.q.task_done()
+        self._unload_worker()
+
+    def unload(self) -> None:
         self._unload_worker()
 
     def submit(
@@ -575,6 +590,8 @@ class CudaSuperResService:
                 if not job.fut.done():
                     job.fut.set_exception(exc)
             finally:
+                if self.config.lifecycle == "per_request":
+                    self._unload_worker()
                 self.q.task_done()
 
 

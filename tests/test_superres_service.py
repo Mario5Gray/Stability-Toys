@@ -98,6 +98,20 @@ def test_load_cuda_superres_config_parses_env_defaults():
     assert config.tile == 0
     assert config.use_fp16 is True
     assert config.device == "cuda:0"
+    assert config.lifecycle == "sticky"
+
+
+def test_load_cuda_superres_config_parses_per_request_lifecycle():
+    from server.superres_service import load_cuda_superres_config
+
+    config = load_cuda_superres_config(
+        {
+            "CUDA_SR_MODEL": "/models/sr/RealESRGAN_x2plus.pth",
+            "CUDA_SR_LIFECYCLE": "per_request",
+        }
+    )
+
+    assert config.lifecycle == "per_request"
 
 
 def test_cuda_superres_service_lazy_loads_worker_and_reuses_it():
@@ -125,6 +139,7 @@ def test_cuda_superres_service_lazy_loads_worker_and_reuses_it():
             tile=256,
             use_fp16=True,
             device="cuda:0",
+            lifecycle="sticky",
         ),
         queue_max=4,
         worker_factory=worker_factory,
@@ -139,6 +154,92 @@ def test_cuda_superres_service_lazy_loads_worker_and_reuses_it():
     fut2 = service.submit(b"img2", out_format="jpeg", quality=80, magnitude=1)
     assert fut2.result(timeout=1) == b"img2:1:jpeg:80"
     assert len(created) == 1
+
+    service.shutdown()
+
+
+def test_cuda_superres_service_per_request_unloads_after_each_job():
+    from server.superres_service import CudaSuperResConfig, CudaSuperResService
+
+    created = []
+    closed = []
+
+    class FakeWorker:
+        def __init__(self, name: str):
+            self.name = name
+
+        def upscale_bytes(self, image_bytes: bytes, *, magnitude: int, out_format: str, quality: int) -> bytes:
+            return image_bytes + f":{self.name}".encode()
+
+        def close(self):
+            closed.append(self.name)
+
+    def worker_factory(config):
+        name = f"worker{len(created) + 1}"
+        created.append(name)
+        return FakeWorker(name)
+
+    service = CudaSuperResService(
+        config=CudaSuperResConfig(
+            model_path="/models/sr/RealESRGAN_x4plus.pth",
+            tile=256,
+            use_fp16=True,
+            device="cuda:0",
+            lifecycle="per_request",
+        ),
+        queue_max=4,
+        worker_factory=worker_factory,
+    )
+
+    fut1 = service.submit(b"img", out_format="png", quality=92, magnitude=1)
+    assert fut1.result(timeout=1) == b"img:worker1"
+    assert closed == ["worker1"]
+
+    fut2 = service.submit(b"img", out_format="png", quality=92, magnitude=1)
+    assert fut2.result(timeout=1) == b"img:worker2"
+    assert closed == ["worker1", "worker2"]
+
+    service.shutdown()
+
+
+def test_cuda_superres_service_unload_drops_current_worker():
+    from server.superres_service import CudaSuperResConfig, CudaSuperResService
+
+    created = []
+    closed = []
+
+    class FakeWorker:
+        def __init__(self, name: str):
+            self.name = name
+
+        def upscale_bytes(self, image_bytes: bytes, *, magnitude: int, out_format: str, quality: int) -> bytes:
+            return image_bytes
+
+        def close(self):
+            closed.append(self.name)
+
+    def worker_factory(config):
+        name = f"worker{len(created) + 1}"
+        created.append(name)
+        return FakeWorker(name)
+
+    service = CudaSuperResService(
+        config=CudaSuperResConfig(
+            model_path="/models/sr/RealESRGAN_x4plus.pth",
+            tile=0,
+            use_fp16=True,
+            device="cuda:0",
+            lifecycle="sticky",
+        ),
+        queue_max=4,
+        worker_factory=worker_factory,
+    )
+
+    assert service.submit(b"img", out_format="png", quality=92, magnitude=1).result(timeout=1) == b"img"
+    service.unload()
+    assert closed == ["worker1"]
+    assert service.submit(b"img", out_format="png", quality=92, magnitude=1).result(timeout=1) == b"img"
+    assert created == ["worker1", "worker2"]
 
     service.shutdown()
 
@@ -175,6 +276,7 @@ def test_cuda_superres_service_unloads_worker_after_oom_and_recovers():
             tile=0,
             use_fp16=True,
             device="cuda:0",
+            lifecycle="sticky",
         ),
         queue_max=4,
         worker_factory=worker_factory,
