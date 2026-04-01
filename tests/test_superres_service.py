@@ -209,3 +209,26 @@ def test_torchvision_functional_tensor_shim_installs_alias_when_missing():
 
     shim = sys_modules["torchvision.transforms.functional_tensor"]
     assert shim.rgb_to_grayscale is fake_functional.rgb_to_grayscale
+
+
+def test_normalize_realesrgan_checkpoint_wraps_raw_state_dict():
+    from server.superres_service import normalize_realesrgan_checkpoint
+
+    raw = {
+        "conv_first.weight": object(),
+        "body.0.rdb1.conv1.weight": object(),
+    }
+
+    normalized = normalize_realesrgan_checkpoint(raw)
+
+    assert normalized == {"params": raw}
+
+
+def test_normalize_realesrgan_checkpoint_prefers_existing_params_ema():
+    from server.superres_service import normalize_realesrgan_checkpoint
+
+    ckpt = {"params_ema": {"a": 1}, "params": {"b": 2}}
+
+    normalized = normalize_realesrgan_checkpoint(ckpt)
+
+    assert normalized is ckpt

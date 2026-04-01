@@ -97,6 +97,19 @@ def ensure_torchvision_functional_tensor_compat(
     modules["torchvision.transforms.functional_tensor"] = shim
 
 
+def normalize_realesrgan_checkpoint(checkpoint):
+    if not isinstance(checkpoint, dict):
+        return checkpoint
+
+    if "params_ema" in checkpoint or "params" in checkpoint:
+        return checkpoint
+
+    if checkpoint and all(isinstance(key, str) for key in checkpoint):
+        return {"params": checkpoint}
+
+    return checkpoint
+
+
 def resolve_superres_backend(*, backend: str, use_cuda: bool) -> SuperResBackend:
     backend_norm = (backend or "auto").lower().strip()
     if backend_norm == "cuda":
@@ -386,17 +399,27 @@ class CudaSuperResWorker:
             num_grow_ch=32,
             scale=4,
         )
+        torch = self._torch
+        original_torch_load = torch.load
 
-        return RealESRGANer(
-            scale=4,
-            model_path=self.config.model_path,
-            model=net,
-            tile=max(0, int(self.config.tile)),
-            tile_pad=10,
-            pre_pad=0,
-            half=bool(self.config.use_fp16),
-            device=self.config.device,
-        )
+        def patched_torch_load(*args, **kwargs):
+            checkpoint = original_torch_load(*args, **kwargs)
+            return normalize_realesrgan_checkpoint(checkpoint)
+
+        torch.load = patched_torch_load
+        try:
+            return RealESRGANer(
+                scale=4,
+                model_path=self.config.model_path,
+                model=net,
+                tile=max(0, int(self.config.tile)),
+                tile_pad=10,
+                pre_pad=0,
+                half=bool(self.config.use_fp16),
+                device=self.config.device,
+            )
+        finally:
+            torch.load = original_torch_load
 
     def close(self):
         torch = self._torch
