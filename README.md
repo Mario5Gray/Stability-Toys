@@ -212,6 +212,33 @@ CUDA_SR_TILE=0            # 0 disables tiling; raise on lower-VRAM GPUs
 CUDA_SR_FP16=1            # 1 uses fp16 when supported; 0 keeps fp32
 ```
 
+### Super-Resolution CLI
+
+You can run the shared SR pipeline directly from the shell without starting HTTP:
+
+```bash
+python -m server.superres_cli \
+  --input ./input.png \
+  --output ./output.png \
+  --magnitude 2 \
+  --format png
+```
+
+The CLI uses the same backend selection and SR environment variables as the server:
+
+- `BACKEND`
+- `SR_MODEL_PATH`
+- `SR_INPUT_SIZE`
+- `SR_OUTPUT_SIZE`
+- `SR_QUEUE_MAX`
+- `SR_REQUEST_TIMEOUT`
+- `SR_MAX_PIXELS`
+- `CUDA_SR_MODEL`
+- `CUDA_SR_TILE`
+- `CUDA_SR_FP16`
+
+This is the quickest way to validate RKNN or CUDA super-resolution without going through `/superres`.
+
 ### Backend Selection
 
 The server automatically detects which backend to use:

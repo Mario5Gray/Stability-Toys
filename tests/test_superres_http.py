@@ -3,6 +3,36 @@ from concurrent.futures import Future
 import pytest
 
 
+def test_load_superres_runtime_settings_parses_shared_env():
+    from server.superres_http import load_superres_runtime_settings
+
+    settings = load_superres_runtime_settings(
+        {
+            "BACKEND": "auto",
+            "MODEL_ROOT": "/models",
+            "SR_ENABLED": "1",
+            "SR_INPUT_SIZE": "224",
+            "SR_OUTPUT_SIZE": "672",
+            "SR_NUM_WORKERS": "2",
+            "SR_QUEUE_MAX": "16",
+            "SR_REQUEST_TIMEOUT": "45",
+            "SR_MAX_PIXELS": "123456",
+        },
+        cuda_available=True,
+    )
+
+    assert settings.enabled is True
+    assert settings.backend == "auto"
+    assert settings.use_cuda is True
+    assert settings.sr_model_path == "/models/super-resolution-10.rknn"
+    assert settings.sr_input_size == 224
+    assert settings.sr_output_size == 672
+    assert settings.sr_num_workers == 2
+    assert settings.sr_queue_max == 16
+    assert settings.sr_request_timeout == 45.0
+    assert settings.sr_max_pixels == 123456
+
+
 def test_initialize_superres_service_selects_rknn_backend():
     from server.superres_http import initialize_superres_service
 
