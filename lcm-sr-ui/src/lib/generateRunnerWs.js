@@ -8,10 +8,14 @@ import { buildGenerateWsParams } from '../utils/generationControls';
 
 const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
 
-function isRetryableGenerateError(err) {
+export function isRetryableGenerateError(err) {
   const message = String(err?.message || err);
   if (err?.name === 'AbortError') return false;
-  if (/not allowed for the active mode|missing init image|validation/i.test(message)) {
+  if (
+    /fileRef .* not found or expired|Invalid size|Unknown scheduler_id|not allowed for the active mode|missing init image|validation/i.test(
+      message
+    )
+  ) {
     return false;
   }
   return /timed out|disconnected|queue full/i.test(message);
