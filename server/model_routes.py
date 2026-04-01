@@ -278,13 +278,13 @@ async def unload_current_model():
     """
     pool = get_worker_pool()
     try:
-        return pool.free_vram(reason="manual_unload")
+        return pool.unload_current_model()
     except Exception as e:
         logger.error(f"[API] Model unload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/vram/free")
+@router.post("/models/free-vram")
 async def free_vram():
     """Force the worker pool to drop the active worker and free VRAM."""
     pool = get_worker_pool()

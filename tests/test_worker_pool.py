@@ -641,6 +641,14 @@ class TestWorkerLifecycle:
         # Should clear CUDA cache
         mock_empty_cache.assert_called()
 
+    def test_unload_current_model_does_not_cancel_queued_jobs(self, worker_pool):
+        """Test that explicit unload only drops the worker."""
+        result = worker_pool.unload_current_model()
+
+        assert result["status"] == "unloaded"
+        assert worker_pool.is_model_loaded() is False
+        assert worker_pool.get_current_mode() == "sdxl-general"
+
 
 class TestCustomJobExecution:
     """Test custom job execution."""

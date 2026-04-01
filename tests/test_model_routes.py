@@ -116,6 +116,17 @@ async def test_reload_and_free_vram_routes_call_pool_methods():
         "status": "reloaded",
         "mode": "sdxl-general",
     }
+    pool.unload_current_model.return_value = {
+        "status": "unloaded",
+        "is_loaded": False,
+        "current_mode": "sdxl-general",
+        "queue_size": 0,
+        "vram": {
+            "allocated_bytes": 0,
+            "reserved_bytes": 0,
+            "total_bytes": 8 * 1024**3,
+        },
+    }
     pool.free_vram.return_value = {
         "status": "ok",
         "is_loaded": False,
@@ -129,4 +140,8 @@ async def test_reload_and_free_vram_routes_call_pool_methods():
 
     with patch("server.model_routes.get_worker_pool", return_value=pool):
         assert (await model_routes.reload_current_model())["status"] == "reloaded"
+        assert (await model_routes.unload_current_model())["status"] == "unloaded"
         assert (await model_routes.free_vram())["status"] == "ok"
+
+    pool.unload_current_model.assert_called_once()
+    pool.free_vram.assert_called_once_with(reason="manual_free_vram")

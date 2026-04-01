@@ -745,6 +745,23 @@ class WorkerPool:
         cancelled = self._cleanup_vram(reason=reason, cancel_running=True)
         return self._build_runtime_status(cancelled_jobs=cancelled)
 
+    def unload_current_model(self) -> dict:
+        """Unload the live worker without canceling queued or running jobs."""
+        self._unload_current_worker()
+        gc.collect()
+        torch.cuda.empty_cache()
+        return {
+            "status": "unloaded",
+            "is_loaded": self.is_model_loaded(),
+            "current_mode": self._current_mode,
+            "queue_size": self.get_queue_size(),
+            "vram": {
+                "allocated_bytes": int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0,
+                "reserved_bytes": int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0,
+                "total_bytes": int(self._registry.get_total_vram()),
+            },
+        }
+
     def get_current_mode(self) -> Optional[str]:
         """Get currently loaded mode name.
 
