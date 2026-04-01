@@ -320,22 +320,43 @@ class TestJobSubmission:
             assert result == "test_result"
 
     def test_cancel_queued_generation_job_marks_future_cancelled(self, worker_pool):
+        blocker_started = threading.Event()
+        release = threading.Event()
+
+        def blocking_handler():
+            blocker_started.set()
+            release.wait(timeout=5.0)
+            return "blocked"
+
+        blocker = CustomJob(handler=blocking_handler)
+        blocker_future = worker_pool.submit_job(blocker)
+        assert blocker_started.wait(timeout=1.0)
+
         req = Mock()
         job = GenerationJob(req=req, job_id="job-1")
         fut = worker_pool.submit_job(job)
         assert worker_pool.cancel_job("job-1") is True
         assert fut.cancelled()
+        release.set()
+        assert blocker_future.result(timeout=1.0) == "blocked"
 
     def test_cancel_running_generation_job_discards_late_result(
         self,
         worker_pool,
         mock_worker_factory,
     ):
+        started = threading.Event()
         release = threading.Event()
         worker = mock_worker_factory.return_value
-        worker.run_job.side_effect = lambda job: (release.wait(), ("png", 123))[1]
+        def run_job(job):
+            started.set()
+            release.wait(timeout=5.0)
+            return ("png", 123)
+
+        worker.run_job.side_effect = run_job
         req = Mock()
         fut = worker_pool.submit_job(GenerationJob(req=req, job_id="job-2"))
+        assert started.wait(timeout=1.0)
         assert worker_pool.cancel_job("job-2") is True
         release.set()
         with pytest.raises(concurrent.futures.CancelledError):
