@@ -481,7 +481,7 @@ Depends on GPU model and VRAM. Typical performance:
 - **Load new model**: 5-15 seconds (varies by model size)
 - **Total**: ~10-20 seconds for SDXL ↔ SD1.5 switch
 
-Jobs already queued when a mode switch is requested are canceled. Resubmit them after the switch if you still need them.
+Mode switches are queued behind existing work. Jobs already in the queue continue before the switch completes unless you cancel them separately.
 
 ---
 

@@ -226,12 +226,12 @@ This should be implemented with an explicit classifier instead of string matchin
 
 ### Per-message cancel
 
-The existing cancel affordance should cancel both:
+The current operator-facing contract is:
 
-- the frontend queue entry or abort controller
-- the backend generation job if one has already been acknowledged by the server
+- cancel the frontend queue entry or abort controller
+- stop pending generation delivery for the canceled request
 
-This requires the WS generate runner to expose or retain the acknowledged backend `jobId` so a canceled local request can send `job:cancel`.
+Explicit backend cancellation is still available over WS and HTTP once a backend `jobId` exists, but the local abort path remains best-effort and should not promise that the backend job has been interrupted.
 
 ### Configuration tab controls
 
