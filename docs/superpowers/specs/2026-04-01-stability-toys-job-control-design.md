@@ -137,7 +137,7 @@ Running jobs remain best-effort:
 Add two explicit worker-pool maintenance operations:
 
 `reload_current_mode()`
-- force-reload the currently selected mode even if the mode name has not changed
+- force-reload the current active mode even if the mode name has not changed
 
 `free_vram(reason)`
 - cancel queued generation work
@@ -326,7 +326,7 @@ Add or update tests covering:
 ## Risks
 
 - Best-effort cancel may still allow GPU time to be spent on a request whose result will be discarded
-- Canceling queued jobs on mode switch is a behavioral change and may surprise users who expected the queue to survive model transitions
+- Queuing mode switches behind existing work means operators may still need to cancel or resubmit pending jobs manually during recovery
 - VRAM cleanup may not fully reclaim memory if third-party libraries retain allocations outside PyTorch
 
 ## Recommendation
