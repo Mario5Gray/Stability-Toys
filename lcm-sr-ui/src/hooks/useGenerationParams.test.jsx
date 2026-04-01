@@ -137,7 +137,7 @@ describe('useGenerationParams', () => {
     expect(result.current.effective.schedulerId).toBe('euler');
   });
 
-  it('regenerates the selected image when negative prompt changes', () => {
+  it('stages selected-image negative prompt edits without triggering regeneration', () => {
     vi.useFakeTimers();
     const runGenerate = vi.fn();
     const patchSelectedParams = vi.fn();
@@ -167,19 +167,10 @@ describe('useGenerationParams', () => {
     });
 
     expect(patchSelectedParams).toHaveBeenCalledWith({ negativePrompt: 'washed out' });
-    expect(runGenerate).not.toHaveBeenCalled();
-
     act(() => {
       vi.runAllTimers();
     });
 
-    expect(runGenerate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetMessageId: 'msg-1',
-        prompt: 'portrait',
-        negativePrompt: 'washed out',
-        schedulerId: 'ddim',
-      })
-    );
+    expect(runGenerate).not.toHaveBeenCalled();
   });
 });

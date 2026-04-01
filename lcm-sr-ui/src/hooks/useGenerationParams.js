@@ -253,12 +253,12 @@ export function useGenerationParams(
     (value) => {
       const next = safeJsonString(value);
       if (selectedParams) {
-        scheduleRegenSelected({ negativePrompt: next });
+        patchSelectedParams?.({ negativePrompt: next });
       } else {
         setNegativePrompt(next);
       }
     },
-    [selectedParams, scheduleRegenSelected]
+    [selectedParams, patchSelectedParams]
   );
 
   const setSchedulerIdEffective = useCallback(

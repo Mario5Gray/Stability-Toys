@@ -8,6 +8,15 @@ import { buildGenerateWsParams } from '../utils/generationControls';
 
 const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
 
+function isRetryableGenerateError(err) {
+  const message = String(err?.message || err);
+  if (err?.name === 'AbortError') return false;
+  if (/not allowed for the active mode|missing init image|validation/i.test(message)) {
+    return false;
+  }
+  return /timed out|disconnected|queue full/i.test(message);
+}
+
 /**
  * Create a WS-based generate runner.
  * @param {object} payload - Generation parameters (prompt, size, steps, cfg, seed, superres, superresLevel)
@@ -19,20 +28,19 @@ const GENERATE_TIMEOUT_MS = 120_000; // 2 minutes
  * Up to 3 total attempts with 1s/2s backoff. Skips retry on AbortError.
  * On timeout, sends job:cancel to the server before rejecting.
  */
-export async function generateViaWsWithRetry(payload, signal) {
+export async function generateViaWsWithRetry(payload, signal, deps = {}) {
   const MAX_ATTEMPTS = 3;
   const BACKOFFS = [1000, 2000];
+  const generate = deps.generateViaWs ?? generateViaWs;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      return await generateViaWs(payload, signal);
+      return await generate(payload, signal);
     } catch (err) {
-      if (err.name === 'AbortError') throw err;
-      if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, BACKOFFS[attempt] || 2000));
-        continue;
+      if (!isRetryableGenerateError(err) || attempt >= MAX_ATTEMPTS - 1) {
+        throw err;
       }
-      throw err;
+      await new Promise((r) => setTimeout(r, BACKOFFS[attempt] || 2000));
     }
   }
 }
