@@ -298,7 +298,11 @@ async def free_vram():
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
     pool = get_worker_pool()
-    return pool.cancel_job(job_id)
+    canceled = pool.cancel_job(job_id)
+    return {
+        "job_id": job_id,
+        "status": "canceled" if canceled else "not_found",
+    }
 
 
 @router.post("/models/load")

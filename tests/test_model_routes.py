@@ -149,10 +149,21 @@ async def test_reload_and_free_vram_routes_call_pool_methods():
 
 async def test_cancel_job_route_calls_worker_pool():
     pool = Mock()
-    pool.cancel_job.return_value = {"status": "canceled", "job_id": "abc123"}
+    pool.cancel_job.return_value = True
 
     with patch("server.model_routes.get_worker_pool", return_value=pool):
         result = await model_routes.cancel_job("abc123")
 
-    assert result["job_id"] == "abc123"
+    assert result == {"job_id": "abc123", "status": "canceled"}
     pool.cancel_job.assert_called_once_with("abc123")
+
+
+async def test_cancel_job_route_reports_not_found_when_pool_cannot_cancel():
+    pool = Mock()
+    pool.cancel_job.return_value = False
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool):
+        result = await model_routes.cancel_job("missing")
+
+    assert result == {"job_id": "missing", "status": "not_found"}
+    pool.cancel_job.assert_called_once_with("missing")

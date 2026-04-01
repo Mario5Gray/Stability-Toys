@@ -394,6 +394,26 @@ class TestJobStubs:
                 msg = ws.receive_json()
                 assert msg["type"] == "job:cancel:ack"
                 assert msg["detail"] == "canceled"
+            pool.cancel_job.assert_called_once_with("abc123")
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_job_cancel_ack_reports_not_found_when_backend_cannot_cancel(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        pool.cancel_job.return_value = False
+        app.state.worker_pool = pool
+
+        try:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({"type": "job:cancel", "id": "c2", "jobId": "missing"})
+                msg = ws.receive_json()
+                assert msg["type"] == "job:cancel:ack"
+                assert msg["detail"] == "not_found"
+            pool.cancel_job.assert_called_once_with("missing")
         finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None
