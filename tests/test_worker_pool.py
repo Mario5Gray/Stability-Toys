@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import concurrent.futures
 from concurrent.futures import Future
+import queue
 import time
 import threading
 import sys
@@ -319,6 +320,41 @@ class TestJobSubmission:
             result = future.result(timeout=10.0)
             assert result == "test_result"
 
+    def test_submit_generation_job_clears_record_after_success(self, worker_pool):
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-success")
+        fut = worker_pool.submit_job(job)
+
+        assert fut.result(timeout=5.0) == "test_result"
+        assert worker_pool._get_job_record("job-success") is None
+
+    def test_submit_generation_job_clears_record_after_failure(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        worker = mock_worker_factory.return_value
+        worker.run_job.side_effect = ValueError("boom")
+
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-fail")
+        fut = worker_pool.submit_job(job)
+
+        with pytest.raises(ValueError):
+            fut.result(timeout=5.0)
+
+        assert worker_pool._get_job_record("job-fail") is None
+
+    def test_submit_generation_job_clears_record_on_queue_full(self, worker_pool):
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-full")
+
+        with patch.object(worker_pool.q, "put_nowait", side_effect=queue.Full):
+            with pytest.raises(queue.Full):
+                worker_pool.submit_job(job)
+
+        assert worker_pool._get_job_record("job-full") is None
+
     def test_cancel_queued_generation_job_marks_future_cancelled(self, worker_pool):
         blocker_started = threading.Event()
         release = threading.Event()
@@ -337,6 +373,7 @@ class TestJobSubmission:
         fut = worker_pool.submit_job(job)
         assert worker_pool.cancel_job("job-1") is True
         assert fut.cancelled()
+        assert worker_pool._get_job_record("job-1") is None
         release.set()
         assert blocker_future.result(timeout=1.0) == "blocked"
 
@@ -361,6 +398,7 @@ class TestJobSubmission:
         release.set()
         with pytest.raises(concurrent.futures.CancelledError):
             fut.result(timeout=1.0)
+        assert worker_pool._get_job_record("job-2") is None
 
     def test_get_queue_size(self, worker_pool):
         """Test getting queue size."""

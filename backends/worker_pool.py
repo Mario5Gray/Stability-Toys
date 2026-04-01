@@ -451,6 +451,10 @@ class WorkerPool:
                     job=job,
                 )
 
+    def _finalize_job_record(self, job_id: str):
+        with self._job_lock:
+            self._job_records.pop(job_id, None)
+
     def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
         with self._job_lock:
             return self._job_records.get(job_id)
@@ -465,6 +469,7 @@ class WorkerPool:
             record.cancel_requested = True
             if record.state == "queued" and record.job.fut.cancel():
                 record.state = "cancelled"
+                self._finalize_job_record(job_id)
                 return True
 
             record.state = "running"
@@ -522,6 +527,7 @@ class WorkerPool:
                     if job_record is not None and (job_record.cancel_requested or job.fut.cancelled()):
                         logger.info(f"[WorkerPool] Skipping cancelled generation job: {job.job_id}")
                         job_record.state = "cancelled"
+                        self._finalize_job_record(job.job_id)
                         continue
 
                     if job_record is not None:
@@ -546,8 +552,11 @@ class WorkerPool:
                         job_record.state = "cancelled"
                         if not job.fut.done():
                             job.fut.set_exception(CancelledError())
+                        self._finalize_job_record(job.job_id)
                     elif not job.fut.done():
                         job.fut.set_result(result)
+                        if job_record is not None:
+                            self._finalize_job_record(job.job_id)
 
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
@@ -567,12 +576,21 @@ class WorkerPool:
                     # Drop the live worker and let the next job demand-reload the
                     # current mode through the normal load path.
                     self._unload_current_worker()
-                if not job.fut.done():
-                    job.fut.set_exception(e)
                 if isinstance(job, GenerationJob):
                     job_record = self._get_job_record(job.job_id)
-                    if job_record is not None and not job_record.cancel_requested:
-                        job_record.state = "failed"
+                    if job_record is not None:
+                        if job_record.cancel_requested:
+                            if not job.fut.done():
+                                job.fut.set_exception(CancelledError())
+                            job_record.state = "cancelled"
+                        elif not job.fut.done():
+                            job.fut.set_exception(e)
+                            job_record.state = "failed"
+                        self._finalize_job_record(job.job_id)
+                    elif not job.fut.done():
+                        job.fut.set_exception(e)
+                elif not job.fut.done():
+                    job.fut.set_exception(e)
             finally:
                 self._last_activity = time.monotonic()
                 self.q.task_done()
@@ -600,6 +618,8 @@ class WorkerPool:
             logger.debug(f"[WorkerPool] Job queued: {job.job_type.value}")
             return job.fut
         except queue.Full:
+            if isinstance(job, GenerationJob):
+                self._finalize_job_record(job.job_id)
             raise queue.Full(
                 f"Job queue full (max: {self.queue_max}). "
                 "Try again later or increase QUEUE_MAX."
