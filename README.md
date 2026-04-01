@@ -113,6 +113,11 @@ The server automatically:
 - **API reload**: `POST /api/modes/reload`
 - **No downtime**: In-flight generations continue during config changes
 
+#### Job Control and Recovery
+- Per-image cancel stops pending generation delivery.
+- `Configuration -> Reload Active Model` reloads the currently selected mode in place for same-mode recovery.
+- `Configuration -> Free VRAM` cancels queued work, unloads the worker, and clears reclaimable CUDA cache.
+
 #### VRAM Tracking
 - **Real-time monitoring**: Uses `torch.cuda.memory_allocated()` for accuracy
 - **No artificial limits**: Uses ALL available VRAM intelligently
@@ -476,7 +481,7 @@ Depends on GPU model and VRAM. Typical performance:
 - **Load new model**: 5-15 seconds (varies by model size)
 - **Total**: ~10-20 seconds for SDXL ↔ SD1.5 switch
 
-Jobs queued during mode switch are not cancelled - they execute after the switch completes.
+Jobs already queued when a mode switch is requested are canceled. Resubmit them after the switch if you still need them.
 
 ---
 

@@ -245,6 +245,7 @@ These controls should:
 - call the new backend maintenance endpoints
 - refresh runtime model status after completion
 - surface any failure details inline
+- reflect the operator workflow directly: per-image cancel stops pending generation delivery, `Reload Active Model` reuses the current mode name for same-mode recovery, and `Free VRAM` cancels queued work before unloading the worker and clearing reclaimable CUDA cache.
 
 The main page should keep only per-job cancel.
 
