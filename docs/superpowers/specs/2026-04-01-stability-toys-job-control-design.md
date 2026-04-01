@@ -14,7 +14,7 @@ The core issue is that generation work currently spans three loosely-coupled sys
 - the backend WebSocket request task
 - the backend worker pool and live model state
 
-Today, canceling a job only cancels the WebSocket task, not the queued or executing backend generation. Deterministic request failures can be retried even though they will never succeed. OOM recovery unloads the worker, but pending jobs may continue to fail against stale state. The UI also treats edits to `negativePrompt` on a selected image as an implicit regenerate action, which is not the desired editing model.
+At the start of this work, canceling a job only canceled the WebSocket task, not the queued or executing backend generation. Deterministic request failures could be retried even though they would never succeed. OOM recovery unloaded the worker, but pending jobs could continue to fail against stale state. The UI also treated edits to `negativePrompt` on a selected image as an implicit regenerate action, which was not the desired editing model.
 
 This design makes job lifecycle and model lifecycle explicit so those failure modes stop compounding.
 
@@ -40,7 +40,7 @@ This design makes job lifecycle and model lifecycle explicit so those failure mo
 
 ### Cancellation is incomplete
 
-`server/ws_routes.py` currently handles `job:cancel` by canceling the `asyncio.Task` created for the socket request. That does not cancel:
+At design start, `server/ws_routes.py` handled `job:cancel` by canceling the `asyncio.Task` created for the socket request. That did not cancel:
 
 - a queued `GenerationJob` inside `WorkerPool`
 - a job already executing in `worker.run_job(...)`
@@ -117,16 +117,16 @@ This cleanup logic should be shared with a manual maintenance API so automatic a
 
 ### Mode switch semantics
 
-Before applying a mode switch:
+The implemented mode-switch behavior is:
 
-- cancel queued generation jobs
 - enqueue the switch as the next control operation
+- allow generation jobs already queued ahead of the switch to finish first
 - allow new generation jobs submitted after the switch request to run only after the switch completes, so they execute against the new active mode
 
 Rationale:
 
-- generation requests queued for the old model should not silently execute against the new one
-- this is especially important after OOM or operator-initiated recovery
+- the current queue implementation preserves work already accepted before the switch request
+- jobs submitted after the switch request should still execute against the new active mode
 
 Running jobs remain best-effort:
 
@@ -299,7 +299,7 @@ Add or update tests covering:
 - cancel queued generation job before execution
 - cancel running generation job and discard late result
 - OOM triggers cleanup and queued job cancellation
-- mode switch cancels queued generation jobs
+- mode switch waits for already queued work and applies to jobs submitted after the switch request
 - `reload_current_mode()` works without switching through another mode
 - `free-vram` endpoint unloads worker and reports status
 

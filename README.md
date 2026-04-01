@@ -115,8 +115,8 @@ The server automatically:
 
 #### Job Control and Recovery
 - Per-image cancel stops pending generation delivery.
-- `Configuration -> Reload Active Model` reloads the currently selected mode in place for same-mode recovery.
-- `Configuration -> Free VRAM` cancels queued work, unloads the worker, and clears reclaimable CUDA cache.
+- `Configuration -> Reload Active Model` reloads the active mode in place for same-mode recovery.
+- `Configuration -> Free VRAM` cancels queued work, marks running generation jobs canceled on a best-effort basis, unloads the worker, and clears reclaimable CUDA cache.
 
 #### VRAM Tracking
 - **Real-time monitoring**: Uses `torch.cuda.memory_allocated()` for accuracy
