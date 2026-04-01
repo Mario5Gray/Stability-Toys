@@ -4,6 +4,7 @@ import { getActiveMode } from '../utils/generationControls';
 
 export function useModeConfig() {
   const [config, setConfig] = useState(null);
+  const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [error, setError] = useState(null);
   const [isSwitching, setIsSwitching] = useState(false);
   const apiClientRef = useRef(null);
@@ -14,6 +15,18 @@ export function useModeConfig() {
 
   const api = apiClientRef.current;
 
+  const refreshStatus = useCallback(async () => {
+    try {
+      const statusRes = await api.fetchGet('/api/models/status');
+      setRuntimeStatus(statusRes || null);
+      setError(null);
+      return statusRes;
+    } catch (e) {
+      setError(e.message || 'Failed to load runtime status');
+      throw e;
+    }
+  }, [api]);
+
   const loadModes = useCallback(async () => {
     try {
       const modesRes = await api.fetchGet('/api/modes');
@@ -21,11 +34,18 @@ export function useModeConfig() {
         default_mode: modesRes.default_mode,
         modes: modesRes.modes,
       });
-      setError(null);
     } catch (e) {
       setError(e.message || 'Failed to load modes');
+      return;
     }
-  }, [api]);
+
+    try {
+      await refreshStatus();
+      setError(null);
+    } catch {
+      // refreshStatus already recorded the runtime status failure.
+    }
+  }, [api, refreshStatus]);
 
   useEffect(() => {
     loadModes();
@@ -33,11 +53,11 @@ export function useModeConfig() {
 
   const switchMode = useCallback(
     async (name) => {
-      if (!config || name === config.default_mode) return;
+      if (!config || name === (runtimeStatus?.current_mode || config.default_mode)) return;
       setIsSwitching(true);
       try {
         await api.fetchPost('/api/modes/switch', { mode: name });
-        setConfig((prev) => (prev ? { ...prev, default_mode: name } : prev));
+        await refreshStatus();
         setError(null);
       } catch (e) {
         setError(e.message || 'Failed to switch mode');
@@ -46,19 +66,49 @@ export function useModeConfig() {
         setIsSwitching(false);
       }
     },
-    [api, config]
+    [api, config, refreshStatus, runtimeStatus?.current_mode]
   );
 
-  const activeModeName = config?.default_mode || null;
+  const defaultModeName = config?.default_mode || null;
+  const activeModeName = runtimeStatus?.current_mode || defaultModeName;
   const activeMode = getActiveMode(config, activeModeName);
+  const isLoaded = Boolean(runtimeStatus?.is_loaded);
+
+  const reloadActiveModel = useCallback(async () => {
+    try {
+      const result = await api.fetchPost('/api/models/reload');
+      setError(null);
+      return result;
+    } catch (e) {
+      setError(e.message || 'Failed to reload active model');
+      throw e;
+    }
+  }, [api]);
+
+  const freeVram = useCallback(async () => {
+    try {
+      const result = await api.fetchPost('/api/models/free-vram');
+      setError(null);
+      return result;
+    } catch (e) {
+      setError(e.message || 'Failed to free VRAM');
+      throw e;
+    }
+  }, [api]);
 
   return {
     config,
+    defaultModeName,
     activeModeName,
     activeMode,
+    runtimeStatus,
+    isLoaded,
     isSwitching,
     error,
     loadModes,
+    refreshStatus,
     switchMode,
+    reloadActiveModel,
+    freeVram,
   };
 }

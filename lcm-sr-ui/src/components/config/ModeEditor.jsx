@@ -12,7 +12,7 @@ import { CSS_CLASSES } from '../../utils/constants';
 
 const SIZES = ['256x256', '384x384', '512x512', '640x640', '768x768', '1024x1024'];
 
-export default function ModeEditor() {
+export default function ModeEditor({ modeState }) {
   const [config, setConfig] = useState(null);       // { default_mode, model_root, lora_root, modes }
   const [inventory, setInventory] = useState({ models: [], loras: [] });
   const [editing, setEditing] = useState(null);      // mode name being edited, or "__new__"
@@ -29,6 +29,8 @@ export default function ModeEditor() {
   }
 
   const api = apiClientRef.current;
+
+  const displayError = error || modeState?.error || null;
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +55,17 @@ export default function ModeEditor() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const runRuntimeAction = useCallback(async (action) => {
+    if (!action) return;
+    setError(null);
+    try {
+      await action();
+      await modeState?.refreshStatus?.();
+    } catch (e) {
+      setError(e.message || 'Runtime action failed');
+    }
+  }, [modeState]);
 
   const startEdit = (name) => {
     const mode = config.modes[name];
@@ -156,7 +169,6 @@ export default function ModeEditor() {
   }
 
   const modeNames = Object.keys(config.modes);
-  console.log("NAMES: " + modeNames);
 
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
@@ -172,7 +184,39 @@ export default function ModeEditor() {
         </div>
       </div>
 
-      {error && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 text-sm">{error}</div>}
+      <div className="rounded-lg border bg-muted/20 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h3 className="font-medium">Runtime Status</h3>
+            <p className="text-sm text-muted-foreground" data-testid="runtime-active-mode">
+              Active mode: <span className="font-medium text-foreground">{modeState?.activeModeName || 'unknown'}</span>
+            </p>
+            <p className="text-sm text-muted-foreground" data-testid="runtime-loaded-state">
+              Loaded: <span className="font-medium text-foreground">{modeState?.isLoaded ? 'yes' : 'no'}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runRuntimeAction(modeState?.reloadActiveModel)}
+              disabled={!modeState?.reloadActiveModel}
+            >
+              Reload Active Model
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runRuntimeAction(modeState?.freeVram)}
+              disabled={!modeState?.freeVram}
+            >
+              Free VRAM
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {displayError && <div className="rounded-lg bg-red-100 text-red-800 px-4 py-2 text-sm">{displayError}</div>}
       {success && <div className="rounded-lg bg-green-100 text-green-800 px-4 py-2 text-sm">{success}</div>}
 
       {/* Mode list */}

@@ -442,7 +442,7 @@ export default function App() {
   useEffect(() => {
     if (!modeState.activeMode) return;
     params.applyModeControlDefaults(modeState.activeMode);
-  }, [modeState.activeModeName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [modeState.activeMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist edits on selection change so message state reflects current controls
   const persistSelectedParams = useCallback((id, patch) => {
@@ -863,7 +863,7 @@ export default function App() {
 
           {/* Configuration Tab */}
           <TabsContent value="config" className="h-full m-0 overflow-auto">
-            <ModeEditor />
+            <ModeEditor modeState={modeState} />
 
             <WorkflowEditor />
           </TabsContent>
