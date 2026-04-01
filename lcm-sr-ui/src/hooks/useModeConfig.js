@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createApiClient, createApiConfig } from '../utils/api';
 import { getActiveMode } from '../utils/generationControls';
 
+const STATUS_POLL_INTERVAL_MS = 5000;
+
 export function useModeConfig() {
   const [config, setConfig] = useState(null);
   const [runtimeStatus, setRuntimeStatus] = useState(null);
@@ -50,6 +52,14 @@ export function useModeConfig() {
   useEffect(() => {
     loadModes();
   }, [loadModes]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void refreshStatus();
+    }, STATUS_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [refreshStatus]);
 
   const switchMode = useCallback(
     async (name) => {

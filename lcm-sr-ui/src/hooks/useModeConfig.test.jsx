@@ -17,10 +17,57 @@ vi.mock('../utils/api', () => ({
 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
 describe('useModeConfig', () => {
+  it('polls runtime status and updates the active mode after time advances', async () => {
+    vi.useFakeTimers();
+    const statuses = [
+      {
+        current_mode: 'cinematic',
+        is_loaded: true,
+      },
+      {
+        current_mode: 'portrait',
+        is_loaded: false,
+      },
+    ];
+
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: { model: 'base-cinematic' },
+            portrait: { model: 'base-portrait' },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        return statuses[Math.min(statuses.length - 1, api.client.fetchGet.mock.calls.filter((call) => call[0] === '/api/models/status').length - 1)];
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(result.current.activeModeName).toBe('portrait');
+    expect(result.current.defaultModeName).toBe('cinematic');
+    expect(result.current.activeMode).toEqual({ model: 'base-portrait' });
+  });
+
   it('keeps runtime active mode separate from the default mode and loads runtime status', async () => {
     api.client.fetchGet.mockImplementation(async (endpoint) => {
       if (endpoint === '/api/modes') {
