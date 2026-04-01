@@ -15,12 +15,13 @@ import logging
 import queue
 import threading
 import time
+import uuid
 from copy import deepcopy
 import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Callable, Protocol
 from dataclasses import dataclass, field
-from concurrent.futures import Future
+from concurrent.futures import Future, CancelledError
 from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
@@ -106,6 +107,7 @@ class GenerationJob(Job):
     """Job for image generation."""
     req: Any  # GenerateRequest
     init_image: Optional[bytes] = None  # Optional init image bytes for img2img
+    job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     def __post_init__(self):
         super().__post_init__()
@@ -116,6 +118,14 @@ class GenerationJob(Job):
         if worker is None:
             raise RuntimeError("No worker available for generation")
         return worker.run_job(self)  # type: ignore[arg-type]
+
+
+@dataclass
+class JobRecord:
+    job_id: str
+    state: str
+    job: GenerationJob
+    cancel_requested: bool = False
 
 
 @dataclass
@@ -205,6 +215,8 @@ class WorkerPool:
         self._worker_thread: Optional[threading.Thread] = None
         self._watchdog_thread: Optional[threading.Thread] = None
         self._current_mode: Optional[str] = None
+        self._job_records: dict[str, JobRecord] = {}
+        self._job_lock = threading.RLock()
         # Idle eviction config — 0 disables eviction
         self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
         self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
@@ -430,6 +442,34 @@ class WorkerPool:
 
         logger.debug("[WorkerPool] Idle watchdog loop stopped")
 
+    def _register_job(self, job: Job):
+        if isinstance(job, GenerationJob):
+            with self._job_lock:
+                self._job_records[job.job_id] = JobRecord(
+                    job_id=job.job_id,
+                    state="queued",
+                    job=job,
+                )
+
+    def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
+        with self._job_lock:
+            return self._job_records.get(job_id)
+
+    def cancel_job(self, job_id: str) -> bool:
+        """Cancel a queued or running generation job by backend job ID."""
+        with self._job_lock:
+            record = self._job_records.get(job_id)
+            if record is None or record.job.fut.done():
+                return False
+
+            record.cancel_requested = True
+            if record.state == "queued" and record.job.fut.cancel():
+                record.state = "cancelled"
+                return True
+
+            record.state = "running"
+            return True
+
     def _evict_if_idle(self):
         """
         Evict the loaded model if the pool is still idle.
@@ -478,6 +518,15 @@ class WorkerPool:
                         job.fut.set_result(result)
 
                 else:
+                    job_record = self._get_job_record(job.job_id) if isinstance(job, GenerationJob) else None
+                    if job_record is not None and (job_record.cancel_requested or job.fut.cancelled()):
+                        logger.info(f"[WorkerPool] Skipping cancelled generation job: {job.job_id}")
+                        job_record.state = "cancelled"
+                        continue
+
+                    if job_record is not None:
+                        job_record.state = "running"
+
                     # Demand reload: worker may have been evicted since last job
                     if self._worker is None and self._current_mode is not None:
                         logger.info(
@@ -493,7 +542,11 @@ class WorkerPool:
 
                     result = job.execute(self._worker)
 
-                    if not job.fut.done():
+                    if job_record is not None and job_record.cancel_requested:
+                        job_record.state = "cancelled"
+                        if not job.fut.done():
+                            job.fut.set_exception(CancelledError())
+                    elif not job.fut.done():
                         job.fut.set_result(result)
 
             except Exception as e:
@@ -516,6 +569,10 @@ class WorkerPool:
                     self._unload_current_worker()
                 if not job.fut.done():
                     job.fut.set_exception(e)
+                if isinstance(job, GenerationJob):
+                    job_record = self._get_job_record(job.job_id)
+                    if job_record is not None and not job_record.cancel_requested:
+                        job_record.state = "failed"
             finally:
                 self._last_activity = time.monotonic()
                 self.q.task_done()
@@ -538,6 +595,7 @@ class WorkerPool:
             queue.Full if queue is full
         """
         try:
+            self._register_job(job)
             self.q.put_nowait(job)
             logger.debug(f"[WorkerPool] Job queued: {job.job_type.value}")
             return job.fut

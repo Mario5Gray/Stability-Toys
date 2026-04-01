@@ -6,6 +6,7 @@ Tests job queue, mode switching, and worker lifecycle management.
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
+import concurrent.futures
 from concurrent.futures import Future
 import time
 import threading
@@ -317,6 +318,28 @@ class TestJobSubmission:
         for future in jobs:
             result = future.result(timeout=10.0)
             assert result == "test_result"
+
+    def test_cancel_queued_generation_job_marks_future_cancelled(self, worker_pool):
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-1")
+        fut = worker_pool.submit_job(job)
+        assert worker_pool.cancel_job("job-1") is True
+        assert fut.cancelled()
+
+    def test_cancel_running_generation_job_discards_late_result(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        release = threading.Event()
+        worker = mock_worker_factory.return_value
+        worker.run_job.side_effect = lambda job: (release.wait(), ("png", 123))[1]
+        req = Mock()
+        fut = worker_pool.submit_job(GenerationJob(req=req, job_id="job-2"))
+        assert worker_pool.cancel_job("job-2") is True
+        release.set()
+        with pytest.raises(concurrent.futures.CancelledError):
+            fut.result(timeout=1.0)
 
     def test_get_queue_size(self, worker_pool):
         """Test getting queue size."""
