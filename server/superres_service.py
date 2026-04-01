@@ -35,6 +35,12 @@ class CudaSuperResConfig:
     device: str
 
 
+@dataclass(frozen=True)
+class CudaSuperResModelSpec:
+    scale: int
+    num_block: int
+
+
 class SuperResServiceProtocol(Protocol):
     def submit(
         self,
@@ -108,6 +114,13 @@ def normalize_realesrgan_checkpoint(checkpoint):
         return {"params": checkpoint}
 
     return checkpoint
+
+
+def describe_cuda_sr_model(model_path: str) -> CudaSuperResModelSpec:
+    model_name = os.path.basename(model_path).lower()
+    scale = 2 if "x2" in model_name else 4
+    num_block = 6 if "anime_6b" in model_name else 23
+    return CudaSuperResModelSpec(scale=scale, num_block=num_block)
 
 
 def resolve_superres_backend(*, backend: str, use_cuda: bool) -> SuperResBackend:
@@ -389,15 +402,14 @@ class CudaSuperResWorker:
                 "CUDA super-resolution dependencies missing. Install realesrgan and basicsr."
             ) from exc
 
-        model_name = os.path.basename(self.config.model_path).lower()
-        num_block = 6 if "anime_6b" in model_name else 23
+        model_spec = describe_cuda_sr_model(self.config.model_path)
         net = RRDBNet(
             num_in_ch=3,
             num_out_ch=3,
             num_feat=64,
-            num_block=num_block,
+            num_block=model_spec.num_block,
             num_grow_ch=32,
-            scale=4,
+            scale=model_spec.scale,
         )
         torch = self._torch
         original_torch_load = torch.load
@@ -409,7 +421,7 @@ class CudaSuperResWorker:
         torch.load = patched_torch_load
         try:
             return RealESRGANer(
-                scale=4,
+                scale=model_spec.scale,
                 model_path=self.config.model_path,
                 model=net,
                 tile=max(0, int(self.config.tile)),

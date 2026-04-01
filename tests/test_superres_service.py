@@ -232,3 +232,30 @@ def test_normalize_realesrgan_checkpoint_prefers_existing_params_ema():
     normalized = normalize_realesrgan_checkpoint(ckpt)
 
     assert normalized is ckpt
+
+
+def test_describe_cuda_sr_model_uses_x2_scale_for_x2plus():
+    from server.superres_service import describe_cuda_sr_model
+
+    model = describe_cuda_sr_model("/models/sr/RealESRGAN_x2plus.pth")
+
+    assert model.scale == 2
+    assert model.num_block == 23
+
+
+def test_describe_cuda_sr_model_keeps_x4_defaults():
+    from server.superres_service import describe_cuda_sr_model
+
+    model = describe_cuda_sr_model("/models/sr/RealESRGAN_x4plus.pth")
+
+    assert model.scale == 4
+    assert model.num_block == 23
+
+
+def test_describe_cuda_sr_model_detects_anime_variant():
+    from server.superres_service import describe_cuda_sr_model
+
+    model = describe_cuda_sr_model("/models/sr/RealESRGAN_x4plus_anime_6B.pth")
+
+    assert model.scale == 4
+    assert model.num_block == 6
