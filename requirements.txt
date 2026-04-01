@@ -33,8 +33,7 @@ pillow
 transformers
 diffusers>=0.27.0
 torch
-basicsr>=1.4.2
-realesrgan>=0.3.0
+basicsr-fixed>=1.4.2
 
 uvicorn[standard]
 websocket-client

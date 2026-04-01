@@ -77,6 +77,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir nvidia-ml-py; \
     fi
+
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir --no-deps realesrgan==0.3.0; \
+    fi
 # Install cuda12.8 because we have to for xformers.
 RUN <<EOI
 if [ "$BACKEND" = "cuda" ]; then \
