@@ -258,7 +258,14 @@ def _build_generate_request(params: dict):
 
 
 async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:
-    await _finish_generate(ws, client_id, job_id, req, fut)
+    try:
+        await _finish_generate(ws, client_id, job_id, req, fut)
+    except asyncio.CancelledError:
+        logger.info("Generate job %s cancelled by client", job_id)
+        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Cancelled by client"})
+    except Exception as e:
+        logger.error("Generate job %s failed: %s", job_id, e, exc_info=True)
+        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
 
 
 async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:

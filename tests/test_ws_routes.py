@@ -215,6 +215,148 @@ class TestJobSubmit:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
+    def test_generate_mode_system_backend_failure_reports_job_error(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        fut = MagicMock()
+        fut.result.side_effect = RuntimeError("backend exploded")
+        pool.submit_job.return_value = fut
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        fake_worker_pool_module = types.ModuleType("backends.worker_pool")
+
+        class _FakeGenerationJob:
+            def __init__(self, req, init_image=None):
+                self.req = req
+                self.init_image = init_image
+                self.job_id = "backend-job-123"
+
+        fake_worker_pool_module.GenerationJob = _FakeGenerationJob
+        original_worker_pool_module = sys.modules.get("backends.worker_pool")
+        sys.modules["backends.worker_pool"] = fake_worker_pool_module
+
+        try:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({
+                    "type": "job:submit",
+                    "id": "t-fail",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "size": "512x512",
+                        "num_inference_steps": 4,
+                        "guidance_scale": 1.0,
+                        "seed": 12345678,
+                    },
+                })
+                ack = ws.receive_json()
+                assert ack["type"] == "job:ack"
+
+                err = ws.receive_json()
+                assert err["type"] == "job:error"
+                assert err["jobId"] == ack["jobId"]
+                assert "backend exploded" in err["error"]
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            if original_worker_pool_module is None:
+                sys.modules.pop("backends.worker_pool", None)
+            else:
+                sys.modules["backends.worker_pool"] = original_worker_pool_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_generate_mode_system_backend_cancellation_reports_job_error(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        fut = MagicMock()
+        fut.result.side_effect = asyncio.CancelledError()
+        pool.submit_job.return_value = fut
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        fake_worker_pool_module = types.ModuleType("backends.worker_pool")
+
+        class _FakeGenerationJob:
+            def __init__(self, req, init_image=None):
+                self.req = req
+                self.init_image = init_image
+                self.job_id = "backend-job-123"
+
+        fake_worker_pool_module.GenerationJob = _FakeGenerationJob
+        original_worker_pool_module = sys.modules.get("backends.worker_pool")
+        sys.modules["backends.worker_pool"] = fake_worker_pool_module
+
+        try:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({
+                    "type": "job:submit",
+                    "id": "t-cancel",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "size": "512x512",
+                        "num_inference_steps": 4,
+                        "guidance_scale": 1.0,
+                        "seed": 12345678,
+                    },
+                })
+                ack = ws.receive_json()
+                assert ack["type"] == "job:ack"
+
+                err = ws.receive_json()
+                assert err["type"] == "job:error"
+                assert err["jobId"] == ack["jobId"]
+                assert err["error"] == "Cancelled by client"
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            if original_worker_pool_module is None:
+                sys.modules.pop("backends.worker_pool", None)
+            else:
+                sys.modules["backends.worker_pool"] = original_worker_pool_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
     def test_unknown_job_type(self):
         with client.websocket_connect("/v1/ws") as ws:
             ws.receive_json()  # consume status
