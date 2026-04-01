@@ -85,7 +85,12 @@ from server.model_routes import router as model_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
 from server.file_watcher import start_config_watcher, stop_config_watcher
-from server.superres_http import build_superres_headers, initialize_superres_service, submit_superres
+from server.superres_http import (
+    build_superres_headers,
+    initialize_superres_service,
+    load_superres_runtime_settings,
+    submit_superres,
+)
 
 from .mode_config import MODE_CONFIG_PATH
 
@@ -309,14 +314,7 @@ QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
 PORT = int(os.environ.get("PORT", "4200"))
 REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
 
-SR_ENABLED = os.environ.get("SR_ENABLED", "1") not in ("0", "false", "False")
-SR_MODEL_PATH = os.environ.get("SR_MODEL_PATH", os.path.join(os.environ.get('MODEL_ROOT', ''), "super-resolution-10.rknn"))
-SR_INPUT_SIZE = int(os.environ.get("SR_INPUT_SIZE", "224"))
-SR_OUTPUT_SIZE = int(os.environ.get("SR_OUTPUT_SIZE", "672"))
-SR_NUM_WORKERS = int(os.environ.get("SR_NUM_WORKERS", "1"))
-SR_QUEUE_MAX = int(os.environ.get("SR_QUEUE_MAX", "32"))
-SR_REQUEST_TIMEOUT = float(os.environ.get("SR_REQUEST_TIMEOUT", "120"))
-SR_MAX_PIXELS = int(os.environ.get("SR_MAX_PIXELS", "24000000"))
+SR_SETTINGS = load_superres_runtime_settings(os.environ)
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 model_root_path = ModelPaths(root=MODEL_ROOT)
 
@@ -404,15 +402,15 @@ async def lifespan(app: FastAPI):
     app.state.sr_service = None
     try:
         app.state.sr_service = initialize_superres_service(
-            enabled=SR_ENABLED,
-            backend=BACKEND,
-            use_cuda=use_cuda,
-            sr_model_path=SR_MODEL_PATH,
-            sr_num_workers=SR_NUM_WORKERS,
-            sr_queue_max=SR_QUEUE_MAX,
-            sr_input_size=SR_INPUT_SIZE,
-            sr_output_size=SR_OUTPUT_SIZE,
-            sr_max_pixels=SR_MAX_PIXELS,
+            enabled=SR_SETTINGS.enabled,
+            backend=SR_SETTINGS.backend,
+            use_cuda=SR_SETTINGS.use_cuda,
+            sr_model_path=SR_SETTINGS.sr_model_path,
+            sr_num_workers=SR_SETTINGS.sr_num_workers,
+            sr_queue_max=SR_SETTINGS.sr_queue_max,
+            sr_input_size=SR_SETTINGS.sr_input_size,
+            sr_output_size=SR_SETTINGS.sr_output_size,
+            sr_max_pixels=SR_SETTINGS.sr_max_pixels,
         )
         if app.state.sr_service is not None:
             logger.info("Super-resolution service initialized successfully")
@@ -621,7 +619,7 @@ def generate(req: GenerateRequest):
                 quality=req.superres_quality,
                 magnitude=sr_mag,
                 queue_timeout_s=0.25,
-                request_timeout_s=SR_REQUEST_TIMEOUT,
+                request_timeout_s=SR_SETTINGS.sr_request_timeout,
             )
             did_superres = True
             media_type = "image/jpeg" if req.superres_format == "jpeg" else "image/png"
@@ -706,7 +704,7 @@ async def superres(
             quality=quality,
             magnitude=magnitude,
             queue_timeout_s=0.25,
-            request_timeout_s=SR_REQUEST_TIMEOUT,
+            request_timeout_s=SR_SETTINGS.sr_request_timeout,
         )
     except Exception as e:
         logger.error(f"Super-resolution failed in /superres: {e}", exc_info=True)
@@ -797,7 +795,7 @@ def _run_generate_from_dict(gen_req: dict):
             quality=req.superres_quality,
             magnitude=sr_mag,
             queue_timeout_s=0.25,
-            request_timeout_s=SR_REQUEST_TIMEOUT,
+            request_timeout_s=SR_SETTINGS.sr_request_timeout,
         )
 
         meta_headers.update(

@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from typing import Callable, Mapping, Optional
 
 from server.superres_service import (
@@ -7,6 +8,59 @@ from server.superres_service import (
     load_cuda_superres_config,
     resolve_superres_backend,
 )
+
+
+@dataclass(frozen=True)
+class SuperResRuntimeSettings:
+    enabled: bool
+    backend: str
+    use_cuda: bool
+    sr_model_path: str
+    sr_input_size: int
+    sr_output_size: int
+    sr_num_workers: int
+    sr_queue_max: int
+    sr_request_timeout: float
+    sr_max_pixels: int
+
+
+def load_superres_runtime_settings(
+    environ: Optional[Mapping[str, str]] = None,
+    *,
+    cuda_available: Optional[bool] = None,
+) -> SuperResRuntimeSettings:
+    env = environ or os.environ
+    backend = (env.get("BACKEND", "auto") or "auto").lower().strip()
+    if cuda_available is None:
+        if backend == "cuda":
+            use_cuda = True
+        elif backend == "rknn":
+            use_cuda = False
+        else:
+            try:
+                import torch
+
+                use_cuda = bool(torch.cuda.is_available())
+            except Exception:
+                use_cuda = False
+    else:
+        use_cuda = bool(cuda_available)
+
+    return SuperResRuntimeSettings(
+        enabled=(env.get("SR_ENABLED", "1") not in ("0", "false", "False")),
+        backend=backend,
+        use_cuda=use_cuda,
+        sr_model_path=env.get(
+            "SR_MODEL_PATH",
+            os.path.join(env.get("MODEL_ROOT", ""), "super-resolution-10.rknn"),
+        ),
+        sr_input_size=int(env.get("SR_INPUT_SIZE", "224")),
+        sr_output_size=int(env.get("SR_OUTPUT_SIZE", "672")),
+        sr_num_workers=int(env.get("SR_NUM_WORKERS", "1")),
+        sr_queue_max=int(env.get("SR_QUEUE_MAX", "32")),
+        sr_request_timeout=float(env.get("SR_REQUEST_TIMEOUT", "120")),
+        sr_max_pixels=int(env.get("SR_MAX_PIXELS", "24000000")),
+    )
 
 
 def initialize_superres_service(
