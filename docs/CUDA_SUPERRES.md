@@ -118,6 +118,16 @@ If OOM occurs repeatedly:
 - increase `CUDA_SR_TILE`
 - keep `CUDA_SR_FP16=1`
 
+### 5. CLI
+
+```bash
+python -m server.superres_cli \
+  --input ./input.png \
+  --output ./output.png \
+  --magnitude 1 \
+  --format png
+```
+
 ## Verification Status
 
 The code path and unit-level behavior are implemented and tested in the repository.
