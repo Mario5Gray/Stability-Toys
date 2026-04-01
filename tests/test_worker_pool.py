@@ -375,6 +375,40 @@ class TestJobSubmission:
         assert queued_future.cancelled()
         assert worker_pool.is_model_loaded() is False
 
+    def test_free_vram_cancels_running_and_queued_generation_jobs(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        started = threading.Event()
+        release = threading.Event()
+
+        def blocking_run_job(job):
+            started.set()
+            release.wait(timeout=5.0)
+            return "blocked"
+
+        worker = mock_worker_factory.return_value
+        worker.run_job.side_effect = blocking_run_job
+
+        running_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-running"))
+        assert started.wait(timeout=1.0)
+
+        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-queued"))
+        status = worker_pool.free_vram("manual_free_vram")
+
+        assert status["status"] == "ok"
+        assert set(status["cancelled_jobs"]) == {"job-running", "job-queued"}
+        assert queued_future.cancelled()
+        assert worker_pool.is_model_loaded() is False
+
+        release.set()
+        with pytest.raises(concurrent.futures.CancelledError):
+            running_future.result(timeout=5.0)
+
+        assert worker_pool._get_job_record("job-running") is None
+        assert worker_pool._get_job_record("job-queued") is None
+
     def test_cancel_queued_generation_job_marks_future_cancelled(
         self,
         worker_pool,
