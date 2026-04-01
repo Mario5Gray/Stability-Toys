@@ -6,6 +6,7 @@ All messages are JSON envelopes: {"type": "domain:action", ...}
 """
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import os
@@ -240,6 +241,10 @@ async def handle_job_priority(ws: WebSocket, msg: dict, client_id: str) -> dict:
 # Generate job runner
 # ---------------------------------------------------------------------------
 
+class _BackendCancelledError(Exception):
+    """Internal marker for backend-future cancellation."""
+
+
 def _build_generate_request(params: dict):
     from server.lcm_sr_server import GenerateRequest
 
@@ -263,9 +268,19 @@ async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, 
     except asyncio.CancelledError:
         logger.info("Generate job %s cancelled by client", job_id)
         await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Cancelled by client"})
+    except _BackendCancelledError:
+        logger.info("Generate job %s cancelled by backend", job_id)
+        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Cancelled by backend"})
     except Exception as e:
         logger.error("Generate job %s failed: %s", job_id, e, exc_info=True)
         await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
+
+
+def _resolve_backend_future_result(fut, timeout: float):
+    try:
+        return fut.result(timeout=timeout)
+    except concurrent.futures.CancelledError as e:
+        raise _BackendCancelledError() from e
 
 
 async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:
@@ -276,7 +291,7 @@ async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut)
 
     # Run blocking future in thread
     loop = asyncio.get_running_loop()
-    png_bytes, seed = await loop.run_in_executor(None, lambda: fut.result(timeout=timeout))
+    png_bytes, seed = await loop.run_in_executor(None, _resolve_backend_future_result, fut, timeout)
 
     out_bytes = png_bytes
     did_sr = False

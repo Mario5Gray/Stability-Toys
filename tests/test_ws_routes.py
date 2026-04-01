@@ -6,6 +6,7 @@ minimal FastAPI app that mounts the WS router.
 """
 
 import asyncio
+import concurrent.futures
 import json
 import time
 import types
@@ -291,7 +292,7 @@ class TestJobSubmit:
         pool = MagicMock()
         pool.get_current_mode.return_value = "sdxl-general"
         fut = MagicMock()
-        fut.result.side_effect = asyncio.CancelledError()
+        fut.result.side_effect = concurrent.futures.CancelledError()
         pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
@@ -344,7 +345,7 @@ class TestJobSubmit:
                 err = ws.receive_json()
                 assert err["type"] == "job:error"
                 assert err["jobId"] == ack["jobId"]
-                assert err["error"] == "Cancelled by client"
+                assert err["error"] == "Cancelled by backend"
         finally:
             if original_lcm_module is None:
                 sys.modules.pop("server.lcm_sr_server", None)
