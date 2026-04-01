@@ -8,6 +8,7 @@ minimal FastAPI app that mounts the WS router.
 import asyncio
 import json
 import time
+import types
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -140,11 +141,39 @@ class TestJobSubmit:
     def test_generate_mode_system_forwards_negative_prompt_and_scheduler(self):
         app.state.use_mode_system = True
         pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
         fut = MagicMock()
         fut.result.return_value = (b"png", 123)
         pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        fake_worker_pool_module = types.ModuleType("backends.worker_pool")
+
+        class _FakeGenerationJob:
+            def __init__(self, req, init_image=None):
+                self.req = req
+                self.init_image = init_image
+                self.job_id = "backend-job-123"
+
+        fake_worker_pool_module.GenerationJob = _FakeGenerationJob
+        original_worker_pool_module = sys.modules.get("backends.worker_pool")
+        sys.modules["backends.worker_pool"] = fake_worker_pool_module
 
         try:
             with client.websocket_connect("/v1/ws") as ws:
@@ -167,13 +196,22 @@ class TestJobSubmit:
                 assert ack["type"] == "job:ack"
 
                 done = ws.receive_json()
-                assert done["type"] == "job:done"
+                assert done["type"] == "job:complete"
                 assert done["jobId"] == ack["jobId"]
 
             submitted_job = pool.submit_job.call_args.args[0]
+            assert ack["jobId"] == submitted_job.job_id
             assert submitted_job.req.negative_prompt == "blurry, watermark"
             assert submitted_job.req.scheduler_id == "euler"
         finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            if original_worker_pool_module is None:
+                sys.modules.pop("backends.worker_pool", None)
+            else:
+                sys.modules["backends.worker_pool"] = original_worker_pool_module
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
@@ -199,12 +237,23 @@ class TestJobSubmit:
 # ---------------------------------------------------------------------------
 
 class TestJobStubs:
-    def test_job_cancel_ack(self):
-        with client.websocket_connect("/v1/ws") as ws:
-            ws.receive_json()  # consume status
-            ws.send_json({"type": "job:cancel", "id": "c1", "jobId": "j1"})
-            msg = ws.receive_json()
-            assert msg["type"] == "job:cancel:ack"
+    def test_job_cancel_ack_reports_backend_cancel_result(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        pool.cancel_job.return_value = {"status": "canceled", "job_id": "abc123"}
+        app.state.worker_pool = pool
+
+        try:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({"type": "job:cancel", "id": "c1", "jobId": "abc123"})
+                msg = ws.receive_json()
+                assert msg["type"] == "job:cancel:ack"
+                assert msg["detail"] == "canceled"
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
 
     def test_job_priority_ack(self):
         with client.websocket_connect("/v1/ws") as ws:

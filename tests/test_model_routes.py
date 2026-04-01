@@ -145,3 +145,14 @@ async def test_reload_and_free_vram_routes_call_pool_methods():
 
     pool.unload_current_model.assert_called_once()
     pool.free_vram.assert_called_once_with(reason="manual_free_vram")
+
+
+async def test_cancel_job_route_calls_worker_pool():
+    pool = Mock()
+    pool.cancel_job.return_value = {"status": "canceled", "job_id": "abc123"}
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool):
+        result = await model_routes.cancel_job("abc123")
+
+    assert result["job_id"] == "abc123"
+    pool.cancel_job.assert_called_once_with("abc123")

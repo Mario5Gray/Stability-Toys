@@ -295,6 +295,12 @@ async def free_vram():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    pool = get_worker_pool()
+    return pool.cancel_job(job_id)
+
+
 @router.post("/models/load")
 async def load_model(request: ModelLoadRequest):
     """

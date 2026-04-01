@@ -122,6 +122,30 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     job_type = msg.get("jobType", "generate")
     params = msg.get("params", {})
     job_id = uuid.uuid4().hex[:12]
+    state = _get_app_state(ws)
+    fut = None
+    req = None
+
+    if job_type == "generate" and getattr(state, "use_mode_system", False):
+        from backends.worker_pool import GenerationJob
+
+        req = _build_generate_request(params)
+        init_image_bytes = None
+        init_image_ref = params.get("init_image_ref")
+        if init_image_ref:
+            try:
+                init_image_bytes = resolve_file_ref(init_image_ref)
+            except KeyError as e:
+                await hub.send(client_id, _error(str(e), corr_id))
+                return
+
+        job = GenerationJob(req=req, init_image=init_image_bytes)
+        try:
+            fut = state.worker_pool.submit_job(job)
+        except queue.Full:
+            await hub.send(client_id, _error("Queue full", corr_id))
+            return
+        job_id = job.job_id
 
     # Ack immediately
     await hub.send(client_id, {
@@ -131,7 +155,10 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     })
 
     if job_type == "generate":
-        t = asyncio.create_task(_run_generate(ws, client_id, job_id, params))
+        if getattr(state, "use_mode_system", False):
+            t = asyncio.create_task(_run_generate_from_future(ws, client_id, job_id, req, fut))  # type: ignore[arg-type]
+        else:
+            t = asyncio.create_task(_run_generate(ws, client_id, job_id, params))
         _track_task(job_id, t)
     elif job_type == "comfy":
         t = asyncio.create_task(_run_comfy(ws, client_id, job_id, msg))
@@ -178,6 +205,21 @@ async def handle_telemetry_otlp(ws: WebSocket, msg: dict, client_id: str) -> dic
 @_handler("job:cancel")
 async def handle_job_cancel(ws: WebSocket, msg: dict, client_id: str) -> dict:
     job_id = msg.get("jobId")
+    state = _get_app_state(ws)
+    if getattr(state, "use_mode_system", False):
+        pool = getattr(state, "worker_pool", None)
+        if pool is None:
+            return {"type": "job:cancel:ack", "id": msg.get("id"), "jobId": job_id, "detail": "no worker pool"}
+
+        result = pool.cancel_job(job_id)
+        if isinstance(result, dict):
+            detail = result.get("status", "canceled")
+        elif result:
+            detail = "canceled"
+        else:
+            detail = "not_found"
+        return {"type": "job:cancel:ack", "id": msg.get("id"), "jobId": job_id, "detail": detail}
+
     task = _running_tasks.get(job_id)  # type: ignore[arg-type]
     if task and not task.done():
         task.cancel()
@@ -198,24 +240,89 @@ async def handle_job_priority(ws: WebSocket, msg: dict, client_id: str) -> dict:
 # Generate job runner
 # ---------------------------------------------------------------------------
 
+def _build_generate_request(params: dict):
+    from server.lcm_sr_server import GenerateRequest
+
+    return GenerateRequest(
+        prompt=params.get("prompt", ""),
+        negative_prompt=params.get("negative_prompt"),
+        scheduler_id=params.get("scheduler_id"),
+        size=params.get("size", os.environ.get("DEFAULT_SIZE", "512x512")),
+        num_inference_steps=params.get("num_inference_steps", params.get("steps", 4)),
+        guidance_scale=params.get("guidance_scale", params.get("cfg", 1.0)),
+        seed=params.get("seed"),
+        superres=params.get("superres", False),
+        superres_magnitude=params.get("superres_magnitude", 2),
+        denoise_strength=params.get("denoise_strength", 0.75),
+    )
+
+
+async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:
+    await _finish_generate(ws, client_id, job_id, req, fut)
+
+
+async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:
+    state = _get_app_state(ws)
+    from server.lcm_sr_server import _store_image_blob
+
+    timeout = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
+
+    # Run blocking future in thread
+    loop = asyncio.get_running_loop()
+    png_bytes, seed = await loop.run_in_executor(None, lambda: fut.result(timeout=timeout))
+
+    out_bytes = png_bytes
+    did_sr = False
+    sr_mag = int(req.superres_magnitude or 2)
+
+    # Optional super-resolution
+    if req.superres:
+        sr_service = getattr(state, "sr_service", None)
+        if sr_service is not None:
+            sr_timeout = float(os.environ.get("SR_REQUEST_TIMEOUT", "120"))
+            sr_fut = sr_service.submit(
+                image_bytes=png_bytes,
+                out_format=req.superres_format,
+                quality=req.superres_quality,
+                magnitude=sr_mag,
+                timeout_s=0.25,
+            )
+            out_bytes = await loop.run_in_executor(None, lambda: sr_fut.result(timeout=sr_timeout))
+            did_sr = True
+
+    # Store in storage
+    storage = getattr(state, "storage", None)
+    image_key = _store_image_blob(
+        storage,
+        out_bytes=out_bytes,
+        media_type="image/png",
+        req=req,
+        seed=int(seed),
+        did_superres=did_sr,
+        sr_mag=sr_mag,
+    )
+
+    outputs = []
+    if image_key:
+        outputs.append({"url": f"/storage/{image_key}", "key": image_key})
+
+    await hub.send(client_id, {
+        "type": "job:complete",
+        "jobId": job_id,
+        "outputs": outputs,
+        "meta": {
+            "seed": int(seed),
+            "backend": os.environ.get("BACKEND", "auto"),
+            "sr": did_sr,
+        },
+    })
+
+
 async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict) -> None:
     """Run a generate job using the same code path as POST /generate."""
     try:
         state = _get_app_state(ws)
-        from server.lcm_sr_server import GenerateRequest, _store_image_blob
-
-        req = GenerateRequest(
-            prompt=params.get("prompt", ""),
-            negative_prompt=params.get("negative_prompt"),
-            scheduler_id=params.get("scheduler_id"),
-            size=params.get("size", os.environ.get("DEFAULT_SIZE", "512x512")),
-            num_inference_steps=params.get("num_inference_steps", params.get("steps", 4)),
-            guidance_scale=params.get("guidance_scale", params.get("cfg", 1.0)),
-            seed=params.get("seed"),
-            superres=params.get("superres", False),
-            superres_magnitude=params.get("superres_magnitude", 2),
-            denoise_strength=params.get("denoise_strength", 0.75),
-        )
+        req = _build_generate_request(params)
 
         # Resolve optional init image reference
         init_image_bytes = None
@@ -237,61 +344,12 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
             except queue.Full:
                 await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Queue full"})
                 return
+            job_id = job.job_id
         else:
             service = state.service
             fut = service.submit(req, timeout_s=0.25)
 
-        timeout = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
-
-        # Run blocking future in thread
-        loop = asyncio.get_running_loop()
-        png_bytes, seed = await loop.run_in_executor(None, lambda: fut.result(timeout=timeout))
-
-        out_bytes = png_bytes
-        did_sr = False
-        sr_mag = int(req.superres_magnitude or 2)
-
-        # Optional super-resolution
-        if req.superres:
-            sr_service = getattr(state, "sr_service", None)
-            if sr_service is not None:
-                sr_timeout = float(os.environ.get("SR_REQUEST_TIMEOUT", "120"))
-                sr_fut = sr_service.submit(
-                    image_bytes=png_bytes,
-                    out_format=req.superres_format,
-                    quality=req.superres_quality,
-                    magnitude=sr_mag,
-                    timeout_s=0.25,
-                )
-                out_bytes = await loop.run_in_executor(None, lambda: sr_fut.result(timeout=sr_timeout))
-                did_sr = True
-
-        # Store in storage
-        storage = getattr(state, "storage", None)
-        image_key = _store_image_blob(
-            storage,
-            out_bytes=out_bytes,
-            media_type="image/png",
-            req=req,
-            seed=int(seed),
-            did_superres=did_sr,
-            sr_mag=sr_mag,
-        )
-
-        outputs = []
-        if image_key:
-            outputs.append({"url": f"/storage/{image_key}", "key": image_key})
-
-        await hub.send(client_id, {
-            "type": "job:complete",
-            "jobId": job_id,
-            "outputs": outputs,
-            "meta": {
-                "seed": int(seed),
-                "backend": os.environ.get("BACKEND", "auto"),
-                "sr": did_sr,
-            },
-        })
+        await _finish_generate(ws, client_id, job_id, req, fut)
 
     except asyncio.CancelledError:
         logger.info("Generate job %s cancelled by client", job_id)
