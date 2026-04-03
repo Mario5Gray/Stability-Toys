@@ -63,9 +63,17 @@ EOFA
 COPY certs/cert.crt /usr/local/share/ca-certificates/cert.crt
 
 # update-ca-certificates & verify contact
-RUN update-ca-certificates && \
-    openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
-        /usr/local/share/ca-certificates/cert.crt
+RUN set -eu; \
+    update-ca-certificates; \
+    crt_list="$(mktemp)"; \
+    ca_bundle="$(mktemp)"; \
+    trap 'rm -f "$crt_list" "$ca_bundle"' EXIT; \
+    find /usr/local/share/ca-certificates -type f -name '*.crt' | sort > "$crt_list"; \
+    [ -s "$crt_list" ]; \
+    while IFS= read -r crt; do \
+        cat "$crt"; \
+    done < "$crt_list" > "$ca_bundle"; \
+    openssl verify -CAfile "$ca_bundle" /usr/local/share/ca-certificates/cert.crt
 
 
 # Install python deps
