@@ -60,10 +60,10 @@ _BASE_ENV = {
 }
 
 
-def _make_base(extra_env=None):
+def _make_base(extra_env=None, model_info=None):
     env = {**_BASE_ENV, **(extra_env or {})}
     with patch.dict(os.environ, env, clear=False):
-        return CudaWorkerBase(worker_id=0)
+        return CudaWorkerBase(worker_id=0, model_info=model_info)
 
 
 def _make_pipe():
@@ -82,10 +82,14 @@ def _make_pipe():
 
 
 class TestCapabilityAwareMemoryOpts:
-    def test_fp8_single_file_checkpoint_still_applies_runtime_quanto_when_requested(self):
+    def test_fp8_single_file_checkpoint_skips_runtime_quanto_when_requested(self):
         pipe = _make_pipe()
-        base = _make_base({"CUDA_QUANTIZE": "fp8"})
-        base.model_info = SimpleNamespace(checkpoint_precision="fp8", loader_format="single_file")
+        model_info = SimpleNamespace(
+            checkpoint_precision="fp8",
+            loader_format="single_file",
+            runtime_quantize="fp8",
+        )
+        base = _make_base({"CUDA_QUANTIZE": "fp8"}, model_info=model_info)
         fake_qfloat8 = object()
         fake_quanto = SimpleNamespace(
             quantize=Mock(),
@@ -96,10 +100,8 @@ class TestCapabilityAwareMemoryOpts:
         with patch.dict(sys.modules, {"optimum.quanto": fake_quanto}):
             base._setup_pipe_memory_opts(pipe)
 
-        fake_quanto.quantize.assert_any_call(pipe.unet, weights=fake_qfloat8)
-        fake_quanto.quantize.assert_any_call(pipe.text_encoder_2, weights=fake_qfloat8)
-        assert fake_quanto.quantize.call_count == 2
-        assert fake_quanto.freeze.call_count == 2
+        fake_quanto.quantize.assert_not_called()
+        fake_quanto.freeze.assert_not_called()
         pipe.to.assert_called_once_with("cuda:0")
 
 
@@ -166,9 +168,9 @@ class TestSdxlCapabilityLoader:
         model_info = SimpleNamespace(loader_format="single_file", scheduler_profile="native")
 
         with patch.dict(os.environ, _BASE_ENV, clear=False), \
-             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", return_value=pipe) as mock_single, \
-             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_pretrained", side_effect=AssertionError("from_pretrained should not be called")), \
-             patch("backends.cuda_worker.LCMScheduler.from_config") as mock_lcm, \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", return_value=pipe, create=True) as mock_single, \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_pretrained", side_effect=AssertionError("from_pretrained should not be called"), create=True), \
+             patch("backends.cuda_worker.LCMScheduler.from_config", create=True) as mock_lcm, \
              patch.object(DiffusersSDXLCudaWorker, "_setup_pipe_memory_opts", return_value=pipe):
             worker = DiffusersSDXLCudaWorker(
                 worker_id=0,
@@ -190,9 +192,9 @@ class TestSdxlCapabilityLoader:
         model_info = SimpleNamespace(loader_format="diffusers_dir", scheduler_profile="lcm")
 
         with patch.dict(os.environ, _BASE_ENV, clear=False), \
-             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_pretrained", return_value=pipe) as mock_pretrained, \
-             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", side_effect=AssertionError("from_single_file should not be called")), \
-             patch("backends.cuda_worker.LCMScheduler.from_config", return_value=lcm_scheduler) as mock_lcm, \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_pretrained", return_value=pipe, create=True) as mock_pretrained, \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", side_effect=AssertionError("from_single_file should not be called"), create=True), \
+             patch("backends.cuda_worker.LCMScheduler.from_config", return_value=lcm_scheduler, create=True) as mock_lcm, \
              patch.object(DiffusersSDXLCudaWorker, "_setup_pipe_memory_opts", return_value=pipe):
             worker = DiffusersSDXLCudaWorker(
                 worker_id=0,

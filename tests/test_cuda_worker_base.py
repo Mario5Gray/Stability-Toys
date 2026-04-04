@@ -10,6 +10,7 @@ file is needed.  They guard against:
 """
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
@@ -69,11 +70,11 @@ _BASE_ENV = {
 }
 
 
-def _make_base(extra_env=None):
+def _make_base(extra_env=None, model_info=None):
     """Instantiate CudaWorkerBase with a clean env overlay."""
     env = {**_BASE_ENV, **(extra_env or {})}
     with patch.dict(os.environ, env, clear=False):
-        return CudaWorkerBase(worker_id=0)
+        return CudaWorkerBase(worker_id=0, model_info=model_info)
 
 
 def _make_pipe():
@@ -175,3 +176,30 @@ class TestAttentionSlicing:
         pipe = _make_pipe()
         _make_base({"CUDA_ATTENTION_SLICING": "1"})._setup_pipe_memory_opts(pipe)
         pipe.enable_attention_slicing.assert_called_once()
+
+
+class TestRuntimePolicyOverrides:
+    def test_model_info_runtime_policy_overrides_env_defaults(self):
+        pipe = _make_pipe()
+        model_info = SimpleNamespace(
+            runtime_quantize="none",
+            runtime_offload="model",
+            runtime_attention_slicing=True,
+            runtime_enable_xformers=True,
+            checkpoint_precision="fp8",
+        )
+
+        _make_base(
+            {
+                "CUDA_QUANTIZE": "fp8",
+                "CUDA_OFFLOAD": "none",
+                "CUDA_ATTENTION_SLICING": "0",
+                "CUDA_ENABLE_XFORMERS": "0",
+            },
+            model_info=model_info,
+        )._setup_pipe_memory_opts(pipe)
+
+        pipe.enable_model_cpu_offload.assert_called_once_with(gpu_id=0)
+        pipe.enable_attention_slicing.assert_called_once_with(1)
+        pipe.enable_xformers_memory_efficient_attention.assert_called_once()
+        pipe.to.assert_not_called()

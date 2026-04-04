@@ -175,6 +175,35 @@ File structure:
   sdxl-1.0-base.safetensors
 ```
 
+For pre-quantized FP8 SDXL checkpoints, keep the same single-file loader path
+but make the runtime policy explicit:
+
+- Native FP8 checkpoints should not be re-quantized with Quanto.
+- `runtime_offload: model` is the main lever for reducing active VRAM into the
+  4-5GB range at 512x512.
+- `runtime_attention_slicing: true` and `runtime_enable_xformers: true` trade
+  speed for lower working-set pressure.
+
+Example mode:
+
+```yaml
+  SDXL:
+    model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
+    loader_format: single_file
+    checkpoint_precision: fp8
+    checkpoint_variant: sdxl-base
+    scheduler_profile: native
+    runtime_quantize: none
+    runtime_offload: model
+    runtime_attention_slicing: true
+    runtime_enable_xformers: true
+    default_size: 512x512
+    recommended_size: 512x512
+```
+
+This profile reduces operational VRAM, but it is slower than keeping the whole
+pipeline resident on the GPU.
+
 ### 2. Diffusers Format (directory with model_index.json)
 
 ```bash

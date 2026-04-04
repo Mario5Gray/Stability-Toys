@@ -32,7 +32,16 @@ modes:
     default_scheduler_id: lcm    
   SDXL:
     model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
+    loader_format: single_file
+    checkpoint_precision: fp8
+    checkpoint_variant: sdxl-base
+    scheduler_profile: native
+    runtime_quantize: none
+    runtime_offload: model
+    runtime_attention_slicing: true
+    runtime_enable_xformers: true
     default_size: 512x512
+    recommended_size: 512x512
     default_steps: 11
     default_guidance: 3.0
     negative_prompt_templates:

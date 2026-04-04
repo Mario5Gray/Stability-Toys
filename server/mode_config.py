@@ -45,6 +45,10 @@ class ModeConfig:
     checkpoint_variant: Optional[str] = None
     scheduler_profile: Optional[str] = None
     recommended_size: Optional[str] = None
+    runtime_quantize: Optional[str] = None
+    runtime_offload: Optional[str] = None
+    runtime_attention_slicing: Optional[bool] = None
+    runtime_enable_xformers: Optional[bool] = None
     negative_prompt_templates: Dict[str, str] = field(default_factory=dict)
     default_negative_prompt_template: Optional[str] = None
     allow_custom_negative_prompt: bool = False
@@ -153,6 +157,10 @@ class ModeConfigManager:
                 checkpoint_variant=mode_data.get("checkpoint_variant"),
                 scheduler_profile=mode_data.get("scheduler_profile"),
                 recommended_size=mode_data.get("recommended_size"),
+                runtime_quantize=mode_data.get("runtime_quantize"),
+                runtime_offload=mode_data.get("runtime_offload"),
+                runtime_attention_slicing=mode_data.get("runtime_attention_slicing"),
+                runtime_enable_xformers=mode_data.get("runtime_enable_xformers"),
                 negative_prompt_templates=mode_data.get("negative_prompt_templates", {}) or {},
                 default_negative_prompt_template=mode_data.get("default_negative_prompt_template"),
                 allow_custom_negative_prompt=bool(mode_data.get("allow_custom_negative_prompt", False)),
@@ -241,8 +249,17 @@ class ModeConfigManager:
                 "default_steps": mode_data.get("default_steps", 4),
                 "default_guidance": mode_data.get("default_guidance", 1.0),
             }
-            for cap_field in ("loader_format", "checkpoint_precision", "checkpoint_variant",
-                              "scheduler_profile", "recommended_size"):
+            for cap_field in (
+                "loader_format",
+                "checkpoint_precision",
+                "checkpoint_variant",
+                "scheduler_profile",
+                "recommended_size",
+                "runtime_quantize",
+                "runtime_offload",
+                "runtime_attention_slicing",
+                "runtime_enable_xformers",
+            ):
                 val = mode_data.get(cap_field)
                 if val is not None:
                     mode_entry[cap_field] = val
@@ -335,6 +352,10 @@ class ModeConfigManager:
                     "checkpoint_variant": mode.checkpoint_variant,
                     "scheduler_profile": mode.scheduler_profile,
                     "recommended_size": mode.recommended_size,
+                    "runtime_quantize": mode.runtime_quantize,
+                    "runtime_offload": mode.runtime_offload,
+                    "runtime_attention_slicing": mode.runtime_attention_slicing,
+                    "runtime_enable_xformers": mode.runtime_enable_xformers,
                     "negative_prompt_templates": mode.negative_prompt_templates,
                     "default_negative_prompt_template": mode.default_negative_prompt_template,
                     "allow_custom_negative_prompt": mode.allow_custom_negative_prompt,

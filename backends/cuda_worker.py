@@ -39,8 +39,9 @@ class CudaWorkerBase:
 
     pipe: Any  # set by subclass __init__ after pipeline load
 
-    def __init__(self, worker_id: int) -> None:
+    def __init__(self, worker_id: int, model_info: Any | None = None) -> None:
         self.worker_id = worker_id
+        self.model_info = model_info
         self._style_loaded: dict[str, bool] = {}
         self._style_api: str = "unknown"
         self._img2img_pipe = None
@@ -59,10 +60,26 @@ class CudaWorkerBase:
         else:
             self.dtype = torch.float16
         self.dtype_str = dtype_str
-        self._enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
-        self._attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
-        self._quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
-        self._offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
+        env_enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
+        env_attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
+        env_quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
+        env_offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
+
+        runtime_enable_xformers = getattr(self.model_info, "runtime_enable_xformers", None)
+        runtime_attention_slicing = getattr(self.model_info, "runtime_attention_slicing", None)
+        runtime_quantize = getattr(self.model_info, "runtime_quantize", None)
+        runtime_offload = getattr(self.model_info, "runtime_offload", None)
+
+        self._enable_xformers = env_enable_xformers if runtime_enable_xformers is None else bool(runtime_enable_xformers)
+        self._attention_slicing = (
+            env_attention_slicing if runtime_attention_slicing is None else bool(runtime_attention_slicing)
+        )
+        self._quantize = (runtime_quantize or env_quantize).lower().strip()
+        self._offload = (runtime_offload or env_offload).lower().strip()
+        self._loader_format = getattr(self.model_info, "loader_format", "unknown")
+        self._checkpoint_precision = getattr(self.model_info, "checkpoint_precision", "unknown")
+        self._checkpoint_variant = getattr(self.model_info, "checkpoint_variant", "unknown")
+        self._scheduler_profile = getattr(self.model_info, "scheduler_profile", "unknown")
 
     def _setup_pipe_memory_opts(self, pipe):
         """Apply device placement and memory optimizations to a loaded pipeline.
@@ -71,10 +88,8 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
-        if self._quantize == "fp8":
-            # Checkpoint precision is storage metadata only. The current loaders
-            # still materialize runtime modules as fp16/bf16/fp32 based on
-            # CUDA_DTYPE, so CUDA_QUANTIZE must remain authoritative here.
+        should_quantize_runtime = self._quantize == "fp8" and self._checkpoint_precision != "fp8"
+        if should_quantize_runtime:
             from optimum.quanto import freeze, quantize, qfloat8
             quantize(pipe.unet, weights=qfloat8)
             freeze(pipe.unet)
@@ -226,13 +241,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
     def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id)
-        self.model_info = model_info
+        super().__init__(worker_id, model_info=model_info)
 
         ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
 
-        format_hint = getattr(model_info, "loader_format", "unknown")
+        format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
             format_hint == "unknown"
             and os.path.isdir(ckpt_path)
@@ -258,7 +272,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
             )
             format_name = "single-file"
 
-        scheduler_profile = getattr(model_info, "scheduler_profile", "lcm")
+        scheduler_profile = "lcm" if self._scheduler_profile == "unknown" else self._scheduler_profile
         if scheduler_profile != "native":
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
@@ -501,13 +515,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
     """
 
     def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id)
-        self.model_info = model_info
+        super().__init__(worker_id, model_info=model_info)
 
         ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
 
-        format_hint = getattr(model_info, "loader_format", "unknown")
+        format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
             format_hint == "unknown"
             and os.path.isdir(ckpt_path)
@@ -531,7 +544,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             )
             format_name = "single-file"
 
-        scheduler_profile = getattr(model_info, "scheduler_profile", "native")
+        scheduler_profile = "native" if self._scheduler_profile == "unknown" else self._scheduler_profile
         if scheduler_profile == "lcm":
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)

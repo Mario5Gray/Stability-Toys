@@ -93,6 +93,10 @@ class ModelInfo:
     checkpoint_precision: str = "unknown"
     checkpoint_variant: str = "unknown"
     scheduler_profile: str = "unknown"
+    runtime_quantize: Optional[str] = None
+    runtime_offload: Optional[str] = None
+    runtime_attention_slicing: Optional[bool] = None
+    runtime_enable_xformers: Optional[bool] = None
     negative_prompt_templates: Dict[str, str] = field(default_factory=dict)
     default_negative_prompt_template: Optional[str] = None
     allow_custom_negative_prompt: bool = False
@@ -123,6 +127,10 @@ class ModelInfo:
             "checkpoint_precision": self.checkpoint_precision,
             "checkpoint_variant": self.checkpoint_variant,
             "scheduler_profile": self.scheduler_profile,
+            "runtime_quantize": self.runtime_quantize,
+            "runtime_offload": self.runtime_offload,
+            "runtime_attention_slicing": self.runtime_attention_slicing,
+            "runtime_enable_xformers": self.runtime_enable_xformers,
             "negative_prompt_templates": self.negative_prompt_templates,
             "default_negative_prompt_template": self.default_negative_prompt_template,
             "allow_custom_negative_prompt": self.allow_custom_negative_prompt,

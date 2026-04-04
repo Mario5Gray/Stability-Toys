@@ -59,6 +59,10 @@ def mock_mode_config():
     mode_sdxl.checkpoint_variant = "sdxl-base"
     mode_sdxl.scheduler_profile = "native"
     mode_sdxl.recommended_size = "512x512"
+    mode_sdxl.runtime_quantize = "none"
+    mode_sdxl.runtime_offload = "model"
+    mode_sdxl.runtime_attention_slicing = True
+    mode_sdxl.runtime_enable_xformers = True
     mode_sdxl.negative_prompt_templates = {"safe_photo": "blurry, watermark"}
     mode_sdxl.default_negative_prompt_template = "safe_photo"
     mode_sdxl.allow_custom_negative_prompt = True
@@ -78,6 +82,10 @@ def mock_mode_config():
     mode_sd15.checkpoint_variant = None
     mode_sd15.scheduler_profile = None
     mode_sd15.recommended_size = None
+    mode_sd15.runtime_quantize = None
+    mode_sd15.runtime_offload = None
+    mode_sd15.runtime_attention_slicing = None
+    mode_sd15.runtime_enable_xformers = None
     mode_sd15.negative_prompt_templates = {}
     mode_sd15.default_negative_prompt_template = None
     mode_sd15.allow_custom_negative_prompt = False

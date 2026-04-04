@@ -65,6 +65,10 @@ async def test_list_modes_includes_generation_control_policy_fields():
                 "checkpoint_variant": "sdxl-base",
                 "scheduler_profile": "native",
                 "recommended_size": "512x512",
+                "runtime_quantize": "none",
+                "runtime_offload": "model",
+                "runtime_attention_slicing": True,
+                "runtime_enable_xformers": True,
                 "negative_prompt_templates": {"safe_photo": "blurry, watermark"},
                 "default_negative_prompt_template": "safe_photo",
                 "allow_custom_negative_prompt": True,
@@ -82,6 +86,10 @@ async def test_list_modes_includes_generation_control_policy_fields():
                 "checkpoint_variant": None,
                 "scheduler_profile": None,
                 "recommended_size": None,
+                "runtime_quantize": None,
+                "runtime_offload": None,
+                "runtime_attention_slicing": None,
+                "runtime_enable_xformers": None,
                 "negative_prompt_templates": {},
                 "default_negative_prompt_template": None,
                 "allow_custom_negative_prompt": False,
@@ -102,12 +110,20 @@ async def test_list_modes_includes_generation_control_policy_fields():
     assert sdxl["allow_custom_negative_prompt"] is True
     assert sdxl["allowed_scheduler_ids"] == ["euler", "dpmpp_2m"]
     assert sdxl["default_scheduler_id"] == "euler"
+    assert sdxl["runtime_quantize"] == "none"
+    assert sdxl["runtime_offload"] == "model"
+    assert sdxl["runtime_attention_slicing"] is True
+    assert sdxl["runtime_enable_xformers"] is True
 
     assert sd15["negative_prompt_templates"] == {}
     assert sd15["default_negative_prompt_template"] is None
     assert sd15["allow_custom_negative_prompt"] is False
     assert sd15["allowed_scheduler_ids"] is None
     assert sd15["default_scheduler_id"] is None
+    assert sd15["runtime_quantize"] is None
+    assert sd15["runtime_offload"] is None
+    assert sd15["runtime_attention_slicing"] is None
+    assert sd15["runtime_enable_xformers"] is None
 
 
 async def test_reload_and_free_vram_routes_call_pool_methods():
