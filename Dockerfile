@@ -3,7 +3,7 @@ ARG BACKEND
 ARG CERTFILE
 
 # CERTS
-FROM harbor:443/certificate-base:latest AS certs
+FROM harbor.lan/certificate-base:latest AS certs
 
 # ---------- UI build stage ----------
 FROM node:20-trixie-slim AS ui-build
