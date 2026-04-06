@@ -66,7 +66,7 @@ async def test_models_status_includes_backend_version():
     assert data["backend_version"] == "abc1234"
 
 
-async def test_models_status_defaults_backend_version_to_dev():
+async def test_models_status_defaults_backend_version_to_dev_when_unset():
     pool = Mock()
     pool.get_current_mode.return_value = None
     pool.is_model_loaded.return_value = False
@@ -77,7 +77,7 @@ async def test_models_status_defaults_backend_version_to_dev():
 
     with patch("server.model_routes.get_worker_pool", return_value=pool), \
             patch("server.model_routes.get_model_registry", return_value=registry), \
-            patch.dict(os.environ, {"BACKEND_VERSION": ""}, clear=False):
+            patch.dict(os.environ, {}, clear=True):
         data = await model_routes.get_models_status()
 
     assert data["backend_version"] == "dev"
