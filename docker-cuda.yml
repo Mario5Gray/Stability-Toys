@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: darkbit1001/lcm-sd-ui:latest
+    image: harbor.lan/lcm-sd-ui:latest
     security_opt:
       - label:disable
     privileged: true
