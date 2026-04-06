@@ -5,6 +5,7 @@ Provides REST API for managing models, modes, and VRAM.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
@@ -113,12 +114,14 @@ async def get_models_status():
     current_mode = pool.get_current_mode()
     vram_stats = registry.get_vram_stats()
     queue_size = pool.get_queue_size()
+    backend_version = os.environ.get("BACKEND_VERSION", "dev").strip() or "dev"
 
     return {
         "current_mode": current_mode,
         "is_loaded": pool.is_model_loaded(),
         "queue_size": queue_size,
         "vram": vram_stats,
+        "backend_version": backend_version,
     }
 
 

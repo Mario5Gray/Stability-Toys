@@ -49,6 +49,40 @@ from server.model_routes import router
 from server import model_routes
 
 
+async def test_models_status_includes_backend_version():
+    pool = Mock()
+    pool.get_current_mode.return_value = "SDXL"
+    pool.is_model_loaded.return_value = True
+    pool.get_queue_size.return_value = 0
+
+    registry = Mock()
+    registry.get_vram_stats.return_value = {"allocated_gb": 1.5, "reserved_gb": 2.0}
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+            patch("server.model_routes.get_model_registry", return_value=registry), \
+            patch.dict(os.environ, {"BACKEND_VERSION": "abc1234"}, clear=False):
+        data = await model_routes.get_models_status()
+
+    assert data["backend_version"] == "abc1234"
+
+
+async def test_models_status_defaults_backend_version_to_dev():
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    pool.is_model_loaded.return_value = False
+    pool.get_queue_size.return_value = 0
+
+    registry = Mock()
+    registry.get_vram_stats.return_value = {}
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+            patch("server.model_routes.get_model_registry", return_value=registry), \
+            patch.dict(os.environ, {"BACKEND_VERSION": ""}, clear=False):
+        data = await model_routes.get_models_status()
+
+    assert data["backend_version"] == "dev"
+
+
 async def test_list_modes_includes_generation_control_policy_fields():
     config = Mock()
     config.to_dict.return_value = {
