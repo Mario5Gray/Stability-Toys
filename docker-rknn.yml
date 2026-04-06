@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     image: darkbit1001/lcm-sd-ui:latest
 
     privileged: true

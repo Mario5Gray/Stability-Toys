@@ -54,3 +54,15 @@ def test_dockerfile_redeclares_shared_git_sha_for_ui_and_server_stages():
     assert "ENV VITE_APP_VERSION=${GIT_SHA}" in dockerfile[ui_start:server_start]
     assert "ARG GIT_SHA=dev" in dockerfile[server_start:]
     assert "ENV BACKEND_VERSION=${GIT_SHA}" in dockerfile[server_start:]
+
+
+def test_checked_in_compose_build_entrypoints_pass_git_sha_from_env_with_dev_fallback():
+    cuda_compose = (REPO_ROOT / "docker-cuda.yml").read_text(encoding="utf-8")
+    rknn_compose = (REPO_ROOT / "docker-rknn.yml").read_text(encoding="utf-8")
+
+    expected_arg = "GIT_SHA: ${GIT_SHA:-dev}"
+
+    assert "build:" in cuda_compose
+    assert "build:" in rknn_compose
+    assert expected_arg in cuda_compose
+    assert expected_arg in rknn_compose

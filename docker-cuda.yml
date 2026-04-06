@@ -2,10 +2,11 @@ services:
   lcm-sd:
     platform: linux/amd64
     container_name: lcm-sd-ui
-    runtime: nvidia
     build:
       context: .
       dockerfile: ./Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     image: harbor.lan/lcm-sd-ui:latest
     security_opt:
       - label:disable

@@ -490,8 +490,16 @@ Mode switches are queued behind existing work. Jobs already in the queue continu
 ### Build
 
 ```bash
-docker build -t dream-lab .
+docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD) -t dream-lab .
 ```
+
+For compose-based builds, pass the same value through the environment so the checked-in entrypoint can forward it:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) docker compose -f docker-cuda.yml build
+```
+
+If you prefer exporting it once for multiple compose commands, `export GIT_SHA=$(git rev-parse --short HEAD)` before running `docker compose`.
 
 ### Run (GPU)
 
