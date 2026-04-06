@@ -501,6 +501,12 @@ GIT_SHA=$(git rev-parse --short HEAD) docker compose -f docker-cuda.yml build
 
 If you prefer exporting it once for multiple compose commands, `export GIT_SHA=$(git rev-parse --short HEAD)` before running `docker compose`.
 
+For the live-test workflow, use the same `GIT_SHA` pattern with `docker-compose.live-test.yml` so the backend image and `ui-dev` service see the same version:
+
+```bash
+GIT_SHA=$(git rev-parse --short HEAD) docker compose -f docker-compose.live-test.yml up --build
+```
+
 ### Run (GPU)
 
 ```bash

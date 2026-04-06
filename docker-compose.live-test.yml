@@ -19,6 +19,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.live-test
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     ports:
       - "4200:4200"
     volumes:
@@ -88,6 +90,7 @@ services:
       - ui-node-modules:/ui/node_modules
     environment:
       - VITE_API_URL=http://localhost:4200
+      - VITE_APP_VERSION=${GIT_SHA:-dev}
     networks:
       - live-test-net
     restart: unless-stopped

@@ -72,3 +72,21 @@ def test_checked_in_compose_build_entrypoints_pass_git_sha_from_env_with_dev_fal
     assert "driver: nvidia" in cuda_compose
     assert "count: all" in cuda_compose
     assert "capabilities: [gpu]" in cuda_compose
+
+
+def test_live_test_entrypoint_threads_shared_git_sha_through_backend_and_ui_dev():
+    live_test_compose = (REPO_ROOT / "docker-compose.live-test.yml").read_text(
+        encoding="utf-8"
+    )
+    live_test_dockerfile = (REPO_ROOT / "Dockerfile.live-test").read_text(
+        encoding="utf-8"
+    )
+
+    expected_arg = "GIT_SHA: ${GIT_SHA:-dev}"
+
+    assert "build:" in live_test_compose
+    assert expected_arg in live_test_compose
+    assert "- VITE_APP_VERSION=${GIT_SHA:-dev}" in live_test_compose
+    assert "ARG GIT_SHA=dev" in live_test_dockerfile
+    assert "BACKEND_VERSION=${GIT_SHA}" in live_test_dockerfile
+    assert "BACKEND_VERSION=dev" not in live_test_dockerfile
