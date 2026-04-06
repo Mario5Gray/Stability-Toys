@@ -13,6 +13,8 @@ import { BADGE_LABELS, UI_MESSAGES } from '../../utils/constants';
  * @param {number} props.inflightCount - Number of in-flight requests
  * @param {boolean} props.isDreaming - Whether dream mode is active
  * @param {number} props.srLevel - Current SR level
+ * @param {string} props.frontendVersion - Frontend build version
+ * @param {string | null | undefined} props.backendVersion - Backend runtime version
  * @param {function} props.onCopyPrompt - Copy prompt callback
  * @param {boolean} props.copied - Whether prompt was copied
  */
@@ -20,6 +22,8 @@ export function ChatHeader({
   inflightCount,
   isDreaming,
   srLevel,
+  frontendVersion,
+  backendVersion,
   onCopyPrompt,
   copied,
 }) {
@@ -38,6 +42,9 @@ export function ChatHeader({
           ) : (
             <Badge variant="outline">{BADGE_LABELS.SR_OFF}</Badge>
           )}
+
+          <Badge variant="outline">UI {frontendVersion}</Badge>
+          <Badge variant="outline">API {backendVersion || 'dev'}</Badge>
 
 
           {/* In-flight count */}

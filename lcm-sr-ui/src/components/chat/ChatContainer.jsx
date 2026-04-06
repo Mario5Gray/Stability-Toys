@@ -4,6 +4,7 @@ import ScrollToBottom from "react-scroll-to-bottom";
 import { Card, CardContent } from "@/components/ui/card";
 import { MessageComposer } from "./MessageComposer";
 import { MessageBubble } from "./MessageBubble";
+import { ChatHeader } from "./ChatHeader";
 
 export function ChatContainer({
   messages,
@@ -22,11 +23,25 @@ export function ChatContainer({
   onDreamHistoryLive,
   onRetry,
   serverLabel,
+  srLevel,
+  frontendVersion,
+  backendVersion,
+  onCopyPrompt,
+  copied,
   activeGalleryId,
   onAddToGallery,
 }) {
   return (
     <Card className="option-panel-area overflow-hidden rounded-xl shadow-sm h-full flex flex-col">
+      <ChatHeader
+        inflightCount={inflightCount}
+        isDreaming={isDreaming}
+        srLevel={srLevel}
+        frontendVersion={frontendVersion}
+        backendVersion={backendVersion}
+        onCopyPrompt={onCopyPrompt}
+        copied={copied}
+      />
       <CardContent className="flex flex-1 flex-col p-0 min-h-0">
         <ScrollToBottom
           className="flex-1 min-h-0"

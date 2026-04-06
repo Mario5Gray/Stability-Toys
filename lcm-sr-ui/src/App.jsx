@@ -29,6 +29,7 @@ import {
 import { useGalleries } from './hooks/useGalleries';
 import { GalleryCreatePopover } from './components/gallery/GalleryCreatePopover';
 import { GalleryLightbox } from './components/gallery/GalleryLightbox';
+import { getFrontendVersion } from './utils/version';
 
 export function shouldPersistSelectedChatInitImage(
   activeInitImage,
@@ -104,6 +105,7 @@ export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
   const galleryState = useGalleries();
+  const frontendVersion = useMemo(() => getFrontendVersion(), []);
   const [openGalleryId, setOpenGalleryId] = useState(null);
   const didReportRender = useRef(false);
 
@@ -787,6 +789,8 @@ export default function App() {
             onDreamHistoryLive={dreamHistoryLive}
             onRetry={(msg) => { if (msg.retryParams) runGenerate(msg.retryParams); }}
             srLevel={params.effective.superresLevel}
+            frontendVersion={frontendVersion}
+            backendVersion={modeState.runtimeStatus?.backend_version}
             onCopyPrompt={onCopyPrompt}
             copied={copied}
             serverLabel={serverLabel}
