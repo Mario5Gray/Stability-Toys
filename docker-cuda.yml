@@ -2,6 +2,7 @@ services:
   lcm-sd:
     platform: linux/amd64
     container_name: lcm-sd-ui
+    runtime: nvidia
     build:
       context: .
       dockerfile: ./Dockerfile
