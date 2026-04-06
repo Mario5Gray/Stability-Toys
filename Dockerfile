@@ -1,12 +1,14 @@
 ARG TARGETPLATFORM
 ARG BACKEND
 ARG CERTFILE
+ARG GIT_SHA=dev
 
 # CERTS
 FROM harbor.lan/certificate-base:latest AS certs
 
 # ---------- UI build stage ----------
 FROM node:20-trixie-slim AS ui-build
+ARG GIT_SHA=dev
 
 WORKDIR /ui
 
@@ -15,6 +17,7 @@ RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
 # Copy UI project (adjust paths to your repo layout)
 ARG UI_DIR=lcm-sr-ui
+ENV VITE_APP_VERSION=${GIT_SHA}
 
 COPY ${UI_DIR}/package.json lcm-sr-ui/yarn.lock ./
 COPY ${UI_DIR}/postcss.config.cjs ./
@@ -30,6 +33,8 @@ RUN yarn build
 # ---------- Python server stage ----------
 FROM python:3.12-slim AS server
 ARG BACKEND
+ARG GIT_SHA=dev
+ENV BACKEND_VERSION=${GIT_SHA}
 WORKDIR /app
 
 COPY librknnrt.so /tmp/librknnrt.so

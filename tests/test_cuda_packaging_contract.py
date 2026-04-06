@@ -34,3 +34,17 @@ def test_dockerfile_fails_fast_when_cuda_build_arch_is_not_amd64():
 
     assert 'dpkg --print-architecture' in dockerfile
     assert 'CUDA backend requires linux/amd64 build platform' in dockerfile
+
+
+def test_dockerfile_redeclares_shared_git_sha_for_ui_and_server_stages():
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert dockerfile.count("ARG GIT_SHA=dev") >= 3
+    assert "ENV VITE_APP_VERSION=${GIT_SHA}" in dockerfile
+    assert "ENV BACKEND_VERSION=${GIT_SHA}" in dockerfile
+
+
+def test_live_test_dockerfile_exports_default_backend_version():
+    dockerfile = (REPO_ROOT / "Dockerfile.live-test").read_text(encoding="utf-8")
+
+    assert "BACKEND_VERSION=dev" in dockerfile
