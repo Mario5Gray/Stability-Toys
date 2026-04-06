@@ -27,6 +27,8 @@ export function ChatHeader({
   onCopyPrompt,
   copied,
 }) {
+  const apiVersionLabel = backendVersion?.trim() ? backendVersion : '...';
+
   return (
     <CardHeader className="border-b">
       <div className="flex items-center justify-between gap-1">
@@ -44,7 +46,7 @@ export function ChatHeader({
           )}
 
           <Badge variant="outline">UI {frontendVersion}</Badge>
-          <Badge variant="outline">API {backendVersion || 'dev'}</Badge>
+          <Badge variant="outline">API {apiVersionLabel}</Badge>
 
 
           {/* In-flight count */}
