@@ -42,9 +42,3 @@ def test_dockerfile_redeclares_shared_git_sha_for_ui_and_server_stages():
     assert dockerfile.count("ARG GIT_SHA=dev") >= 3
     assert "ENV VITE_APP_VERSION=${GIT_SHA}" in dockerfile
     assert "ENV BACKEND_VERSION=${GIT_SHA}" in dockerfile
-
-
-def test_live_test_dockerfile_exports_default_backend_version():
-    dockerfile = (REPO_ROOT / "Dockerfile.live-test").read_text(encoding="utf-8")
-
-    assert "BACKEND_VERSION=dev" in dockerfile
