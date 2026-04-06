@@ -135,6 +135,7 @@ describe('useModeConfig', () => {
         backend_version: 'abc1234',
       },
     ];
+    let statusIndex = 0;
 
     api.client.fetchGet.mockImplementation(async (endpoint) => {
       if (endpoint === '/api/modes') {
@@ -148,7 +149,9 @@ describe('useModeConfig', () => {
       }
 
       if (endpoint === '/api/models/status') {
-        return statuses[Math.min(statuses.length - 1, api.client.fetchGet.mock.calls.filter((call) => call[0] === '/api/models/status').length - 1)];
+        const status = statuses[Math.min(statusIndex, statuses.length - 1)];
+        statusIndex += 1;
+        return status;
       }
 
       throw new Error(`Unexpected endpoint: ${endpoint}`);
@@ -164,7 +167,8 @@ describe('useModeConfig', () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
 
-    expect(result.current.activeModeName).toBe('portrait');
+    vi.useRealTimers();
+    await waitFor(() => expect(result.current.activeModeName).toBe('portrait'));
     expect(result.current.defaultModeName).toBe('cinematic');
     expect(result.current.activeMode).toEqual({ model: 'base-portrait' });
   });
@@ -238,6 +242,20 @@ describe('useModeConfig', () => {
   });
 
   it('refreshes runtime status after a successful mode switch', async () => {
+    const statuses = [
+      {
+        current_mode: 'cinematic',
+        is_loaded: true,
+        backend_version: 'abc1234',
+      },
+      {
+        current_mode: 'portrait',
+        is_loaded: true,
+        backend_version: 'abc1234',
+      },
+    ];
+    let statusIndex = 0;
+
     api.client.fetchGet.mockImplementation(async (endpoint) => {
       if (endpoint === '/api/modes') {
         return {
@@ -250,11 +268,9 @@ describe('useModeConfig', () => {
       }
 
       if (endpoint === '/api/models/status') {
-        return {
-          current_mode: 'cinematic',
-          is_loaded: true,
-          backend_version: 'abc1234',
-        };
+        const status = statuses[Math.min(statusIndex, statuses.length - 1)];
+        statusIndex += 1;
+        return status;
       }
 
       throw new Error(`Unexpected endpoint: ${endpoint}`);
@@ -269,6 +285,11 @@ describe('useModeConfig', () => {
       await result.current.switchMode('portrait');
     });
 
-    await waitFor(() => expect(api.client.fetchGet).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(result.current.activeModeName).toBe('portrait'));
+    expect(result.current.runtimeStatus).toMatchObject({
+      current_mode: 'portrait',
+      is_loaded: true,
+      backend_version: 'abc1234',
+    });
   });
 });
