@@ -293,7 +293,8 @@ class WorkerPool:
             self._unload_current_worker()
 
         # Track VRAM before worker creation
-        vram_before = self._registry.get_used_vram()
+        self._registry.get_used_vram()
+        allocated_before = self._registry.get_allocated_vram()
 
         assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
         try:
@@ -314,14 +315,14 @@ class WorkerPool:
             self._current_mode = None
             raise
 
-        vram_after = self._registry.get_used_vram()
-        vram_used = vram_after - vram_before
+        vram_reserved = self._registry.get_used_vram()
         vram_allocated = self._registry.get_allocated_vram()
+        vram_used = max(0, vram_allocated - allocated_before)
         vram_total = self._registry.get_total_vram()
         logger.info(
             f"[WorkerPool] VRAM after load: "
             f"allocated={vram_allocated/1024**3:.2f}GB "
-            f"reserved={vram_after/1024**3:.2f}GB "
+            f"reserved={vram_reserved/1024**3:.2f}GB "
             f"total={vram_total/1024**3:.2f}GB "
             f"model_delta={vram_used/1024**3:.2f}GB"
         )

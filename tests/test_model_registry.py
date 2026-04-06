@@ -34,10 +34,11 @@ for _mod, _orig in _saved_modules.items():
 def mock_cuda():
     """Mock CUDA functions for testing."""    
     with patch('backends.model_registry.torch.cuda.is_available', return_value=True), \
-         patch('backends.model_registry.torch.cuda.get_device_properties') as mock_props, \
-         patch('backends.model_registry.torch.cuda.memory_allocated', return_value=0), \
-         patch("backends.model_registry.torch.cuda.get_available_vram", return_value=100 * 1024**2),\
-         patch("backends.model_registry.torch.cuda.device_memory_used", return_value=100 * 1024**2) :
+    patch('backends.model_registry.torch.cuda.get_device_properties') as mock_props, \
+    patch('backends.model_registry.torch.cuda.memory_allocated', return_value=0), \
+    patch('backends.model_registry.torch.cuda.memory_reserved', return_value=100 * 1024**2), \
+    patch("backends.model_registry.torch.cuda.get_available_vram", return_value=100 * 1024**2),\
+    patch("backends.model_registry.torch.cuda.device_memory_used", return_value=100 * 1024**2) :
         
         # Mock GPU with 24GB VRAM
         mock_device_props = Mock()
@@ -145,52 +146,52 @@ class TestModelRegistration:
 class TestVRAMTracking:
     """Test VRAM tracking and availability calculations."""
 
-    @patch('backends.model_registry.torch.cuda.memory_allocated')
-    def test_get_used_vram_empty(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_get_used_vram_empty(self, mock_reserved, registry):
         """Test VRAM usage with no models loaded."""
-        mock_allocated.return_value = 100 * 1024**2  # 100MB baseline
+        mock_reserved.return_value = 100 * 1024**2  # 100MB baseline
 
         used = registry.get_used_vram()        
         assert used == 100 * 1024**2
 
-    @patch('backends.model_registry.torch.cuda.device_memory_used')
-    def test_get_used_vram_with_models(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_get_used_vram_with_models(self, mock_reserved, registry):
         """Test VRAM usage with models loaded."""
-        mock_allocated.return_value = 15 * 1024**3  # 15GB allocated
+        mock_reserved.return_value = 15 * 1024**3  # 15GB reserved
 
         registry.register_model("test", "/path", 12 * 1024**3, loras=[])
         used = registry.get_used_vram()
         assert used == 15 * 1024**3
 
-    @patch('backends.model_registry.torch.cuda.device_memory_used')
-    def test_get_available_vram(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_get_available_vram(self, mock_reserved, registry):
         """Test available VRAM calculation."""
-        mock_allocated.return_value = 10 * 1024**3  # 10GB used
+        mock_reserved.return_value = 10 * 1024**3  # 10GB reserved
 
         available = registry.get_available_vram()
         # 24GB total - 10GB used = 14GB available
         assert available == 14 * 1024**3
 
-    @patch('backends.model_registry.torch.cuda.memory_allocated')
-    def test_can_fit_when_space_available(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_can_fit_when_space_available(self, mock_reserved, registry):
         """Test can_fit returns True when space available."""
-        mock_allocated.return_value = 10 * 1024**3  # 10GB used, 14GB available
+        mock_reserved.return_value = 10 * 1024**3  # 10GB reserved, 14GB available
 
         # Should fit: 14GB available > 12GB requested
         assert registry.can_fit(12 * 1024**3) is True
 
-    @patch('backends.model_registry.torch.cuda.device_memory_used')
-    def test_can_fit_when_no_space(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_can_fit_when_no_space(self, mock_reserved, registry):
         """Test can_fit returns False when no space."""
-        mock_allocated.return_value = 20 * 1024**3  # 20GB used, 4GB available
+        mock_reserved.return_value = 20 * 1024**3  # 20GB reserved, 4GB available
                 
         # Should not fit: 4GB available < 12GB requested
         assert registry.can_fit(12 * 1024**3) is False
 
-    @patch('backends.model_registry.torch.cuda.memory_allocated')
-    def test_can_fit_exact_fit(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_can_fit_exact_fit(self, mock_reserved, registry):
         """Test can_fit with exact available space."""
-        mock_allocated.return_value = 20 * 1024**3  # 20GB used, 4GB available
+        mock_reserved.return_value = 20 * 1024**3  # 20GB reserved, 4GB available
 
         # Exact fit should work
         assert registry.can_fit(4 * 1024**3) is True
@@ -199,10 +200,10 @@ class TestVRAMTracking:
 class TestVRAMStats:
     """Test VRAM statistics output."""
 
-    @patch('backends.model_registry.torch.cuda.device_memory_used')
-    def test_get_vram_stats_empty(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_get_vram_stats_empty(self, mock_reserved, registry):
         """Test VRAM stats with no models loaded."""
-        mock_allocated.return_value = 100 * 1024**2  # 100MB
+        mock_reserved.return_value = 100 * 1024**2  # 100MB
 
         stats = registry.get_vram_stats()
 
@@ -213,10 +214,10 @@ class TestVRAMStats:
         assert stats["models_loaded"] == 0
         assert stats["models"] == []
 
-    @patch('backends.model_registry.torch.cuda.device_memory_used')
-    def test_get_vram_stats_with_models(self, mock_allocated, registry):
+    @patch('backends.model_registry.torch.cuda.memory_reserved')
+    def test_get_vram_stats_with_models(self, mock_reserved, registry):
         """Test VRAM stats with models loaded."""
-        mock_allocated.return_value = 15 * 1024**3  # 15GB
+        mock_reserved.return_value = 15 * 1024**3  # 15GB
 
         registry.register_model(
             name="sdxl-base",

@@ -117,19 +117,27 @@ class ModelRegistry:
         with self._lock:
             return name in self._loaded
 
-    def get_used_vram(self) -> int:
+    def get_reserved_vram(self) -> int:
         """
-        Get currently used VRAM in bytes.
+        Get allocator-reserved VRAM in bytes for this process.
 
-        Uses actual torch.cuda.memory_allocated() for accurate measurement.
+        This includes cached blocks held by the PyTorch allocator, not just
+        live tensors.
         """
         if not torch.cuda.is_available():
             return 0
 
-        # Get actual allocated memory
-        used_vram = torch.cuda.device_memory_used(self._device_index)
+        return torch.cuda.memory_reserved(self._device_index)
 
-        return used_vram
+    def get_used_vram(self) -> int:
+        """
+        Backward-compatible alias for allocator-reserved VRAM.
+
+        Process-level reporting now uses allocator metrics only:
+        - reserved: allocator-held memory
+        - allocated: live tensor allocations
+        """
+        return self.get_reserved_vram()
     
     def get_allocated_vram(self) -> int:
         '''
@@ -153,8 +161,8 @@ class ModelRegistry:
         if not torch.cuda.is_available():
             return 0
 
-        used = self.get_used_vram()
-        return self._total_vram - used
+        reserved = self.get_reserved_vram()
+        return self._total_vram - reserved
 
     def can_fit(self, estimated_bytes: int) -> bool:
         """
@@ -253,7 +261,7 @@ class ModelRegistry:
         Returns:
             Dictionary with VRAM stats
         """
-        used = self.get_used_vram()
+        reserved = self.get_reserved_vram()
         total = self.get_total_vram()
         available = self.get_available_vram()
         allocated = self.get_allocated_vram()
@@ -276,9 +284,10 @@ class ModelRegistry:
             "device": self._device_name,
             "total_gb": to_gb(total),
             "allocated_gb": to_gb(allocated),
-            "used_gb": to_gb(used),
+            "reserved_gb": to_gb(reserved),
+            "used_gb": to_gb(reserved),
             "available_gb": to_gb(available),
-            "usage_percent": round((used / total * 100) if total > 0 else 0, 1),
+            "usage_percent": round((reserved / total * 100) if total > 0 else 0, 1),
             "models_loaded": len(self._loaded),
             "models": models_breakdown,
         }

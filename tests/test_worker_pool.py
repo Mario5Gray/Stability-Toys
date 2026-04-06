@@ -613,6 +613,32 @@ class TestWorkerLifecycle:
         pool.shutdown()
         reset_worker_pool()
 
+    def test_load_mode_registers_allocator_delta_not_reserved_delta(
+        self,
+        mock_mode_config,
+        mock_registry,
+        mock_worker_factory,
+    ):
+        """Model registration should use allocator growth even when reserved bytes stay flat."""
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        mock_registry.get_used_vram.side_effect = [5 * 1024**3, 5 * 1024**3]
+        mock_registry.get_allocated_vram.side_effect = [1 * 1024**3, 3 * 1024**3]
+
+        pool = WorkerPool(
+            queue_max=10,
+            worker_factory=mock_worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        call_args = mock_registry.register_model.call_args
+        assert call_args.kwargs["vram_bytes"] == 2 * 1024**3
+
+        pool.shutdown()
+        reset_worker_pool()
+
     def test_load_mode_merges_capabilities_before_worker_creation(
         self,
         mock_mode_config,

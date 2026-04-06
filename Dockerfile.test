@@ -54,6 +54,23 @@ COPY requirements-test.txt /app/requirements-test.txt
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements-test.txt
+RUN pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128
+RUN python - <<'PY'
+import torch
+import xformers
+from xformers import _cpp_lib
+from xformers.ops import memory_efficient_attention
+
+assert torch.__version__.startswith("2.10.0"), torch.__version__
+assert (torch.version.cuda or "").startswith("12.8"), torch.version.cuda
+assert memory_efficient_attention is not None
+
+load_error = getattr(_cpp_lib, "_cpp_library_load_exception", None)
+if load_error is not None:
+    raise SystemExit(f"xformers extension failed to load: {load_error}")
+
+print(f"Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={xformers.__version__}")
+PY
 
 # Copy server code 
 COPY server/ /app/server/

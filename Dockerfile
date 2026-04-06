@@ -44,6 +44,11 @@ SOFA
 
 RUN <<EOFA
 if [ "$BACKEND" = "cuda" ]; then
+    arch="$(dpkg --print-architecture)"
+    if [ "$arch" != "amd64" ]; then
+        echo "CUDA backend requires linux/amd64 build platform, got ${arch}. Re-run docker build with --platform=linux/amd64 or use docker compose with platform: linux/amd64." >&2
+        exit 1
+    fi
     apt-get update
     apt-get install -y ca-certificates curl build-essential libxext6 libxrender1 libsm6 git ffmpeg libgl1 libglib2.0-0 wget gnupg
     wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb
@@ -87,6 +92,10 @@ COPY requirements.txt /app/requirements.txt
 
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+RUN if [ "$BACKEND" != "cuda" ]; then \
+      pip install --no-cache-dir torch; \
+    fi
+
 RUN if [ "$BACKEND" = "cuda" ]; then \
       pip install --no-cache-dir nvidia-ml-py; \
     fi
@@ -97,7 +106,23 @@ RUN if [ "$BACKEND" = "cuda" ]; then \
 # Install cuda12.8 because we have to for xformers.
 RUN <<EOI
 if [ "$BACKEND" = "cuda" ]; then \
-      pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; 
+      pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; \
+      python - <<'PY'
+import torch
+import xformers
+from xformers import _cpp_lib
+from xformers.ops import memory_efficient_attention
+
+assert torch.__version__.startswith("2.10.0"), torch.__version__
+assert (torch.version.cuda or "").startswith("12.8"), torch.version.cuda
+assert memory_efficient_attention is not None
+
+load_error = getattr(_cpp_lib, "_cpp_library_load_exception", None)
+if load_error is not None:
+    raise SystemExit(f"xformers extension failed to load: {load_error}")
+
+print(f"Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={xformers.__version__}")
+PY
 fi
 EOI
 

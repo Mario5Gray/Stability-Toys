@@ -538,10 +538,16 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             format_name = "diffusers"
         else:
             # Single-file SDXL checkpoint
-            pipe = StableDiffusionXLPipeline.from_single_file(
-                ckpt_path,
-                torch_dtype=self.dtype,
-            )
+            try:
+                pipe = StableDiffusionXLPipeline.from_single_file(
+                    ckpt_path,
+                    torch_dtype=self.dtype,
+                    local_files_only=True,
+                )
+            except OSError as exc:
+                raise RuntimeError(
+                    f"local-only SDXL single-file load failed for {ckpt_path}: {exc}"
+                ) from exc
             format_name = "single-file"
 
         scheduler_profile = "native" if self._scheduler_profile == "unknown" else self._scheduler_profile

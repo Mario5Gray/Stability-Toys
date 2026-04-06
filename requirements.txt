@@ -9,7 +9,6 @@ nvidia-ml-py
 peft>=0.10
 accelerate>=0.30
 optimum-quanto>=0.2.0
-xformers
 
 # utils
 requests>=2.28.0
@@ -32,7 +31,6 @@ pydantic==2.8.2
 pillow
 transformers
 diffusers>=0.27.0
-torch
 basicsr-fixed>=1.4.2
 
 uvicorn[standard]

@@ -181,9 +181,27 @@ class TestSdxlCapabilityLoader:
         mock_single.assert_called_once_with(
             "/models/checkpoints/sdxl-base.safetensors",
             torch_dtype="fp16_sentinel",
+            local_files_only=True,
         )
         mock_lcm.assert_not_called()
         assert worker.pipe is pipe
+
+    def test_sdxl_single_file_missing_local_assets_raises_clear_error(self):
+        model_info = SimpleNamespace(loader_format="single_file", scheduler_profile="native")
+
+        with patch.dict(os.environ, _BASE_ENV, clear=False), \
+             patch(
+                 "backends.cuda_worker.StableDiffusionXLPipeline.from_single_file",
+                 side_effect=OSError("missing local config"),
+                 create=True,
+             ), \
+             patch.object(DiffusersSDXLCudaWorker, "_setup_pipe_memory_opts", side_effect=AssertionError("_setup_pipe_memory_opts should not be reached")):
+            with pytest.raises(RuntimeError, match="local-only SDXL single-file load failed"):
+                DiffusersSDXLCudaWorker(
+                    worker_id=0,
+                    model_path="/models/checkpoints/sdxl-base.safetensors",
+                    model_info=model_info,
+                )
 
     def test_sdxl_diffusers_dir_lcm_scheduler_switches_scheduler(self):
         pipe = _make_pipe()
