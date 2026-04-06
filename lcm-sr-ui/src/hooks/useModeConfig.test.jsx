@@ -43,6 +43,7 @@ describe('useModeConfig', () => {
         return {
           current_mode: 'cinematic',
           is_loaded: true,
+          backend_version: 'abc1234',
         };
       }
 
@@ -76,6 +77,7 @@ describe('useModeConfig', () => {
       if (endpoint === '/api/models/status') {
         return {
           is_loaded: false,
+          backend_version: 'abc1234',
         };
       }
 
@@ -125,10 +127,12 @@ describe('useModeConfig', () => {
       {
         current_mode: 'cinematic',
         is_loaded: true,
+        backend_version: 'abc1234',
       },
       {
         current_mode: 'portrait',
         is_loaded: false,
+        backend_version: 'abc1234',
       },
     ];
 
@@ -181,6 +185,7 @@ describe('useModeConfig', () => {
         return {
           current_mode: 'portrait',
           is_loaded: true,
+          backend_version: 'abc1234',
         };
       }
 
@@ -196,6 +201,40 @@ describe('useModeConfig', () => {
     expect(result.current.activeMode).toEqual({ model: 'base-portrait' });
     expect(api.client.fetchGet).toHaveBeenCalledWith('/api/modes');
     expect(api.client.fetchGet).toHaveBeenCalledWith('/api/models/status');
+  });
+
+  it('loads backend_version into runtimeStatus from /api/models/status', async () => {
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: { model: 'base-cinematic' },
+            portrait: { model: 'base-portrait' },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        return {
+          current_mode: 'portrait',
+          is_loaded: true,
+          backend_version: 'abc1234',
+        };
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await waitFor(() => expect(result.current.runtimeStatus?.backend_version).toBe('abc1234'));
+
+    expect(result.current.runtimeStatus).toMatchObject({
+      current_mode: 'portrait',
+      is_loaded: true,
+      backend_version: 'abc1234',
+    });
   });
 
   it('refreshes runtime status after a successful mode switch', async () => {
@@ -214,6 +253,7 @@ describe('useModeConfig', () => {
         return {
           current_mode: 'cinematic',
           is_loaded: true,
+          backend_version: 'abc1234',
         };
       }
 
