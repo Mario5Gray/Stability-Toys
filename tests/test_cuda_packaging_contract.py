@@ -39,6 +39,18 @@ def test_dockerfile_fails_fast_when_cuda_build_arch_is_not_amd64():
 def test_dockerfile_redeclares_shared_git_sha_for_ui_and_server_stages():
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-    assert dockerfile.count("ARG GIT_SHA=dev") >= 3
-    assert "ENV VITE_APP_VERSION=${GIT_SHA}" in dockerfile
-    assert "ENV BACKEND_VERSION=${GIT_SHA}" in dockerfile
+    ui_stage = "FROM node:20-trixie-slim AS ui-build"
+    server_stage = "FROM python:3.12-slim AS server"
+
+    assert dockerfile.startswith(
+        "ARG TARGETPLATFORM\nARG BACKEND\nARG CERTFILE\nARG GIT_SHA=dev\n"
+    )
+
+    ui_start = dockerfile.index(ui_stage)
+    server_start = dockerfile.index(server_stage)
+
+    assert "ARG GIT_SHA=dev" in dockerfile[:ui_start]
+    assert "ARG GIT_SHA=dev" in dockerfile[ui_start:server_start]
+    assert "ENV VITE_APP_VERSION=${GIT_SHA}" in dockerfile[ui_start:server_start]
+    assert "ARG GIT_SHA=dev" in dockerfile[server_start:]
+    assert "ENV BACKEND_VERSION=${GIT_SHA}" in dockerfile[server_start:]
