@@ -66,3 +66,9 @@ def test_checked_in_compose_build_entrypoints_pass_git_sha_from_env_with_dev_fal
     assert "build:" in rknn_compose
     assert expected_arg in cuda_compose
     assert expected_arg in rknn_compose
+    assert "runtime: nvidia" in cuda_compose
+    assert "reservations:" in cuda_compose
+    assert "devices:" in cuda_compose
+    assert "driver: nvidia" in cuda_compose
+    assert "count: all" in cuda_compose
+    assert "capabilities: [gpu]" in cuda_compose
