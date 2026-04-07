@@ -19,6 +19,8 @@ from typing import Any, Dict, Optional
 from server.http_utils import post_bytes
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from server.generation_constraints import finalize_mode_generate_request
+from server.mode_config import get_mode_config
 from server.ws_hub import hub
 from server.upload_routes import resolve_file_ref
 from invokers.jobs import (
@@ -131,6 +133,18 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
         from backends.worker_pool import GenerationJob
 
         req = _build_generate_request(params)
+        current_mode = state.worker_pool.get_current_mode()
+        if current_mode:
+            mode = get_mode_config().get_mode(current_mode)
+            try:
+                finalize_mode_generate_request(
+                    req,
+                    mode,
+                    env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
+                )
+            except ValueError as e:
+                await hub.send(client_id, _error(str(e), corr_id))
+                return
         init_image_bytes = None
         init_image_ref = params.get("init_image_ref")
         if init_image_ref:

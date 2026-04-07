@@ -10,6 +10,7 @@ import concurrent.futures
 import json
 import time
 import types
+from types import SimpleNamespace
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -113,6 +114,20 @@ class TestInvalidMessages:
 # ---------------------------------------------------------------------------
 
 class TestJobSubmit:
+    def test_finalize_mode_generate_request_replaces_env_default_and_accepts_mode_default(self):
+        from server.generation_constraints import finalize_mode_generate_request
+
+        req = SimpleNamespace(size="512x512")
+        mode = SimpleNamespace(
+            name="SDXL",
+            default_size="1024x1024",
+            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        )
+
+        finalize_mode_generate_request(req, mode, env_default_size="512x512")
+
+        assert req.size == "1024x1024"
+
     def test_generate_ack_then_error_no_backend(self):
         """Submit a generate job — should ack, then error since no backend."""
         with client.websocket_connect("/v1/ws") as ws:
@@ -177,28 +192,37 @@ class TestJobSubmit:
         sys.modules["backends.worker_pool"] = fake_worker_pool_module
 
         try:
-            with client.websocket_connect("/v1/ws") as ws:
-                ws.receive_json()  # consume status
-                ws.send_json({
-                    "type": "job:submit",
-                    "id": "t-neg",
-                    "jobType": "generate",
-                    "params": {
-                        "prompt": "a cat",
-                        "negative_prompt": "blurry, watermark",
-                        "scheduler_id": "euler",
-                        "size": "512x512",
-                        "num_inference_steps": 4,
-                        "guidance_scale": 1.0,
-                        "seed": 12345678,
-                    },
-                })
-                ack = ws.receive_json()
-                assert ack["type"] == "job:ack"
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                    )
+                )
 
-                done = ws.receive_json()
-                assert done["type"] == "job:complete"
-                assert done["jobId"] == ack["jobId"]
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-neg",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "negative_prompt": "blurry, watermark",
+                            "scheduler_id": "euler",
+                            "size": "512x512",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+
+                    done = ws.receive_json()
+                    assert done["type"] == "job:complete"
+                    assert done["jobId"] == ack["jobId"]
 
             submitted_job = pool.submit_job.call_args.args[0]
             assert ack["jobId"] == submitted_job.job_id
@@ -254,27 +278,112 @@ class TestJobSubmit:
         sys.modules["backends.worker_pool"] = fake_worker_pool_module
 
         try:
-            with client.websocket_connect("/v1/ws") as ws:
-                ws.receive_json()  # consume status
-                ws.send_json({
-                    "type": "job:submit",
-                    "id": "t-fail",
-                    "jobType": "generate",
-                    "params": {
-                        "prompt": "a cat",
-                        "size": "512x512",
-                        "num_inference_steps": 4,
-                        "guidance_scale": 1.0,
-                        "seed": 12345678,
-                    },
-                })
-                ack = ws.receive_json()
-                assert ack["type"] == "job:ack"
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                    )
+                )
 
-                err = ws.receive_json()
-                assert err["type"] == "job:error"
-                assert err["jobId"] == ack["jobId"]
-                assert "backend exploded" in err["error"]
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-fail",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "size": "512x512",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert "backend exploded" in err["error"]
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            if original_worker_pool_module is None:
+                sys.modules.pop("backends.worker_pool", None)
+            else:
+                sys.modules["backends.worker_pool"] = original_worker_pool_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_generate_mode_system_rejects_invalid_size_before_submit(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "SDXL"
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+        fake_worker_pool_module = types.ModuleType("backends.worker_pool")
+
+        class _FakeGenerationJob:
+            def __init__(self, req, init_image=None):
+                self.req = req
+                self.init_image = init_image
+                self.job_id = "backend-job-123"
+
+        fake_worker_pool_module.GenerationJob = _FakeGenerationJob
+        original_worker_pool_module = sys.modules.get("backends.worker_pool")
+        sys.modules["backends.worker_pool"] = fake_worker_pool_module
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="1024x1024",
+                        resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                    )
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-invalid-size",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "size": "768x768",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                        },
+                    })
+
+                    err = ws.receive_json()
+                    assert err["type"] == "error"
+                    assert err["id"] == "t-invalid-size"
+                    assert "size '768x768' is not allowed for mode 'SDXL'" in err["error"]
+
+                pool.submit_job.assert_not_called()
         finally:
             if original_lcm_module is None:
                 sys.modules.pop("server.lcm_sr_server", None)
@@ -325,27 +434,36 @@ class TestJobSubmit:
         sys.modules["backends.worker_pool"] = fake_worker_pool_module
 
         try:
-            with client.websocket_connect("/v1/ws") as ws:
-                ws.receive_json()  # consume status
-                ws.send_json({
-                    "type": "job:submit",
-                    "id": "t-cancel",
-                    "jobType": "generate",
-                    "params": {
-                        "prompt": "a cat",
-                        "size": "512x512",
-                        "num_inference_steps": 4,
-                        "guidance_scale": 1.0,
-                        "seed": 12345678,
-                    },
-                })
-                ack = ws.receive_json()
-                assert ack["type"] == "job:ack"
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                    )
+                )
 
-                err = ws.receive_json()
-                assert err["type"] == "job:error"
-                assert err["jobId"] == ack["jobId"]
-                assert err["error"] == "Cancelled by backend"
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-cancel",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "size": "512x512",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert err["error"] == "Cancelled by backend"
         finally:
             if original_lcm_module is None:
                 sys.modules.pop("server.lcm_sr_server", None)

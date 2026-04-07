@@ -85,6 +85,7 @@ from server.model_routes import router as model_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
 from server.file_watcher import start_config_watcher, stop_config_watcher
+from server.generation_constraints import finalize_mode_generate_request
 from server.superres_http import (
     build_superres_headers,
     initialize_superres_service,
@@ -561,9 +562,14 @@ def generate(req: GenerateRequest):
             mode_config = get_mode_config()
             mode = mode_config.get_mode(current_mode)
 
-            # Apply defaults from mode if not provided
-            if req.size == os.environ.get("DEFAULT_SIZE", "512x512"):
-                req.size = mode.default_size
+            try:
+                finalize_mode_generate_request(
+                    req,
+                    mode,
+                    env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
             if req.num_inference_steps == int(os.environ.get("DEFAULT_STEPS", "4")):
                 req.num_inference_steps = mode.default_steps
             if req.guidance_scale == float(os.environ.get("DEFAULT_GUIDANCE", "1.0")):
