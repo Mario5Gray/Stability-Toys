@@ -380,15 +380,20 @@ export function OptionsPanel({
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   };
 
-  const activeMode = modeState?.activeMode || null;
-  const sizeOptions = Array.isArray(activeMode?.resolution_options)
-    ? activeMode.resolution_options
+  const configModes = modeState?.config?.modes || {};
+  const resolvedMode =
+    modeState?.activeMode ||
+    (modeState?.activeModeName ? configModes[modeState.activeModeName] : null) ||
+    (modeState?.config?.default_mode ? configModes[modeState.config.default_mode] : null) ||
+    null;
+  const sizeOptions = Array.isArray(resolvedMode?.resolution_options)
+    ? resolvedMode.resolution_options
     : [];
-  const negativePromptOptions = getNegativePromptTemplateOptions(activeMode);
-  const schedulerOptions = getSchedulerOptions(activeMode);
+  const negativePromptOptions = getNegativePromptTemplateOptions(resolvedMode);
+  const schedulerOptions = getSchedulerOptions(resolvedMode);
   const negativePromptTemplateId =
-    resolveNegativePromptTemplateId(activeMode, localNegativePrompt) ||
-    (activeMode?.allow_custom_negative_prompt ? CUSTOM_NEGATIVE_PROMPT_ID : '');
+    resolveNegativePromptTemplateId(resolvedMode, localNegativePrompt) ||
+    (resolvedMode?.allow_custom_negative_prompt ? CUSTOM_NEGATIVE_PROMPT_ID : '');
 
   return (
     <Card className="rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
@@ -652,7 +657,7 @@ export function OptionsPanel({
 
           <Separator />
 
-          {(negativePromptOptions.length > 0 || activeMode?.allow_custom_negative_prompt || schedulerOptions.length > 0) && (
+          {(negativePromptOptions.length > 0 || resolvedMode?.allow_custom_negative_prompt || schedulerOptions.length > 0) && (
             <>
               <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
                 {negativePromptOptions.length > 0 && (
@@ -684,7 +689,7 @@ export function OptionsPanel({
                             {option.label}
                           </SelectItem>
                         ))}
-                        {activeMode?.allow_custom_negative_prompt && (
+                        {resolvedMode?.allow_custom_negative_prompt && (
                           <SelectItem
                             className={CSS_CLASSES.SELECT_ITEM}
                             value={CUSTOM_NEGATIVE_PROMPT_ID}
@@ -697,7 +702,7 @@ export function OptionsPanel({
                   </div>
                 )}
 
-                {activeMode?.allow_custom_negative_prompt && (
+                {resolvedMode?.allow_custom_negative_prompt && (
                   <div className="space-y-2">
                     <Label>Negative Prompt</Label>
                     <Textarea

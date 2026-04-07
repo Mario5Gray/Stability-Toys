@@ -172,6 +172,35 @@ describe('OptionsPanel mode-driven controls', () => {
     expect(document.querySelector('.max-h-60.overflow-y-auto')).toBeTruthy();
   });
 
+  it('falls back to loaded default mode size options when active mode is unavailable', async () => {
+    renderOptionsPanel(
+      {
+        config: {
+          default_mode: 'SDXL',
+          modes: {
+            SDXL: {
+              default_size: '1024x1024',
+              resolution_options: [
+                { size: '1024x1024', aspect_ratio: '1:1' },
+                { size: '896x1152', aspect_ratio: '7:9' },
+              ],
+            },
+          },
+        },
+        activeModeName: null,
+        activeMode: null,
+        isSwitching: false,
+        error: null,
+        switchMode: vi.fn(),
+      }
+    );
+
+    openSizeSelect();
+
+    expect(await screen.findByText('1024×1024 • 1:1')).toBeTruthy();
+    expect(screen.getByText('896×1152 • 7:9')).toBeTruthy();
+  });
+
   it('uses logarithmic seed modifier steps when log mode is selected', () => {
     const onApplySeedDelta = vi.fn();
 
