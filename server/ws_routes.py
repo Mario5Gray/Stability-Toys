@@ -128,23 +128,23 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     state = _get_app_state(ws)
     fut = None
     req = None
+    pre_submit_job_error: Optional[str] = None
 
     if job_type == "generate" and getattr(state, "use_mode_system", False):
         from backends.worker_pool import GenerationJob
 
         req = _build_generate_request(params)
-        current_mode = state.worker_pool.get_current_mode()
-        if current_mode:
-            mode = get_mode_config().get_mode(current_mode)
-            try:
+        try:
+            current_mode = state.worker_pool.get_current_mode()
+            if current_mode:
+                mode = get_mode_config().get_mode(current_mode)
                 finalize_mode_generate_request(
                     req,
                     mode,
                     env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
                 )
-            except ValueError as e:
-                await hub.send(client_id, _error(str(e), corr_id))
-                return
+        except Exception as e:
+            pre_submit_job_error = str(e)
         init_image_bytes = None
         init_image_ref = params.get("init_image_ref")
         if init_image_ref:
@@ -154,13 +154,14 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 await hub.send(client_id, _error(str(e), corr_id))
                 return
 
-        job = GenerationJob(req=req, init_image=init_image_bytes)
-        try:
-            fut = state.worker_pool.submit_job(job)
-        except queue.Full:
-            await hub.send(client_id, _error("Queue full", corr_id))
-            return
-        job_id = job.job_id
+        if pre_submit_job_error is None:
+            job = GenerationJob(req=req, init_image=init_image_bytes)
+            try:
+                fut = state.worker_pool.submit_job(job)
+            except queue.Full:
+                await hub.send(client_id, _error("Queue full", corr_id))
+                return
+            job_id = job.job_id
 
     # Ack immediately
     await hub.send(client_id, {
@@ -168,6 +169,14 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
         "id": corr_id,
         "jobId": job_id,
     })
+
+    if pre_submit_job_error is not None:
+        await hub.send(client_id, {
+            "type": "job:error",
+            "jobId": job_id,
+            "error": pre_submit_job_error,
+        })
+        return
 
     if job_type == "generate":
         if getattr(state, "use_mode_system", False):
