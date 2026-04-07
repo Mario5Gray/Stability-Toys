@@ -43,6 +43,7 @@ export default function ModeEditor({ modeState }) {
         default_mode: modesRes.default_mode,
         model_root: modelsRes.model_root,
         lora_root: lorasRes.lora_root,
+        resolution_sets: modesRes.resolution_sets,
         modes: modesRes.modes,
       });
       
@@ -104,11 +105,13 @@ export default function ModeEditor({ modeState }) {
     setError(null);
 
     const updated = { ...config.modes };
+    const existingMode = editing !== '__new__' ? config.modes[editing] || {} : {};
     // If renaming (editing existing with different name), remove old
     if (editing !== '__new__' && editing !== draft.name) {
       delete updated[editing];
     }
     updated[draft.name] = {
+      ...existingMode,
       model: draft.model,
       loras: draft.loras,
       default_size: draft.default_size,
@@ -123,6 +126,7 @@ export default function ModeEditor({ modeState }) {
         model_root: config.model_root,
         lora_root: config.lora_root,
         default_mode: defaultMode,
+        resolution_sets: config.resolution_sets,
         modes: updated,
       });
       setSuccess('Saved');
@@ -160,6 +164,7 @@ export default function ModeEditor({ modeState }) {
         model_root: config.model_root,
         lora_root: config.lora_root,
         default_mode: name,
+        resolution_sets: config.resolution_sets,
         modes: config.modes,
       });
       setSuccess(`"${name}" is now the default mode`);

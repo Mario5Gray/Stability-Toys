@@ -22,6 +22,43 @@ afterEach(() => {
 });
 
 describe('useModeConfig', () => {
+  it('preserves top-level resolution_sets from /api/modes', async () => {
+    api.client.fetchGet.mockImplementation(async (endpoint) => {
+      if (endpoint === '/api/modes') {
+        return {
+          default_mode: 'cinematic',
+          resolution_sets: {
+            base: [{ size: '1024x1024', aspect_ratio: '1:1' }],
+          },
+          modes: {
+            cinematic: {
+              model: 'base-cinematic',
+              resolution_set: 'base',
+            },
+          },
+        };
+      }
+
+      if (endpoint === '/api/models/status') {
+        return {
+          current_mode: 'cinematic',
+          is_loaded: true,
+          backend_version: 'abc1234',
+        };
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { result } = renderHook(() => useModeConfig());
+
+    await waitFor(() =>
+      expect(result.current.config?.resolution_sets).toEqual({
+        base: [{ size: '1024x1024', aspect_ratio: '1:1' }],
+      })
+    );
+  });
+
   it('posts a switch for the default mode when runtime status is unavailable', async () => {
     let statusCalls = 0;
     api.client.fetchGet.mockImplementation(async (endpoint) => {

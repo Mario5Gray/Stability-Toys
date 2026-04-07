@@ -35,6 +35,7 @@ export function useModeConfig() {
       const modesRes = await api.fetchGet('/api/modes');
       setConfig({
         default_mode: modesRes.default_mode,
+        resolution_sets: modesRes.resolution_sets,
         modes: modesRes.modes,
       });
     } catch (e) {
