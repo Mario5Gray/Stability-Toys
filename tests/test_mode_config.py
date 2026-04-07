@@ -2,6 +2,7 @@
 Tests for ModeConfigManager capability field parsing and serialization.
 """
 import pytest
+import yaml
 
 
 def test_mode_config_parses_loader_capability_overrides(tmp_path):
@@ -464,9 +465,18 @@ modes:
             "model_root": "/models",
             "lora_root": "/models/loras",
             "default_mode": "base",
+            "resolution_sets": {
+                "default": [
+                    {"size": "512x512", "aspect_ratio": "1:1"},
+                ],
+                "base": [
+                    {"size": "512x512", "aspect_ratio": "1:1"},
+                ],
+            },
             "modes": {
                 "base": {
                     "model": "checkpoints/base.safetensors",
+                    "resolution_set": "base",
                     "default_size": "512x512",
                     "default_steps": 20,
                     "default_guidance": 7.0,
@@ -482,10 +492,19 @@ modes:
         }
     )
 
+    saved = yaml.safe_load(cfg.read_text())
     reloaded = ModeConfigManager(str(tmp_path)).get_mode("base")
 
+    assert saved["resolution_sets"] == {
+        "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        "base": [{"size": "512x512", "aspect_ratio": "1:1"}],
+    }
+    assert saved["modes"]["base"]["resolution_set"] == "base"
+    assert "resolution_options" not in saved["modes"]["base"]
     assert reloaded.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
     assert reloaded.default_negative_prompt_template == "safe_photo"
     assert reloaded.allow_custom_negative_prompt is True
     assert reloaded.allowed_scheduler_ids == ["euler"]
     assert reloaded.default_scheduler_id == "euler"
+    assert reloaded.resolution_set == "base"
+    assert reloaded.resolution_options == [{"size": "512x512", "aspect_ratio": "1:1"}]

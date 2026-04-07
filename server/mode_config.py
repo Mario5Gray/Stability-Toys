@@ -277,30 +277,19 @@ class ModeConfigManager:
         Save configuration data to modes.yml and reload.
 
         Args:
-            data: Dict with model_root, lora_root, default_mode, modes
+            data: Dict with model_root, lora_root, default_mode, resolution_sets, modes
         """
+        if "resolution_sets" not in data or not isinstance(data["resolution_sets"], dict):
+            raise ValueError("save_config requires resolution_sets")
+
         # Build YAML-friendly structure
         yaml_data = {
             "model_root": data["model_root"],
             "lora_root": data["lora_root"],
             "default_mode": data["default_mode"],
-            "resolution_sets": data.get("resolution_sets") or {},
+            "resolution_sets": data["resolution_sets"],
             "modes": {},
         }
-
-        if "default" not in yaml_data["resolution_sets"]:
-            default_entries = []
-            seen_sizes = set()
-            for mode_data in data["modes"].values():
-                default_size = mode_data.get("default_size", "512x512")
-                if default_size in seen_sizes:
-                    continue
-                seen_sizes.add(default_size)
-                default_entries.append({
-                    "size": default_size,
-                    "aspect_ratio": "1:1",
-                })
-            yaml_data["resolution_sets"]["default"] = default_entries
 
         for mode_name, mode_data in data["modes"].items():
             mode_entry = {
@@ -311,8 +300,6 @@ class ModeConfigManager:
             }
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
-            if "resolution_options" in mode_data:
-                mode_entry["resolution_options"] = mode_data.get("resolution_options")
             for cap_field in (
                 "loader_format",
                 "checkpoint_precision",
