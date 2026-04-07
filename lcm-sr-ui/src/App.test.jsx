@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildSelectedSeedDeltaPayload,
   fetchBlobFromCandidates,
+  getModeDefaultsSyncPlan,
   getChatInitImageSuppressionKey,
   shouldPersistSelectedChatInitImage,
 } from './App';
@@ -49,6 +50,18 @@ describe('App img2img source promotion helpers', () => {
 
     expect(
       shouldPersistSelectedChatInitImage(activeInitImage, selectedImage, 'msg-456')
+    ).toBe(false);
+  });
+
+  it('does not promote an auto-selected generated image into the init image', () => {
+    const activeInitImage = null;
+    const selectedImage = {
+      kind: 'image',
+      id: 'msg-999',
+    };
+
+    expect(
+      shouldPersistSelectedChatInitImage(activeInitImage, selectedImage, null, 'msg-999')
     ).toBe(false);
   });
 
@@ -110,5 +123,117 @@ describe('App img2img source promotion helpers', () => {
     expect(payload.targetMessageId).toBe('msg-123');
     expect(payload.initImageFile).toBe(initImageFile);
     expect(payload.denoiseStrength).toBe(0.42);
+  });
+});
+
+describe('App mode default sync helpers', () => {
+  it('builds a fallback default-mode sync plan when runtime active mode is unavailable', () => {
+    const plan = getModeDefaultsSyncPlan(
+      {
+        config: {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: {
+              default_size: '1024x1024',
+              default_negative_prompt_template: 'clean',
+              negative_prompt_templates: {
+                clean: 'blurry, low quality',
+              },
+              allowed_scheduler_ids: ['euler', 'ddim'],
+              default_scheduler_id: 'ddim',
+            },
+          },
+        },
+        activeModeName: null,
+        activeMode: null,
+      },
+      {
+        size: '512x512',
+        negativePrompt: '',
+        schedulerId: null,
+      }
+    );
+
+    expect(plan).toMatchObject({
+      mode: {
+        default_size: '1024x1024',
+      },
+      draftDefaults: {
+        size: '1024x1024',
+        negativePrompt: 'blurry, low quality',
+        schedulerId: 'ddim',
+      },
+    });
+  });
+
+  it('keeps syncing while the draft still matches the last auto-applied defaults', () => {
+    const plan = getModeDefaultsSyncPlan(
+      {
+        config: {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: {
+              default_size: '1024x1024',
+              default_scheduler_id: 'ddim',
+            },
+            portrait: {
+              default_size: '832x1216',
+              default_scheduler_id: 'euler',
+            },
+          },
+        },
+        activeModeName: 'portrait',
+        activeMode: {
+          default_size: '832x1216',
+          default_scheduler_id: 'euler',
+        },
+      },
+      {
+        size: '1024x1024',
+        negativePrompt: '',
+        schedulerId: 'ddim',
+      },
+      {
+        size: '1024x1024',
+        negativePrompt: '',
+        schedulerId: 'ddim',
+      }
+    );
+
+    expect(plan?.draftDefaults).toEqual({
+      size: '832x1216',
+      negativePrompt: '',
+      schedulerId: 'euler',
+    });
+  });
+
+  it('does not build a later sync plan after the user changes the draft away from auto-applied defaults', () => {
+    const plan = getModeDefaultsSyncPlan(
+      {
+        config: {
+          default_mode: 'cinematic',
+          modes: {
+            cinematic: {
+              default_size: '1024x1024',
+              default_scheduler_id: 'ddim',
+            },
+          },
+        },
+        activeModeName: null,
+        activeMode: null,
+      },
+      {
+        size: '768x768',
+        negativePrompt: '',
+        schedulerId: 'ddim',
+      },
+      {
+        size: '1024x1024',
+        negativePrompt: '',
+        schedulerId: 'ddim',
+      }
+    );
+
+    expect(plan).toBeNull();
   });
 });

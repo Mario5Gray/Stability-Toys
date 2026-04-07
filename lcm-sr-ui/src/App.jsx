@@ -12,8 +12,10 @@ import { OptionsPanel } from './components/options/OptionsPanel';
 import { copyToClipboard } from './utils/helpers';
 import {
   DEFAULT_IMG2IMG_DENOISE_STRENGTH,
+  DEFAULT_SIZE,
   SR_CONFIG,
 } from './utils/constants';
+import { applyModeControlDefaultsToDraft } from './utils/generationControls';
 import { MessageSquare, Settings, Folder } from 'lucide-react';
 import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
@@ -34,10 +36,12 @@ import { getFrontendVersion } from './utils/version';
 export function shouldPersistSelectedChatInitImage(
   activeInitImage,
   selectedImage,
-  suppressedOriginMessageId = null
+  suppressedOriginMessageId = null,
+  autoSelectedMessageId = null
 ) {
   if (!selectedImage || selectedImage.kind !== 'image') return false;
   if (suppressedOriginMessageId && suppressedOriginMessageId === selectedImage.id) return false;
+  if (autoSelectedMessageId && autoSelectedMessageId === selectedImage.id) return false;
   if (activeInitImage?.originType === 'upload') return false;
   if (activeInitImage?.originType === 'chat' && activeInitImage?.originMessageId === selectedImage.id) {
     return false;
@@ -101,6 +105,55 @@ export function buildSelectedSeedDeltaPayload(
   };
 }
 
+export function getModeDefaultsSyncPlan(modeState, draft, lastAppliedDraftDefaults = null) {
+  const configModes = modeState?.config?.modes || {};
+  const mode =
+    modeState?.activeMode ||
+    (modeState?.activeModeName ? configModes[modeState.activeModeName] : null) ||
+    (modeState?.config?.default_mode ? configModes[modeState.config.default_mode] : null) ||
+    null;
+
+  if (!mode || !draft) return null;
+
+  const comparableDraft = {
+    size: draft.size ?? DEFAULT_SIZE,
+    negativePrompt: draft.negativePrompt ?? '',
+    schedulerId: draft.schedulerId ?? null,
+  };
+  const baselineDraft = lastAppliedDraftDefaults || {
+    size: DEFAULT_SIZE,
+    negativePrompt: '',
+    schedulerId: null,
+  };
+  const canSync =
+    comparableDraft.size === baselineDraft.size &&
+    comparableDraft.negativePrompt === baselineDraft.negativePrompt &&
+    comparableDraft.schedulerId === baselineDraft.schedulerId;
+
+  if (!canSync) return null;
+
+  const nextDraftDefaults = applyModeControlDefaultsToDraft(comparableDraft, mode);
+  const draftDefaults = {
+    size: nextDraftDefaults.size || DEFAULT_SIZE,
+    negativePrompt: nextDraftDefaults.negativePrompt || '',
+    schedulerId: nextDraftDefaults.schedulerId || null,
+  };
+
+  if (
+    lastAppliedDraftDefaults &&
+    draftDefaults.size === lastAppliedDraftDefaults.size &&
+    draftDefaults.negativePrompt === lastAppliedDraftDefaults.negativePrompt &&
+    draftDefaults.schedulerId === lastAppliedDraftDefaults.schedulerId
+  ) {
+    return null;
+  }
+
+  return {
+    mode,
+    draftDefaults,
+  };
+}
+
 export default function App() {
   useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
@@ -145,9 +198,17 @@ export default function App() {
     clearHistory,
     deleteMessage,
   } = chatState;
+  const autoSelectedMessageIdRef = useRef(null);
+  const handleGenerationAutoSelect = useCallback(
+    (id) => {
+      autoSelectedMessageIdRef.current = id;
+      setSelectedMsgId(id);
+    },
+    [setSelectedMsgId]
+  );
 
   // Image generation (includes dream mode)
-  const generation = useImageGeneration(addMessage, updateMessage, setSelectedMsgId);
+  const generation = useImageGeneration(addMessage, updateMessage, handleGenerationAutoSelect);
   const {
     runGenerate,
     runComfy,
@@ -410,7 +471,12 @@ export default function App() {
 
   useEffect(() => {
     const activeInitImage = initImageRef.current;
-    if (!shouldPersistSelectedChatInitImage(activeInitImage, selectedMsg, chatPromotionRef.current)) return;
+    if (!shouldPersistSelectedChatInitImage(
+      activeInitImage,
+      selectedMsg,
+      chatPromotionRef.current,
+      autoSelectedMessageIdRef.current
+    )) return;
 
     void persistChatInitImage(selectedMsg).catch((err) => {
       console.error('[App] Failed to persist chat init image:', err);
@@ -440,11 +506,23 @@ export default function App() {
     initImage?.file || null,
     sourceDefaultDenoiseStrength
   );
+  const lastAppliedModeDraftDefaultsRef = useRef(null);
 
   useEffect(() => {
-    if (!modeState.activeMode) return;
-    params.applyModeControlDefaults(modeState.activeMode);
-  }, [modeState.activeMode]); // eslint-disable-line react-hooks/exhaustive-deps
+    const syncPlan = getModeDefaultsSyncPlan(
+      modeState,
+      params.draft,
+      lastAppliedModeDraftDefaultsRef.current
+    );
+    if (!syncPlan) return;
+    params.applyModeControlDefaults(syncPlan.mode);
+    lastAppliedModeDraftDefaultsRef.current = syncPlan.draftDefaults;
+  }, [
+    modeState.activeMode,
+    modeState.activeModeName,
+    modeState.config,
+    params,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist edits on selection change so message state reflects current controls
   const persistSelectedParams = useCallback((id, patch) => {
@@ -680,6 +758,7 @@ export default function App() {
   }, [selectedMsgId, selectedParams, clearSelection]);
 
   const handleToggleSelectMsg = useCallback((id) => {
+    autoSelectedMessageIdRef.current = null;
     setBlurredSelection(null);
     toggleSelectMsg(id);
   }, [toggleSelectMsg]);
