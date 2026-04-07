@@ -11,6 +11,10 @@ def test_mode_config_parses_loader_capability_overrides(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl-fp8
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl-fp8:
     model: checkpoints/sdxl/sdxl-base.safetensors
@@ -44,6 +48,10 @@ def test_mode_config_parses_runtime_policy_overrides(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl-fp8
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl-fp8:
     model: checkpoints/sdxl/sdxl-base.safetensors
@@ -80,6 +88,10 @@ def test_mode_config_capability_fields_default_to_none(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sd15:
     model: checkpoints/sd15/model.safetensors
@@ -108,6 +120,10 @@ def test_mode_config_runtime_policy_fields_default_to_none(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sd15:
     model: checkpoints/sd15/model.safetensors
@@ -136,6 +152,10 @@ def test_mode_config_to_dict_includes_capability_fields(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl-fp8
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl-fp8:
     model: checkpoints/sdxl/sdxl-base.safetensors
@@ -163,6 +183,125 @@ modes:
     assert mode_d["recommended_size"] == "512x512"
 
 
+def test_mode_config_parses_resolution_sets_and_round_trips_them(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+    - size: 896x1152
+      aspect_ratio: "7:9"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    resolution_set: sdxl
+    default_size: 1024x1024
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode = manager.get_mode("sdxl")
+    mode_d = manager.to_dict()["modes"]["sdxl"]
+
+    assert mode.resolution_set == "sdxl"
+    assert mode.resolution_options == [
+        {"size": "1024x1024", "aspect_ratio": "1:1"},
+        {"size": "896x1152", "aspect_ratio": "7:9"},
+    ]
+    assert mode_d["resolution_set"] == "sdxl"
+    assert mode_d["resolution_options"] == [
+        {"size": "1024x1024", "aspect_ratio": "1:1"},
+        {"size": "896x1152", "aspect_ratio": "7:9"},
+    ]
+
+
+def test_mode_config_requires_default_resolution_set(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: base
+resolution_sets:
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  base:
+    model: checkpoints/base/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match=r"resolution_sets\.default"):
+        ModeConfigManager(str(tmp_path))
+
+
+def test_mode_config_rejects_unknown_resolution_set(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: base
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  base:
+    model: checkpoints/base/model.safetensors
+    resolution_set: missing
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match=r"unknown resolution_set 'missing'"):
+        ModeConfigManager(str(tmp_path))
+
+
+def test_mode_config_rejects_default_size_outside_resolution_set(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: base
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+  narrow:
+    - size: 896x1152
+      aspect_ratio: "7:9"
+modes:
+  base:
+    model: checkpoints/base/model.safetensors
+    resolution_set: narrow
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match=r"default_size '512x512'"):
+        ModeConfigManager(str(tmp_path))
+
+
 def test_mode_config_to_dict_includes_runtime_policy_fields(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
@@ -170,6 +309,10 @@ def test_mode_config_to_dict_includes_runtime_policy_fields(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl-fp8
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl-fp8:
     model: checkpoints/sdxl/sdxl-base.safetensors
@@ -198,6 +341,10 @@ def test_mode_config_parses_generation_control_policy_fields(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl:
     model: checkpoints/sdxl/model.safetensors
@@ -236,6 +383,10 @@ def test_mode_config_generation_control_fields_default_safely(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sd15:
     model: checkpoints/sd15/model.safetensors
@@ -262,6 +413,10 @@ def test_mode_config_to_dict_preserves_empty_scheduler_allowlist(tmp_path):
 model_root: /models
 lora_root: /models/loras
 default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   sdxl:
     model: checkpoints/sdxl/model.safetensors
@@ -291,6 +446,10 @@ def test_mode_config_save_config_round_trips_generation_control_fields(tmp_path)
 model_root: /models
 lora_root: /models/loras
 default_mode: base
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
 modes:
   base:
     model: checkpoints/base.safetensors

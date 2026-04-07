@@ -37,6 +37,8 @@ class ModeConfig:
     name: str
     model: str  # Path relative to model_root
     loras: List[LoRAConfig] = field(default_factory=list)
+    resolution_set: Optional[str] = None
+    resolution_options: List[Dict[str, str]] = field(default_factory=list)
     default_size: str = "512x512"
     default_steps: int = 4
     default_guidance: float = 1.0
@@ -67,6 +69,7 @@ class ModesYAML:
     model_root: str
     lora_root: str
     default_mode: str
+    resolution_sets: Dict[str, List[Dict[str, str]]]
     modes: Dict[str, ModeConfig]
 
 
@@ -119,17 +122,56 @@ class ModeConfigManager:
             raise ValueError("modes.yml missing required field: default_mode")
         if "modes" not in data or not data["modes"]:
             raise ValueError("modes.yml missing or empty: modes")
+        if (
+            "resolution_sets" not in data
+            or not isinstance(data["resolution_sets"], dict)
+            or not data["resolution_sets"]
+            or "default" not in data["resolution_sets"]
+        ):
+            raise ValueError("modes.yml missing required field: resolution_sets.default")
 
         # Parse configuration
         model_root = Path(data["model_root"]).expanduser()
         lora_root = Path(data.get("lora_root", data["model_root"])).expanduser()
         default_mode = data["default_mode"]
 
+        resolution_sets: Dict[str, List[Dict[str, str]]] = {}
+        for set_name, entries in data["resolution_sets"].items():
+            if entries is None:
+                entries = []
+            if not isinstance(entries, list):
+                raise ValueError(f"resolution_sets.{set_name} must be a list")
+            resolved_entries = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError(f"resolution_sets.{set_name} entries must be mappings")
+                if "size" not in entry:
+                    raise ValueError(f"resolution_sets.{set_name} entries missing required field: size")
+                if "aspect_ratio" not in entry:
+                    raise ValueError(f"resolution_sets.{set_name} entries missing required field: aspect_ratio")
+                resolved_entries.append({
+                    "size": str(entry["size"]),
+                    "aspect_ratio": str(entry["aspect_ratio"]),
+                })
+            resolution_sets[set_name] = resolved_entries
+
         # Parse mode definitions
         modes = {}
         for mode_name, mode_data in data["modes"].items():
             if "model" not in mode_data:
                 raise ValueError(f"Mode '{mode_name}' missing required field: model")
+
+            resolution_set = mode_data.get("resolution_set") or "default"
+            if resolution_set not in resolution_sets:
+                raise ValueError(
+                    f"Mode '{mode_name}' references unknown resolution_set '{resolution_set}'"
+                )
+            resolution_options = resolution_sets[resolution_set]
+            default_size = mode_data.get("default_size", "512x512")
+            if default_size not in {entry["size"] for entry in resolution_options}:
+                raise ValueError(
+                    f"Mode '{mode_name}' default_size '{default_size}' is not present in resolution_set '{resolution_set}'"
+                )
 
             # Parse LoRAs
             loras = []
@@ -149,7 +191,9 @@ class ModeConfigManager:
                 name=mode_name,
                 model=mode_data["model"],
                 loras=loras,
-                default_size=mode_data.get("default_size", "512x512"),
+                resolution_set=resolution_set,
+                resolution_options=resolution_options,
+                default_size=default_size,
                 default_steps=mode_data.get("default_steps", 4),
                 default_guidance=mode_data.get("default_guidance", 1.0),
                 loader_format=mode_data.get("loader_format"),
@@ -186,6 +230,7 @@ class ModeConfigManager:
             model_root=str(model_root),
             lora_root=str(lora_root),
             default_mode=default_mode,
+            resolution_sets=resolution_sets,
             modes=modes,
         )
 
@@ -239,8 +284,23 @@ class ModeConfigManager:
             "model_root": data["model_root"],
             "lora_root": data["lora_root"],
             "default_mode": data["default_mode"],
+            "resolution_sets": data.get("resolution_sets") or {},
             "modes": {},
         }
+
+        if "default" not in yaml_data["resolution_sets"]:
+            default_entries = []
+            seen_sizes = set()
+            for mode_data in data["modes"].values():
+                default_size = mode_data.get("default_size", "512x512")
+                if default_size in seen_sizes:
+                    continue
+                seen_sizes.add(default_size)
+                default_entries.append({
+                    "size": default_size,
+                    "aspect_ratio": "1:1",
+                })
+            yaml_data["resolution_sets"]["default"] = default_entries
 
         for mode_name, mode_data in data["modes"].items():
             mode_entry = {
@@ -249,6 +309,10 @@ class ModeConfigManager:
                 "default_steps": mode_data.get("default_steps", 4),
                 "default_guidance": mode_data.get("default_guidance", 1.0),
             }
+            if mode_data.get("resolution_set") is not None:
+                mode_entry["resolution_set"] = mode_data.get("resolution_set")
+            if "resolution_options" in mode_data:
+                mode_entry["resolution_options"] = mode_data.get("resolution_options")
             for cap_field in (
                 "loader_format",
                 "checkpoint_precision",
@@ -343,6 +407,14 @@ class ModeConfigManager:
                             "adapter_name": lora.adapter_name,
                         }
                         for lora in mode.loras
+                    ],
+                    "resolution_set": mode.resolution_set,
+                    "resolution_options": [
+                        {
+                            "size": option["size"],
+                            "aspect_ratio": option["aspect_ratio"],
+                        }
+                        for option in mode.resolution_options
                     ],
                     "default_size": mode.default_size,
                     "default_steps": mode.default_steps,
