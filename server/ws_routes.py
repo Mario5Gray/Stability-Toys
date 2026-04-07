@@ -159,9 +159,9 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             try:
                 fut = state.worker_pool.submit_job(job)
             except queue.Full:
-                await hub.send(client_id, _error("Queue full", corr_id))
-                return
-            job_id = job.job_id
+                pre_submit_job_error = "Queue full"
+            else:
+                job_id = job.job_id
 
     # Ack immediately
     await hub.send(client_id, {

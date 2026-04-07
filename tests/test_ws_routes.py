@@ -8,6 +8,7 @@ minimal FastAPI app that mounts the WS router.
 import asyncio
 import concurrent.futures
 import json
+import queue
 import time
 import types
 from types import SimpleNamespace
@@ -458,6 +459,83 @@ class TestJobSubmit:
                     assert "mode config unavailable" in err["error"]
 
                 pool.submit_job.assert_not_called()
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            if original_worker_pool_module is None:
+                sys.modules.pop("backends.worker_pool", None)
+            else:
+                sys.modules["backends.worker_pool"] = original_worker_pool_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_generate_mode_system_queue_full_reports_ack_then_job_error(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "SDXL"
+        pool.submit_job.side_effect = queue.Full()
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = lambda *args, **kwargs: None
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        fake_worker_pool_module = types.ModuleType("backends.worker_pool")
+
+        class _FakeGenerationJob:
+            def __init__(self, req, init_image=None):
+                self.req = req
+                self.init_image = init_image
+                self.job_id = "backend-job-123"
+
+        fake_worker_pool_module.GenerationJob = _FakeGenerationJob
+        original_worker_pool_module = sys.modules.get("backends.worker_pool")
+        sys.modules["backends.worker_pool"] = fake_worker_pool_module
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                    )
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-queue-full",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "size": "512x512",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                        },
+                    })
+
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    assert ack["id"] == "t-queue-full"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert err["error"] == "Queue full"
         finally:
             if original_lcm_module is None:
                 sys.modules.pop("server.lcm_sr_server", None)
