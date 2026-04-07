@@ -1,6 +1,12 @@
 # docker-compose.live-test.yml - Development environment with hot-reload
 #
 # Usage:
+#   # Default backend + redis path: build lcm-sr-ui/dist with the same SHA first,
+#   # then reuse that one shared value for both VITE_APP_VERSION and GIT_SHA:
+#   GIT_SHA=$(git rev-parse --short HEAD)
+#   cd lcm-sr-ui && VITE_APP_VERSION=$GIT_SHA yarn build
+#   GIT_SHA=$GIT_SHA docker compose -f docker-compose.live-test.yml up --build
+#
 #   # Start all services (backend + redis):
 #   docker compose -f docker-compose.live-test.yml up --build
 #
@@ -37,7 +43,10 @@ services:
       - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
       - ./test-modes.yaml:/app/modes.yaml:ro,Z
 
-      # Mount pre-built UI dist (run yarn build first, or use ui-dev profile)
+      # Mount pre-built UI dist. Build lcm-sr-ui/dist with the same SHA first:
+      #   GIT_SHA=$(git rev-parse --short HEAD)
+      #   cd lcm-sr-ui && VITE_APP_VERSION=$GIT_SHA yarn build
+      # Then run compose with that same GIT_SHA exported or prefixed.
       - ./lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist:ro
       # Mount models directory
       - ./model:/models:rw
