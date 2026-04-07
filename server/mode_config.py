@@ -383,6 +383,7 @@ class ModeConfigManager:
             "model_root": self.config.model_root,
             "lora_root": self.config.lora_root,
             "default_mode": self.config.default_mode,
+            "resolution_sets": self.config.resolution_sets,
             "modes": {
                 name: {
                     "model": mode.model,

@@ -226,6 +226,84 @@ modes:
     ]
 
 
+def test_mode_config_to_dict_includes_top_level_resolution_sets(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    resolution_set: sdxl
+    default_size: 1024x1024
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    d = manager.to_dict()
+
+    assert d["resolution_sets"] == {
+        "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+    }
+
+
+def test_mode_config_save_config_round_trips_to_dict_output(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    resolution_set: sdxl
+    default_size: 1024x1024
+    negative_prompt_templates:
+      safe_photo: "blurry, distorted, low quality"
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    manager.save_config(manager.to_dict())
+
+    saved = yaml.safe_load(cfg.read_text())
+    reloaded = ModeConfigManager(str(tmp_path)).get_mode("sdxl")
+
+    assert saved["resolution_sets"] == {
+        "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+    }
+    assert saved["modes"]["sdxl"]["resolution_set"] == "sdxl"
+    assert "resolution_options" not in saved["modes"]["sdxl"]
+    assert reloaded.resolution_set == "sdxl"
+    assert reloaded.resolution_options == [{"size": "1024x1024", "aspect_ratio": "1:1"}]
+    assert reloaded.negative_prompt_templates == {
+        "safe_photo": "blurry, distorted, low quality"
+    }
+
+
 def test_mode_config_requires_default_resolution_set(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
