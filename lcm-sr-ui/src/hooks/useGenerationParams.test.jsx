@@ -137,6 +137,23 @@ describe('useGenerationParams', () => {
     expect(result.current.effective.schedulerId).toBe('euler');
   });
 
+  it('applyModeControlDefaults resets draft size to the mode default', () => {
+    const { result } = renderHook(() =>
+      useGenerationParams(null, null, vi.fn(), null)
+    );
+
+    act(() => {
+      result.current.setSizeDirect('768x768');
+      result.current.applyModeControlDefaults({
+        default_size: '1024x1024',
+        resolution_options: [{ size: '1024x1024', aspect_ratio: '1:1' }],
+      });
+    });
+
+    expect(result.current.draft.size).toBe('1024x1024');
+    expect(result.current.effective.size).toBe('1024x1024');
+  });
+
   it('stages selected-image negative prompt edits without triggering regeneration', () => {
     vi.useFakeTimers();
     const runGenerate = vi.fn();

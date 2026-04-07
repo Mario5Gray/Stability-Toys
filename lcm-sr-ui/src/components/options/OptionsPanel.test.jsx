@@ -17,6 +17,10 @@ if (!Element.prototype.releasePointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
@@ -119,7 +123,55 @@ function renderOptionsPanel(modeState, params = makeParams()) {
   );
 }
 
+function openSizeSelect() {
+  const sizeSection = screen.getByText('Size').closest('div');
+  const trigger = sizeSection?.querySelector('[role="combobox"]');
+  if (!trigger) {
+    throw new Error('Size select trigger not found');
+  }
+  fireEvent.click(trigger);
+  fireEvent.pointerDown(trigger);
+}
+
 describe('OptionsPanel mode-driven controls', () => {
+  it('renders size labels with aspect ratio from the active mode', async () => {
+    renderOptionsPanel(
+      makeModeState('SDXL', {
+        default_size: '1024x1024',
+        resolution_options: [
+          { size: '1024x1024', aspect_ratio: '1:1' },
+          { size: '896x1152', aspect_ratio: '7:9' },
+        ],
+      })
+    );
+
+    openSizeSelect();
+
+    expect(await screen.findByText('1024×1024 • 1:1')).toBeTruthy();
+    expect(screen.getByText('896×1152 • 7:9')).toBeTruthy();
+  });
+
+  it('constrains the size dropdown viewport to five visible rows', async () => {
+    renderOptionsPanel(
+      makeModeState('SDXL', {
+        default_size: '1024x1024',
+        resolution_options: [
+          { size: '1024x1024', aspect_ratio: '1:1' },
+          { size: '896x1152', aspect_ratio: '7:9' },
+          { size: '1152x896', aspect_ratio: '9:7' },
+          { size: '1216x832', aspect_ratio: '19:13' },
+          { size: '832x1216', aspect_ratio: '13:19' },
+          { size: '1344x768', aspect_ratio: '7:4' },
+        ],
+      })
+    );
+
+    openSizeSelect();
+
+    expect(await screen.findByText('1344×768 • 7:4')).toBeTruthy();
+    expect(document.querySelector('.max-h-60.overflow-y-auto')).toBeTruthy();
+  });
+
   it('uses logarithmic seed modifier steps when log mode is selected', () => {
     const onApplySeedDelta = vi.fn();
 

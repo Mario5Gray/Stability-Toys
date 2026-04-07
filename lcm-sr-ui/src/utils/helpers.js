@@ -288,14 +288,17 @@ export function sanitizeSeedInput(value) {
  * Format size string with multiplication symbol.
  * 
  * @param {string} size - Size in format "512x512"
- * @returns {string} Formatted size "512×512"
+ * @param {string|null} aspectRatio - Optional aspect ratio label
+ * @returns {string} Formatted size "512×512" or "512×512 • 1:1"
  * 
  * @example
  * formatSizeDisplay("512x512") // => "512×512"
  * formatSizeDisplay("1024X768") // => "1024×768"
+ * formatSizeDisplay("1024x1024", "1:1") // => "1024×1024 • 1:1"
  */
-export function formatSizeDisplay(size) {
-  return String(size).replace(/x/i, "×");
+export function formatSizeDisplay(size, aspectRatio = null) {
+  const formatted = String(size).replace(/x/i, "×");
+  return aspectRatio ? `${formatted} • ${aspectRatio}` : formatted;
 }
 
 /**

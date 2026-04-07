@@ -29,8 +29,18 @@ describe('useModeConfig', () => {
         return {
           default_mode: 'cinematic',
           modes: {
-            cinematic: { model: 'base-cinematic' },
-            portrait: { model: 'base-portrait' },
+            cinematic: {
+              model: 'base-cinematic',
+              default_size: '1024x1024',
+              resolution_set: 'sdxl',
+              resolution_options: [{ size: '1024x1024', aspect_ratio: '1:1' }],
+            },
+            portrait: {
+              model: 'base-portrait',
+              default_size: '832x1216',
+              resolution_set: 'portrait',
+              resolution_options: [{ size: '832x1216', aspect_ratio: '13:19' }],
+            },
           },
         };
       }
@@ -60,6 +70,9 @@ describe('useModeConfig', () => {
     });
 
     expect(api.client.fetchPost).toHaveBeenCalledWith('/api/modes/switch', { mode: 'cinematic' });
+    expect(result.current.config?.modes?.cinematic?.resolution_options).toEqual([
+      { size: '1024x1024', aspect_ratio: '1:1' },
+    ]);
   });
 
   it('keeps default mode separate when runtime status is missing current_mode', async () => {

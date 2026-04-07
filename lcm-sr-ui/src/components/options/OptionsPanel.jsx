@@ -20,7 +20,6 @@ import { DreamControls } from './DreamControls';
 import { SelectedImageControls } from './SelectedImageControls';
 import ModeOptions from './ModeOptions';
 import {
-  SIZE_OPTIONS,
   STEPS_CONFIG,
   CFG_CONFIG,
   SR_CONFIG,
@@ -382,6 +381,9 @@ export function OptionsPanel({
   };
 
   const activeMode = modeState?.activeMode || null;
+  const sizeOptions = Array.isArray(activeMode?.resolution_options)
+    ? activeMode.resolution_options
+    : [];
   const negativePromptOptions = getNegativePromptTemplateOptions(activeMode);
   const schedulerOptions = getSchedulerOptions(activeMode);
   const negativePromptTemplateId =
@@ -623,14 +625,14 @@ export function OptionsPanel({
               <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
                 <SelectValue placeholder="Select size" />
               </SelectTrigger>
-              <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
-                {SIZE_OPTIONS.map((s) => (
+              <SelectContent className={`${CSS_CLASSES.SELECT_CONTENT} max-h-60 overflow-y-auto`}>
+                {sizeOptions.map((option) => (
                   <SelectItem
-                    key={s}
+                    key={option.size}
                     className={CSS_CLASSES.SELECT_ITEM}
-                    value={s}
+                    value={option.size}
                   >
-                    {formatSizeDisplay(s)}
+                    {formatSizeDisplay(option.size, option.aspect_ratio)}
                   </SelectItem>
                 ))}
               </SelectContent>

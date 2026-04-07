@@ -313,15 +313,17 @@ export function useGenerationParams(
     (mode) => {
       const next = applyModeControlDefaultsToDraft(
         {
+          size,
           negativePrompt,
           schedulerId,
         },
         mode
       );
+      setSize(next.size || DEFAULT_SIZE);
       setNegativePrompt(next.negativePrompt || '');
       setSchedulerId(next.schedulerId || null);
     },
-    [negativePrompt, schedulerId]
+    [size, negativePrompt, schedulerId]
   );
 
   /**

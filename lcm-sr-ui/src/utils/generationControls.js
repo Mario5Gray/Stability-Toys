@@ -61,6 +61,10 @@ export function applyModeControlDefaultsToDraft(draft, mode) {
     next.schedulerId = null;
   }
 
+  if (mode?.default_size) {
+    next.size = mode.default_size;
+  }
+
   return next;
 }
 
