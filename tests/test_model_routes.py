@@ -108,18 +108,23 @@ async def test_list_modes_includes_generation_control_policy_fields():
             "sdxl": {
                 "model": "checkpoints/sdxl/model.safetensors",
                 "loras": [],
-                "default_size": "512x512",
+                "default_size": "1024x1024",
                 "default_steps": 20,
                 "default_guidance": 7.0,
                 "loader_format": "single_file",
                 "checkpoint_precision": "fp8",
                 "checkpoint_variant": "sdxl-base",
                 "scheduler_profile": "native",
-                "recommended_size": "512x512",
+                "recommended_size": "896x1152",
                 "runtime_quantize": "none",
                 "runtime_offload": "model",
                 "runtime_attention_slicing": True,
                 "runtime_enable_xformers": True,
+                "resolution_set": "sdxl",
+                "resolution_options": [
+                    {"size": "1024x1024", "aspect_ratio": "1:1"},
+                    {"size": "896x1152", "aspect_ratio": "7:9"},
+                ],
                 "negative_prompt_templates": {"safe_photo": "blurry, watermark"},
                 "default_negative_prompt_template": "safe_photo",
                 "allow_custom_negative_prompt": True,
@@ -141,6 +146,11 @@ async def test_list_modes_includes_generation_control_policy_fields():
                 "runtime_offload": None,
                 "runtime_attention_slicing": None,
                 "runtime_enable_xformers": None,
+                "resolution_set": "default",
+                "resolution_options": [
+                    {"size": "512x512", "aspect_ratio": "1:1"},
+                    {"size": "512x768", "aspect_ratio": "2:3"},
+                ],
                 "negative_prompt_templates": {},
                 "default_negative_prompt_template": None,
                 "allow_custom_negative_prompt": False,
@@ -165,6 +175,13 @@ async def test_list_modes_includes_generation_control_policy_fields():
     assert sdxl["runtime_offload"] == "model"
     assert sdxl["runtime_attention_slicing"] is True
     assert sdxl["runtime_enable_xformers"] is True
+    assert sdxl["resolution_set"] == "sdxl"
+    assert sdxl["resolution_options"] == [
+        {"size": "1024x1024", "aspect_ratio": "1:1"},
+        {"size": "896x1152", "aspect_ratio": "7:9"},
+    ]
+    assert sdxl["default_size"] in {option["size"] for option in sdxl["resolution_options"]}
+    assert sdxl["recommended_size"] in {option["size"] for option in sdxl["resolution_options"]}
 
     assert sd15["negative_prompt_templates"] == {}
     assert sd15["default_negative_prompt_template"] is None
@@ -175,6 +192,11 @@ async def test_list_modes_includes_generation_control_policy_fields():
     assert sd15["runtime_offload"] is None
     assert sd15["runtime_attention_slicing"] is None
     assert sd15["runtime_enable_xformers"] is None
+    assert sd15["resolution_set"] == "default"
+    assert sd15["resolution_options"] == [
+        {"size": "512x512", "aspect_ratio": "1:1"},
+        {"size": "512x768", "aspect_ratio": "2:3"},
+    ]
 
 
 async def test_reload_and_free_vram_routes_call_pool_methods():

@@ -25,6 +25,29 @@ lora_root: /models/loras
 # Default mode to load on startup
 default_mode: sdxl-general
 
+# Curated resolution sets used by mode metadata and generation controls.
+resolution_sets:
+  default:
+    - size: "512x512"
+      aspect_ratio: "1:1"
+    - size: "512x768"
+      aspect_ratio: "2:3"
+    - size: "768x512"
+      aspect_ratio: "3:2"
+    - size: "768x768"
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: "1024x1024"
+      aspect_ratio: "1:1"
+    - size: "896x1152"
+      aspect_ratio: "7:9"
+    - size: "1152x896"
+      aspect_ratio: "9:7"
+    - size: "832x1216"
+      aspect_ratio: "13:19"
+    - size: "1216x832"
+      aspect_ratio: "19:13"
+
 # ============================================================================
 # Mode Definitions
 # ============================================================================
@@ -47,6 +70,7 @@ modes:
 
   sdxl-general:
     model: checkpoints/sdxl-base-1.0.safetensors
+    resolution_set: sdxl
     default_size: "1024x1024"
     default_steps: 30
     default_guidance: 7.5
@@ -59,6 +83,7 @@ modes:
       - path: portrait-enhancer.safetensors
         strength: 0.8
         adapter_name: portrait
+    resolution_set: sdxl
     default_size: "896x1152"  # Portrait aspect
     default_steps: 35
     default_guidance: 8.0
@@ -67,6 +92,7 @@ modes:
 
   sdxl-refiner:
     model: checkpoints/sdxl-refiner-1.0.safetensors
+    resolution_set: sdxl
     default_size: "1024x1024"
     default_steps: 20
     default_guidance: 7.5

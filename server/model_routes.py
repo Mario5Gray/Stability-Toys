@@ -155,6 +155,8 @@ async def list_modes():
                 "runtime_offload": mode_data.get("runtime_offload"),
                 "runtime_attention_slicing": mode_data.get("runtime_attention_slicing"),
                 "runtime_enable_xformers": mode_data.get("runtime_enable_xformers"),
+                "resolution_set": mode_data.get("resolution_set"),
+                "resolution_options": mode_data.get("resolution_options", []),
                 "negative_prompt_templates": mode_data.get("negative_prompt_templates", {}),
                 "default_negative_prompt_template": mode_data.get("default_negative_prompt_template"),
                 "allow_custom_negative_prompt": mode_data.get("allow_custom_negative_prompt", False),

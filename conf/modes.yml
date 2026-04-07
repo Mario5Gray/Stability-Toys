@@ -1,6 +1,29 @@
 model_root: /models
 lora_root: /models/loras
 default_mode: lcm-general
+
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+    - size: 512x768
+      aspect_ratio: "2:3"
+    - size: 768x512
+      aspect_ratio: "3:2"
+    - size: 768x768
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+    - size: 896x1152
+      aspect_ratio: "7:9"
+    - size: 1152x896
+      aspect_ratio: "9:7"
+    - size: 832x1216
+      aspect_ratio: "13:19"
+    - size: 1216x832
+      aspect_ratio: "19:13"
+
 modes:
   lcm-general:
     model: diffusers/lcm-dreamshaper-v7
@@ -40,8 +63,9 @@ modes:
     runtime_offload: model
     runtime_attention_slicing: true
     runtime_enable_xformers: true
-    default_size: 512x512
-    recommended_size: 512x512
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
     default_steps: 11
     default_guidance: 3.0
     negative_prompt_templates:
