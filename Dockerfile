@@ -70,7 +70,7 @@ fi
 EOFA
 
 # Copy any custom CA certs from the certs stage.
-COPY --from=certs /usr/local/share/ca-certificates/ /usr/local/share/ca-certificates/
+COPY --from=certs certs/ /usr/local/share/ca-certificates/
 
 # update-ca-certificates & verify discovered custom certs
 RUN set -eu; \
