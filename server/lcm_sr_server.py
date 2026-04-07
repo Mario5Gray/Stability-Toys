@@ -567,13 +567,11 @@ def generate(req: GenerateRequest):
                     req,
                     mode,
                     env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
+                    env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
+                    env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
                 )
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
-            if req.num_inference_steps == int(os.environ.get("DEFAULT_STEPS", "4")):
-                req.num_inference_steps = mode.default_steps
-            if req.guidance_scale == float(os.environ.get("DEFAULT_GUIDANCE", "1.0")):
-                req.guidance_scale = mode.default_guidance
 
         # Submit generation job
         job = GenerationJob(req=req)

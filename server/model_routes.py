@@ -139,6 +139,7 @@ async def list_modes():
 
     return {
         "default_mode": modes_dict["default_mode"],
+        "resolution_sets": modes_dict.get("resolution_sets", {}),
         "modes": {
             name: {
                 "model": mode_data["model"],
@@ -384,6 +385,7 @@ class ModesBulkSaveRequest(BaseModel):
     model_root: str
     lora_root: str
     default_mode: str
+    resolution_sets: Dict[str, Any]
     modes: Dict[str, Any]
 
 
@@ -456,7 +458,10 @@ async def create_or_update_mode(name: str, request: ModeCreateRequest):
     config = get_mode_config()
     pool = get_worker_pool()
     data = config.to_dict()
-    data["modes"][name] = request.model_dump()
+    existing_mode = data["modes"].get(name, {})
+    updated_mode = dict(existing_mode)
+    updated_mode.update(request.model_dump(exclude_unset=True))
+    data["modes"][name] = updated_mode
 
     try:
         config.save_config(data)

@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from server import ws_routes
 from server.ws_hub import WSHub, hub
 from server.ws_routes import ws_router
 from server.upload_routes import upload_router, UPLOADS
@@ -115,19 +116,62 @@ class TestInvalidMessages:
 # ---------------------------------------------------------------------------
 
 class TestJobSubmit:
-    def test_finalize_mode_generate_request_replaces_env_default_and_accepts_mode_default(self):
+    def test_finalize_mode_generate_request_replaces_env_defaults_and_accepts_mode_defaults(self):
         from server.generation_constraints import finalize_mode_generate_request
 
-        req = SimpleNamespace(size="512x512")
+        req = SimpleNamespace(
+            size="640x640",
+            num_inference_steps=6,
+            guidance_scale=1.5,
+        )
         mode = SimpleNamespace(
             name="SDXL",
             default_size="1024x1024",
+            default_steps=30,
+            default_guidance=7.0,
             resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
         )
 
-        finalize_mode_generate_request(req, mode, env_default_size="512x512")
+        finalize_mode_generate_request(
+            req,
+            mode,
+            env_default_size="640x640",
+            env_default_steps=6,
+            env_default_guidance=1.5,
+        )
 
         assert req.size == "1024x1024"
+        assert req.num_inference_steps == 30
+        assert req.guidance_scale == 7.0
+
+    def test_build_generate_request_uses_env_defaults_for_omitted_generation_controls(self):
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        try:
+            with patch.dict(os.environ, {
+                "DEFAULT_SIZE": "640x640",
+                "DEFAULT_STEPS": "6",
+                "DEFAULT_GUIDANCE": "1.5",
+            }, clear=False):
+                req = ws_routes._build_generate_request({"prompt": "a cat"})
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+
+        assert req.size == "640x640"
+        assert req.num_inference_steps == 6
+        assert req.guidance_scale == 1.5
 
     def test_generate_ack_then_error_no_backend(self):
         """Submit a generate job — should ack, then error since no backend."""
@@ -198,6 +242,8 @@ class TestJobSubmit:
                     get_mode=lambda name: SimpleNamespace(
                         name=name,
                         default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
                         resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
                     )
                 )
@@ -284,6 +330,8 @@ class TestJobSubmit:
                     get_mode=lambda name: SimpleNamespace(
                         name=name,
                         default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
                         resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
                     )
                 )
@@ -360,6 +408,8 @@ class TestJobSubmit:
                     get_mode=lambda name: SimpleNamespace(
                         name=name,
                         default_size="1024x1024",
+                        default_steps=4,
+                        default_guidance=1.0,
                         resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
                     )
                 )
@@ -509,6 +559,8 @@ class TestJobSubmit:
                     get_mode=lambda name: SimpleNamespace(
                         name=name,
                         default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
                         resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
                     )
                 )
@@ -591,6 +643,8 @@ class TestJobSubmit:
                     get_mode=lambda name: SimpleNamespace(
                         name=name,
                         default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
                         resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
                     )
                 )

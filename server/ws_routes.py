@@ -142,6 +142,8 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                     req,
                     mode,
                     env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
+                    env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
+                    env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
                 )
         except Exception as e:
             pre_submit_job_error = str(e)
@@ -276,8 +278,14 @@ def _build_generate_request(params: dict):
         negative_prompt=params.get("negative_prompt"),
         scheduler_id=params.get("scheduler_id"),
         size=params.get("size", os.environ.get("DEFAULT_SIZE", "512x512")),
-        num_inference_steps=params.get("num_inference_steps", params.get("steps", 4)),
-        guidance_scale=params.get("guidance_scale", params.get("cfg", 1.0)),
+        num_inference_steps=params.get(
+            "num_inference_steps",
+            params.get("steps", int(os.environ.get("DEFAULT_STEPS", "4"))),
+        ),
+        guidance_scale=params.get(
+            "guidance_scale",
+            params.get("cfg", float(os.environ.get("DEFAULT_GUIDANCE", "1.0"))),
+        ),
         seed=params.get("seed"),
         superres=params.get("superres", False),
         superres_magnitude=params.get("superres_magnitude", 2),

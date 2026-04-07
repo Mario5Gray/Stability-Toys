@@ -4,48 +4,10 @@ Unit tests for model route serialization.
 
 import os
 import sys
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-class _FakeAPIRouter:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def _decorator(self, *args, **kwargs):
-        def decorator(fn):
-            return fn
-        return decorator
-
-    get = _decorator
-    post = _decorator
-    put = _decorator
-    delete = _decorator
-    patch = _decorator
-
-
-class _FakeHTTPException(Exception):
-    def __init__(self, status_code=None, detail=None):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
-
-
-sys.modules.setdefault(
-    "fastapi",
-    SimpleNamespace(APIRouter=_FakeAPIRouter, HTTPException=_FakeHTTPException),
-)
-sys.modules.setdefault(
-    "backends.model_registry",
-    SimpleNamespace(get_model_registry=lambda: None),
-)
-sys.modules.setdefault(
-    "backends.worker_pool",
-    SimpleNamespace(get_worker_pool=lambda: None),
-)
-
-from server.model_routes import router
 from server import model_routes
 
 
@@ -100,10 +62,20 @@ async def test_models_status_defaults_backend_version_to_dev_when_unset():
     assert data["backend_version"] == "dev"
 
 
-async def test_list_modes_includes_generation_control_policy_fields():
+async def test_list_modes_includes_generation_control_policy_fields_and_resolution_sets():
     config = Mock()
     config.to_dict.return_value = {
         "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [
+                {"size": "512x512", "aspect_ratio": "1:1"},
+                {"size": "512x768", "aspect_ratio": "2:3"},
+            ],
+            "sdxl": [
+                {"size": "1024x1024", "aspect_ratio": "1:1"},
+                {"size": "896x1152", "aspect_ratio": "7:9"},
+            ],
+        },
         "modes": {
             "sdxl": {
                 "model": "checkpoints/sdxl/model.safetensors",
@@ -166,6 +138,16 @@ async def test_list_modes_includes_generation_control_policy_fields():
     sdxl = data["modes"]["sdxl"]
     sd15 = data["modes"]["sd15"]
 
+    assert data["resolution_sets"] == {
+        "default": [
+            {"size": "512x512", "aspect_ratio": "1:1"},
+            {"size": "512x768", "aspect_ratio": "2:3"},
+        ],
+        "sdxl": [
+            {"size": "1024x1024", "aspect_ratio": "1:1"},
+            {"size": "896x1152", "aspect_ratio": "7:9"},
+        ],
+    }
     assert sdxl["negative_prompt_templates"] == {"safe_photo": "blurry, watermark"}
     assert sdxl["default_negative_prompt_template"] == "safe_photo"
     assert sdxl["allow_custom_negative_prompt"] is True
@@ -197,6 +179,100 @@ async def test_list_modes_includes_generation_control_policy_fields():
         {"size": "512x512", "aspect_ratio": "1:1"},
         {"size": "512x768", "aspect_ratio": "2:3"},
     ]
+
+
+async def test_save_all_modes_passes_resolution_sets_to_save_config():
+    config = Mock()
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+            "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "1024x1024",
+                "default_steps": 24,
+                "default_guidance": 6.5,
+                "resolution_set": "sdxl",
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    saved_payload = config.save_config.call_args.args[0]
+    assert saved_payload["resolution_sets"] == {
+        "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+    }
+
+
+async def test_create_or_update_mode_preserves_existing_resolution_and_policy_fields():
+    config = Mock()
+    config.to_dict.return_value = {
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/old/model.safetensors",
+                "loras": [{"path": "old/style.safetensors", "strength": 1.0}],
+                "default_size": "1024x1024",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "resolution_set": "sdxl",
+                "resolution_options": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                "loader_format": "single_file",
+                "checkpoint_precision": "fp16",
+                "scheduler_profile": "native",
+                "negative_prompt_templates": {"safe_photo": "blurry, watermark"},
+                "default_negative_prompt_template": "safe_photo",
+                "allow_custom_negative_prompt": True,
+                "allowed_scheduler_ids": ["euler"],
+                "default_scheduler_id": "euler",
+            }
+        },
+    }
+    pool = Mock()
+    pool.reload_if_current.return_value = False
+    request = model_routes.ModeCreateRequest(
+        model="checkpoints/new/model.safetensors",
+        loras=[{"path": "new/style.safetensors", "strength": 0.8}],
+        default_size="1024x1024",
+        default_steps=28,
+        default_guidance=5.5,
+    )
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.create_or_update_mode("sdxl", request)
+
+    saved_mode = config.save_config.call_args.args[0]["modes"]["sdxl"]
+    assert saved_mode["model"] == "checkpoints/new/model.safetensors"
+    assert saved_mode["loras"] == [{"path": "new/style.safetensors", "strength": 0.8}]
+    assert saved_mode["default_steps"] == 28
+    assert saved_mode["default_guidance"] == 5.5
+    assert saved_mode["resolution_set"] == "sdxl"
+    assert saved_mode["loader_format"] == "single_file"
+    assert saved_mode["checkpoint_precision"] == "fp16"
+    assert saved_mode["scheduler_profile"] == "native"
+    assert saved_mode["negative_prompt_templates"] == {"safe_photo": "blurry, watermark"}
+    assert saved_mode["default_negative_prompt_template"] == "safe_photo"
+    assert saved_mode["allow_custom_negative_prompt"] is True
+    assert saved_mode["allowed_scheduler_ids"] == ["euler"]
+    assert saved_mode["default_scheduler_id"] == "euler"
 
 
 async def test_reload_and_free_vram_routes_call_pool_methods():
