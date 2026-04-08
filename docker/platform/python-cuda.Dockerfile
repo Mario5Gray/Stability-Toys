@@ -1,6 +1,6 @@
 FROM harbor.lan/certificate-base:latest AS certs
 
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /opt/platform
 

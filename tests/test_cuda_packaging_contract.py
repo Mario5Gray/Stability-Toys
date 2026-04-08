@@ -49,6 +49,14 @@ def test_cuda_platform_dockerfile_installs_gpgv_and_avoids_invalid_apt_gpg_overr
     assert "APT::Key::GPGVCommand=1" not in dockerfile
 
 
+def test_cuda_platform_dockerfile_is_pinned_to_bookworm_for_debian12_cuda_repo():
+    dockerfile = (REPO_ROOT / "docker/platform/python-cuda.Dockerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "FROM python:3.12-slim-bookworm" in dockerfile
+
+
 def test_dockerfile_redeclares_shared_git_sha_for_ui_and_server_stages():
     dockerfile = (REPO_ROOT / "docker/runtime/app.Dockerfile").read_text(
         encoding="utf-8"
