@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     build-essential \
+    gpgv \
     libxext6 \
     libxrender1 \
     libsm6 \
@@ -31,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb && \
     dpkg -i cuda-keyring_1.1-1_all.deb && \
     rm cuda-keyring_1.1-1_all.deb && \
-    apt-get update -o APT::Key::GPGVCommand=1 && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
       cuda-cudart-12-8 \
       libcublas-12-8 \
