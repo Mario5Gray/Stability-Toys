@@ -1,3 +1,4 @@
+# Compatibility entrypoint. CI should use docker/runtime/live-test.Dockerfile.
 # Dockerfile.live-test - Development image for live testing
 # UI is mounted from host, not built into image
 FROM python:3.12-slim

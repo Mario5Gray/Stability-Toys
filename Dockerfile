@@ -1,3 +1,4 @@
+# Compatibility entrypoint. CI should use docker/runtime/app.Dockerfile.
 ARG TARGETPLATFORM
 ARG BACKEND
 ARG CERTFILE
