@@ -1,5 +1,6 @@
 // src/hooks/useGalleries.js
 import { useState, useCallback, useRef } from 'react';
+import { uuidv4 } from '@/utils/uuid';
 
 const LS_GALLERIES_KEY = 'lcm-galleries';
 const LS_ACTIVE_KEY = 'lcm-active-gallery';
@@ -69,7 +70,7 @@ export function useGalleries() {
 
   const createGallery = useCallback((name) => {
     const truncated = String(name || '').slice(0, 16);
-    const id = `gal_${crypto.randomUUID()}`;
+    const id = `gal_${uuidv4()}`;
     const entry = { id, name: truncated, createdAt: Date.now() };
     setGalleries((prev) => {
       const next = [...prev, entry];
@@ -92,7 +93,7 @@ export function useGalleries() {
       // Insert — separate readwrite tx
       const rwTx = db.transaction(STORE_NAME, 'readwrite');
       const row = {
-        id: crypto.randomUUID(),
+        id: uuidv4(),
         galleryId,
         cacheKey,
         serverImageUrl: serverImageUrl ?? null,

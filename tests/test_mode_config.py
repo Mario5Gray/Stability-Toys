@@ -81,6 +81,165 @@ modes:
     assert mode.runtime_enable_xformers is True
 
 
+def test_mode_config_parses_maximum_len(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+    default_steps: 30
+    default_guidance: 7.5
+    maximum_len: 240
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sdxl").maximum_len == 240
+
+
+def test_mode_config_maximum_len_defaults_to_none(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sd15:
+    model: checkpoints/sd15/model.safetensors
+    default_size: 512x512
+    default_steps: 20
+    default_guidance: 7.5
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sd15").maximum_len is None
+
+
+def test_mode_config_parses_maximum_len(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+    default_steps: 30
+    default_guidance: 7.5
+    maximum_len: 240
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sdxl").maximum_len == 240
+
+
+def test_mode_config_maximum_len_defaults_to_none(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sd15:
+    model: checkpoints/sd15/model.safetensors
+    default_size: 512x512
+    default_steps: 20
+    default_guidance: 7.5
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sd15").maximum_len is None
+
+
+def test_mode_config_parses_maximum_len(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+    default_steps: 30
+    default_guidance: 7.5
+    maximum_len: 240
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sdxl").maximum_len == 240
+
+
+def test_mode_config_maximum_len_defaults_to_none(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sd15:
+    model: checkpoints/sd15/model.safetensors
+    default_size: 512x512
+    default_steps: 20
+    default_guidance: 7.5
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    assert manager.get_mode("sd15").maximum_len is None
+
+
 def test_mode_config_capability_fields_default_to_none(tmp_path):
     """Modes without capability overrides should have None for all new fields."""
     cfg = tmp_path / "modes.yml"

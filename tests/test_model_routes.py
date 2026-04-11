@@ -181,6 +181,51 @@ async def test_list_modes_includes_generation_control_policy_fields_and_resoluti
     ]
 
 
+async def test_list_modes_includes_maximum_len():
+    config = Mock()
+    config.to_dict.return_value = {
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [
+                {"size": "512x512", "aspect_ratio": "1:1"},
+            ],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "1024x1024",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "loader_format": "single_file",
+                "checkpoint_precision": "fp8",
+                "checkpoint_variant": "sdxl-base",
+                "scheduler_profile": "native",
+                "recommended_size": "896x1152",
+                "runtime_quantize": "none",
+                "runtime_offload": "model",
+                "runtime_attention_slicing": True,
+                "runtime_enable_xformers": True,
+                "resolution_set": "default",
+                "resolution_options": [
+                    {"size": "1024x1024", "aspect_ratio": "1:1"},
+                ],
+                "negative_prompt_templates": {"safe_photo": "blurry, watermark"},
+                "default_negative_prompt_template": "safe_photo",
+                "allow_custom_negative_prompt": True,
+                "allowed_scheduler_ids": ["euler", "dpmpp_2m"],
+                "default_scheduler_id": "euler",
+                "maximum_len": 240,
+            },
+        },
+    }
+
+    with patch("server.model_routes.get_mode_config", return_value=config):
+        data = await model_routes.list_modes()
+
+    assert data["modes"]["sdxl"]["maximum_len"] == 240
+
+
 async def test_save_all_modes_passes_resolution_sets_to_save_config():
     config = Mock()
     pool = Mock()
