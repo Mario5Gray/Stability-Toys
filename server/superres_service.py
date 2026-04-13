@@ -132,13 +132,11 @@ def describe_cuda_sr_model(model_path: str) -> CudaSuperResModelSpec:
 
 
 def resolve_superres_backend(*, backend: str, use_cuda: bool) -> SuperResBackend:
-    backend_norm = (backend or "auto").lower().strip()
+    backend_norm = (backend or "").lower().strip()
     if backend_norm == "cuda":
         return "cuda"
     if backend_norm == "rknn":
         return "rknn"
-    if backend_norm == "auto":
-        return "cuda" if use_cuda else "rknn"
     raise ValueError(f"Unsupported backend: {backend}")
 
 

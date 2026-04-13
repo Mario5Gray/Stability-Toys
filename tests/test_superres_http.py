@@ -3,12 +3,19 @@ from concurrent.futures import Future
 import pytest
 
 
-def test_load_superres_runtime_settings_parses_shared_env():
+def test_load_superres_runtime_settings_requires_explicit_backend():
+    from server.superres_http import load_superres_runtime_settings
+
+    with pytest.raises(RuntimeError, match="BACKEND must be set explicitly"):
+        load_superres_runtime_settings({}, cuda_available=False)
+
+
+def test_load_superres_runtime_settings_preserves_explicit_backend():
     from server.superres_http import load_superres_runtime_settings
 
     settings = load_superres_runtime_settings(
         {
-            "BACKEND": "auto",
+            "BACKEND": "rknn",
             "MODEL_ROOT": "/models",
             "SR_ENABLED": "1",
             "SR_INPUT_SIZE": "224",
@@ -18,12 +25,12 @@ def test_load_superres_runtime_settings_parses_shared_env():
             "SR_REQUEST_TIMEOUT": "45",
             "SR_MAX_PIXELS": "123456",
         },
-        cuda_available=True,
+        cuda_available=False,
     )
 
     assert settings.enabled is True
-    assert settings.backend == "auto"
-    assert settings.use_cuda is True
+    assert settings.backend == "rknn"
+    assert settings.use_cuda is False
     assert settings.sr_model_path == "/models/super-resolution-10.rknn"
     assert settings.sr_input_size == 224
     assert settings.sr_output_size == 672
@@ -72,7 +79,7 @@ def test_initialize_superres_service_selects_rknn_backend():
     ]
 
 
-def test_initialize_superres_service_selects_cuda_backend_for_auto():
+def test_initialize_superres_service_selects_explicit_cuda_backend():
     from server.superres_http import initialize_superres_service
 
     created = []
@@ -83,7 +90,7 @@ def test_initialize_superres_service_selects_cuda_backend_for_auto():
 
     service = initialize_superres_service(
         enabled=True,
-        backend="auto",
+        backend="cuda",
         use_cuda=True,
         sr_model_path="/models/super-resolution-10.rknn",
         sr_num_workers=1,
@@ -119,7 +126,7 @@ def test_initialize_superres_service_returns_none_when_disabled():
     assert (
         initialize_superres_service(
             enabled=False,
-            backend="auto",
+            backend="cuda",
             use_cuda=True,
             sr_model_path="/models/super-resolution-10.rknn",
             sr_num_workers=1,

@@ -86,16 +86,16 @@ from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
 from server.file_watcher import start_config_watcher, stop_config_watcher
 from server.generation_constraints import finalize_mode_generate_request
+from backends.platform_registry import get_backend_provider
 from server.superres_http import (
     build_superres_headers,
-    initialize_superres_service,
     load_superres_runtime_settings,
     submit_superres,
 )
 
 from .mode_config import MODE_CONFIG_PATH
 
-BACKEND = os.environ.get("BACKEND", "auto").lower().strip()  # auto|rknn|cuda
+BACKEND = (os.environ.get("BACKEND") or "").lower().strip()
 COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
 
 logger = logging.getLogger(__name__)
@@ -315,7 +315,6 @@ QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
 PORT = int(os.environ.get("PORT", "4200"))
 REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
 
-SR_SETTINGS = load_superres_runtime_settings(os.environ)
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 model_root_path = ModelPaths(root=MODEL_ROOT)
 
@@ -325,45 +324,29 @@ async def lifespan(app: FastAPI):
     logger.info("Starting FastAPI server lifespan...")
     logger.info(f"BACKEND={BACKEND}, NUM_WORKERS={NUM_WORKERS}, LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}")
 
-    # Determine if using CUDA backend
-    use_cuda = False
-    if BACKEND == "cuda":
-        use_cuda = True
-    elif BACKEND == "auto":
-        try:
-            import torch
-            use_cuda = torch.cuda.is_available()
-        except Exception:
-            use_cuda = False
-
-    # Initialize pipeline service
     try:
-        if use_cuda:
-            # CUDA backend: Use new mode system with WorkerPool
-            logger.info("Using CUDA backend with mode system")
+        provider = get_backend_provider()
+        runtime = provider.create_generation_runtime(
+            paths=model_root_path,
+            num_workers=NUM_WORKERS,
+            queue_max=QUEUE_MAX,
+            use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
+        )
+        app.state.backend_provider = provider
+        app.state.generation_runtime = runtime
+        app.state.worker_pool = getattr(runtime, "_pool", None)
+        app.state.service = getattr(runtime, "_service", None)
+        app.state.use_mode_system = provider.backend_id == "cuda" and app.state.worker_pool is not None
 
-            # Initialize mode configuration
+        if app.state.use_mode_system:
             try:
                 mode_config = get_mode_config()
                 logger.info(f"Mode system initialized: {len(mode_config.list_modes())} modes available")
                 logger.info(f"Default mode: {mode_config.get_default_mode()}")
             except FileNotFoundError:
-                logger.warning("modes.yaml not found - mode system disabled, falling back to legacy behavior")
-                # Fallback to direct PipelineService
-                app.state.service = PipelineService.get_instance(
-                    paths=model_root_path,
-                    num_workers=NUM_WORKERS,
-                    queue_max=QUEUE_MAX,
-                    rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
-                    use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
-                )
-                use_cuda = False  # Disable mode system features
+                logger.warning("modes.yaml not found - mode system disabled")
+                app.state.use_mode_system = False
             else:
-                # Initialize worker pool with mode system
-                app.state.worker_pool = get_worker_pool()
-                app.state.service = None  # Not using PipelineService
-
-                # Setup SIGHUP handler for config reload
                 def sighup_handler(signum, frame):
                     logger.info("Received SIGHUP - reloading modes.yaml")
                     try:
@@ -375,44 +358,24 @@ async def lifespan(app: FastAPI):
                 signal.signal(signal.SIGHUP, sighup_handler)
                 logger.info("SIGHUP handler registered for config reload")
 
-                # Start file watcher for hot-reload
                 try:
                     start_config_watcher(MODE_CONFIG_PATH, reload_mode_config)
                     logger.info("File watcher started for modes.yaml")
                 except Exception as e:
                     logger.warning(f"Failed to start file watcher: {e}")
-        else:
-            # RKNN backend: Use legacy PipelineService
-            logger.info("Using RKNN backend with legacy PipelineService")
-            app.state.service = PipelineService.get_instance(
-                paths=model_root_path,
-                num_workers=NUM_WORKERS,
-                queue_max=QUEUE_MAX,
-                rknn_context_cfgs=build_rknn_context_cfgs_for_rk3588(NUM_WORKERS),
-                use_rknn_context_cfgs=USE_RKNN_CONTEXT_CFGS,
-            )
 
-        # Store backend type for later use
-        app.state.use_mode_system = use_cuda and hasattr(app.state, 'worker_pool')
-        logger.info("Pipeline service initialized successfully")
+        logger.info("Generation runtime initialized successfully")
 
     except Exception as e:
-        logger.error(f"Failed to initialize pipeline service: {e}", exc_info=True)
+        logger.error(f"Failed to initialize generation runtime: {e}", exc_info=True)
         raise
 
     app.state.sr_service = None
+    app.state.sr_settings = None
     try:
-        app.state.sr_service = initialize_superres_service(
-            enabled=SR_SETTINGS.enabled,
-            backend=SR_SETTINGS.backend,
-            use_cuda=SR_SETTINGS.use_cuda,
-            sr_model_path=SR_SETTINGS.sr_model_path,
-            sr_num_workers=SR_SETTINGS.sr_num_workers,
-            sr_queue_max=SR_SETTINGS.sr_queue_max,
-            sr_input_size=SR_SETTINGS.sr_input_size,
-            sr_output_size=SR_SETTINGS.sr_output_size,
-            sr_max_pixels=SR_SETTINGS.sr_max_pixels,
-        )
+        sr_settings = load_superres_runtime_settings(os.environ)
+        app.state.sr_settings = sr_settings
+        app.state.sr_service = provider.create_superres_runtime(settings=sr_settings)
         if app.state.sr_service is not None:
             logger.info("Super-resolution service initialized successfully")
     except Exception as e:
@@ -446,26 +409,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error closing storage: {e}", exc_info=True)
 
-    # Shutdown pipeline service or worker pool
-    if app.state.use_mode_system and hasattr(app.state, 'worker_pool'):
+    if getattr(app.state, "use_mode_system", False):
         try:
-            # Stop file watcher
             stop_config_watcher()
             logger.info("File watcher stopped")
         except Exception as e:
             logger.error(f"Error stopping file watcher: {e}", exc_info=True)
 
+    if getattr(app.state, "generation_runtime", None) is not None:
         try:
-            app.state.worker_pool.shutdown()
-            logger.info("Worker pool shut down")
+            app.state.generation_runtime.shutdown()
+            logger.info("Generation runtime shut down")
         except Exception as e:
-            logger.error(f"Error shutting down worker pool: {e}", exc_info=True)
-    elif app.state.service is not None:
-        try:
-            app.state.service.shutdown()
-            logger.info("Pipeline service shut down")
-        except Exception as e:
-            logger.error(f"Error shutting down pipeline service: {e}", exc_info=True)
+            logger.error(f"Error shutting down generation runtime: {e}", exc_info=True)
 
     if app.state.sr_service is not None:
         try:
@@ -532,62 +488,50 @@ def _store_image_blob(
 
 @app.post("/generate", responses={200: {"content": {"image/png": {}, "image/jpeg": {}}}})
 def generate(req: GenerateRequest):    
-    # Check if using mode system (CUDA with modes.yaml)
-    if getattr(app.state, 'use_mode_system', False):
-        pool = app.state.worker_pool
-        # Handle mode switching if requested
-        if req.mode is not None:
-            current_mode = pool.get_current_mode()
-            if current_mode != req.mode:
-                # Queue mode switch
-                try:
-                    switch_fut = pool.switch_mode(req.mode)
-                    # Wait for mode switch to complete
-                    switch_fut.result(timeout=30.0)
-                    logger.info(f"[/generate] Switched to mode: {req.mode}")
-                except KeyError:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Mode '{req.mode}' not found in modes.yaml"
-                    )
-                except Exception as e:
-                    logger.error(f"[/generate] Mode switch failed: {e}", exc_info=True)
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Mode switch failed: {e}"
-                    )
-        # Apply mode defaults if not specified in request
-        current_mode = pool.get_current_mode()
-        if current_mode:
-            mode_config = get_mode_config()
-            mode = mode_config.get_mode(current_mode)
+    runtime = app.state.generation_runtime
+    supports_modes = hasattr(runtime, "switch_mode")
 
+    if supports_modes and req.mode is not None:
+        current_mode = runtime.get_current_mode()
+        if current_mode != req.mode:
             try:
-                finalize_mode_generate_request(
-                    req,
-                    mode,
-                    env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
-                    env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
-                    env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
+                switch_fut = runtime.switch_mode(req.mode)
+                switch_fut.result(timeout=30.0)
+                logger.info(f"[/generate] Switched to mode: {req.mode}")
+            except KeyError:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Mode '{req.mode}' not found in modes.yaml"
                 )
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:
+                logger.error(f"[/generate] Mode switch failed: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Mode switch failed: {e}"
+                )
 
-        # Submit generation job
-        job = GenerationJob(req=req)
+    current_mode = runtime.get_current_mode() if supports_modes else None
+    if current_mode:
+        mode_config = get_mode_config()
+        mode = mode_config.get_mode(current_mode)
+
         try:
-            fut = pool.submit_job(job)
-        except queue.Full:
-            raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
+            finalize_mode_generate_request(
+                req,
+                mode,
+                env_default_size=os.environ.get("DEFAULT_SIZE", "512x512"),
+                env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
+                env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
-        mode_used = current_mode
-    else:
-        # Legacy PipelineService
-        print("legacy pipeline service.")
-        logger.info("Legacy Pipeline Service")
-        service: PipelineService = app.state.service
-        fut = service.submit(req, timeout_s=0.25)
-        mode_used = None
+    try:
+        fut = runtime.submit_generate(req, timeout_s=0.25)
+    except queue.Full:
+        raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
+
+    mode_used = current_mode
 
     # Wait for generation result
     try:
@@ -623,7 +567,7 @@ def generate(req: GenerateRequest):
                 quality=req.superres_quality,
                 magnitude=sr_mag,
                 queue_timeout_s=0.25,
-                request_timeout_s=SR_SETTINGS.sr_request_timeout,
+                request_timeout_s=app.state.sr_settings.sr_request_timeout,
             )
             did_superres = True
             media_type = "image/jpeg" if req.superres_format == "jpeg" else "image/png"
@@ -708,7 +652,7 @@ async def superres(
             quality=quality,
             magnitude=magnitude,
             queue_timeout_s=0.25,
-            request_timeout_s=SR_SETTINGS.sr_request_timeout,
+            request_timeout_s=app.state.sr_settings.sr_request_timeout,
         )
     except Exception as e:
         logger.error(f"Super-resolution failed in /superres: {e}", exc_info=True)
@@ -770,10 +714,10 @@ def _run_generate_from_dict(gen_req: dict):
     # Build internal request
     req = GenerateRequest(**gen_req)
 
-    service: PipelineService = app.state.service
+    runtime = app.state.generation_runtime
 
     # ---- base SD generation ----
-    fut = service.submit(req, timeout_s=0.25)
+    fut = runtime.submit_generate(req, timeout_s=0.25)
     png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
 
     # ---- optional SR postprocess ----
@@ -799,7 +743,7 @@ def _run_generate_from_dict(gen_req: dict):
             quality=req.superres_quality,
             magnitude=sr_mag,
             queue_timeout_s=0.25,
-            request_timeout_s=SR_SETTINGS.sr_request_timeout,
+            request_timeout_s=app.state.sr_settings.sr_request_timeout,
         )
 
         meta_headers.update(
@@ -865,11 +809,15 @@ app.include_router(upload_router)
 logger.info("WebSocket endpoint mounted at /v1/ws, upload at /v1/upload")
 
 # UI static mount (serves Vite dist)
-app.mount(
-    "/",
-    StaticFiles(directory="/opt/lcm-sr-server/ui-dist", html=True),
-    name="ui",
-)
+_ui_dist = "/opt/lcm-sr-server/ui-dist"
+if os.path.isdir(_ui_dist):
+    app.mount(
+        "/",
+        StaticFiles(directory=_ui_dist, html=True),
+        name="ui",
+    )
+else:
+    logger.warning(f"UI dist not found at {_ui_dist}; skipping static mount")
 
 app.add_middleware(
     CORSMiddleware,

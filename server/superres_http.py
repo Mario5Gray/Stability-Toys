@@ -30,21 +30,21 @@ def load_superres_runtime_settings(
     cuda_available: Optional[bool] = None,
 ) -> SuperResRuntimeSettings:
     env = environ or os.environ
-    backend = (env.get("BACKEND", "auto") or "auto").lower().strip()
-    if cuda_available is None:
-        if backend == "cuda":
-            use_cuda = True
-        elif backend == "rknn":
-            use_cuda = False
-        else:
-            try:
-                import torch
+    backend = (env.get("BACKEND") or "").lower().strip()
+    allowed = {"cuda", "rknn", "mlx", "cpu"}
+    if not backend:
+        raise RuntimeError("BACKEND must be set explicitly to one of: cuda, rknn, mlx, cpu")
+    if backend not in allowed:
+        raise RuntimeError(f"Unsupported BACKEND='{backend}'")
 
-                use_cuda = bool(torch.cuda.is_available())
-            except Exception:
-                use_cuda = False
+    if backend == "cuda":
+        use_cuda = True
+    elif backend == "rknn":
+        use_cuda = False
+    elif cuda_available is None:
+        use_cuda = False
     else:
-        use_cuda = bool(cuda_available)
+        use_cuda = bool(cuda_available) and backend == "cuda"
 
     return SuperResRuntimeSettings(
         enabled=(env.get("SR_ENABLED", "1") not in ("0", "false", "False")),

@@ -1,15 +1,20 @@
 """
-Model registry with VRAM tracking.
+Model registry implementations.
 
-Tracks loaded models and their actual VRAM usage.
-No artificial limits - uses all available VRAM.
+CUDA uses a VRAM-aware registry. Other backends can expose a lightweight
+placeholder registry that reports backend identity without pretending to have
+CUDA allocator metrics.
 """
 
 import logging
-import torch
 from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, field
 from threading import Lock
+
+try:
+    import torch
+except ImportError:  # pragma: no cover - exercised on non-torch environments
+    torch = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +27,56 @@ class LoadedModel:
     vram_bytes: int
     worker_id: Optional[int] = None
     loras: List[str] = field(default_factory=list)  # List of loaded LoRA paths
+
+
+class PlaceholderModelRegistry:
+    """Backend-neutral registry for runtimes without CUDA VRAM accounting."""
+
+    def __init__(self, backend_id: str):
+        self._backend_id = backend_id
+        self._loaded: Dict[str, Dict[str, Any]] = {}
+        self._lock = Lock()
+
+    def register_model(
+        self,
+        name: str,
+        model_path: str,
+        vram_bytes: int = 0,
+        worker_id: Optional[int] = None,
+        loras: Optional[List[str]] = None,
+    ):
+        with self._lock:
+            self._loaded[name] = {
+                "name": name,
+                "model_path": model_path,
+                "vram_bytes": int(vram_bytes),
+                "worker_id": worker_id,
+                "loras": list(loras or []),
+            }
+
+    def unregister_model(self, name: str):
+        with self._lock:
+            self._loaded.pop(name, None)
+
+    def list_models(self) -> List[str]:
+        with self._lock:
+            return sorted(self._loaded.keys())
+
+    def get_total_vram(self) -> int:
+        return 0
+
+    def get_vram_stats(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "backend": self._backend_id,
+                "device": f"{self._backend_id.upper()} placeholder",
+                "models_loaded": len(self._loaded),
+                "models": list(self._loaded.values()),
+            }
+
+    def clear(self):
+        with self._lock:
+            self._loaded.clear()
 
 
 class ModelRegistry:
@@ -38,7 +93,12 @@ class ModelRegistry:
         self._lock = Lock()
         self._device_index = 0  # Default CUDA device
 
-        print(f"Cuda available. {torch.cuda.memory_allocated()}")
+        if torch is None:
+            self._total_vram = 0
+            self._device_name = "CUDA unavailable"
+            logger.warning("[ModelRegistry] torch is not installed")
+            return
+
         # Detect GPU
         if torch.cuda.is_available():
             device_props = torch.cuda.get_device_properties(self._device_index)
@@ -124,7 +184,7 @@ class ModelRegistry:
         This includes cached blocks held by the PyTorch allocator, not just
         live tensors.
         """
-        if not torch.cuda.is_available():
+        if torch is None or not torch.cuda.is_available():
             return 0
 
         return torch.cuda.memory_reserved(self._device_index)
@@ -145,7 +205,7 @@ class ModelRegistry:
 
         uses torch.cuda.memory_allocated                
         '''
-        if not torch.cuda.is_available():
+        if torch is None or not torch.cuda.is_available():
             return 0
 
         # Get actual allocated memory
@@ -158,7 +218,7 @@ class ModelRegistry:
 
     def get_available_vram(self) -> int:
         """Get available VRAM in bytes."""
-        if not torch.cuda.is_available():
+        if torch is None or not torch.cuda.is_available():
             return 0
 
         reserved = self.get_reserved_vram()
@@ -174,16 +234,17 @@ class ModelRegistry:
         Returns:
             True if model can fit
         """
-        if not torch.cuda.is_available():
+        if torch is None or not torch.cuda.is_available():
             return False
 
         available = self.get_available_vram()
         can_load = estimated_bytes < available + (available*.05)
         
-        print(
-            f"[ModelRegistry] VRAM check: need {estimated_bytes / 1024**3:.2f} GB, "
-            f"available {available / 1024**3:.2f} GB, "
-            f"fits: {can_load}"
+        logger.info(
+            "[ModelRegistry] VRAM check: need %.2f GB, available %.2f GB, fits: %s",
+            estimated_bytes / 1024**3,
+            available / 1024**3,
+            can_load,
         )
         
         return can_load
@@ -298,14 +359,25 @@ class ModelRegistry:
             self._loaded.clear()
             logger.info("[ModelRegistry] Cleared all registrations")
 
+    def list_models(self) -> List[str]:
+        with self._lock:
+            return sorted(self._loaded.keys())
+
 
 # Global registry instance
-_registry: Optional[ModelRegistry] = None
+_registry: Optional[object] = None
 
 
-def get_model_registry() -> ModelRegistry:
-    """Get global model registry instance."""
+def get_model_registry():
+    """Get the singleton registry for the active backend."""
     global _registry
     if _registry is None:
-        _registry = ModelRegistry()
+        from backends.platform_registry import get_backend_provider
+
+        _registry = get_backend_provider().create_model_registry()
     return _registry
+
+
+def reset_model_registry() -> None:
+    global _registry
+    _registry = None

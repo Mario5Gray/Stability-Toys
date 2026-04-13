@@ -365,7 +365,7 @@ async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut)
         "outputs": outputs,
         "meta": {
             "seed": int(seed),
-            "backend": os.environ.get("BACKEND", "auto"),
+            "backend": os.environ.get("BACKEND", ""),
             "sr": did_sr,
         },
     })

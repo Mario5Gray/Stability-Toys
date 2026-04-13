@@ -5,61 +5,136 @@ Unit tests for model route serialization.
 import os
 import sys
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from server import model_routes
 
 
+def _status_request():
+    return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(generation_runtime=None)))
+
+
 async def test_models_status_includes_backend_version():
-    pool = Mock()
-    pool.get_current_mode.return_value = "SDXL"
-    pool.is_model_loaded.return_value = True
-    pool.get_queue_size.return_value = 0
+    runtime = Mock()
+    runtime.get_current_mode.return_value = "SDXL"
+    runtime.is_model_loaded.return_value = True
+    runtime.get_queue_size.return_value = 0
 
     registry = Mock()
     registry.get_vram_stats.return_value = {"allocated_gb": 1.5, "reserved_gb": 2.0}
 
-    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True,
+        supports_modes=True,
+        supports_superres=True,
+        supports_model_registry_stats=True,
+        supports_img2img=True,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
             patch("server.model_routes.get_model_registry", return_value=registry), \
             patch.dict(os.environ, {"BACKEND_VERSION": "abc1234"}, clear=False):
-        data = await model_routes.get_models_status()
+        data = await model_routes.get_models_status(_status_request())
 
     assert data["backend_version"] == "abc1234"
 
 
 async def test_models_status_defaults_backend_version_to_dev_when_empty():
-    pool = Mock()
-    pool.get_current_mode.return_value = None
-    pool.is_model_loaded.return_value = False
-    pool.get_queue_size.return_value = 0
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
 
     registry = Mock()
     registry.get_vram_stats.return_value = {}
 
-    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True,
+        supports_modes=True,
+        supports_superres=True,
+        supports_model_registry_stats=True,
+        supports_img2img=True,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
             patch("server.model_routes.get_model_registry", return_value=registry), \
             patch.dict(os.environ, {"BACKEND_VERSION": ""}, clear=False):
-        data = await model_routes.get_models_status()
+        data = await model_routes.get_models_status(_status_request())
 
     assert data["backend_version"] == "dev"
 
 
 async def test_models_status_defaults_backend_version_to_dev_when_unset():
-    pool = Mock()
-    pool.get_current_mode.return_value = None
-    pool.is_model_loaded.return_value = False
-    pool.get_queue_size.return_value = 0
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
 
     registry = Mock()
     registry.get_vram_stats.return_value = {}
 
-    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True,
+        supports_modes=True,
+        supports_superres=True,
+        supports_model_registry_stats=True,
+        supports_img2img=True,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
             patch("server.model_routes.get_model_registry", return_value=registry), \
             patch.dict(os.environ, {}, clear=True):
-        data = await model_routes.get_models_status()
+        data = await model_routes.get_models_status(_status_request())
 
     assert data["backend_version"] == "dev"
+
+
+async def test_models_status_uses_provider_capabilities_and_registry_stats():
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
+
+    registry = Mock()
+    registry.get_vram_stats.return_value = {
+        "backend": "cpu",
+        "device": "CPU placeholder",
+        "models_loaded": 0,
+    }
+
+    provider = Mock()
+    provider.backend_id = "cpu"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=False,
+        supports_modes=True,
+        supports_superres=False,
+        supports_model_registry_stats=False,
+        supports_img2img=False,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["backend"] == "cpu"
+    assert data["capabilities"]["supports_generation"] is False
+    assert data["vram"] == {
+        "backend": "cpu",
+        "device": "CPU placeholder",
+        "models_loaded": 0,
+    }
 
 
 async def test_list_modes_includes_generation_control_policy_fields_and_resolution_sets():

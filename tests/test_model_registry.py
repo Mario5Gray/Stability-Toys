@@ -57,6 +57,16 @@ def registry(mock_cuda):
 class TestModelRegistryInit:
     """Test registry initialization."""
 
+    def test_placeholder_registry_reports_backend_without_vram_fields(self):
+        from backends.model_registry import PlaceholderModelRegistry
+
+        registry = PlaceholderModelRegistry("cpu")
+        stats = registry.get_vram_stats()
+
+        assert stats["backend"] == "cpu"
+        assert stats["device"] == "CPU placeholder"
+        assert stats["models_loaded"] == 0
+
     def test_init_with_cuda(self, mock_cuda):
         """Test initialization with CUDA available."""
         registry = ModelRegistry()

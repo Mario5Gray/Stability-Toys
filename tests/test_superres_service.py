@@ -10,16 +10,11 @@ def test_resolve_superres_backend_prefers_explicit_cuda():
     assert resolve_superres_backend(backend="cuda", use_cuda=True) == "cuda"
 
 
-def test_resolve_superres_backend_uses_cuda_for_auto_when_generation_is_cuda():
+def test_resolve_superres_backend_rejects_unsupported_backend():
     from server.superres_service import resolve_superres_backend
 
-    assert resolve_superres_backend(backend="auto", use_cuda=True) == "cuda"
-
-
-def test_resolve_superres_backend_falls_back_to_rknn_for_auto_without_cuda():
-    from server.superres_service import resolve_superres_backend
-
-    assert resolve_superres_backend(backend="auto", use_cuda=False) == "rknn"
+    with pytest.raises(ValueError, match="Unsupported backend: auto"):
+        resolve_superres_backend(backend="auto", use_cuda=False)
 
 
 def test_create_superres_service_uses_selected_factory():

@@ -8,9 +8,10 @@ import logging
 import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
+from backends.platform_registry import get_backend_provider
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
@@ -100,28 +101,38 @@ def scan_models(models_root: Path) -> Dict[str, List[Path]]:
 # Endpoints
 # ============================================================================
 
+
+def get_generation_runtime(request: Request):
+    return request.app.state.generation_runtime
+
 @router.get("/models/status")
-async def get_models_status():
+async def get_models_status(request: Request):
     """
-    Get current model status and VRAM statistics.
+    Get current model status and backend-aware runtime statistics.
 
     Returns:
         Current mode, loaded models, VRAM usage
     """
-    pool = get_worker_pool()
+    provider = get_backend_provider()
+    caps = provider.capabilities()
+    runtime = get_generation_runtime(request)
     registry = get_model_registry()
-
-    current_mode = pool.get_current_mode()
-    vram_stats = registry.get_vram_stats()
-    queue_size = pool.get_queue_size()
     backend_version = os.environ.get("BACKEND_VERSION", "dev").strip() or "dev"
 
     return {
-        "current_mode": current_mode,
-        "is_loaded": pool.is_model_loaded(),
-        "queue_size": queue_size,
-        "vram": vram_stats,
+        "backend": provider.backend_id,
         "backend_version": backend_version,
+        "current_mode": runtime.get_current_mode(),
+        "is_loaded": runtime.is_model_loaded(),
+        "queue_size": runtime.get_queue_size(),
+        "capabilities": {
+            "supports_generation": caps.supports_generation,
+            "supports_modes": caps.supports_modes,
+            "supports_superres": caps.supports_superres,
+            "supports_model_registry_stats": caps.supports_model_registry_stats,
+            "supports_img2img": caps.supports_img2img,
+        },
+        "vram": registry.get_vram_stats(),
     }
 
 
