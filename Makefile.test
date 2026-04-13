@@ -1,7 +1,7 @@
 # Makefile for Dream Lab test commands
 # Run tests in Docker containers
 
-.PHONY: help test test-build test-unit test-fast test-coverage test-watch test-clean test-shell
+.PHONY: help test test-build test-build-cuda test-unit test-fast test-coverage test-watch test-clean test-shell test-cuda
 
 help: ## Show this help message
 	@echo "Dream Lab Test Commands:"
@@ -9,39 +9,45 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # Build test image
-test-build: ## Build the test Docker image
-	docker build -f Dockerfile.test -t dreamlab-test:latest .
+test-build: ## Build the local-native CPU test Docker image
+	docker compose -f docker-compose.test.yml build test
+
+test-build-cuda: ## Build the amd64 CUDA test image (CI/x86 builder)
+	docker compose -f docker-compose.test.yml build test-cuda
 
 # Run tests
 test: ## Run all tests in Docker
-	docker-compose -f docker-compose.test.yml run --rm test
+	docker compose -f docker-compose.test.yml run --rm test
+
+test-cuda: ## Run all tests in the amd64 CUDA test container
+	docker compose -f docker-compose.test.yml run --rm test-cuda
 
 test-unit: ## Run unit tests only
-	docker-compose -f docker-compose.test.yml run --rm test-unit
+	docker compose -f docker-compose.test.yml run --rm test-unit
 
 test-fast: ## Run fast tests (skip slow tests)
-	docker-compose -f docker-compose.test.yml run --rm test-fast
+	docker compose -f docker-compose.test.yml run --rm test-fast
 
 test-coverage: ## Run tests with coverage report
-	docker-compose -f docker-compose.test.yml run --rm test
+	docker compose -f docker-compose.test.yml run --rm test
 	@echo ""
 	@echo "Coverage report generated in htmlcov/"
 	@echo "Open htmlcov/index.html to view"
 
 test-watch: ## Run tests in watch mode (re-run on file changes)
-	docker-compose -f docker-compose.test.yml run --rm test-watch
+	docker compose -f docker-compose.test.yml run --rm test-watch
 
 # Utilities
 test-shell: ## Open a shell in the test container
-	docker-compose -f docker-compose.test.yml run --rm test /bin/bash
+	docker compose -f docker-compose.test.yml run --rm test /bin/bash
 
 test-clean: ## Clean up test containers and images
-	docker-compose -f docker-compose.test.yml down
-	docker rmi dreamlab-test:latest || true
+	docker compose -f docker-compose.test.yml down
+	docker rmi harbor.lan/dreamlab-test:latest || true
 	rm -rf htmlcov/ .pytest_cache/ .coverage
 
 test-clean-all: test-clean ## Clean everything including volumes
-	docker-compose -f docker-compose.test.yml down -v
+	docker compose -f docker-compose.test.yml down -v
 
 # Local testing (without Docker)
 local-test: ## Run tests locally (not in Docker)
@@ -51,11 +57,11 @@ local-test-coverage: ## Run tests locally with coverage
 	pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 
 # Continuous Integration
-ci-test: test-build test ## Build and run tests (for CI)
+ci-test: test-build-cuda test-cuda ## Build and run the amd64 CUDA test path
 
 # Development
 dev-test: ## Quick test during development
-	docker-compose -f docker-compose.test.yml run --rm test pytest tests/ -x -v
+	docker compose -f docker-compose.test.yml run --rm test pytest tests/ -x -v
 
 dev-test-file: ## Run specific test file (usage: make dev-test-file FILE=test_foo.py)
-	docker-compose -f docker-compose.test.yml run --rm test pytest tests/$(FILE) -v
+	docker compose -f docker-compose.test.yml run --rm test pytest tests/$(FILE) -v

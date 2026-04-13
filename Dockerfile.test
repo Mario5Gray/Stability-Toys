@@ -1,97 +1,103 @@
-# Dockerfile.test - For running SDXL worker tests in isolation
+# Dockerfile.test - Runtime-aligned image for containerized test execution
 # Usage:
-#   docker build -f Dockerfile.test -t lcm-sd-test .
-#   docker run --rm --gpus all --privileged -v ${MODELS_HOST_PATH}:/models:ro -v ./modes-test.yaml:/app/modes.yaml lcm-sd-test
+#   docker build -f Dockerfile.test --build-arg BACKEND=cpu -t harbor.lan/dreamlab-test:latest .
+#   docker compose -f docker-compose.test.yml build test
+#   docker compose -f docker-compose.test.yml build test-cuda
+#   docker compose -f docker-compose.test.yml run --rm test-unit
 
-ARG BACKEND=cuda
+ARG TARGETPLATFORM
+ARG BACKEND=cpu
+ARG GIT_SHA=dev
+ARG TORCH_VERSION=2.10.0
+ARG TORCHVISION_VERSION=0.25.0
+ARG TORCHAUDIO_VERSION=2.10.0
 
-# ---------- Test stage ----------
 FROM python:3.12-slim AS test
+
+ARG TARGETPLATFORM
+ARG BACKEND
+ARG GIT_SHA
+ARG TORCH_VERSION
+ARG TORCHVISION_VERSION
+ARG TORCHAUDIO_VERSION
+
+ENV BACKEND_VERSION=${GIT_SHA}
+ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV PYTHONPATH=/app
+ENV LOG_LEVEL=INFO
+ENV BACKEND=${BACKEND}
 
 WORKDIR /app
 
-# Install system dependencies and CUDA libraries (following main Dockerfile pattern)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    build-essential \
-    libxext6 \
-    libxrender1 \
-    libsm6 \
-    git \
-    ffmpeg \
-    libgl1 \
-    libglib2.0-0 \
-    wget \
-    gnupg \
-    vim \
-    && wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
-    && dpkg -i cuda-keyring_1.1-1_all.deb \
-    && apt-get update && apt-get install -y \
-    cuda-cudart-12-8 \
-    libcublas-12-8 \
-    libcufft-12-8 \
-    libcurand-12-8 \
-    libcusolver-12-8 \
-    libcusparse-12-8 \
-    cuda-nvcc-12-8 \
-    cuda-toolkit-12-8-config-common \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    if [ "${BACKEND}" = "cuda" ]; then \
+        arch="$(dpkg --print-architecture)"; \
+        if [ "${arch}" != "amd64" ]; then \
+            echo "CUDA test image requires linux/amd64 build platform, got ${arch}. Set TEST_PLATFORM=linux/amd64 or use docker compose with platform: linux/amd64." >&2; \
+            exit 1; \
+        fi; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        build-essential \
+        libxext6 \
+        libxrender1 \
+        libsm6 \
+        git \
+        ffmpeg \
+        libgl1 \
+        libglib2.0-0 \
+        wget \
+        gnupg \
+        gpgv; \
+    if [ "${BACKEND}" = "cuda" ]; then \
+        wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb; \
+        dpkg -i cuda-keyring_1.1-1_all.deb; \
+        apt update -o APT::Key::GPGVCommand=1; \
+        apt-get install -y --no-install-recommends \
+            cuda-cudart-12-8 \
+            libcublas-12-8 \
+            libcufft-12-8 \
+            libcurand-12-8 \
+            libcusolver-12-8 \
+            libcusparse-12-8; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
-# Set CUDA environment variables for runtime
-ENV CUDA_HOME=/usr/local/cuda-12.8
-ENV PATH=${CUDA_HOME}/bin:${PATH}
-
-# Install python deps
 RUN pip install --no-cache-dir --upgrade pip
 
-# Copy requirements first (for better layer caching)
 COPY requirements.txt /app/requirements.txt
-
-# Copy requirements first (for better layer caching)
 COPY requirements-test.txt /app/requirements-test.txt
 
-# Install Python dependencies
+RUN if [ "${BACKEND}" != "cuda" ]; then \
+        pip install --no-cache-dir \
+            torch==${TORCH_VERSION} \
+            torchvision==${TORCHVISION_VERSION} \
+            torchaudio==${TORCHAUDIO_VERSION} \
+            --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements-test.txt
-RUN pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128
-RUN python - <<'PY'
-import torch
-import xformers
-from xformers import _cpp_lib
-from xformers.ops import memory_efficient_attention
+RUN if [ "${BACKEND}" = "cuda" ]; then \
+        pip install --no-cache-dir nvidia-ml-py; \
+        pip install --no-cache-dir --no-deps realesrgan==0.3.0; \
+        pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; \
+        python -c "import torch, xformers; from xformers import _cpp_lib; from xformers.ops import memory_efficient_attention; assert torch.__version__.startswith('2.10.0'), torch.__version__; assert (torch.version.cuda or '').startswith('12.8'), torch.version.cuda; assert memory_efficient_attention is not None; load_error = getattr(_cpp_lib, '_cpp_library_load_exception', None); assert load_error is None, f'xformers extension failed to load: {load_error}'; print(f'Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={xformers.__version__}')"; \
+    fi
 
-assert torch.__version__.startswith("2.10.0"), torch.__version__
-assert (torch.version.cuda or "").startswith("12.8"), torch.version.cuda
-assert memory_efficient_attention is not None
-
-load_error = getattr(_cpp_lib, "_cpp_library_load_exception", None)
-if load_error is not None:
-    raise SystemExit(f"xformers extension failed to load: {load_error}")
-
-print(f"Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={xformers.__version__}")
-PY
-
-# Copy server code 
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/
 COPY invokers/ /app/invokers/
 COPY utils/ /app/utils/
 COPY tests/ /app/tests/
-
 COPY *.py /app/
 COPY *.sh /app/
-RUN chmod +x /app/start.sh
-RUN chmod +x /app/run_sdxl_tests.sh
-# Copy test runner
 
+RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh && \
+    mkdir -p /app/logs /conf /store /workflows
 
-RUN mkdir -p /app/logs
-# Set environment defaults for testing
-ENV PYTHONPATH=/app
-ENV LOG_LEVEL=INFO
-ENV BACKEND=cuda
-
-# Default command runs the SDXL tests
-CMD ["pytest", "tests/test_sdxl_worker.py", "-v", "-s", "--tb=short", "-p", "no:cov"]
+CMD ["pytest", "tests/", "-v", "-m", "not slow"]

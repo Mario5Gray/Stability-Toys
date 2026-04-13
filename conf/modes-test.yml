@@ -1,6 +1,12 @@
 model_root: /models
 lora_root: /models/loras
 default_mode: lcm-general
+resolution_sets:
+  default:
+    - size: "512x512"
+      aspect_ratio: "1:1"
+    - size: "768x768"
+      aspect_ratio: "1:1"
 
 modes:
   lcm-general:

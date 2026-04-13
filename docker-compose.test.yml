@@ -1,16 +1,19 @@
-# Docker Compose for running Dream Lab tests
-version: '3.8'
-
 services:
   test:
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile.test
-    image: dreamlab-test:latest
+      args:
+        BACKEND: cpu
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: harbor.lan/dreamlab-test:latest
     container_name: dreamlab-test
     env_file:
       - env.dev
-      - env.cuda
+    environment:
+      BACKEND: cpu
+      MODE_CONFIG_PATH: /conf
     volumes:
       - ./server:/app/server:ro,Z
       - ./backends:/app/backends:ro,Z
@@ -18,12 +21,30 @@ services:
       - ./persistence:/app/persistence:ro,Z
       - ./tests:/app/tests:ro,Z
       - ./invokers:/app/invokers:ro,Z
-      - ${MODELS_HOST_PATH:-./model}:/models:ro,Z
-      - ${FS_HOST_PATH:-./store}:/store:rw,Z
-      - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:ro,Z
-      - ./conf-test:/app/conf:rw,Z
-      - ./htmlcov:/app/htmlcov
+      - ${TEST_MODELS_HOST_PATH:-./models}:/models:ro,Z
+      - ${TEST_FS_HOST_PATH:-./store}:/store:rw,Z
+      - ${TEST_WORKFLOW_HOST_PATH:-./workflows}:/workflows:rw,Z
+      - ./conf/modes-test.yml:/conf/modes.yml:ro,Z
+      - ./logs:/app/logs:rw,Z
+      - ./htmlcov:/app/htmlcov:rw,Z
     command: pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+
+  test-cuda:
+    extends: test
+    platform: linux/amd64
+    container_name: dreamlab-test-cuda
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        BACKEND: cuda
+        GIT_SHA: ${GIT_SHA:-dev}
+    env_file:
+      - env.dev
+      - env.cuda
+    environment:
+      BACKEND: cuda
+      MODE_CONFIG_PATH: /conf
 
   test-unit:
     extends: test
