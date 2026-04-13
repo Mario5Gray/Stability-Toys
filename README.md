@@ -40,7 +40,7 @@ Dream Lab provides a **production-ready FastAPI backend** with:
 
 - **Dynamic Model Loading** - Hot-swap models and LoRAs at runtime without restarting
 - **Mode System** - Define model + LoRA combinations as reusable "modes" in YAML
-- **Multi-Backend Support** - CUDA (GPU) and RKNN (NPU) workers with automatic detection
+- **Multi-Backend Support** - Explicit `BACKEND` selection for CUDA (GPU) and RKNN (NPU), with scaffolded `cpu` and `mlx` entries for future work
 - **Extensible Job Queue** - Custom job types for preprocessing, generation, and post-processing
 - **VRAM Management** - Real-time tracking with no artificial limits
 - **Super-Resolution** - Optional post-processing pipeline
@@ -246,17 +246,22 @@ This is the quickest way to validate RKNN or CUDA super-resolution without going
 
 ### Backend Selection
 
-The server automatically detects which backend to use:
+Set `BACKEND` explicitly. The server does not infer a backend from local hardware.
 
-1. **CUDA (GPU) Backend**: Used if `torch.cuda.is_available()` returns True
+1. **CUDA (GPU) Backend**: `BACKEND=cuda`
    - Supports: SD1.5, SD2.x, SDXL, SDXL Refiner
    - Features: Dynamic model loading, LoRA, modes system
-   - Auto-detection: Based on `cross_attention_dim` (768/1024/1280/2048)
+   - Worker selection: CUDA still auto-detects SD1.5 vs SDXL based on model structure
 
-2. **RKNN (NPU) Backend**: Used on RockChip devices with RKNN runtime
+2. **RKNN (NPU) Backend**: `BACKEND=rknn`
    - Supports: LCM-SD 1.5 (optimized for RKNN)
    - Features: Multi-worker, super-resolution
    - Optimized: Tensor layouts (NCHW/NHWC), deterministic generation
+
+3. **MLX / CPU Scaffolds**: `BACKEND=mlx` or `BACKEND=cpu`
+   - Present as explicit backend values for architecture and testing
+   - Not supported inference runtimes yet
+   - Fail with clear not-implemented errors when generation or super-resolution is used
 
 ### Super-Resolution Backend Selection
 
@@ -264,7 +269,7 @@ Super-resolution follows the active deployment backend:
 
 - `BACKEND=rknn` uses the RKNN SR service and `SR_MODEL_PATH`
 - `BACKEND=cuda` uses the CUDA SR service and `CUDA_SR_MODEL`
-- `BACKEND=auto` selects CUDA SR when generation is using CUDA, otherwise RKNN SR
+- `BACKEND=mlx` and `BACKEND=cpu` are scaffold-only and do not provide working SR yet
 
 The public API stays the same on both backends:
 

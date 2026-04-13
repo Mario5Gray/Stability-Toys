@@ -4,6 +4,8 @@
 
 The test containers run with `--privileged` flag to match the production runtime configuration in `runner.sh`.
 
+This document describes the explicit CUDA path. For the split local/native vs CUDA Docker test flow, see [`docs/TESTING_IN_DOCKER.md`](/Users/darkbit1001/workspace/Stability-Toys/docs/TESTING_IN_DOCKER.md).
+
 ### From runner.sh
 
 ```bash
@@ -36,24 +38,24 @@ The script automatically uses `--privileged`.
 ### Manual Commands
 
 ```bash
-# Build
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+# Build CUDA image
+docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
 
 # Run tests
 docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest
+  harbor.lan/dreamlab-test:latest
 
 # Verify CUDA
 docker run --rm --gpus all --privileged \
-  lcm-sd-test:latest python verify_cuda.py
+  harbor.lan/dreamlab-test:latest python verify_cuda.py
 
 # Interactive debug
 docker run --rm -it --gpus all --privileged \
   -v /path/to/models:/models:ro \
-  lcm-sd-test:latest bash
+  harbor.lan/dreamlab-test:latest bash
 ```
 
 ## What Changed
@@ -95,7 +97,7 @@ docker run --rm \
   --device=/dev/dri \
   --device=/dev/npu \
   -v /path/to/models:/models:ro \
-  lcm-sd-test:latest
+  harbor.lan/dreamlab-test:latest
 ```
 
 However, `--privileged` is simpler and matches your production setup.
@@ -107,7 +109,7 @@ However, `--privileged` is simpler and matches your production setup.
 # Requires --privileged for NPU device access
 docker run --rm --privileged \
   -e BACKEND=rknn \
-  lcm-sd-test:latest
+  harbor.lan/dreamlab-test:latest
 ```
 
 ### CUDA Backend (NVIDIA GPU)
@@ -115,7 +117,7 @@ docker run --rm --privileged \
 # Requires --privileged for full CUDA access
 docker run --rm --gpus all --privileged \
   -e BACKEND=cuda \
-  lcm-sd-test:latest
+  harbor.lan/dreamlab-test:latest
 ```
 
 ## Summary

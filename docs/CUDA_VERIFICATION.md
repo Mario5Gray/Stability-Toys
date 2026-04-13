@@ -2,16 +2,20 @@
 
 This guide explains how to verify CUDA access in test containers.
 
+This document is for the explicit CUDA path only. For the local/native CPU path and general Docker test guidance, see [`docs/TESTING_IN_DOCKER.md`](/Users/darkbit1001/workspace/Stability-Toys/docs/TESTING_IN_DOCKER.md).
+
+Backend selection is explicit now. Use `BACKEND=cuda` for CUDA runtime verification; there is no `BACKEND=auto` fallback.
+
 ## Quick Verification
 
 ### 1. Using verify_cuda.py Script (Recommended)
 
 ```bash
-# Build test image
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+# Build CUDA test image
+docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
 
 # Run verification
-docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all --privileged harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 **Expected Output:**
@@ -43,14 +47,14 @@ Device 0: NVIDIA GeForce RTX 3090
 ### 2. Quick PyTorch Check
 
 ```bash
-docker run --rm --gpus all --privileged lcm-sd-test:latest \
+docker run --rm --gpus all --privileged -e BACKEND=cuda harbor.lan/dreamlab-test:latest \
   python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```
 
 ### 3. CUDA Version Check
 
 ```bash
-docker run --rm --gpus all --privileged lcm-sd-test:latest \
+docker run --rm --gpus all --privileged -e BACKEND=cuda harbor.lan/dreamlab-test:latest \
   python -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
 ```
 
@@ -112,10 +116,10 @@ The test suite automatically verifies CUDA:
 1. **Check --gpus flag:**
    ```bash
    # Wrong (missing --gpus)
-   docker run --rm lcm-sd-test:latest python verify_cuda.py
+   docker run --rm harbor.lan/dreamlab-test:latest python verify_cuda.py
 
    # Correct
-   docker run --rm --gpus all lcm-sd-test:latest python verify_cuda.py
+   docker run --rm --gpus all harbor.lan/dreamlab-test:latest python verify_cuda.py
    ```
 
 2. **Check Docker daemon config:**
@@ -196,8 +200,8 @@ Expected: Same GPU info as step 1
 ### Step 3: Check Test Container GPU Access
 
 ```bash
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-docker run --rm --gpus all lcm-sd-test:latest python verify_cuda.py
+docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
+docker run --rm --gpus all -e BACKEND=cuda harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 Expected: All checks pass
@@ -230,20 +234,20 @@ export CUDA_DTYPE=fp16         # Use half precision
 
 ```bash
 # Use GPU 0 only
-docker run --rm --gpus '"device=0"' lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus '"device=0"' harbor.lan/dreamlab-test:latest python verify_cuda.py
 
 # Use GPU 1 only
-docker run --rm --gpus '"device=1"' lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus '"device=1"' harbor.lan/dreamlab-test:latest python verify_cuda.py
 
 # Use multiple GPUs
-docker run --rm --gpus '"device=0,1"' lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus '"device=0,1"' harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 ### Memory Limits
 
 ```bash
 # Limit GPU memory
-docker run --rm --gpus all --memory=16g lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all --memory=16g harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 ## Integration with CI/CD
@@ -253,8 +257,8 @@ docker run --rm --gpus all --memory=16g lcm-sd-test:latest python verify_cuda.py
 ```yaml
 - name: Verify CUDA in Container
   run: |
-    docker build -f Dockerfile.test -t lcm-sd-test:latest .
-    docker run --rm --gpus all lcm-sd-test:latest python verify_cuda.py
+    docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
+    docker run --rm --gpus all harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 ### GitLab CI
@@ -264,8 +268,8 @@ verify-cuda:
   tags:
     - gpu
   script:
-    - docker build -f Dockerfile.test -t lcm-sd-test:latest .
-    - docker run --rm --gpus all lcm-sd-test:latest python verify_cuda.py
+    - docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
+    - docker run --rm --gpus all harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 ## CUDA Environment in Container
@@ -284,7 +288,7 @@ These ensure CUDA tools and libraries are accessible.
 
 **Quick Check:**
 ```bash
-docker run --rm --gpus all lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all harbor.lan/dreamlab-test:latest python verify_cuda.py
 ```
 
 **Full Test:**

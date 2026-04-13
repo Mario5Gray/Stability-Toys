@@ -1,6 +1,10 @@
 # Worker Selection Guide
 
-The server **automatically detects** the model type and selects the correct worker (SD1.5 or SDXL).
+This guide covers CUDA worker selection after you have already chosen `BACKEND=cuda`.
+
+Backend selection itself is explicit. The server does not infer CUDA vs RKNN vs MLX vs CPU from local hardware.
+
+Once `BACKEND=cuda` is selected, the server **automatically detects** the model type and selects the correct worker (SD1.5 or SDXL).
 
 ## How It Works
 

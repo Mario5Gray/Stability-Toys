@@ -1,359 +1,113 @@
-# Testing SDXL Worker in Docker
+# Testing in Docker
 
-**Important**: All tests should be run in Docker containers, not on the host machine.
+This repo has two distinct Docker test paths:
 
-## Quick Start
+- Local/native path: CPU-first, intended for laptops and non-NVIDIA hosts.
+- Explicit CUDA path: `linux/amd64` + NVIDIA-only, intended for CI or real GPU builders.
 
-```bash
-# Set your model path
-export SDXL_MODEL_ROOT=/path/to/models
-export SDXL_MODEL=sdxl-model.safetensors
+The shared test image name is `harbor.lan/dreamlab-test:latest`.
 
-# Run tests in Docker
-./test-sdxl.sh
-```
+## Local vs CUDA Test Paths
 
-## Files Overview
-
-| File | Purpose |
-|------|---------|
-| `Dockerfile.test` | Test container definition |
-| `test-sdxl.sh` | Build and run test container |
-| `tests/test_sdxl_worker.py` | SDXL test suite |
-
-## Running Tests
-
-### Method 1: Using test-sdxl.sh (Recommended)
+Use the local/native path by default:
 
 ```bash
-# Option A: Pass paths as arguments
-./test-sdxl.sh /path/to/models sdxl-model.safetensors
-
-# Option B: Use environment variables
-export SDXL_MODEL_ROOT=/path/to/models
-export SDXL_MODEL=sdxl-model.safetensors
-./test-sdxl.sh
+make -f Makefile.test test-build
+make -f Makefile.test test
 ```
 
-### Method 2: Manual Docker Commands
+Use the explicit CUDA path only on `linux/amd64` hosts with NVIDIA runtime support:
 
 ```bash
-# 1. Build test image
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-
-# 2. Run tests
-docker run --rm --gpus all --privileged \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  -e CUDA_ENABLE_XFORMERS=1 \
-  -e CUDA_DTYPE=fp16 \
-  lcm-sd-test:latest
+make -f Makefile.test test-build-cuda
+make -f Makefile.test test-cuda
 ```
 
-### Method 3: Run Specific Tests
+On Apple Silicon, the local path is the only meaningful default. `test-cuda` forces `linux/amd64` and is meant for an x86_64 CUDA builder, not for day-to-day local validation on a Mac.
+
+That local path verifies container wiring honestly, but it does not prove CPU inference support. Real image generation remains implemented only for `BACKEND=cuda` and `BACKEND=rknn` today.
+
+## Compose Services
+
+`docker-compose.test.yml` defines:
+
+- `test`: local-native CPU service
+- `test-unit`: local-native CPU service without websocket-marked tests
+- `test-fast`: local-native CPU service with `not slow`
+- `test-cuda`: explicit CUDA service for `linux/amd64`
+
+The local services build `Dockerfile.test` with `BACKEND=cpu`. The CUDA service builds the same Dockerfile with `BACKEND=cuda` and loads `env.cuda`.
+
+`BACKEND=cpu` in the local Docker test path is a build and smoke-test scaffold. It is not a supported generation backend for this app yet.
+
+## Runtime Layout
+
+The test container is intentionally close to runtime:
+
+- [`Dockerfile.test`](/Users/darkbit1001/workspace/Stability-Toys/Dockerfile.test) installs the runtime/test dependencies and uses the same CUDA package flow as the main runtime image.
+- [`docker-compose.test.yml`](/Users/darkbit1001/workspace/Stability-Toys/docker-compose.test.yml) mounts [`conf/modes-test.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes-test.yml) at `/conf/modes.yml`.
+- The local CPU path installs pinned CPU PyTorch wheels before the generic requirements files so Linux arm64 builds do not silently pull a CUDA-heavy wheel set.
+
+## Host Path Overrides
+
+The test compose file uses test-specific host path overrides so it does not inherit the main runtime storage paths:
+
+- `TEST_MODELS_HOST_PATH`
+- `TEST_FS_HOST_PATH`
+- `TEST_WORKFLOW_HOST_PATH`
+
+If unset, the local test path defaults to repo-local directories:
+
+- `./models`
+- `./store`
+- `./workflows`
+
+Do not rely on `FS_HOST_PATH` or `WORKFLOW_HOST_PATH` for Docker tests. Those may point at non-portable runtime mounts and can break local Docker Desktop runs.
+
+## Useful Commands
+
+Build the local CPU image:
 
 ```bash
-# Build image first
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-
-# Run specific test
-docker run --rm --gpus all --privileged \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest \
-  pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
-
-# Run with more verbose output
-docker run --rm --gpus all --privileged \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  -e LOG_LEVEL=DEBUG \
-  lcm-sd-test:latest
+docker compose -f docker-compose.test.yml build test
 ```
 
-## Test Container Details
+Run the local test suite:
 
-### Base Image
-- `nvidia/cuda:12.8.0-runtime-ubuntu22.04`
-- Includes CUDA runtime for GPU support
-- Python 3.12
-
-### Installed Dependencies
-- Core: `requirements.txt` (torch, diffusers, transformers, etc.)
-- Testing: `pytest`, `pytest-timeout`, `pytest-asyncio`
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SDXL_MODEL_ROOT` | Required | Path to model directory (inside container) |
-| `SDXL_MODEL` | Required | Model filename |
-| `CUDA_ENABLE_XFORMERS` | `1` | Enable memory-efficient attention |
-| `CUDA_DTYPE` | `fp16` | Model precision |
-| `CUDA_DEVICE` | `cuda:0` | CUDA device |
-| `LOG_LEVEL` | `INFO` | Logging level |
-
-### Volume Mounts
-- Model directory: `-v /host/path:/models:ro` (read-only)
-
-## Expected Test Output
-
+```bash
+docker compose -f docker-compose.test.yml run --rm test
 ```
-========================================
-SDXL Worker Test (Docker)
-========================================
 
-✓ GPU detected:
-NVIDIA GeForce RTX 3090, 24576 MiB
+Run a smoke check that verifies the image starts and reads `/conf/modes.yml`:
 
-✓ Model configuration:
-  SDXL_MODEL_ROOT: /path/to/models
-  SDXL_MODEL:      sdxl-1.0-base.safetensors
-  Full path:       /path/to/models/sdxl-1.0-base.safetensors
-
-========================================
-Building test image...
-========================================
-
-[+] Building 45.2s (18/18) FINISHED
-...
-
-✓ Test image built successfully
-
-========================================
-Running SDXL tests in container...
-========================================
-
-tests/test_sdxl_worker.py::test_worker_initialization PASSED
-tests/test_sdxl_worker.py::test_basic_generation PASSED
-tests/test_sdxl_worker.py::test_deterministic_generation PASSED
-tests/test_sdxl_worker.py::test_generation_with_latents PASSED
-tests/test_sdxl_worker.py::test_different_resolutions PASSED
-tests/test_sdxl_worker.py::test_invalid_size_format PASSED
-tests/test_sdxl_worker.py::test_random_seed_generation PASSED
-
-======================== 8 passed in 45.23s ========================
-
-========================================
-✓ All tests passed!
-========================================
+```bash
+docker compose -f docker-compose.test.yml run --rm test \
+  python -c "import torch; from server.mode_config import get_mode_config; cfg = get_mode_config('/conf'); print(f'torch={torch.__version__} cuda={torch.version.cuda} default_mode={cfg.get_default_mode()}')"
 ```
+
+Build the explicit CUDA image:
+
+```bash
+docker compose -f docker-compose.test.yml build test-cuda
+```
+
+Run the explicit CUDA suite:
+
+```bash
+docker compose -f docker-compose.test.yml run --rm test-cuda
+```
+
+## Expected Local Warnings
+
+A local smoke run may warn that:
+
+- `/models/loras` does not exist
+- the sample test models in `/models/diffusers/...` are not present
+
+Those warnings are expected when the repo-local `./models` directory does not contain test assets. They do not mean the container wiring is broken.
 
 ## Troubleshooting
 
-### GPU Not Detected
+If the local test container fails to start on macOS with a mount error, check whether a test command is still inheriting non-local host paths. The resolved compose config should mount repo-local `models`, `store`, and `workflows` unless you explicitly set `TEST_*` overrides.
 
-```bash
-# Check if nvidia-docker-runtime is installed
-docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
-
-# If fails, install nvidia-container-toolkit:
-# Ubuntu/Debian:
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo systemctl restart docker
-```
-
-### Build Fails
-
-```bash
-# Check Docker is running
-docker info
-
-# Clear Docker cache and rebuild
-docker builder prune -a
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-```
-
-### Tests Fail with OOM
-
-```bash
-# Check GPU memory
-nvidia-smi
-
-# Run with smaller resolution tests only
-docker run --rm --gpus all \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  -e CUDA_ENABLE_XFORMERS=1 \
-  -e CUDA_ATTENTION_SLICING=1 \
-  lcm-sd-test:latest \
-  pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
-```
-
-### Model Not Found
-
-```bash
-# Check volume mount
-docker run --rm \
-  -v /path/to/models:/models:ro \
-  ubuntu:22.04 \
-  ls -la /models
-
-# Ensure full path is correct
-ls -la /path/to/models/sdxl-model.safetensors
-```
-
-### Permission Issues
-
-```bash
-# Run with user permissions
-docker run --rm --gpus all \
-  --user $(id -u):$(id -g) \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest
-```
-
-## CI/CD Integration
-
-### GitHub Actions Example
-
-```yaml
-name: SDXL Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Build test image
-      run: docker build -f Dockerfile.test -t lcm-sd-test:latest .
-
-    - name: Run tests
-      run: |
-        docker run --rm --gpus all \
-          -v /models:/models:ro \
-          -e SDXL_MODEL_ROOT=/models \
-          -e SDXL_MODEL=${{ secrets.SDXL_MODEL }} \
-          -e CUDA_ENABLE_XFORMERS=1 \
-          lcm-sd-test:latest
-```
-
-### GitLab CI Example
-
-```yaml
-sdxl-tests:
-  image: docker:latest
-  services:
-    - docker:dind
-  tags:
-    - gpu
-  script:
-    - docker build -f Dockerfile.test -t lcm-sd-test:latest .
-    - docker run --rm --gpus all
-        -v /models:/models:ro
-        -e SDXL_MODEL_ROOT=/models
-        -e SDXL_MODEL=${SDXL_MODEL}
-        lcm-sd-test:latest
-```
-
-## Development Workflow
-
-### 1. Make Changes to Worker
-
-```bash
-# Edit backends/cuda_worker.py
-vim backends/cuda_worker.py
-```
-
-### 2. Run Tests in Container
-
-```bash
-# Quick test
-./test-sdxl.sh
-
-# Or rebuild and test specific
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-docker run --rm --gpus all \
-  -v /path/to/models:/models:ro \
-  -e SDXL_MODEL_ROOT=/models \
-  -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest \
-  pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
-```
-
-### 3. Iterate
-
-Repeat steps 1-2 until tests pass.
-
-### 4. Run Full Test Suite
-
-```bash
-./test-sdxl.sh
-```
-
-## Test Container Optimizations
-
-### Layer Caching
-
-The Dockerfile is optimized for layer caching:
-1. System dependencies (rarely change)
-2. Python requirements (change occasionally)
-3. Application code (change frequently)
-
-### Faster Rebuilds
-
-```bash
-# Only rebuild if dependencies changed
-docker build -f Dockerfile.test --target dependencies -t lcm-sd-test:deps .
-
-# Full rebuild
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
-```
-
-### Multi-Stage Build (Optional)
-
-For production, you can create a multi-stage build that runs tests and then creates a smaller runtime image.
-
-## Cleaning Up
-
-```bash
-# Remove test image
-docker rmi lcm-sd-test:latest
-
-# Remove dangling images
-docker image prune
-
-# Full cleanup (careful!)
-docker system prune -a
-```
-
-## Best Practices
-
-1. ✅ **Always run tests in containers** - Never on host
-2. ✅ **Mount models read-only** - Prevent accidental modifications
-3. ✅ **Use specific model versions** - Ensure reproducibility
-4. ✅ **Enable xformers** - Reduce memory usage
-5. ✅ **Check GPU memory** - Monitor with `nvidia-smi`
-6. ✅ **Tag test images** - Use versions for tracking
-7. ✅ **Clean up regularly** - Remove old images
-
-## Summary
-
-The Docker-based testing approach provides:
-- ✅ **Isolation** - No host contamination
-- ✅ **Reproducibility** - Consistent environment
-- ✅ **Portability** - Run anywhere with Docker
-- ✅ **CI/CD Ready** - Easy integration
-- ✅ **GPU Support** - Full CUDA access
-- ✅ **Clean State** - Fresh environment each run
-
-**Main Command**: `./test-sdxl.sh /path/to/models sdxl-model.safetensors`
-
-That's it! All tests run safely in containers.
+If the CUDA path fails on Apple Silicon, that is expected. Use the local CPU path on the laptop and reserve `test-cuda` for an amd64/NVIDIA environment.
