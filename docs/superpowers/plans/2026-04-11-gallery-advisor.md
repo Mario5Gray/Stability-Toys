@@ -1,12 +1,24 @@
 # Gallery Advisor Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution mode:** run serially in one session. Avoid subagents unless explicitly requested.
 
 **Goal:** Build a gallery-backed advisor that turns gallery image metadata into a reusable digest, persists editable advice per gallery, and applies that advice to the draft prompt with deterministic append/replace controls.
 
 **Architecture:** Keep galleries and advisor state client-side in IndexedDB, add a narrow backend `/api/advisors/digest` route that validates typed evidence and calls an OpenAI-compatible LLM client, and render the advisor under `Negative Prompt Templates` in the existing options panel. The advisor identity is per `gallery_id`; mode config only contributes the runtime `maximum_len` constraint exposed through `/api/modes`.
 
 **Tech Stack:** FastAPI, Pydantic, `httpx`, existing `ModeConfigManager`, React 19, Vitest, IndexedDB via browser APIs and `fake-indexeddb`.
+
+---
+
+## Status Refresh (2026-04-13)
+
+- Active FP issue for the backend prerequisite is `STABL-grarbnxp` ("Add OpenAI-compatible chat completions backend client").
+- Backend progress landed:
+  - `server/mode_config.py` now supports `maximum_len` and per-mode `chat` config parsing/serialization.
+  - `server/model_routes.py` now exposes `maximum_len` and `chat_enabled` in `/api/modes`.
+  - `server/ws_routes.py` now accepts `jobType=chat` and returns chat results via `job:complete` with `outputs[].text` (plus streaming `job:progress` deltas when enabled).
+  - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`).
+- For `STABL-grarbnxp`, backend scope is the active lane. Resume frontend advisor tasks only after backend chat plumbing is accepted.
 
 ---
 
@@ -77,7 +89,7 @@
 - Modify: `tests/test_mode_config.py`
 - Modify: `tests/test_model_routes.py`
 
-- [ ] **Step 1: Write the failing mode-config and route tests**
+- [ ] **Step 1: Reuse the existing maximum_len tests and deduplicate them if needed**
 
 ```python
 # tests/test_mode_config.py
@@ -162,7 +174,7 @@ async def test_list_modes_includes_maximum_len():
     assert data["modes"]["sdxl"]["maximum_len"] == 240
 ```
 
-- [ ] **Step 2: Run the targeted backend tests to verify they fail**
+- [ ] **Step 2: Run the targeted backend tests to verify current failures**
 
 Run:
 
@@ -173,8 +185,8 @@ python3 -m pytest tests/test_model_routes.py -k maximum_len -q
 
 Expected:
 
-- `test_mode_config_parses_maximum_len` fails because `ModeConfig` has no `maximum_len`
-- `test_list_modes_includes_maximum_len` fails because `/api/modes` does not serialize `maximum_len`
+- at least one `maximum_len` mode-config test fails because `ModeConfig` does not expose/round-trip `maximum_len`
+- route serialization test fails because `/api/modes` does not include `maximum_len`
 
 - [ ] **Step 3: Implement `maximum_len` in config parsing and route serialization**
 
@@ -1336,4 +1348,3 @@ git commit -m "feat: finalize gallery advisor freshness and apply flow"
 - Backend request object names are consistent: `AdvisorDigestRequest`, `EvidencePayload`, `EvidenceItem`.
 - Frontend object names are consistent: `AdvisorState`, `digest_text`, `advice_text`, `gallery_revision`, `maximumLen`.
 - Apply modes are consistently `append` and `replace`.
-

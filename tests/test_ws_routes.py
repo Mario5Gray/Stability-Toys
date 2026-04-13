@@ -698,6 +698,86 @@ class TestJobSubmit:
             assert err["type"] == "error"
             assert "Unknown jobType" in err["error"]
 
+    def test_chat_job_without_config_returns_job_error(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, chat=None),
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-1",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": False,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert "chat not configured" in err["error"].lower()
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_chat_job_complete_returns_text_output(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        fake_chat_cfg = SimpleNamespace(
+            endpoint="http://localhost:11434/v1",
+            model="llama3.2",
+            api_key_env="OPENAI_API_KEY",
+            max_tokens=128,
+            temperature=0.4,
+            system_prompt="You are concise.",
+        )
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch("backends.chat_client.ChatCompletionsClient.complete", new=AsyncMock(return_value="assistant reply")):
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg),
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-2",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": False,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    done = ws.receive_json()
+                    assert done["type"] == "job:complete"
+                    assert done["jobId"] == ack["jobId"]
+                    assert done["outputs"] == [{"text": "assistant reply"}]
+                    assert done["meta"]["model"] == "llama3.2"
+                    assert done["meta"]["endpoint_base"] == "http://localhost:11434/v1"
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
 
 # ---------------------------------------------------------------------------
 # job:cancel / job:priority stubs

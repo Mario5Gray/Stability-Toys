@@ -158,6 +158,8 @@ async def list_modes():
                 "default_size": mode_data["default_size"],
                 "default_steps": mode_data["default_steps"],
                 "default_guidance": mode_data["default_guidance"],
+                "maximum_len": mode_data.get("maximum_len"),
+                "chat_enabled": mode_data.get("chat") is not None,
                 "loader_format": mode_data.get("loader_format"),
                 "checkpoint_precision": mode_data.get("checkpoint_precision"),
                 "checkpoint_variant": mode_data.get("checkpoint_variant"),

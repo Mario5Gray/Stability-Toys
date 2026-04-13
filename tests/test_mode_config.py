@@ -81,6 +81,45 @@ modes:
     assert mode.runtime_enable_xformers is True
 
 
+def test_mode_config_parses_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-chat
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl-chat:
+    model: checkpoints/sdxl/sdxl-base.safetensors
+    default_size: 512x512
+    chat:
+      endpoint: http://localhost:11434/v1
+      model: llama3.2
+      api_key_env: OPENAI_API_KEY
+      max_tokens: 768
+      temperature: 0.4
+      system_prompt: You are concise.
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode = manager.get_mode("sdxl-chat")
+
+    assert mode.chat is not None
+    assert mode.chat.endpoint == "http://localhost:11434/v1"
+    assert mode.chat.model == "llama3.2"
+    assert mode.chat.api_key_env == "OPENAI_API_KEY"
+    assert mode.chat.max_tokens == 768
+    assert mode.chat.temperature == 0.4
+    assert mode.chat.system_prompt == "You are concise."
+
+
 def test_mode_config_parses_maximum_len(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(

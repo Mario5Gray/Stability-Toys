@@ -6,6 +6,10 @@ docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:255291f73993d7b2
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:d6d60ea267f7bed0
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:db90031007f4917c
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:64f1d919ec42b137
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:693785b6e55414fd
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:9d34c6c97b1f4ae1
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:2dd39972d9b5c683
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:6156668b55a4edd9
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:a11bbce0858c92a8

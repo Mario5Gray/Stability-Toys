@@ -301,6 +301,57 @@ async def test_list_modes_includes_maximum_len():
     assert data["modes"]["sdxl"]["maximum_len"] == 240
 
 
+async def test_list_modes_includes_chat_enabled_flag():
+    config = Mock()
+    config.to_dict.return_value = {
+        "default_mode": "sdxl-chat",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl-chat": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "resolution_set": "default",
+                "resolution_options": [{"size": "512x512", "aspect_ratio": "1:1"}],
+                "negative_prompt_templates": {},
+                "default_negative_prompt_template": None,
+                "allow_custom_negative_prompt": False,
+                "allowed_scheduler_ids": None,
+                "default_scheduler_id": None,
+                "chat": {
+                    "endpoint": "http://localhost:11434/v1",
+                    "model": "llama3.2",
+                },
+            },
+            "sd15": {
+                "model": "checkpoints/sd15/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "resolution_set": "default",
+                "resolution_options": [{"size": "512x512", "aspect_ratio": "1:1"}],
+                "negative_prompt_templates": {},
+                "default_negative_prompt_template": None,
+                "allow_custom_negative_prompt": False,
+                "allowed_scheduler_ids": None,
+                "default_scheduler_id": None,
+                "chat": None,
+            },
+        },
+    }
+
+    with patch("server.model_routes.get_mode_config", return_value=config):
+        data = await model_routes.list_modes()
+
+    assert data["modes"]["sdxl-chat"]["chat_enabled"] is True
+    assert data["modes"]["sd15"]["chat_enabled"] is False
+
+
 async def test_save_all_modes_passes_resolution_sets_to_save_config():
     config = Mock()
     pool = Mock()

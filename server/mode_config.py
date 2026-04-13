@@ -32,6 +32,17 @@ class LoRAConfig:
 
 
 @dataclass
+class ChatBackendConfig:
+    """OpenAI-compatible chat backend settings for a mode."""
+    endpoint: str
+    model: str
+    api_key_env: str = "OPENAI_API_KEY"
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    system_prompt: Optional[str] = None
+
+
+@dataclass
 class ModeConfig:
     """Configuration for a single mode."""
     name: str
@@ -42,6 +53,8 @@ class ModeConfig:
     default_size: str = "512x512"
     default_steps: int = 4
     default_guidance: float = 1.0
+    maximum_len: Optional[int] = None
+    chat: Optional[ChatBackendConfig] = None
     loader_format: Optional[str] = None
     checkpoint_precision: Optional[str] = None
     checkpoint_variant: Optional[str] = None
@@ -196,6 +209,8 @@ class ModeConfigManager:
                 default_size=default_size,
                 default_steps=mode_data.get("default_steps", 4),
                 default_guidance=mode_data.get("default_guidance", 1.0),
+                maximum_len=mode_data.get("maximum_len"),
+                chat=self._parse_chat_config(mode_name, mode_data.get("chat")),
                 loader_format=mode_data.get("loader_format"),
                 checkpoint_precision=mode_data.get("checkpoint_precision"),
                 checkpoint_variant=mode_data.get("checkpoint_variant"),
@@ -272,6 +287,27 @@ class ModeConfigManager:
                 logger.warning(f"  - {error}")
             # Don't raise - allow starting with missing models for development
 
+    def _parse_chat_config(self, mode_name: str, chat_data: Optional[Dict[str, Any]]) -> Optional[ChatBackendConfig]:
+        """Parse optional per-mode chat backend settings."""
+        if chat_data is None:
+            return None
+        if not isinstance(chat_data, dict):
+            raise ValueError(f"Mode '{mode_name}' chat config must be a mapping")
+        endpoint = (chat_data.get("endpoint") or "").strip()
+        model = (chat_data.get("model") or "").strip()
+        if not endpoint:
+            raise ValueError(f"Mode '{mode_name}' chat config missing required field: endpoint")
+        if not model:
+            raise ValueError(f"Mode '{mode_name}' chat config missing required field: model")
+        return ChatBackendConfig(
+            endpoint=endpoint,
+            model=model,
+            api_key_env=(chat_data.get("api_key_env") or "OPENAI_API_KEY").strip(),
+            max_tokens=int(chat_data.get("max_tokens", 1024)),
+            temperature=float(chat_data.get("temperature", 0.7)),
+            system_prompt=chat_data.get("system_prompt"),
+        )
+
     def save_config(self, data: Dict[str, Any]):
         """
         Save configuration data to modes.yml and reload.
@@ -298,6 +334,18 @@ class ModeConfigManager:
                 "default_steps": mode_data.get("default_steps", 4),
                 "default_guidance": mode_data.get("default_guidance", 1.0),
             }
+            if mode_data.get("maximum_len") is not None:
+                mode_entry["maximum_len"] = mode_data.get("maximum_len")
+            chat_cfg = mode_data.get("chat")
+            if chat_cfg is not None:
+                mode_entry["chat"] = {
+                    "endpoint": chat_cfg.get("endpoint"),
+                    "model": chat_cfg.get("model"),
+                    "api_key_env": chat_cfg.get("api_key_env", "OPENAI_API_KEY"),
+                    "max_tokens": chat_cfg.get("max_tokens", 1024),
+                    "temperature": chat_cfg.get("temperature", 0.7),
+                    "system_prompt": chat_cfg.get("system_prompt"),
+                }
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
             for cap_field in (
@@ -407,6 +455,19 @@ class ModeConfigManager:
                     "default_size": mode.default_size,
                     "default_steps": mode.default_steps,
                     "default_guidance": mode.default_guidance,
+                    "maximum_len": mode.maximum_len,
+                    "chat": (
+                        {
+                            "endpoint": mode.chat.endpoint,
+                            "model": mode.chat.model,
+                            "api_key_env": mode.chat.api_key_env,
+                            "max_tokens": mode.chat.max_tokens,
+                            "temperature": mode.chat.temperature,
+                            "system_prompt": mode.chat.system_prompt,
+                        }
+                        if mode.chat is not None
+                        else None
+                    ),
                     "loader_format": mode.loader_format,
                     "checkpoint_precision": mode.checkpoint_precision,
                     "checkpoint_variant": mode.checkpoint_variant,

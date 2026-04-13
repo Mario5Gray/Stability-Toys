@@ -14,7 +14,7 @@ import time
 import uuid
 import queue
 from urllib.error import URLError, HTTPError
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from server.http_utils import post_bytes
 
@@ -192,6 +192,9 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     elif job_type == "sr":
         t = asyncio.create_task(_run_sr(ws, client_id, job_id, msg))
         _track_task(job_id, t)
+    elif job_type == "chat":
+        t = asyncio.create_task(_run_chat(ws, client_id, job_id, params))
+        _track_task(job_id, t)
     else:
         await hub.send(client_id, _error(f"Unknown jobType: {job_type}", corr_id))
 
@@ -291,6 +294,110 @@ def _build_generate_request(params: dict):
         superres_magnitude=params.get("superres_magnitude", 2),
         denoise_strength=params.get("denoise_strength", 0.75),
     )
+
+
+def _resolve_chat_config(state, params: dict):
+    """Resolve chat config from active mode first, then env fallback."""
+    from backends.chat_client import ChatConfig
+
+    mode_name = params.get("mode")
+    mode_config = get_mode_config()
+
+    if not mode_name:
+        if getattr(state, "use_mode_system", False):
+            pool = getattr(state, "worker_pool", None)
+            if pool is not None:
+                mode_name = pool.get_current_mode()
+        if not mode_name:
+            mode_name = mode_config.get_default_mode()
+
+    if mode_name:
+        mode = mode_config.get_mode(mode_name)
+        chat_cfg = getattr(mode, "chat", None)
+        if chat_cfg is not None:
+            return ChatConfig(
+                endpoint=chat_cfg.endpoint,
+                model=chat_cfg.model,
+                api_key_env=chat_cfg.api_key_env,
+                max_tokens=chat_cfg.max_tokens,
+                temperature=chat_cfg.temperature,
+                system_prompt=chat_cfg.system_prompt,
+            )
+
+    endpoint = (os.environ.get("CHAT_ENDPOINT") or "").strip()
+    model = (os.environ.get("CHAT_MODEL") or "").strip()
+    if endpoint and model:
+        return ChatConfig(
+            endpoint=endpoint,
+            model=model,
+            api_key_env=(os.environ.get("CHAT_API_KEY_ENV") or "OPENAI_API_KEY").strip(),
+            max_tokens=int(os.environ.get("CHAT_MAX_TOKENS", "1024")),
+            temperature=float(os.environ.get("CHAT_TEMPERATURE", "0.7")),
+            system_prompt=os.environ.get("CHAT_SYSTEM_PROMPT"),
+        )
+    return None
+
+
+def _build_chat_messages(prompt: str, system_prompt: Optional[str]) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+    return messages
+
+
+async def _run_chat(ws: WebSocket, client_id: str, job_id: str, params: dict) -> None:
+    """Run a chat completions job via an OpenAI-compatible backend."""
+    try:
+        from backends.chat_client import ChatCompletionsClient
+
+        prompt = str(params.get("prompt", "")).strip()
+        if not prompt:
+            await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Missing prompt"})
+            return
+
+        state = _get_app_state(ws)
+        chat_cfg = _resolve_chat_config(state, params)
+        if chat_cfg is None:
+            await hub.send(
+                client_id,
+                {"type": "job:error", "jobId": job_id, "error": "chat not configured for this mode"},
+            )
+            return
+
+        client = ChatCompletionsClient(chat_cfg)
+        stream = bool(params.get("stream", True))
+        max_tokens = params.get("max_tokens")
+        temperature = params.get("temperature")
+        messages = _build_chat_messages(prompt, chat_cfg.system_prompt)
+
+        if stream:
+            chunks: List[str] = []
+            async for delta in client.stream(messages, max_tokens=max_tokens, temperature=temperature):
+                chunks.append(delta)
+                await hub.send(
+                    client_id,
+                    {"type": "job:progress", "jobId": job_id, "delta": delta},
+                )
+            full_text = "".join(chunks)
+        else:
+            full_text = await client.complete(messages, max_tokens=max_tokens, temperature=temperature)
+
+        await hub.send(
+            client_id,
+            {
+                "type": "job:complete",
+                "jobId": job_id,
+                "outputs": [{"text": full_text}],
+                "meta": {
+                    "model": chat_cfg.model,
+                    "endpoint_base": chat_cfg.endpoint.rstrip("/"),
+                },
+            },
+        )
+    except Exception as e:
+        logger.error("Chat job %s failed: %s", job_id, e, exc_info=True)
+        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
 
 
 async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, req, fut) -> None:
