@@ -93,6 +93,7 @@ class ModelInfo:
     checkpoint_precision: str = "unknown"
     checkpoint_variant: str = "unknown"
     scheduler_profile: str = "unknown"
+    recommended_size: Optional[str] = None
     runtime_quantize: Optional[str] = None
     runtime_offload: Optional[str] = None
     runtime_attention_slicing: Optional[bool] = None
@@ -127,6 +128,7 @@ class ModelInfo:
             "checkpoint_precision": self.checkpoint_precision,
             "checkpoint_variant": self.checkpoint_variant,
             "scheduler_profile": self.scheduler_profile,
+            "recommended_size": self.recommended_size,
             "runtime_quantize": self.runtime_quantize,
             "runtime_offload": self.runtime_offload,
             "runtime_attention_slicing": self.runtime_attention_slicing,

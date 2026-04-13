@@ -680,6 +680,7 @@ class TestWorkerLifecycle:
         assert model_info.checkpoint_precision == "fp8"
         assert model_info.checkpoint_variant == "sdxl-base"
         assert model_info.scheduler_profile == "native"
+        assert model_info.recommended_size == "512x512"
         assert model_info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
         assert model_info.default_negative_prompt_template == "safe_photo"
         assert model_info.allow_custom_negative_prompt is True

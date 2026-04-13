@@ -53,6 +53,7 @@ def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInf
         "checkpoint_precision",
         "checkpoint_variant",
         "scheduler_profile",
+        "recommended_size",
         "runtime_quantize",
         "runtime_offload",
         "runtime_attention_slicing",

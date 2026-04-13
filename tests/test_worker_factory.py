@@ -178,3 +178,14 @@ class TestCreateCudaWorker:
 
         with pytest.raises(RuntimeError, match="Detection failed"):
             create_cuda_worker(worker_id=1, model_path="/models/broken.safetensors")
+
+
+def test_model_info_to_dict_includes_recommended_size():
+    """Recommended size should serialize with the rest of the top-level capabilities."""
+    model_info = ModelInfo(
+        path="/models/checkpoints/sdxl-base.safetensors",
+        variant=ModelVariant.SDXL_BASE,
+        recommended_size="896x1152",
+    )
+
+    assert model_info.to_dict()["recommended_size"] == "896x1152"
