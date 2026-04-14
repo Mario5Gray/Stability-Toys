@@ -80,7 +80,6 @@ import signal
 
 # Mode system imports
 from server.mode_config import get_mode_config, reload_mode_config
-from backends.worker_pool import get_worker_pool, GenerationJob
 from server.model_routes import router as model_router
 from server.advisor_routes import router as advisor_router
 from server.telemetry_routes import router as telemetry_router
