@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import { IDBFactory } from 'fake-indexeddb';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OptionsPanel } from './OptionsPanel';
 
 if (!Element.prototype.hasPointerCapture) {
@@ -24,6 +25,10 @@ if (!Element.prototype.scrollIntoView) {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+});
+
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
 });
 
 function makeParams(overrides = {}) {
@@ -78,7 +83,18 @@ function makeModeState(activeModeName, activeMode) {
   };
 }
 
-function renderOptionsPanel(modeState, params = makeParams()) {
+function makeGalleryState(overrides = {}) {
+  return {
+    galleries: [{ id: 'gal_1', name: 'Advisor' }],
+    activeGalleryId: 'gal_1',
+    setActiveGalleryId: vi.fn(),
+    getGalleryImages: vi.fn().mockResolvedValue([]),
+    getGalleryRevision: vi.fn(() => 0),
+    ...overrides,
+  };
+}
+
+function renderOptionsPanel(modeState, params = makeParams(), extraProps = {}) {
   return render(
     <OptionsPanel
       params={params}
@@ -119,6 +135,7 @@ function renderOptionsPanel(modeState, params = makeParams()) {
       denoiseStrength={0.75}
       onDenoiseStrengthChange={vi.fn()}
       modeState={modeState}
+      {...extraProps}
     />
   );
 }
@@ -540,5 +557,37 @@ describe('OptionsPanel mode-driven controls', () => {
     expect((await screen.findAllByText('euler')).length).toBeGreaterThan(0);
     expect(screen.queryAllByText('ddim')).toHaveLength(0);
     expect(screen.queryAllByText('lcm')).toHaveLength(0);
+  });
+
+  it('renders the advisor section under negative prompt controls when a gallery is active', async () => {
+    const params = makeParams();
+
+    renderOptionsPanel(
+      makeModeState('SDXL', {
+        maximum_len: 240,
+        allow_custom_negative_prompt: true,
+      }),
+      params,
+      { galleryState: makeGalleryState() },
+    );
+
+    expect(await screen.findByLabelText('Advisor length')).toHaveAttribute('max', '240');
+  });
+
+  it('offers append and replace apply modes', async () => {
+    renderOptionsPanel(
+      makeModeState('SDXL', {
+        maximum_len: 240,
+        allow_custom_negative_prompt: true,
+      }),
+      makeParams(),
+      { galleryState: makeGalleryState() },
+    );
+
+    expect(await screen.findByRole('button', { name: 'Apply Advice' })).toBeTruthy();
+
+    fireEvent.pointerDown(screen.getByLabelText('Apply advice mode'));
+    expect((await screen.findAllByText('Append')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Replace')).length).toBeGreaterThan(0);
   });
 });

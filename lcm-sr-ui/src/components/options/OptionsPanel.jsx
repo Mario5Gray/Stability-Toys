@@ -30,12 +30,16 @@ import {
 } from '../../utils/constants';
 import { formatSizeDisplay, sanitizeSeedInput } from '../../utils/helpers';
 import { ComfyOptions } from "./ComfyOptions";
+import { AdvisorPanel } from './AdvisorPanel';
+import { createApiClient, createApiConfig } from '../../utils/api';
 import {
   CUSTOM_NEGATIVE_PROMPT_ID,
   getNegativePromptTemplateOptions,
   getSchedulerOptions,
   resolveNegativePromptTemplateId,
 } from '../../utils/generationControls';
+import { useAdvisorState } from '../../hooks/useAdvisorState';
+import { useGalleryAdvisor } from '../../hooks/useGalleryAdvisor';
 
 /**
  * Options panel component - right sidebar with all generation controls.
@@ -214,6 +218,12 @@ export function OptionsPanel({
   galleryState,
 }) {
   const optionsScrollRef = useRef(null);
+  const apiClientRef = useRef(null);
+  if (!apiClientRef.current) {
+    apiClientRef.current = createApiClient(createApiConfig());
+  }
+  const advisorApi = apiClientRef.current;
+
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [canScrollUp, setCanScrollUp] = useState(false);
 
@@ -237,6 +247,8 @@ export function OptionsPanel({
   const [localCfgFine, setLocalCfgFine] = useState(Math.round((params.effective.cfg % 1) * 10));
   const [localSrLevel, setLocalSrLevel] = useState(params.effective.superresLevel);
   const [localNegativePrompt, setLocalNegativePrompt] = useState(params.effective.negativePrompt || '');
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [applyMode, setApplyMode] = useState('append');
   // Seed modifier sign: 1 for positive, -1 for negative
   const [seedSign, setSeedSign] = useState(1);
   const [seedModifierScale, setSeedModifierScale] = useState('linear');
@@ -394,6 +406,55 @@ export function OptionsPanel({
   const negativePromptTemplateId =
     resolveNegativePromptTemplateId(resolvedMode, localNegativePrompt) ||
     (resolvedMode?.allow_custom_negative_prompt ? CUSTOM_NEGATIVE_PROMPT_ID : '');
+  const activeGalleryId = galleryState?.activeGalleryId ?? null;
+  const galleryRevision = galleryState?.getGalleryRevision?.(activeGalleryId) ?? 0;
+  const getGalleryImages = galleryState?.getGalleryImages;
+  const {
+    state: advisorState,
+    saveState: saveAdvisorState,
+  } = useAdvisorState(activeGalleryId);
+  const advisor = useGalleryAdvisor({
+    galleryId: activeGalleryId,
+    galleryRevision,
+    galleryImages,
+    maximumLen: resolvedMode?.maximum_len ?? 0,
+    api: advisorApi,
+    advisorState,
+    saveAdvisorState,
+    setDraftPrompt: params.setPrompt,
+  });
+
+  const setAdvisorState = useCallback((updater) => {
+    advisor.setState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (activeGalleryId && next && saveAdvisorState) {
+        void saveAdvisorState(next);
+      }
+      return next;
+    });
+  }, [activeGalleryId, advisor, saveAdvisorState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeGalleryId || !getGalleryImages) {
+      setGalleryImages([]);
+      return undefined;
+    }
+
+    void getGalleryImages(activeGalleryId)
+      .then((rows) => {
+        if (cancelled) return;
+        setGalleryImages(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGalleryImages([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeGalleryId, galleryRevision, getGalleryImages]);
 
   return (
     <Card className="rounded-2xl shadow-sm h-full flex flex-col overflow-hidden">
@@ -744,6 +805,23 @@ export function OptionsPanel({
                   </div>
                 )}
               </div>
+              {activeGalleryId && (
+                <AdvisorPanel
+                  state={advisor.state}
+                  maximumLen={resolvedMode?.maximum_len ?? 0}
+                  onAutoAdviceChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), auto_advice: value }))}
+                  onTemperatureChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), temperature: value }))}
+                  onLengthChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), length_limit: value }))}
+                  onAdviceChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), advice_text: value }))}
+                  onResetToDigest={() => setAdvisorState((prev) => ({ ...(prev || {}), advice_text: prev?.digest_text || '' }))}
+                  onRebuild={() => {
+                    void advisor.rebuildAdvisor();
+                  }}
+                  onApply={advisor.applyAdvice}
+                  applyMode={applyMode}
+                  onApplyModeChange={setApplyMode}
+                />
+              )}
               <Separator />
             </>
           )}
