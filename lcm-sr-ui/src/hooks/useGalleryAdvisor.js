@@ -25,6 +25,14 @@ export function useGalleryAdvisor({
   setDraftPrompt,
 }) {
   const [state, setState] = useState(advisorState);
+  const persistState = useCallback(async (nextState) => {
+    if (!saveAdvisorState) return;
+    try {
+      await saveAdvisorState(nextState);
+    } catch (error) {
+      console.warn('[useGalleryAdvisor] failed to persist advisor state:', error);
+    }
+  }, [saveAdvisorState]);
 
   useEffect(() => {
     if (!galleryId) {
@@ -48,22 +56,22 @@ export function useGalleryAdvisor({
   );
 
   useEffect(() => {
-    if (!state || !galleryId) return;
-    if ((state.gallery_revision ?? 0) !== galleryRevision && state.status !== 'stale') {
-      const next = { ...state, gallery_revision: galleryRevision, status: 'stale' };
-      setState(next);
-      if (saveAdvisorState) {
-        void saveAdvisorState(next);
+    if (!galleryId) return;
+    setState((prev) => {
+      if (!prev) return prev;
+      if ((prev.gallery_revision ?? 0) === galleryRevision || prev.status === 'stale') {
+        return prev;
       }
-    }
-  }, [galleryId, galleryRevision, saveAdvisorState, state]);
+      const next = { ...prev, gallery_revision: galleryRevision, status: 'stale' };
+      void persistState(next);
+      return next;
+    });
+  }, [galleryId, galleryRevision, persistState]);
 
   const rebuildAdvisor = useCallback(async () => {
     const building = { ...(state || {}), gallery_id: galleryId, status: 'building' };
     setState(building);
-    if (saveAdvisorState) {
-      await saveAdvisorState(building);
-    }
+    await persistState(building);
 
     try {
       const response = await api.fetchPost('/api/advisors/digest', {
@@ -86,9 +94,7 @@ export function useGalleryAdvisor({
         error_message: null,
       };
       setState(next);
-      if (saveAdvisorState) {
-        await saveAdvisorState(next);
-      }
+      await persistState(next);
       return next;
     } catch (error) {
       const failed = {
@@ -98,12 +104,10 @@ export function useGalleryAdvisor({
         error_message: error.message || 'Advisor rebuild failed',
       };
       setState(failed);
-      if (saveAdvisorState) {
-        await saveAdvisorState(failed);
-      }
+      await persistState(failed);
       throw error;
     }
-  }, [api, evidence, galleryId, galleryRevision, maximumLen, saveAdvisorState, state]);
+  }, [api, evidence, galleryId, galleryRevision, maximumLen, persistState, state]);
 
   const applyAdvice = useCallback((mode) => {
     if (!state?.advice_text) return;

@@ -590,4 +590,17 @@ describe('OptionsPanel mode-driven controls', () => {
     expect((await screen.findAllByText('Append')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('Replace')).length).toBeGreaterThan(0);
   });
+
+  it('hides advisor length control when active mode has no maximum_len', async () => {
+    renderOptionsPanel(
+      makeModeState('SDXL', {
+        allow_custom_negative_prompt: true,
+      }),
+      makeParams(),
+      { galleryState: makeGalleryState() },
+    );
+
+    expect(await screen.findByRole('button', { name: 'Apply Advice' })).toBeTruthy();
+    expect(screen.queryByLabelText('Advisor length')).toBeNull();
+  });
 });

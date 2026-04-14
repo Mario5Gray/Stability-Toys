@@ -16,6 +16,8 @@ export function AdvisorPanel({
   applyMode,
   onApplyModeChange,
 }) {
+  const hasMaximumLen = Number.isFinite(Number(maximumLen)) && Number(maximumLen) > 0;
+
   return (
     <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
       <Label>Advisor</Label>
@@ -44,19 +46,21 @@ export function AdvisorPanel({
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="advisor-length">Length</Label>
-        <input
-          id="advisor-length"
-          aria-label="Advisor length"
-          type="range"
-          min="0"
-          max={maximumLen ?? 0}
-          step="1"
-          value={state?.length_limit ?? 0}
-          onChange={(e) => onLengthChange(Number(e.target.value))}
-        />
-      </div>
+      {hasMaximumLen && (
+        <div className="space-y-2">
+          <Label htmlFor="advisor-length">Length</Label>
+          <input
+            id="advisor-length"
+            aria-label="Advisor length"
+            type="range"
+            min="0"
+            max={maximumLen}
+            step="1"
+            value={state?.length_limit ?? 0}
+            onChange={(e) => onLengthChange(Number(e.target.value))}
+          />
+        </div>
+      )}
 
       <div className="text-xs" data-status={state?.status || 'idle'}>
         {state?.status === 'building'

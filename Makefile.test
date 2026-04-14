@@ -4,7 +4,7 @@
 .PHONY: help test test-build test-build-cuda test-unit test-fast test-coverage test-watch test-clean test-shell test-cuda check-conda-base
 
 PYTHON ?= python
-EXPECTED_CONDA_PREFIX ?= /Users/darkbit1001/miniforge3
+EXPECTED_CONDA_PREFIX ?= $(HOME)/miniforge3
 
 help: ## Show this help message
 	@echo "Dream Lab Test Commands:"

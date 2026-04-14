@@ -413,7 +413,12 @@ export function OptionsPanel({
     state: advisorState,
     saveState: saveAdvisorState,
   } = useAdvisorState(activeGalleryId);
-  const advisor = useGalleryAdvisor({
+  const {
+    state: advisorRuntimeState,
+    setState: setAdvisorRuntimeState,
+    rebuildAdvisor,
+    applyAdvice,
+  } = useGalleryAdvisor({
     galleryId: activeGalleryId,
     galleryRevision,
     galleryImages,
@@ -425,14 +430,14 @@ export function OptionsPanel({
   });
 
   const setAdvisorState = useCallback((updater) => {
-    advisor.setState((prev) => {
+    setAdvisorRuntimeState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (activeGalleryId && next && saveAdvisorState) {
         void saveAdvisorState(next);
       }
       return next;
     });
-  }, [activeGalleryId, advisor, saveAdvisorState]);
+  }, [activeGalleryId, saveAdvisorState, setAdvisorRuntimeState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -807,17 +812,21 @@ export function OptionsPanel({
               </div>
               {activeGalleryId && (
                 <AdvisorPanel
-                  state={advisor.state}
+                  state={advisorRuntimeState}
                   maximumLen={resolvedMode?.maximum_len ?? 0}
                   onAutoAdviceChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), auto_advice: value }))}
                   onTemperatureChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), temperature: value }))}
                   onLengthChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), length_limit: value }))}
                   onAdviceChange={(value) => setAdvisorState((prev) => ({ ...(prev || {}), advice_text: value }))}
                   onResetToDigest={() => setAdvisorState((prev) => ({ ...(prev || {}), advice_text: prev?.digest_text || '' }))}
-                  onRebuild={() => {
-                    void advisor.rebuildAdvisor();
+                  onRebuild={async () => {
+                    try {
+                      await rebuildAdvisor();
+                    } catch (error) {
+                      console.warn('[OptionsPanel] advisor rebuild failed:', error);
+                    }
                   }}
-                  onApply={advisor.applyAdvice}
+                  onApply={applyAdvice}
                   applyMode={applyMode}
                   onApplyModeChange={setApplyMode}
                 />

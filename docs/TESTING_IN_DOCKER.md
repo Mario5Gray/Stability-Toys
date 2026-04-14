@@ -85,7 +85,7 @@ source /Users/darkbit1001/miniforge3/bin/activate base
 make -f Makefile.test local-test
 ```
 
-`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=/Users/darkbit1001/miniforge3` and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
+`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
 
 Run a smoke check that verifies the image starts and reads `/conf/modes.yml`:
 

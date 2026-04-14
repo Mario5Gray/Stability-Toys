@@ -22,6 +22,10 @@
 - Frontend Task 3 progress landed:
   - `useGalleries` now supports `removeFromGallery(galleryId, cacheKey)` and per-gallery revision tracking (`getGalleryRevision`).
   - `useAdvisorState` now persists advisor state in IndexedDB (`advisor_states`) keyed by `gallery_id`.
+- Frontend Task 4/5 follow-up hardening landed:
+  - advisor rebuild persistence now degrades gracefully when IndexedDB writes fail, and UI rebuild callbacks capture async failures without unhandled rejections.
+  - advisor length control is shown only when mode `maximum_len` is configured.
+  - advisor evidence items are sorted for deterministic fingerprints independent of caller row ordering.
 - For `STABL-grarbnxp`, backend scope is the active lane. Resume frontend advisor tasks only after backend chat plumbing is accepted.
 
 ---

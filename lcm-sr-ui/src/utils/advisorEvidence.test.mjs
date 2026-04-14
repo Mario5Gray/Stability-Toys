@@ -39,4 +39,13 @@ describe('buildAdvisorEvidence', () => {
       ],
     });
   });
+
+  it('sorts evidence items for deterministic fingerprints regardless of caller ordering', () => {
+    const evidence = buildAdvisorEvidence('gal_1', [
+      { cacheKey: 'b', addedAt: 2, params: { prompt: 'dog' } },
+      { cacheKey: 'a', addedAt: 1, params: { prompt: 'cat' } },
+    ]);
+
+    expect(evidence.items.map((item) => item.cache_key)).toEqual(['a', 'b']);
+  });
 });
