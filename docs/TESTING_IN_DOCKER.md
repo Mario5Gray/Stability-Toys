@@ -78,6 +78,15 @@ Run the local test suite:
 docker compose -f docker-compose.test.yml run --rm test
 ```
 
+Run local non-Docker tests via `Makefile.test` (requires Miniforge base):
+
+```bash
+source /Users/darkbit1001/miniforge3/bin/activate base
+make -f Makefile.test local-test
+```
+
+`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=/Users/darkbit1001/miniforge3` and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
+
 Run a smoke check that verifies the image starts and reads `/conf/modes.yml`:
 
 ```bash
