@@ -5,8 +5,9 @@ import { uuidv4 } from '@/utils/uuid';
 const LS_GALLERIES_KEY = 'lcm-galleries';
 const LS_ACTIVE_KEY = 'lcm-active-gallery';
 const DB_NAME = 'lcm-galleries';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'gallery_items';
+const ADVISOR_STORE = 'advisor_states';
 
 function openGalleryDb() {
   if (typeof indexedDB === 'undefined') {
@@ -22,6 +23,9 @@ function openGalleryDb() {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         store.createIndex('galleryId', 'galleryId', { unique: false });
         store.createIndex('cacheKey', 'cacheKey', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(ADVISOR_STORE)) {
+        db.createObjectStore(ADVISOR_STORE, { keyPath: 'gallery_id' });
       }
     };
   });
@@ -52,6 +56,7 @@ function loadActiveFromStorage() {
 export function useGalleries() {
   const [galleries, setGalleries] = useState(() => loadGalleriesFromStorage());
   const [activeGalleryId, setActiveGalleryIdState] = useState(() => loadActiveFromStorage());
+  const [galleryRevisions, setGalleryRevisions] = useState({});
   const dbRef = useRef(null);
 
   const getDb = useCallback(() => {
@@ -80,6 +85,14 @@ export function useGalleries() {
     setActiveGalleryId(id);
   }, [setActiveGalleryId]);
 
+  const bumpGalleryRevision = useCallback((galleryId) => {
+    if (!galleryId) return;
+    setGalleryRevisions((prev) => ({
+      ...prev,
+      [galleryId]: (prev[galleryId] || 0) + 1,
+    }));
+  }, []);
+
   const addToGallery = useCallback(async (cacheKey, { serverImageUrl, params, galleryId, _addedAt }) => {
     if (!cacheKey || !galleryId) return;
     try {
@@ -101,10 +114,28 @@ export function useGalleries() {
         addedAt: _addedAt ?? Date.now(),
       };
       await promisifyRequest(rwTx.objectStore(STORE_NAME).put(row));
+      bumpGalleryRevision(galleryId);
     } catch (err) {
       console.warn('[useGalleries] addToGallery failed:', err);
     }
-  }, [getDb]);
+  }, [getDb, bumpGalleryRevision]);
+
+  const removeFromGallery = useCallback(async (galleryId, cacheKey) => {
+    if (!galleryId || !cacheKey) return;
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const rows = await promisifyRequest(store.index('galleryId').getAll(galleryId));
+      const matches = rows.filter((row) => row.cacheKey === cacheKey);
+      await Promise.all(matches.map((row) => promisifyRequest(store.delete(row.id))));
+      if (matches.length > 0) {
+        bumpGalleryRevision(galleryId);
+      }
+    } catch (err) {
+      console.warn('[useGalleries] removeFromGallery failed:', err);
+    }
+  }, [getDb, bumpGalleryRevision]);
 
   const getGalleryImages = useCallback(async (galleryId) => {
     if (!galleryId) return [];
@@ -125,6 +156,8 @@ export function useGalleries() {
     setActiveGalleryId,
     createGallery,
     addToGallery,
+    removeFromGallery,
     getGalleryImages,
+    getGalleryRevision: (galleryId) => galleryRevisions[galleryId] || 0,
   };
 }

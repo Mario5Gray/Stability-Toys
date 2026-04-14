@@ -19,6 +19,9 @@
   - `server/ws_routes.py` now accepts `jobType=chat`, enforces mode-scoped chat config (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
   - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events.
   - `server/advisor_service.py` and `server/advisor_routes.py` now provide `POST /api/advisors/digest`, and `server/lcm_sr_server.py` includes `advisor_router`.
+- Frontend Task 3 progress landed:
+  - `useGalleries` now supports `removeFromGallery(galleryId, cacheKey)` and per-gallery revision tracking (`getGalleryRevision`).
+  - `useAdvisorState` now persists advisor state in IndexedDB (`advisor_states`) keyed by `gallery_id`.
 - For `STABL-grarbnxp`, backend scope is the active lane. Resume frontend advisor tasks only after backend chat plumbing is accepted.
 
 ---

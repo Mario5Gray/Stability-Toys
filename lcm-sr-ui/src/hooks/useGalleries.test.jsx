@@ -133,4 +133,28 @@ describe('useGalleries — IndexedDB addToGallery / getGalleryImages', () => {
     expect(g2Items).toHaveLength(1);
     expect(g1Items[0].id).not.toBe(g2Items[0].id);
   });
+
+  it('removeFromGallery deletes a row by galleryId and cacheKey', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Advisor'); });
+    const galleryId = result.current.activeGalleryId;
+    await act(async () => {
+      await result.current.addToGallery('key_a', { serverImageUrl: null, params: {}, galleryId });
+      await result.current.removeFromGallery(galleryId, 'key_a');
+    });
+    let items;
+    await act(async () => { items = await result.current.getGalleryImages(galleryId); });
+    expect(items).toEqual([]);
+  });
+
+  it('addToGallery bumps the gallery revision', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Advisor'); });
+    const galleryId = result.current.activeGalleryId;
+    const before = result.current.getGalleryRevision(galleryId);
+    await act(async () => {
+      await result.current.addToGallery('key_a', { serverImageUrl: null, params: {}, galleryId });
+    });
+    expect(result.current.getGalleryRevision(galleryId)).toBeGreaterThan(before);
+  });
 });
