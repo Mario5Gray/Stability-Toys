@@ -299,12 +299,20 @@ class ModeConfigManager:
             raise ValueError(f"Mode '{mode_name}' chat config missing required field: endpoint")
         if not model:
             raise ValueError(f"Mode '{mode_name}' chat config missing required field: model")
+        try:
+            max_tokens = int(chat_data.get("max_tokens", 1024))
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Mode '{mode_name}' chat config has invalid max_tokens") from e
+        try:
+            temperature = float(chat_data.get("temperature", 0.7))
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Mode '{mode_name}' chat config has invalid temperature") from e
         return ChatBackendConfig(
             endpoint=endpoint,
             model=model,
             api_key_env=(chat_data.get("api_key_env") or "OPENAI_API_KEY").strip(),
-            max_tokens=int(chat_data.get("max_tokens", 1024)),
-            temperature=float(chat_data.get("temperature", 0.7)),
+            max_tokens=max_tokens,
+            temperature=temperature,
             system_prompt=chat_data.get("system_prompt"),
         )
 

@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional, List
 from server.http_utils import post_bytes
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from backends.chat_client import ChatCompletionsClient, ChatConfig
 from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
 from server.ws_hub import hub
@@ -297,9 +298,7 @@ def _build_generate_request(params: dict):
 
 
 def _resolve_chat_config(state, params: dict):
-    """Resolve chat config from active mode first, then env fallback."""
-    from backends.chat_client import ChatConfig
-
+    """Resolve chat config from the active mode only."""
     mode_name = params.get("mode")
     mode_config = get_mode_config()
 
@@ -311,31 +310,25 @@ def _resolve_chat_config(state, params: dict):
         if not mode_name:
             mode_name = mode_config.get_default_mode()
 
-    if mode_name:
-        mode = mode_config.get_mode(mode_name)
-        chat_cfg = getattr(mode, "chat", None)
-        if chat_cfg is not None:
-            return ChatConfig(
-                endpoint=chat_cfg.endpoint,
-                model=chat_cfg.model,
-                api_key_env=chat_cfg.api_key_env,
-                max_tokens=chat_cfg.max_tokens,
-                temperature=chat_cfg.temperature,
-                system_prompt=chat_cfg.system_prompt,
-            )
+    if not mode_name:
+        return None, None
 
-    endpoint = (os.environ.get("CHAT_ENDPOINT") or "").strip()
-    model = (os.environ.get("CHAT_MODEL") or "").strip()
-    if endpoint and model:
-        return ChatConfig(
-            endpoint=endpoint,
-            model=model,
-            api_key_env=(os.environ.get("CHAT_API_KEY_ENV") or "OPENAI_API_KEY").strip(),
-            max_tokens=int(os.environ.get("CHAT_MAX_TOKENS", "1024")),
-            temperature=float(os.environ.get("CHAT_TEMPERATURE", "0.7")),
-            system_prompt=os.environ.get("CHAT_SYSTEM_PROMPT"),
-        )
-    return None
+    mode = mode_config.get_mode(mode_name)
+    chat_cfg = getattr(mode, "chat", None)
+    if chat_cfg is None:
+        return None, getattr(mode, "maximum_len", None)
+
+    return (
+        ChatConfig(
+            endpoint=chat_cfg.endpoint,
+            model=chat_cfg.model,
+            api_key_env=chat_cfg.api_key_env,
+            max_tokens=chat_cfg.max_tokens,
+            temperature=chat_cfg.temperature,
+            system_prompt=chat_cfg.system_prompt,
+        ),
+        getattr(mode, "maximum_len", None),
+    )
 
 
 def _build_chat_messages(prompt: str, system_prompt: Optional[str]) -> List[Dict[str, str]]:
@@ -349,15 +342,13 @@ def _build_chat_messages(prompt: str, system_prompt: Optional[str]) -> List[Dict
 async def _run_chat(ws: WebSocket, client_id: str, job_id: str, params: dict) -> None:
     """Run a chat completions job via an OpenAI-compatible backend."""
     try:
-        from backends.chat_client import ChatCompletionsClient
-
         prompt = str(params.get("prompt", "")).strip()
         if not prompt:
             await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Missing prompt"})
             return
 
         state = _get_app_state(ws)
-        chat_cfg = _resolve_chat_config(state, params)
+        chat_cfg, maximum_len = _resolve_chat_config(state, params)
         if chat_cfg is None:
             await hub.send(
                 client_id,
@@ -368,7 +359,13 @@ async def _run_chat(ws: WebSocket, client_id: str, job_id: str, params: dict) ->
         client = ChatCompletionsClient(chat_cfg)
         stream = bool(params.get("stream", True))
         max_tokens = params.get("max_tokens")
+        if max_tokens is not None:
+            max_tokens = int(max_tokens)
+        if maximum_len is not None:
+            max_tokens = min(max_tokens if max_tokens is not None else chat_cfg.max_tokens, int(maximum_len))
         temperature = params.get("temperature")
+        if temperature is not None:
+            temperature = float(temperature)
         messages = _build_chat_messages(prompt, chat_cfg.system_prompt)
 
         if stream:

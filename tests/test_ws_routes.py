@@ -705,7 +705,8 @@ class TestJobSubmit:
         app.state.worker_pool = pool
 
         try:
-            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch.dict(os.environ, {"CHAT_ENDPOINT": "http://localhost:11434/v1", "CHAT_MODEL": "llama3.2"}, clear=False):
                 get_mode_config.return_value = SimpleNamespace(
                     get_mode=lambda name: SimpleNamespace(name=name, chat=None),
                     get_default_mode=lambda: "sdxl-general",
@@ -774,6 +775,111 @@ class TestJobSubmit:
                     assert done["outputs"] == [{"text": "assistant reply"}]
                     assert done["meta"]["model"] == "llama3.2"
                     assert done["meta"]["endpoint_base"] == "http://localhost:11434/v1"
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_chat_job_stream_emits_progress_and_aggregates_complete(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        fake_chat_cfg = SimpleNamespace(
+            endpoint="http://localhost:11434/v1",
+            model="llama3.2",
+            api_key_env="OPENAI_API_KEY",
+            max_tokens=128,
+            temperature=0.4,
+            system_prompt="You are concise.",
+        )
+
+        async def _fake_stream(*args, **kwargs):
+            yield "hel"
+            yield "lo"
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch("backends.chat_client.ChatCompletionsClient.stream", new=_fake_stream):
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg, maximum_len=None),
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-stream",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": True,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+
+                    p1 = ws.receive_json()
+                    assert p1["type"] == "job:progress"
+                    assert p1["delta"] == "hel"
+                    p2 = ws.receive_json()
+                    assert p2["type"] == "job:progress"
+                    assert p2["delta"] == "lo"
+
+                    done = ws.receive_json()
+                    assert done["type"] == "job:complete"
+                    assert done["jobId"] == ack["jobId"]
+                    assert done["outputs"] == [{"text": "hello"}]
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_chat_job_clamps_max_tokens_to_mode_maximum_len(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        fake_chat_cfg = SimpleNamespace(
+            endpoint="http://localhost:11434/v1",
+            model="llama3.2",
+            api_key_env="OPENAI_API_KEY",
+            max_tokens=512,
+            temperature=0.4,
+            system_prompt=None,
+        )
+        complete_mock = AsyncMock(return_value="assistant reply")
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch("backends.chat_client.ChatCompletionsClient.complete", new=complete_mock):
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg, maximum_len=120),
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-clamp",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": False,
+                            "max_tokens": 300,
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    done = ws.receive_json()
+                    assert done["type"] == "job:complete"
+                    assert done["jobId"] == ack["jobId"]
+
+                assert complete_mock.await_count == 1
+                _, kwargs = complete_mock.await_args
+                assert kwargs["max_tokens"] == 120
         finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None

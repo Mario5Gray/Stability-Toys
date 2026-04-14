@@ -16,8 +16,9 @@
 - Backend progress landed:
   - `server/mode_config.py` now supports `maximum_len` and per-mode `chat` config parsing/serialization.
   - `server/model_routes.py` now exposes `maximum_len` and `chat_enabled` in `/api/modes`.
-  - `server/ws_routes.py` now accepts `jobType=chat` and returns chat results via `job:complete` with `outputs[].text` (plus streaming `job:progress` deltas when enabled).
-  - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`).
+  - `server/ws_routes.py` now accepts `jobType=chat`, enforces mode-scoped chat config (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
+  - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events.
+  - `server/advisor_service.py` and `server/advisor_routes.py` now provide `POST /api/advisors/digest`, and `server/lcm_sr_server.py` includes `advisor_router`.
 - For `STABL-grarbnxp`, backend scope is the active lane. Resume frontend advisor tasks only after backend chat plumbing is accepted.
 
 ---

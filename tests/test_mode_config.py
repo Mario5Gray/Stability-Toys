@@ -120,6 +120,36 @@ modes:
     assert mode.chat.system_prompt == "You are concise."
 
 
+def test_mode_config_chat_numeric_field_errors_include_mode_name(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-chat
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl-chat:
+    model: checkpoints/sdxl/sdxl-base.safetensors
+    default_size: 512x512
+    chat:
+      endpoint: http://localhost:11434/v1
+      model: llama3.2
+      max_tokens: not-a-number
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError) as exc:
+        ModeConfigManager(str(tmp_path))
+    assert "Mode 'sdxl-chat'" in str(exc.value)
+    assert "max_tokens" in str(exc.value)
+
+
 def test_mode_config_parses_maximum_len(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
