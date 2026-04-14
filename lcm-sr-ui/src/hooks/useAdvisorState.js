@@ -56,11 +56,21 @@ export function useAdvisorState(galleryId) {
   }, [galleryId, getDb]);
 
   const saveState = useCallback(async (nextState) => {
+    if (!galleryId) {
+      throw new Error('[useAdvisorState] cannot save without galleryId');
+    }
+    if (!nextState || typeof nextState !== 'object') {
+      throw new Error('[useAdvisorState] saveState requires an object');
+    }
+    if (nextState.gallery_id && nextState.gallery_id !== galleryId) {
+      throw new Error('[useAdvisorState] gallery_id mismatch');
+    }
+    const normalizedState = { ...nextState, gallery_id: galleryId };
     const db = await getDb();
     const tx = db.transaction(ADVISOR_STORE, 'readwrite');
-    await requestToPromise(tx.objectStore(ADVISOR_STORE).put(nextState));
-    setState(nextState);
-  }, [getDb]);
+    await requestToPromise(tx.objectStore(ADVISOR_STORE).put(normalizedState));
+    setState(normalizedState);
+  }, [galleryId, getDb]);
 
   useEffect(() => {
     void reload();

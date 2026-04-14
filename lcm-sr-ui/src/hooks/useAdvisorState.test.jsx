@@ -30,3 +30,32 @@ it('persists and reloads advisor state by gallery_id', async () => {
   expect(result.current.state.digest_text).toBe('digest');
   expect(result.current.state.advice_text).toBe('advice');
 });
+
+it('saveState injects gallery_id from hook when omitted', async () => {
+  const { result } = renderHook(({ galleryId }) => useAdvisorState(galleryId), {
+    initialProps: { galleryId: 'gal_1' },
+  });
+
+  await act(async () => {
+    await result.current.saveState({
+      digest_text: 'digest',
+      advice_text: 'advice',
+      status: 'fresh',
+    });
+  });
+
+  expect(result.current.state.gallery_id).toBe('gal_1');
+});
+
+it('saveState rejects mismatched gallery_id', async () => {
+  const { result } = renderHook(({ galleryId }) => useAdvisorState(galleryId), {
+    initialProps: { galleryId: 'gal_1' },
+  });
+
+  await expect(
+    result.current.saveState({
+      gallery_id: 'gal_2',
+      digest_text: 'digest',
+    }),
+  ).rejects.toThrow('gallery_id mismatch');
+});
