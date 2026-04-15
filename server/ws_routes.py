@@ -297,8 +297,8 @@ def _build_generate_request(params: dict):
     )
 
 
-def _resolve_chat_config(state, params: dict):
-    """Resolve chat config from global chat mappings keyed by active mode."""
+def _resolve_chat_config(state, params: dict) -> Optional[tuple[ChatConfig, Optional[int]]]:
+    """Resolve chat config and mode maximum length for the active mode."""
     mode_name = params.get("mode")
     mode_config = get_mode_config()
 
@@ -311,12 +311,13 @@ def _resolve_chat_config(state, params: dict):
             mode_name = mode_config.get_default_mode()
 
     if not mode_name:
-        return None, None
+        return None
 
     mode = mode_config.get_mode(mode_name)
+    maximum_len = getattr(mode, "maximum_len", None)
     chat_cfg = mode_config.get_chat_config(mode_name)
     if chat_cfg is None:
-        return None, getattr(mode, "maximum_len", None)
+        return None
 
     return (
         ChatConfig(
@@ -327,7 +328,7 @@ def _resolve_chat_config(state, params: dict):
             temperature=chat_cfg.temperature,
             system_prompt=chat_cfg.system_prompt,
         ),
-        getattr(mode, "maximum_len", None),
+        maximum_len,
     )
 
 
@@ -348,13 +349,14 @@ async def _run_chat(ws: WebSocket, client_id: str, job_id: str, params: dict) ->
             return
 
         state = _get_app_state(ws)
-        chat_cfg, maximum_len = _resolve_chat_config(state, params)
-        if chat_cfg is None:
+        chat_context = _resolve_chat_config(state, params)
+        if chat_context is None:
             await hub.send(
                 client_id,
                 {"type": "job:error", "jobId": job_id, "error": "chat not configured for this mode"},
             )
             return
+        chat_cfg, maximum_len = chat_context
 
         client = ChatCompletionsClient(chat_cfg)
         stream = bool(params.get("stream", True))

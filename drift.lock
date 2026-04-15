@@ -17,9 +17,9 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useG
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.js sig:76799f8c6bc6ecc8
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.test.mjs sig:2d38aff9ea412869
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/lcm_sr_server.py sig:4a9c7ce754d4cb8b
-docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:c0b15f3eaf6cf49d
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:82cdf5c6da856a75
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:062359ec7c9beb22
-docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:11675e16011927a0
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:6f6cbb0f4336ff4d
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:6156668b55a4edd9
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:a11bbce0858c92a8

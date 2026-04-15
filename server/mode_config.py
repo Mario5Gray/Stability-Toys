@@ -54,7 +54,6 @@ class ModeConfig:
     default_steps: int = 4
     default_guidance: float = 1.0
     maximum_len: Optional[int] = None
-    chat: Optional[ChatBackendConfig] = None
     loader_format: Optional[str] = None
     checkpoint_precision: Optional[str] = None
     checkpoint_variant: Optional[str] = None
@@ -106,7 +105,9 @@ class ModeConfigManager:
             config_path: Path to modes.yml (relative to project root)
         """
         if not config_path:
-            raise ValueError(f"Couldnt find a modes.yml to configure models with! current CONFIG_PATH={self.config_path}")
+            raise ValueError(
+                "Couldnt find a modes.yml to configure models with! current CONFIG_PATH is empty"
+            )
         
         self.config_path = Path(os.path.join(Path(config_path), "modes.yml"))
 

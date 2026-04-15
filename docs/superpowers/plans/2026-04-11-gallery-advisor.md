@@ -18,6 +18,7 @@
   - `server/model_routes.py` now exposes `maximum_len` and `chat_enabled` in `/api/modes`.
   - mode-save/delete paths now guard chat-mode integrity: stale `chat` keys are rejected in `save_config()`, and `/api/modes` save/delete flows prune removed mode bindings before persistence.
   - `server/ws_routes.py` now accepts `jobType=chat`, resolves chat config from global `chat.<mode_name>` entries (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
+  - follow-up cleanup removed dead mode-level chat state, fixed empty-config-path error handling, and simplified ws chat config resolution to return a single optional context object.
   - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events.
   - `server/advisor_service.py` and `server/advisor_routes.py` now provide `POST /api/advisors/digest`, and `server/lcm_sr_server.py` includes `advisor_router`.
 - Frontend Task 3 progress landed:
