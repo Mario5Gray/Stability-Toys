@@ -81,7 +81,48 @@ modes:
     assert mode.runtime_enable_xformers is True
 
 
-def test_mode_config_parses_chat_block(tmp_path):
+def test_mode_config_parses_global_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-chat
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+chat:
+  sdxl-chat:
+    endpoint: http://localhost:11434/v1
+    model: llama3.2
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 768
+    temperature: 0.4
+    system_prompt: You are concise.
+modes:
+  sdxl-chat:
+    model: checkpoints/sdxl/sdxl-base.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    chat_cfg = manager.get_chat_config("sdxl-chat")
+
+    assert chat_cfg is not None
+    assert chat_cfg.endpoint == "http://localhost:11434/v1"
+    assert chat_cfg.model == "llama3.2"
+    assert chat_cfg.api_key_env == "OPENAI_API_KEY"
+    assert chat_cfg.max_tokens == 768
+    assert chat_cfg.temperature == 0.4
+    assert chat_cfg.system_prompt == "You are concise."
+    assert manager.to_dict()["chat"]["sdxl-chat"]["model"] == "llama3.2"
+
+
+def test_mode_config_rejects_mode_scoped_chat_block(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -99,25 +140,15 @@ modes:
     chat:
       endpoint: http://localhost:11434/v1
       model: llama3.2
-      api_key_env: OPENAI_API_KEY
-      max_tokens: 768
-      temperature: 0.4
-      system_prompt: You are concise.
 """.strip()
     )
 
     from server.mode_config import ModeConfigManager
 
-    manager = ModeConfigManager(str(tmp_path))
-    mode = manager.get_mode("sdxl-chat")
-
-    assert mode.chat is not None
-    assert mode.chat.endpoint == "http://localhost:11434/v1"
-    assert mode.chat.model == "llama3.2"
-    assert mode.chat.api_key_env == "OPENAI_API_KEY"
-    assert mode.chat.max_tokens == 768
-    assert mode.chat.temperature == 0.4
-    assert mode.chat.system_prompt == "You are concise."
+    with pytest.raises(ValueError) as exc:
+        ModeConfigManager(str(tmp_path))
+    assert "Mode 'sdxl-chat'" in str(exc.value)
+    assert "top-level 'chat.sdxl-chat'" in str(exc.value)
 
 
 def test_mode_config_chat_numeric_field_errors_include_mode_name(tmp_path):
@@ -131,14 +162,15 @@ resolution_sets:
   default:
     - size: 512x512
       aspect_ratio: "1:1"
+chat:
+  sdxl-chat:
+    endpoint: http://localhost:11434/v1
+    model: llama3.2
+    max_tokens: not-a-number
 modes:
   sdxl-chat:
     model: checkpoints/sdxl/sdxl-base.safetensors
     default_size: 512x512
-    chat:
-      endpoint: http://localhost:11434/v1
-      model: llama3.2
-      max_tokens: not-a-number
 """.strip()
     )
 
@@ -146,114 +178,8 @@ modes:
 
     with pytest.raises(ValueError) as exc:
         ModeConfigManager(str(tmp_path))
-    assert "Mode 'sdxl-chat'" in str(exc.value)
+    assert "mode 'sdxl-chat'" in str(exc.value)
     assert "max_tokens" in str(exc.value)
-
-
-def test_mode_config_parses_maximum_len(tmp_path):
-    cfg = tmp_path / "modes.yml"
-    cfg.write_text(
-        """
-model_root: /models
-lora_root: /models/loras
-default_mode: sdxl
-resolution_sets:
-  default:
-    - size: 512x512
-      aspect_ratio: "1:1"
-modes:
-  sdxl:
-    model: checkpoints/sdxl/model.safetensors
-    default_size: 512x512
-    default_steps: 30
-    default_guidance: 7.5
-    maximum_len: 240
-""".strip()
-    )
-
-    from server.mode_config import ModeConfigManager
-
-    manager = ModeConfigManager(str(tmp_path))
-    assert manager.get_mode("sdxl").maximum_len == 240
-
-
-def test_mode_config_maximum_len_defaults_to_none(tmp_path):
-    cfg = tmp_path / "modes.yml"
-    cfg.write_text(
-        """
-model_root: /models
-lora_root: /models/loras
-default_mode: sd15
-resolution_sets:
-  default:
-    - size: 512x512
-      aspect_ratio: "1:1"
-modes:
-  sd15:
-    model: checkpoints/sd15/model.safetensors
-    default_size: 512x512
-    default_steps: 20
-    default_guidance: 7.5
-""".strip()
-    )
-
-    from server.mode_config import ModeConfigManager
-
-    manager = ModeConfigManager(str(tmp_path))
-    assert manager.get_mode("sd15").maximum_len is None
-
-
-def test_mode_config_parses_maximum_len(tmp_path):
-    cfg = tmp_path / "modes.yml"
-    cfg.write_text(
-        """
-model_root: /models
-lora_root: /models/loras
-default_mode: sdxl
-resolution_sets:
-  default:
-    - size: 512x512
-      aspect_ratio: "1:1"
-modes:
-  sdxl:
-    model: checkpoints/sdxl/model.safetensors
-    default_size: 512x512
-    default_steps: 30
-    default_guidance: 7.5
-    maximum_len: 240
-""".strip()
-    )
-
-    from server.mode_config import ModeConfigManager
-
-    manager = ModeConfigManager(str(tmp_path))
-    assert manager.get_mode("sdxl").maximum_len == 240
-
-
-def test_mode_config_maximum_len_defaults_to_none(tmp_path):
-    cfg = tmp_path / "modes.yml"
-    cfg.write_text(
-        """
-model_root: /models
-lora_root: /models/loras
-default_mode: sd15
-resolution_sets:
-  default:
-    - size: 512x512
-      aspect_ratio: "1:1"
-modes:
-  sd15:
-    model: checkpoints/sd15/model.safetensors
-    default_size: 512x512
-    default_steps: 20
-    default_guidance: 7.5
-""".strip()
-    )
-
-    from server.mode_config import ModeConfigManager
-
-    manager = ModeConfigManager(str(tmp_path))
-    assert manager.get_mode("sd15").maximum_len is None
 
 
 def test_mode_config_parses_maximum_len(tmp_path):
@@ -530,6 +456,105 @@ modes:
     assert reloaded.negative_prompt_templates == {
         "safe_photo": "blurry, distorted, low quality"
     }
+
+
+def test_mode_config_save_config_round_trips_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+chat:
+  sdxl:
+    endpoint: http://localhost:11434/v1
+    model: llama3.2
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 512
+    temperature: 0.5
+    system_prompt: You are concise.
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    manager.save_config(manager.to_dict())
+
+    saved = yaml.safe_load(cfg.read_text())
+    reloaded_manager = ModeConfigManager(str(tmp_path))
+    reloaded_chat = reloaded_manager.get_chat_config("sdxl")
+
+    assert "chat" in saved
+    assert saved["chat"]["sdxl"]["model"] == "llama3.2"
+    assert reloaded_chat is not None
+    assert reloaded_chat.endpoint == "http://localhost:11434/v1"
+    assert reloaded_chat.max_tokens == 512
+
+
+def test_mode_config_save_config_omits_empty_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sd15
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sd15:
+    model: checkpoints/sd15/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    manager.save_config(manager.to_dict())
+    saved = yaml.safe_load(cfg.read_text())
+
+    assert "chat" not in saved
+
+
+def test_mode_config_save_config_rejects_chat_references_to_missing_modes(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    payload = manager.to_dict()
+    payload["chat"] = {
+        "missing": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
+    }
+
+    with pytest.raises(ValueError, match="chat entries reference missing modes"):
+        manager.save_config(payload)
 
 
 def test_mode_config_requires_default_resolution_set(tmp_path):

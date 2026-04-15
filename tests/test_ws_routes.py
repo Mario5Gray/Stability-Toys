@@ -708,7 +708,8 @@ class TestJobSubmit:
             with patch("server.ws_routes.get_mode_config") as get_mode_config, \
                     patch.dict(os.environ, {"CHAT_ENDPOINT": "http://localhost:11434/v1", "CHAT_MODEL": "llama3.2"}, clear=False):
                 get_mode_config.return_value = SimpleNamespace(
-                    get_mode=lambda name: SimpleNamespace(name=name, chat=None),
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
+                    get_chat_config=lambda name: None,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -752,7 +753,8 @@ class TestJobSubmit:
             with patch("server.ws_routes.get_mode_config") as get_mode_config, \
                     patch("backends.chat_client.ChatCompletionsClient.complete", new=AsyncMock(return_value="assistant reply")):
                 get_mode_config.return_value = SimpleNamespace(
-                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg),
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
+                    get_chat_config=lambda name: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -802,7 +804,8 @@ class TestJobSubmit:
             with patch("server.ws_routes.get_mode_config") as get_mode_config, \
                     patch("backends.chat_client.ChatCompletionsClient.stream", new=_fake_stream):
                 get_mode_config.return_value = SimpleNamespace(
-                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg, maximum_len=None),
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
+                    get_chat_config=lambda name: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -855,7 +858,8 @@ class TestJobSubmit:
             with patch("server.ws_routes.get_mode_config") as get_mode_config, \
                     patch("backends.chat_client.ChatCompletionsClient.complete", new=complete_mock):
                 get_mode_config.return_value = SimpleNamespace(
-                    get_mode=lambda name: SimpleNamespace(name=name, chat=fake_chat_cfg, maximum_len=120),
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=120),
+                    get_chat_config=lambda name: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 

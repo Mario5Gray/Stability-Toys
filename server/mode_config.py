@@ -83,6 +83,7 @@ class ModesYAML:
     lora_root: str
     default_mode: str
     resolution_sets: Dict[str, List[Dict[str, str]]]
+    chat: Dict[str, ChatBackendConfig]
     modes: Dict[str, ModeConfig]
 
 
@@ -168,11 +169,25 @@ class ModeConfigManager:
                 })
             resolution_sets[set_name] = resolved_entries
 
+        # Parse global chat backend definitions keyed by mode name
+        chat_by_mode: Dict[str, ChatBackendConfig] = {}
+        chat_root = data.get("chat")
+        if chat_root is None:
+            chat_root = {}
+        if not isinstance(chat_root, dict):
+            raise ValueError("modes.yml field 'chat' must be a mapping of mode names to chat configs")
+        for chat_mode_name, chat_data in chat_root.items():
+            chat_by_mode[chat_mode_name] = self._parse_chat_config(chat_mode_name, chat_data)
+
         # Parse mode definitions
         modes = {}
         for mode_name, mode_data in data["modes"].items():
             if "model" not in mode_data:
                 raise ValueError(f"Mode '{mode_name}' missing required field: model")
+            if "chat" in mode_data and mode_data.get("chat") is not None:
+                raise ValueError(
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; move it to top-level 'chat.{mode_name}'"
+                )
 
             resolution_set = mode_data.get("resolution_set") or "default"
             if resolution_set not in resolution_sets:
@@ -210,7 +225,6 @@ class ModeConfigManager:
                 default_steps=mode_data.get("default_steps", 4),
                 default_guidance=mode_data.get("default_guidance", 1.0),
                 maximum_len=mode_data.get("maximum_len"),
-                chat=self._parse_chat_config(mode_name, mode_data.get("chat")),
                 loader_format=mode_data.get("loader_format"),
                 checkpoint_precision=mode_data.get("checkpoint_precision"),
                 checkpoint_variant=mode_data.get("checkpoint_variant"),
@@ -234,6 +248,12 @@ class ModeConfigManager:
 
             modes[mode_name] = mode
 
+        for chat_mode_name in chat_by_mode:
+            if chat_mode_name not in modes:
+                raise ValueError(
+                    f"Top-level chat config references unknown mode '{chat_mode_name}'"
+                )
+
         # Validate default mode exists
         if default_mode not in modes:
             raise ValueError(
@@ -246,6 +266,7 @@ class ModeConfigManager:
             lora_root=str(lora_root),
             default_mode=default_mode,
             resolution_sets=resolution_sets,
+            chat=chat_by_mode,
             modes=modes,
         )
 
@@ -287,26 +308,24 @@ class ModeConfigManager:
                 logger.warning(f"  - {error}")
             # Don't raise - allow starting with missing models for development
 
-    def _parse_chat_config(self, mode_name: str, chat_data: Optional[Dict[str, Any]]) -> Optional[ChatBackendConfig]:
-        """Parse optional per-mode chat backend settings."""
-        if chat_data is None:
-            return None
+    def _parse_chat_config(self, mode_name: str, chat_data: Dict[str, Any]) -> ChatBackendConfig:
+        """Parse chat backend settings for a given mode."""
         if not isinstance(chat_data, dict):
-            raise ValueError(f"Mode '{mode_name}' chat config must be a mapping")
+            raise ValueError(f"Chat config for mode '{mode_name}' must be a mapping")
         endpoint = (chat_data.get("endpoint") or "").strip()
         model = (chat_data.get("model") or "").strip()
         if not endpoint:
-            raise ValueError(f"Mode '{mode_name}' chat config missing required field: endpoint")
+            raise ValueError(f"Chat config for mode '{mode_name}' missing required field: endpoint")
         if not model:
-            raise ValueError(f"Mode '{mode_name}' chat config missing required field: model")
+            raise ValueError(f"Chat config for mode '{mode_name}' missing required field: model")
         try:
             max_tokens = int(chat_data.get("max_tokens", 1024))
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Mode '{mode_name}' chat config has invalid max_tokens") from e
+            raise ValueError(f"Chat config for mode '{mode_name}' has invalid max_tokens") from e
         try:
             temperature = float(chat_data.get("temperature", 0.7))
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Mode '{mode_name}' chat config has invalid temperature") from e
+            raise ValueError(f"Chat config for mode '{mode_name}' has invalid temperature") from e
         return ChatBackendConfig(
             endpoint=endpoint,
             model=model,
@@ -344,16 +363,10 @@ class ModeConfigManager:
             }
             if mode_data.get("maximum_len") is not None:
                 mode_entry["maximum_len"] = mode_data.get("maximum_len")
-            chat_cfg = mode_data.get("chat")
-            if chat_cfg is not None:
-                mode_entry["chat"] = {
-                    "endpoint": chat_cfg.get("endpoint"),
-                    "model": chat_cfg.get("model"),
-                    "api_key_env": chat_cfg.get("api_key_env", "OPENAI_API_KEY"),
-                    "max_tokens": chat_cfg.get("max_tokens", 1024),
-                    "temperature": chat_cfg.get("temperature", 0.7),
-                    "system_prompt": chat_cfg.get("system_prompt"),
-                }
+            if mode_data.get("chat") is not None:
+                raise ValueError(
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use top-level 'chat.{mode_name}'"
+                )
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
             for cap_field in (
@@ -387,6 +400,32 @@ class ModeConfigManager:
                     for lora in loras
                 ]
             yaml_data["modes"][mode_name] = mode_entry
+
+        raw_chat = data.get("chat")
+        if raw_chat is None:
+            raw_chat = {}
+        if not isinstance(raw_chat, dict):
+            raise ValueError("save_config requires chat to be a mapping when provided")
+        unknown_chat_modes = sorted(
+            mode_name for mode_name in raw_chat.keys() if mode_name not in data["modes"]
+        )
+        if unknown_chat_modes:
+            raise ValueError(
+                "save_config chat entries reference missing modes: "
+                + ", ".join(unknown_chat_modes)
+            )
+        if raw_chat:
+            yaml_data["chat"] = {}
+            for chat_mode_name, chat_data in raw_chat.items():
+                chat_cfg = self._parse_chat_config(chat_mode_name, chat_data)
+                yaml_data["chat"][chat_mode_name] = {
+                    "endpoint": chat_cfg.endpoint,
+                    "model": chat_cfg.model,
+                    "api_key_env": chat_cfg.api_key_env,
+                    "max_tokens": chat_cfg.max_tokens,
+                    "temperature": chat_cfg.temperature,
+                    "system_prompt": chat_cfg.system_prompt,
+                }
 
         # Write atomically-ish: write to temp then rename
         tmp_path = self.config_path.with_suffix(".yml.tmp")
@@ -433,6 +472,10 @@ class ModeConfigManager:
         """Get the default mode configuration."""
         return self.get_mode(self.config.default_mode)
 
+    def get_chat_config(self, mode_name: str) -> Optional[ChatBackendConfig]:
+        """Get global chat config for a mode, if present."""
+        return self.config.chat.get(mode_name)
+
     def to_dict(self) -> Dict[str, Any]:
         """Export configuration as dictionary."""
         return {
@@ -440,6 +483,17 @@ class ModeConfigManager:
             "lora_root": self.config.lora_root,
             "default_mode": self.config.default_mode,
             "resolution_sets": self.config.resolution_sets,
+            "chat": {
+                mode_name: {
+                    "endpoint": chat_cfg.endpoint,
+                    "model": chat_cfg.model,
+                    "api_key_env": chat_cfg.api_key_env,
+                    "max_tokens": chat_cfg.max_tokens,
+                    "temperature": chat_cfg.temperature,
+                    "system_prompt": chat_cfg.system_prompt,
+                }
+                for mode_name, chat_cfg in self.config.chat.items()
+            },
             "modes": {
                 name: {
                     "model": mode.model,
@@ -464,18 +518,6 @@ class ModeConfigManager:
                     "default_steps": mode.default_steps,
                     "default_guidance": mode.default_guidance,
                     "maximum_len": mode.maximum_len,
-                    "chat": (
-                        {
-                            "endpoint": mode.chat.endpoint,
-                            "model": mode.chat.model,
-                            "api_key_env": mode.chat.api_key_env,
-                            "max_tokens": mode.chat.max_tokens,
-                            "temperature": mode.chat.temperature,
-                            "system_prompt": mode.chat.system_prompt,
-                        }
-                        if mode.chat is not None
-                        else None
-                    ),
                     "loader_format": mode.loader_format,
                     "checkpoint_precision": mode.checkpoint_precision,
                     "checkpoint_variant": mode.checkpoint_variant,

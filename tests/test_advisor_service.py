@@ -17,23 +17,22 @@ def test_build_evidence_fingerprint_is_stable():
 
 
 @pytest.mark.asyncio
-async def test_generate_digest_uses_mode_chat_config_and_clamps_length_limit():
+async def test_generate_digest_uses_global_chat_config_and_clamps_length_limit():
     from server.advisor_service import AdvisorDigestRequest, generate_digest
 
-    mode = SimpleNamespace(
-        chat=SimpleNamespace(
-            endpoint="http://localhost:11434/v1",
-            model="llama3.2",
-            api_key_env="OPENAI_API_KEY",
-            max_tokens=512,
-            temperature=0.6,
-            system_prompt="You are an advisor.",
-        ),
-        maximum_len=120,
+    chat_cfg = SimpleNamespace(
+        endpoint="http://localhost:11434/v1",
+        model="llama3.2",
+        api_key_env="OPENAI_API_KEY",
+        max_tokens=512,
+        temperature=0.6,
+        system_prompt="You are an advisor.",
     )
+    mode = SimpleNamespace(maximum_len=120)
     config = SimpleNamespace(
         get_default_mode=lambda: "sdxl-general",
         get_mode=lambda name: mode,
+        get_chat_config=lambda name: chat_cfg,
     )
     client_inst = SimpleNamespace(complete=AsyncMock(return_value="digest text"))
 
@@ -65,10 +64,11 @@ async def test_generate_digest_uses_mode_chat_config_and_clamps_length_limit():
 async def test_generate_digest_requires_mode_chat_config():
     from server.advisor_service import AdvisorDigestRequest, generate_digest
 
-    mode = SimpleNamespace(chat=None, maximum_len=None)
+    mode = SimpleNamespace(maximum_len=None)
     config = SimpleNamespace(
         get_default_mode=lambda: "sdxl-general",
         get_mode=lambda name: mode,
+        get_chat_config=lambda name: None,
     )
 
     req = AdvisorDigestRequest(
@@ -77,5 +77,5 @@ async def test_generate_digest_requires_mode_chat_config():
     )
 
     with patch("server.advisor_service.get_mode_config", return_value=config):
-        with pytest.raises(ValueError, match="advisor digest requires chat configuration"):
+        with pytest.raises(ValueError, match="advisor digest requires global chat configuration"):
             await generate_digest(req)

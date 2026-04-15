@@ -298,7 +298,7 @@ def _build_generate_request(params: dict):
 
 
 def _resolve_chat_config(state, params: dict):
-    """Resolve chat config from the active mode only."""
+    """Resolve chat config from global chat mappings keyed by active mode."""
     mode_name = params.get("mode")
     mode_config = get_mode_config()
 
@@ -314,7 +314,7 @@ def _resolve_chat_config(state, params: dict):
         return None, None
 
     mode = mode_config.get_mode(mode_name)
-    chat_cfg = getattr(mode, "chat", None)
+    chat_cfg = mode_config.get_chat_config(mode_name)
     if chat_cfg is None:
         return None, getattr(mode, "maximum_len", None)
 

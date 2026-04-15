@@ -42,9 +42,9 @@ async def generate_digest(req: AdvisorDigestRequest) -> Dict[str, Any]:
     mode_config = get_mode_config()
     mode_name = req.mode or mode_config.get_default_mode()
     mode = mode_config.get_mode(mode_name)
-    chat_cfg = getattr(mode, "chat", None)
+    chat_cfg = mode_config.get_chat_config(mode_name)
     if chat_cfg is None:
-        raise ValueError("advisor digest requires chat configuration on the active mode")
+        raise ValueError("advisor digest requires global chat configuration for the active mode")
 
     client = ChatCompletionsClient(
         ChatConfig(

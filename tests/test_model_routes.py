@@ -305,6 +305,12 @@ async def test_list_modes_includes_chat_enabled_flag():
     config = Mock()
     config.to_dict.return_value = {
         "default_mode": "sdxl-chat",
+        "chat": {
+            "sdxl-chat": {
+                "endpoint": "http://localhost:11434/v1",
+                "model": "llama3.2",
+            },
+        },
         "resolution_sets": {
             "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
         },
@@ -322,10 +328,6 @@ async def test_list_modes_includes_chat_enabled_flag():
                 "allow_custom_negative_prompt": False,
                 "allowed_scheduler_ids": None,
                 "default_scheduler_id": None,
-                "chat": {
-                    "endpoint": "http://localhost:11434/v1",
-                    "model": "llama3.2",
-                },
             },
             "sd15": {
                 "model": "checkpoints/sd15/model.safetensors",
@@ -340,7 +342,6 @@ async def test_list_modes_includes_chat_enabled_flag():
                 "allow_custom_negative_prompt": False,
                 "allowed_scheduler_ids": None,
                 "default_scheduler_id": None,
-                "chat": None,
             },
         },
     }
@@ -354,6 +355,7 @@ async def test_list_modes_includes_chat_enabled_flag():
 
 async def test_save_all_modes_passes_resolution_sets_to_save_config():
     config = Mock()
+    config.to_dict.return_value = {"chat": {}}
     pool = Mock()
     pool.get_current_mode.return_value = None
     request = model_routes.ModesBulkSaveRequest.model_validate({
@@ -384,6 +386,44 @@ async def test_save_all_modes_passes_resolution_sets_to_save_config():
     assert saved_payload["resolution_sets"] == {
         "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
         "sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+    }
+
+
+async def test_save_all_modes_prunes_stale_chat_bindings_when_chat_omitted():
+    config = Mock()
+    config.to_dict.return_value = {
+        "chat": {
+            "sdxl": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"},
+            "sd15": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"},
+        }
+    }
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+                "default_steps": 24,
+                "default_guidance": 6.5,
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    saved_payload = config.save_config.call_args.args[0]
+    assert saved_payload["chat"] == {
+        "sdxl": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
     }
 
 
@@ -444,6 +484,38 @@ async def test_create_or_update_mode_preserves_existing_resolution_and_policy_fi
     assert saved_mode["allow_custom_negative_prompt"] is True
     assert saved_mode["allowed_scheduler_ids"] == ["euler"]
     assert saved_mode["default_scheduler_id"] == "euler"
+
+
+async def test_delete_mode_prunes_chat_config_for_deleted_mode():
+    config = Mock()
+    config.to_dict.return_value = {
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {"default": [{"size": "512x512", "aspect_ratio": "1:1"}]},
+        "chat": {
+            "sdxl": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"},
+            "sd15": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"},
+        },
+        "modes": {
+            "sdxl": {"model": "checkpoints/sdxl/model.safetensors"},
+            "sd15": {"model": "checkpoints/sd15/model.safetensors"},
+        },
+    }
+    pool = Mock()
+    pool.get_current_mode.return_value = "sdxl"
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        result = await model_routes.delete_mode("sd15")
+
+    saved_payload = config.save_config.call_args.args[0]
+    assert "sd15" not in saved_payload["modes"]
+    assert saved_payload["chat"] == {
+        "sdxl": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
+    }
+    assert result["status"] == "deleted"
+    assert result["switched_to"] is None
 
 
 async def test_reload_and_free_vram_routes_call_pool_methods():
