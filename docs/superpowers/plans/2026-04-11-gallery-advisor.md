@@ -19,7 +19,7 @@
   - mode-save/delete paths now guard chat-mode integrity: legacy top-level `chat` is rejected in `save_config()`, and the persisted config round-trips through `chat_connections` plus flat mode `chat_*` fields.
   - `server/ws_routes.py` now accepts `jobType=chat`, resolves chat config from the shared mode chat resolver (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
   - follow-up cleanup removed dead mode-level chat state, fixed empty-config-path error handling, and simplified ws chat config resolution to return a single optional context object.
-  - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events.
+  - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events and guarded outbound debug logging at the final HTTP payload boundary.
   - `server/advisor_service.py` and `server/advisor_routes.py` now provide `POST /api/advisors/digest`, and `server/lcm_sr_server.py` includes `advisor_router`.
 - Frontend Task 3 progress landed:
   - `useGalleries` now supports `removeFromGallery(galleryId, cacheKey)` and per-gallery revision tracking (`getGalleryRevision`).
@@ -29,6 +29,22 @@
   - advisor length control is shown only when mode `maximum_len` is configured.
   - advisor evidence items are sorted for deterministic fingerprints independent of caller row ordering.
 - For `STABL-grarbnxp`, backend scope is the active lane. Resume frontend advisor tasks only after backend chat plumbing is accepted.
+
+### Runtime Logging
+
+- Server logging is configured through `server/logging_config.py` and inherits the root `LOG_LEVEL` environment variable, which defaults to `INFO`.
+- The outbound chat request log in `backends/chat_client.py` only emits when `LOG_LEVEL=DEBUG` (or equivalent logger configuration enables debug for `backends.chat_client`).
+- By default that log is metadata-only and records:
+  - `url`
+  - `model`
+  - `stream`
+  - `max_tokens`
+  - `temperature`
+  - `message_count`
+  - `message_summary`
+- `message_summary` is a compact per-message view of `role`, content kind (`text` or parsed `json`), and character count. It intentionally avoids prompt-body logging by default.
+- Set `DEBUG_FULL_PAYLOAD=1` to add the full outbound chat payload to the same debug log record.
+- Auth headers are never included in this debug logging path.
 
 ---
 
