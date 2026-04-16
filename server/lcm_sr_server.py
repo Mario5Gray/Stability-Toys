@@ -84,6 +84,7 @@ from server.model_routes import router as model_router
 from server.advisor_routes import router as advisor_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
+from server.keymap_routes import router as keymap_router
 from server.file_watcher import start_config_watcher, stop_config_watcher
 from server.generation_constraints import finalize_mode_generate_request
 from backends.platform_registry import get_backend_provider
@@ -798,6 +799,7 @@ app.include_router(model_router)
 app.include_router(advisor_router)
 app.include_router(telemetry_router)
 app.include_router(workflow_router)
+app.include_router(keymap_router)
 logger.info("Model management API mounted at /api")
 
 # Comfyui invoker
