@@ -32,7 +32,7 @@ This keeps connection ownership in mode config, avoids introducing a profile abs
 
 ## Current State
 
-- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:75) defines `ModesYAML.chat` as a mapping of mode name to `ChatBackendConfig`.
+- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:85) defines `ModesYAML.chat` as a mapping of mode name to `ChatBackendConfig`.
 - [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:476) exposes `get_chat_config(mode_name)`, which resolves chat by mode name rather than by reusable transport id.
 - [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:45) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py:318) both depend on that mode-name lookup shape.
 - [`conf/modes.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes.yml:1) already keeps most mode fields flat and snake_case, so nested `chat` reintroduction would move against the current YAML style.
@@ -125,11 +125,13 @@ The resolver should:
 
 1. load the mode
 2. return `None` if `chat_connection` is unset
-3. validate that the referenced connection exists
+3. rely on config-load validation that the referenced connection exists
 4. combine connection transport fields with mode behavioral defaults
 5. optionally accept caller-provided behavioral overrides
 
 The resolved object can still be emitted as `ChatConfig` for consumers such as [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:11) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py:318), but its derivation should no longer depend on a mode-name-keyed YAML lookup.
+
+Connection existence should be enforced at config load time, not deferred to first request. At runtime, resolver or caller errors should continue surfacing through the existing error paths rather than adding a second recovery layer.
 
 ## Request Override Design
 
@@ -153,9 +155,25 @@ Rationale:
 - config continues to own routing, auth lookup, and endpoint selection
 - request payloads describe invocation behavior rather than infrastructure
 
+String override semantics:
+
+- omitted string override means use mode default
+- empty string means treat the override as missing, not as an instruction to clear mode config
+- a non-empty `system_prompt` override is appended after the mode-level `chat_system_prompt`, not used as a replacement
+
+This preserves a short ordered system-message stack and avoids request payloads accidentally removing configured behavior.
+
+Model and connection compatibility is not cross-validated server-side. If a caller overrides `model` with a name the selected endpoint does not serve, the downstream backend error should surface as the normal request failure.
+
 Precedence:
 
 `request override -> mode chat_* field -> hardcoded fallback`
+
+For `system_prompt`, precedence is additive rather than substitutive:
+
+- if mode prompt exists and request prompt is missing, send only the mode prompt
+- if request prompt exists and mode prompt is missing, send only the request prompt
+- if both exist, send the mode prompt first and append the request prompt after it
 
 This rule should be applied consistently in both advisor and WebSocket chat execution paths.
 
@@ -215,9 +233,10 @@ modes:
 Implementation guidance:
 
 - update the checked-in config to the new shape as part of the refactor
+- expect manual migration in this repo; no auto-migration tool or schema-conversion script is shipped as part of this change
 - remove support for top-level `chat`
 - keep the existing rejection of nested `modes.<name>.chat`
-- update save/export paths so the new shape round-trips cleanly
+- update `save_config()` and `to_dict()` so the new shape round-trips cleanly instead of continuing to emit the legacy top-level `chat` block
 
 Failing fast is preferable here because dual-schema support would preserve the same ambiguity this design is trying to remove.
 
@@ -236,11 +255,15 @@ It should also accept neutral request overrides where appropriate for advisor di
 
 If the advisor request surface does not yet expose all of these, the server-side resolution path should still be designed to accept them so future API expansion does not require another resolver redesign.
 
+Client lifecycle should stay simple for this refactor: construct the chat client per request, as the advisor path does today, rather than introducing shared client caching across modes that now point at the same connection id.
+
 ### WebSocket Chat Path
 
 [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py:299) should use the same resolver for `jobType: "chat"` handling.
 
 The WebSocket `params` object may carry the neutral override names above. The handler should pass only those behavioral overrides into the resolver and must not allow endpoint or connection selection to come from the request.
+
+As with the advisor path, the WebSocket path should continue using a fresh client per request. Reusable connection ids do not require shared client instances, and this change should avoid adding lifecycle or concurrency complexity that is not needed yet.
 
 ## Testing Strategy
 
@@ -251,6 +274,9 @@ Add or update tests covering:
 - rejection of unknown `chat_connection`
 - rejection of incomplete mode chat config
 - rejection of legacy top-level `chat`
+- additive `system_prompt` stacking behavior
+- empty-string string override treated as missing
+- backend error passthrough when request `model` is unsupported by the selected connection
 - advisor resolution using mode -> connection mapping
 - WebSocket chat resolution using the same resolver
 - precedence of request overrides over mode defaults
