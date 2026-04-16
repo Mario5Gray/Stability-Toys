@@ -393,6 +393,10 @@ export function OptionsPanel({
   };
 
   const configModes = modeState?.config?.modes || {};
+  const resolvedModeName =
+    modeState?.activeModeName ||
+    modeState?.config?.default_mode ||
+    null;
   const resolvedMode =
     modeState?.activeMode ||
     (modeState?.activeModeName ? configModes[modeState.activeModeName] : null) ||
@@ -420,6 +424,7 @@ export function OptionsPanel({
     applyAdvice,
   } = useGalleryAdvisor({
     galleryId: activeGalleryId,
+    modeName: resolvedModeName,
     galleryRevision,
     galleryImages,
     maximumLen: resolvedMode?.maximum_len ?? 0,

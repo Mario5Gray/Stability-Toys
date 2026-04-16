@@ -26,7 +26,7 @@ resolution_sets:
 
 chat:
   SDXL:
-    endpoint: "http://node2.lan:11434/v1"   # base URL, no /chat/completions suffix
+    endpoint: "http://node2.lan:8080"   # base URL, no /chat/completions suffix
     model: "gemma3-1b"
     api_key_env: "OPENAI_API_KEY"           # optional for local no-auth hosts
     max_tokens: 750

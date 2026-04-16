@@ -14,6 +14,7 @@ it('rebuilds digest and seeds advice text when no edits exist', async () => {
 
   const { result } = renderHook(() => useGalleryAdvisor({
     galleryId: 'gal_1',
+    modeName: 'SDXL',
     galleryRevision: 1,
     galleryImages: [{ cacheKey: 'abc', addedAt: 1, params: { prompt: 'cat' } }],
     maximumLen: 240,
@@ -28,6 +29,10 @@ it('rebuilds digest and seeds advice text when no edits exist', async () => {
   });
 
   await waitFor(() => expect(result.current.state.digest_text).toBe('Painterly neon portrait'));
+  expect(api.fetchPost).toHaveBeenCalledWith(
+    '/api/advisors/digest',
+    expect.objectContaining({ mode: 'SDXL' }),
+  );
   expect(result.current.state.advice_text).toBe('Painterly neon portrait');
 });
 

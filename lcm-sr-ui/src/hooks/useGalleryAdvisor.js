@@ -16,6 +16,7 @@ function resolveLengthLimit(state, maximumLen) {
 
 export function useGalleryAdvisor({
   galleryId,
+  modeName,
   galleryRevision,
   galleryImages,
   maximumLen,
@@ -76,6 +77,7 @@ export function useGalleryAdvisor({
     try {
       const response = await api.fetchPost('/api/advisors/digest', {
         gallery_id: galleryId,
+        mode: modeName || undefined,
         temperature: state?.temperature ?? 0.4,
         length_limit: resolveLengthLimit(state, maximumLen),
         evidence,
@@ -107,7 +109,7 @@ export function useGalleryAdvisor({
       await persistState(failed);
       throw error;
     }
-  }, [api, evidence, galleryId, galleryRevision, maximumLen, persistState, state]);
+  }, [api, evidence, galleryId, galleryRevision, maximumLen, modeName, persistState, state]);
 
   const applyAdvice = useCallback((mode) => {
     if (!state?.advice_text) return;
