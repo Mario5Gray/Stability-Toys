@@ -5,9 +5,13 @@ Async OpenAI-compatible chat completions client.
 from dataclasses import dataclass
 from typing import AsyncIterator, Dict, List, Optional
 import json
+import logging
 import os
 
 import httpx
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,6 +57,50 @@ class ChatCompletionsClient:
             "stream": stream,
         }
 
+    def _message_kind(self, content: object) -> str:
+        if isinstance(content, str):
+            stripped = content.strip()
+            if stripped.startswith("{") or stripped.startswith("["):
+                try:
+                    json.loads(stripped)
+                    return "json"
+                except json.JSONDecodeError:
+                    pass
+            return "text"
+        return type(content).__name__
+
+    def _message_summary(self, messages: List[Dict[str, str]]) -> List[Dict[str, object]]:
+        summary: List[Dict[str, object]] = []
+        for message in messages:
+            content = message.get("content")
+            chars = len(content) if isinstance(content, str) else None
+            summary.append(
+                {
+                    "role": message.get("role"),
+                    "kind": self._message_kind(content),
+                    "chars": chars,
+                }
+            )
+        return summary
+
+    def _log_outbound_request(self, payload: Dict[str, object]) -> None:
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
+
+        debug_record: Dict[str, object] = {
+            "url": self._url(),
+            "model": payload.get("model"),
+            "stream": payload.get("stream"),
+            "max_tokens": payload.get("max_tokens"),
+            "temperature": payload.get("temperature"),
+            "message_count": len(payload.get("messages", [])),
+            "message_summary": self._message_summary(payload.get("messages", [])),
+        }
+        if os.environ.get("DEBUG_FULL_PAYLOAD") == "1":
+            debug_record["payload"] = payload
+
+        logger.debug("chat outbound request %s", debug_record)
+
     async def complete(
         self,
         messages: List[Dict[str, str]],
@@ -66,6 +114,7 @@ class ChatCompletionsClient:
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        self._log_outbound_request(payload)
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 self._url(),
@@ -93,6 +142,7 @@ class ChatCompletionsClient:
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        self._log_outbound_request(payload)
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
