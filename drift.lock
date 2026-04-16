@@ -28,3 +28,7 @@ docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superre
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:db90031007f4917c
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> server/superres_service.py sig:004663565e4c9756
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:30290b170d35b5d4
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/advisor_service.py sig:0f3130d122d331d0
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:82cdf5c6da856a75
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:6f6cbb0f4336ff4d
