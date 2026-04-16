@@ -217,7 +217,10 @@ All bindings route through `useKeymap().matches(action, event)`.
 ### Viewer
 
 - `next` / `prev`: cycle the viewer to the next/previous item in the current gallery's sort order; wrap at the ends (simpler than stop-at-ends for now)
-- `delete`: `moveToTrash([viewerItemId])` then advance to next if any, else `onBack()`
+- `delete` / `delete_alt`: context-aware, mirrors grid semantics
+  - normal gallery context: `moveToTrash([viewerItemId])`
+  - trash context: `hardDelete([viewerItemId])`
+  - either case: advance to next item if one exists, else `onBack()`
 - `close`: `onBack()` (viewer-level close) - the same key action closes the lightbox at the outer level if no viewer is open
 - `open_new_tab`: same as existing Space behavior, now routed through keymap
 
