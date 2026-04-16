@@ -16,6 +16,8 @@ class AdvisorDigestRequest(BaseModel):
     gallery_id: str
     evidence: Dict[str, Any]
     mode: Optional[str] = None
+    model: Optional[str] = None
+    system_prompt: Optional[str] = None
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     length_limit: Optional[int] = Field(default=None, ge=1, le=4096)
 
@@ -38,13 +40,31 @@ def _build_messages(req: AdvisorDigestRequest, fingerprint: str, effective_limit
     return [{"role": "user", "content": user_prompt}]
 
 
+def _build_system_messages(system_prompt: Optional[str]) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    if not system_prompt:
+        return messages
+    for prompt in system_prompt.split("\n\n"):
+        content = prompt.strip()
+        if content:
+            messages.append({"role": "system", "content": content})
+    return messages
+
+
 async def generate_digest(req: AdvisorDigestRequest) -> Dict[str, Any]:
     mode_config = get_mode_config()
     mode_name = req.mode or mode_config.get_default_mode()
     mode = mode_config.get_mode(mode_name)
-    chat_cfg = mode_config.get_chat_config(mode_name)
+    chat_cfg = mode_config.resolve_chat_config(
+        mode_name,
+        overrides={
+            "model": req.model,
+            "temperature": req.temperature,
+            "system_prompt": req.system_prompt,
+        },
+    )
     if chat_cfg is None:
-        raise ValueError("advisor digest requires global chat configuration for the active mode")
+        raise ValueError("advisor digest requires chat configuration for the active mode")
 
     client = ChatCompletionsClient(
         ChatConfig(
@@ -63,9 +83,7 @@ async def generate_digest(req: AdvisorDigestRequest) -> Dict[str, Any]:
         effective_limit = min(effective_limit if effective_limit is not None else int(mode_limit), int(mode_limit))
 
     fingerprint = build_evidence_fingerprint(req.evidence)
-    messages = _build_messages(req, fingerprint, effective_limit)
-    if chat_cfg.system_prompt:
-        messages.insert(0, {"role": "system", "content": chat_cfg.system_prompt})
+    messages = _build_system_messages(chat_cfg.system_prompt) + _build_messages(req, fingerprint, effective_limit)
 
     digest_text = await client.complete(
         messages,
