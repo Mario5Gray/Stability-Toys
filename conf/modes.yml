@@ -24,14 +24,10 @@ resolution_sets:
     - size: 1216x832
       aspect_ratio: "19:13"
 
-chat:
-  SDXL:
+chat_connections:
+  local_default:
     endpoint: "http://node2.lan:11434/v1"   # base URL, no /chat/completions suffix
-    model: "gemma3-1b"
     api_key_env: "OPENAI_API_KEY"           # optional for local no-auth hosts
-    max_tokens: 750
-    temperature: 0.4
-    system_prompt: "You are a concise SDXL prompt advisor."
 
 modes:
   lcm-general:
@@ -89,3 +85,8 @@ modes:
       - euler
       - lcm
     default_scheduler_id: dpmpp_2m
+    chat_connection: local_default
+    chat_model: "gemma3-1b"
+    chat_max_tokens: 750
+    chat_temperature: 0.4
+    chat_system_prompt: "You are a concise SDXL prompt advisor."

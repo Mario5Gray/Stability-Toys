@@ -38,11 +38,11 @@ The insertion point is the WebSocket job dispatcher in `ws_routes.py`. Today it 
 Add the chat completions client as a thin service layer, similar to how super-resolution is structured: a standalone service with its own config that plugs into the WebSocket job dispatcher without touching the generation pipeline.
 
 The service:
-- reads config from mode-level fields or environment variables
+- reads config from top-level `chat_connections` plus flat mode-level `chat_*` fields
 - makes HTTP calls to an OpenAI-compatible `/v1/chat/completions` endpoint
 - normalizes responses into the existing job envelope shape
 
-Modes gain an optional `chat` block. When a mode has a `chat` block, the frontend can submit `jobType: "chat"` jobs for that mode. Image generation and chat are mutually exclusive per job, not per mode.
+Modes gain optional flat chat fields instead of a nested `chat` block. When a mode has `chat_connection` and `chat_model`, the frontend can submit `jobType: "chat"` jobs for that mode. Image generation and chat are mutually exclusive per job, not per mode.
 
 ## Design
 
@@ -56,27 +56,37 @@ Files in scope:
 
 Design:
 
-- Add an optional `chat` block to mode config:
+- Add reusable `chat_connections` plus flat mode-owned chat defaults:
 
 ```yaml
+chat_connections:
+  local_default:
+    endpoint: "http://localhost:11434/v1"
+    api_key_env: "OPENAI_API_KEY"
+
 modes:
   sdxl-general:
     model: checkpoints/sdxl-base-1.0.safetensors
     default_size: "1024x1024"
     default_steps: 30
     default_guidance: 7.5
-    chat:
-      endpoint: "http://localhost:11434/v1"
-      model: "llama3.2"
+    chat_connection: local_default
+    chat_model: "llama3.2"
+    chat_max_tokens: 1024
+    chat_temperature: 0.7
+    chat_system_prompt: "You are concise."
 ```
 
-- The `chat` block contains:
+- `chat_connections.<id>` contains transport settings:
   - `endpoint` (required): base URL for the OpenAI-compatible API (e.g. `http://localhost:11434/v1`, `https://api.openai.com/v1`)
-  - `model` (required): model name to pass in the completions request
   - `api_key_env` (optional): name of an environment variable holding the API key, defaults to `OPENAI_API_KEY`. Omit or leave unset for local endpoints that need no auth.
-  - `max_tokens` (optional): default max completion tokens, defaults to 1024
-  - `temperature` (optional): default temperature, defaults to 0.7
-  - `system_prompt` (optional): system message prepended to every request
+
+- Each mode may declare flat defaults:
+  - `chat_connection` (required to enable chat): named connection id
+  - `chat_model` (required when `chat_connection` is set): model name to pass in the completions request
+  - `chat_max_tokens` (optional): default max completion tokens, defaults to 1024
+  - `chat_temperature` (optional): default temperature, defaults to 0.7
+  - `chat_system_prompt` (optional): system message prepended to every request
 
 - Add a `ChatConfig` dataclass in `mode_config.py`:
 
@@ -91,19 +101,20 @@ class ChatConfig:
     system_prompt: Optional[str] = None
 ```
 
-- `ModeConfig` gains `chat: Optional[ChatConfig] = None`.
+- `ModeConfig` gains flat optional `chat_connection`, `chat_model`, `chat_max_tokens`, `chat_temperature`, and `chat_system_prompt` fields.
 
 - Validation at config load:
-  - If `chat` is present, `endpoint` and `model` are required
-  - `endpoint` must be a valid URL prefix
+  - `chat_connections.<id>.endpoint` is required
+  - if a mode sets `chat_connection`, it must also set `chat_model`
+  - mode `chat_connection` references must resolve to a defined connection id
 
 - Expose `chat` presence (but not secrets) through `/api/modes` so the frontend knows which modes support chat.
 
 Expected outcome:
 
-- chat backend config lives alongside existing mode config
-- no separate config file or global chat settings needed
-- modes without a `chat` block behave exactly as before
+- chat backend config is decoupled from mode names while still living in the main mode config file
+- one named transport connection can be reused by multiple modes
+- modes without chat fields behave exactly as before
 
 ### 2. Chat completions client service
 
