@@ -11,7 +11,7 @@ if [[ "$PLATFORM" == "x86_64" ]]; then
 else 
   export EXTRA_ARGS='--env-file env.custom --env-file env.dev --env-file env.rknn --name lcm-sd-ui darkbit1001/lcm-sd-ui:latest'
 fi
-
+BACKEND=cuda
 set -x
 docker run --rm -it \
   --network observ-net \
