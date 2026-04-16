@@ -413,7 +413,7 @@ class ModeConfigManager:
                 mode_entry["maximum_len"] = mode_data.get("maximum_len")
             if mode_data.get("chat") is not None:
                 raise ValueError(
-                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use top-level 'chat.{mode_name}'"
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_connections and mode chat_* fields"
                 )
             chat_connection = self._normalize_optional_string(mode_data.get("chat_connection"))
             chat_model = self._normalize_optional_string(mode_data.get("chat_model"))
@@ -564,10 +564,6 @@ class ModeConfigManager:
             temperature=temperature,
             system_prompt=system_prompt,
         )
-
-    def get_chat_config(self, mode_name: str) -> Optional[ChatBackendConfig]:
-        """Compatibility wrapper for callers not yet updated to the shared resolver."""
-        return self.resolve_chat_config(mode_name)
 
     def to_dict(self) -> Dict[str, Any]:
         """Export configuration as dictionary."""

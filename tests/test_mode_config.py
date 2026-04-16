@@ -592,6 +592,34 @@ modes:
         manager.save_config(payload)
 
 
+def test_mode_config_save_config_rejects_legacy_mode_scoped_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    payload = manager.to_dict()
+    payload["modes"]["sdxl"]["chat"] = {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
+
+    with pytest.raises(ValueError, match="legacy mode-scoped chat config; use chat_connections and mode chat_\\* fields"):
+        manager.save_config(payload)
+
+
 def test_mode_config_requires_default_resolution_set(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
