@@ -14,10 +14,10 @@
 
 - Active FP issue for the backend prerequisite is `STABL-grarbnxp` ("Add OpenAI-compatible chat completions backend client").
 - Backend progress landed:
-  - `server/mode_config.py` now supports `maximum_len` and top-level global `chat` config parsing/serialization keyed by mode name.
+  - `server/mode_config.py` now supports `maximum_len`, top-level `chat_connections`, flat mode `chat_*` fields, and a shared mode chat resolver.
   - `server/model_routes.py` now exposes `maximum_len` and `chat_enabled` in `/api/modes`.
-  - mode-save/delete paths now guard chat-mode integrity: stale `chat` keys are rejected in `save_config()`, and `/api/modes` save/delete flows prune removed mode bindings before persistence.
-  - `server/ws_routes.py` now accepts `jobType=chat`, resolves chat config from global `chat.<mode_name>` entries (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
+  - mode-save/delete paths now guard chat-mode integrity: legacy top-level `chat` is rejected in `save_config()`, and the persisted config round-trips through `chat_connections` plus flat mode `chat_*` fields.
+  - `server/ws_routes.py` now accepts `jobType=chat`, resolves chat config from the shared mode chat resolver (no env fallback), clamps `max_tokens` to mode `maximum_len`, and returns `job:complete` text outputs (plus streaming `job:progress` deltas).
   - follow-up cleanup removed dead mode-level chat state, fixed empty-config-path error handling, and simplified ws chat config resolution to return a single optional context object.
   - `backends/chat_client.py` added as a minimal OpenAI-compatible client (`complete` + `stream`) with SSE guards for empty `choices` events.
   - `server/advisor_service.py` and `server/advisor_routes.py` now provide `POST /api/advisors/digest`, and `server/lcm_sr_server.py` includes `advisor_router`.
@@ -461,9 +461,9 @@ def build_evidence_fingerprint(evidence: dict) -> str:
 async def generate_digest(request: AdvisorDigestRequest) -> dict:
     mode_config = get_mode_config()
     mode_name = mode_config.get_default_mode()
-    chat_cfg = mode_config.get_chat_config(mode_name)
+    chat_cfg = mode_config.resolve_chat_config(mode_name)
     if chat_cfg is None:
-        raise ValueError("advisor digest requires global chat configuration for the active mode")
+        raise ValueError("advisor digest requires chat configuration for the active mode")
 
     prompt = (
         "You are an image-style advisor. Analyze the evidence metadata and derive stable style themes, "

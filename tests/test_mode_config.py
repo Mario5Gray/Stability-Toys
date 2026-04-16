@@ -81,7 +81,7 @@ modes:
     assert mode.runtime_enable_xformers is True
 
 
-def test_mode_config_parses_global_chat_block(tmp_path):
+def test_mode_config_parses_chat_connections_and_flat_mode_chat_fields(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -92,26 +92,30 @@ resolution_sets:
   default:
     - size: 512x512
       aspect_ratio: "1:1"
-chat:
-  sdxl-chat:
+chat_connections:
+  local_default:
     endpoint: http://localhost:11434/v1
-    model: llama3.2
     api_key_env: OPENAI_API_KEY
-    max_tokens: 768
-    temperature: 0.4
-    system_prompt: You are concise.
 modes:
   sdxl-chat:
     model: checkpoints/sdxl/sdxl-base.safetensors
     default_size: 512x512
+    chat_connection: local_default
+    chat_model: llama3.2
+    chat_max_tokens: 768
+    chat_temperature: 0.4
+    chat_system_prompt: You are concise.
 """.strip()
     )
 
     from server.mode_config import ModeConfigManager
 
     manager = ModeConfigManager(str(tmp_path))
-    chat_cfg = manager.get_chat_config("sdxl-chat")
+    mode = manager.get_mode("sdxl-chat")
+    chat_cfg = manager.resolve_chat_config("sdxl-chat")
 
+    assert mode.chat_connection == "local_default"
+    assert mode.chat_model == "llama3.2"
     assert chat_cfg is not None
     assert chat_cfg.endpoint == "http://localhost:11434/v1"
     assert chat_cfg.model == "llama3.2"
@@ -119,7 +123,7 @@ modes:
     assert chat_cfg.max_tokens == 768
     assert chat_cfg.temperature == 0.4
     assert chat_cfg.system_prompt == "You are concise."
-    assert manager.to_dict()["chat"]["sdxl-chat"]["model"] == "llama3.2"
+    assert manager.to_dict()["chat_connections"]["local_default"]["endpoint"] == "http://localhost:11434/v1"
 
 
 def test_mode_config_rejects_mode_scoped_chat_block(tmp_path):
@@ -148,10 +152,10 @@ modes:
     with pytest.raises(ValueError) as exc:
         ModeConfigManager(str(tmp_path))
     assert "Mode 'sdxl-chat'" in str(exc.value)
-    assert "top-level 'chat.sdxl-chat'" in str(exc.value)
+    assert "legacy mode-scoped chat config" in str(exc.value)
 
 
-def test_mode_config_chat_numeric_field_errors_include_mode_name(tmp_path):
+def test_mode_config_rejects_legacy_top_level_chat_block(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -166,7 +170,6 @@ chat:
   sdxl-chat:
     endpoint: http://localhost:11434/v1
     model: llama3.2
-    max_tokens: not-a-number
 modes:
   sdxl-chat:
     model: checkpoints/sdxl/sdxl-base.safetensors
@@ -176,10 +179,37 @@ modes:
 
     from server.mode_config import ModeConfigManager
 
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError, match="legacy top-level 'chat'"):
         ModeConfigManager(str(tmp_path))
-    assert "mode 'sdxl-chat'" in str(exc.value)
-    assert "max_tokens" in str(exc.value)
+
+
+def test_mode_config_rejects_unknown_chat_connection(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-chat
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+chat_connections:
+  local_default:
+    endpoint: http://localhost:11434/v1
+modes:
+  sdxl-chat:
+    model: checkpoints/sdxl/sdxl-base.safetensors
+    default_size: 512x512
+    chat_connection: missing_connection
+    chat_model: llama3.2
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match="unknown chat_connection 'missing_connection'"):
+        ModeConfigManager(str(tmp_path))
 
 
 def test_mode_config_parses_maximum_len(tmp_path):
@@ -458,7 +488,7 @@ modes:
     }
 
 
-def test_mode_config_save_config_round_trips_chat_block(tmp_path):
+def test_mode_config_save_config_round_trips_chat_connections(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -469,18 +499,19 @@ resolution_sets:
   default:
     - size: 512x512
       aspect_ratio: "1:1"
-chat:
-  sdxl:
+chat_connections:
+  local_default:
     endpoint: http://localhost:11434/v1
-    model: llama3.2
     api_key_env: OPENAI_API_KEY
-    max_tokens: 512
-    temperature: 0.5
-    system_prompt: You are concise.
 modes:
   sdxl:
     model: checkpoints/sdxl/model.safetensors
     default_size: 512x512
+    chat_connection: local_default
+    chat_model: llama3.2
+    chat_max_tokens: 512
+    chat_temperature: 0.5
+    chat_system_prompt: You are concise.
 """.strip()
     )
 
@@ -491,10 +522,12 @@ modes:
 
     saved = yaml.safe_load(cfg.read_text())
     reloaded_manager = ModeConfigManager(str(tmp_path))
-    reloaded_chat = reloaded_manager.get_chat_config("sdxl")
+    reloaded_chat = reloaded_manager.resolve_chat_config("sdxl")
 
-    assert "chat" in saved
-    assert saved["chat"]["sdxl"]["model"] == "llama3.2"
+    assert "chat" not in saved
+    assert saved["chat_connections"]["local_default"]["endpoint"] == "http://localhost:11434/v1"
+    assert saved["modes"]["sdxl"]["chat_connection"] == "local_default"
+    assert saved["modes"]["sdxl"]["chat_model"] == "llama3.2"
     assert reloaded_chat is not None
     assert reloaded_chat.endpoint == "http://localhost:11434/v1"
     assert reloaded_chat.max_tokens == 512
@@ -524,10 +557,10 @@ modes:
     manager.save_config(manager.to_dict())
     saved = yaml.safe_load(cfg.read_text())
 
-    assert "chat" not in saved
+    assert "chat_connections" not in saved
 
 
-def test_mode_config_save_config_rejects_chat_references_to_missing_modes(tmp_path):
+def test_mode_config_save_config_rejects_chat_connections_references_to_missing_modes(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -549,11 +582,41 @@ modes:
 
     manager = ModeConfigManager(str(tmp_path))
     payload = manager.to_dict()
-    payload["chat"] = {
-        "missing": {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
+    payload["chat_connections"] = {
+        "local_default": {"endpoint": "http://localhost:11434/v1", "api_key_env": "OPENAI_API_KEY"}
     }
+    payload["modes"]["sdxl"]["chat_connection"] = "missing"
+    payload["modes"]["sdxl"]["chat_model"] = "llama3.2"
 
-    with pytest.raises(ValueError, match="chat entries reference missing modes"):
+    with pytest.raises(ValueError, match="unknown chat_connection 'missing'"):
+        manager.save_config(payload)
+
+
+def test_mode_config_save_config_rejects_legacy_mode_scoped_chat_block(tmp_path):
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  sdxl:
+    model: checkpoints/sdxl/model.safetensors
+    default_size: 512x512
+""".strip()
+    )
+
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    payload = manager.to_dict()
+    payload["modes"]["sdxl"]["chat"] = {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
+
+    with pytest.raises(ValueError, match="legacy mode-scoped chat config; use chat_connections and mode chat_\\* fields"):
         manager.save_config(payload)
 
 

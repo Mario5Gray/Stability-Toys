@@ -43,6 +43,13 @@ class ChatBackendConfig:
 
 
 @dataclass
+class ChatConnectionConfig:
+    """Reusable transport settings for chat backends."""
+    endpoint: str
+    api_key_env: str = "OPENAI_API_KEY"
+
+
+@dataclass
 class ModeConfig:
     """Configuration for a single mode."""
     name: str
@@ -68,6 +75,11 @@ class ModeConfig:
     allow_custom_negative_prompt: bool = False
     allowed_scheduler_ids: Optional[List[str]] = None
     default_scheduler_id: Optional[str] = None
+    chat_connection: Optional[str] = None
+    chat_model: Optional[str] = None
+    chat_max_tokens: Optional[int] = None
+    chat_temperature: Optional[float] = None
+    chat_system_prompt: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Resolved absolute paths (set after loading)
@@ -82,7 +94,7 @@ class ModesYAML:
     lora_root: str
     default_mode: str
     resolution_sets: Dict[str, List[Dict[str, str]]]
-    chat: Dict[str, ChatBackendConfig]
+    chat_connections: Dict[str, ChatConnectionConfig]
     modes: Dict[str, ModeConfig]
 
 
@@ -170,15 +182,20 @@ class ModeConfigManager:
                 })
             resolution_sets[set_name] = resolved_entries
 
-        # Parse global chat backend definitions keyed by mode name
-        chat_by_mode: Dict[str, ChatBackendConfig] = {}
-        chat_root = data.get("chat")
-        if chat_root is None:
-            chat_root = {}
-        if not isinstance(chat_root, dict):
-            raise ValueError("modes.yml field 'chat' must be a mapping of mode names to chat configs")
-        for chat_mode_name, chat_data in chat_root.items():
-            chat_by_mode[chat_mode_name] = self._parse_chat_config(chat_mode_name, chat_data)
+        if "chat" in data:
+            raise ValueError(
+                "modes.yml contains legacy top-level 'chat'; migrate to 'chat_connections' plus mode chat_* fields"
+            )
+
+        raw_chat_connections = data.get("chat_connections")
+        if raw_chat_connections is None:
+            raw_chat_connections = {}
+        if not isinstance(raw_chat_connections, dict):
+            raise ValueError("modes.yml field 'chat_connections' must be a mapping")
+        chat_connections = {
+            connection_name: self._parse_chat_connection_config(connection_name, chat_data)
+            for connection_name, chat_data in raw_chat_connections.items()
+        }
 
         # Parse mode definitions
         modes = {}
@@ -187,7 +204,7 @@ class ModeConfigManager:
                 raise ValueError(f"Mode '{mode_name}' missing required field: model")
             if "chat" in mode_data and mode_data.get("chat") is not None:
                 raise ValueError(
-                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; move it to top-level 'chat.{mode_name}'"
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_connections and mode chat_* fields"
                 )
 
             resolution_set = mode_data.get("resolution_set") or "default"
@@ -201,6 +218,22 @@ class ModeConfigManager:
                 raise ValueError(
                     f"Mode '{mode_name}' default_size '{default_size}' is not present in resolution_set '{resolution_set}'"
                 )
+
+            chat_connection = mode_data.get("chat_connection")
+            chat_model = self._normalize_optional_string(mode_data.get("chat_model"))
+            chat_max_tokens = self._parse_optional_int(mode_data.get("chat_max_tokens"), f"mode '{mode_name}'", "chat_max_tokens")
+            chat_temperature = self._parse_optional_float(mode_data.get("chat_temperature"), f"mode '{mode_name}'", "chat_temperature")
+            chat_system_prompt = self._normalize_optional_string(mode_data.get("chat_system_prompt"))
+            if chat_connection is not None:
+                chat_connection = str(chat_connection).strip()
+            if chat_connection == "":
+                chat_connection = None
+            if chat_connection and chat_connection not in chat_connections:
+                raise ValueError(f"Mode '{mode_name}' references unknown chat_connection '{chat_connection}'")
+            if chat_connection and not chat_model:
+                raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
+            if chat_model and not chat_connection:
+                raise ValueError(f"Mode '{mode_name}' must set chat_connection when chat_model is configured")
 
             # Parse LoRAs
             loras = []
@@ -240,6 +273,11 @@ class ModeConfigManager:
                 allow_custom_negative_prompt=bool(mode_data.get("allow_custom_negative_prompt", False)),
                 allowed_scheduler_ids=mode_data.get("allowed_scheduler_ids"),
                 default_scheduler_id=mode_data.get("default_scheduler_id"),
+                chat_connection=chat_connection,
+                chat_model=chat_model,
+                chat_max_tokens=chat_max_tokens,
+                chat_temperature=chat_temperature,
+                chat_system_prompt=chat_system_prompt,
                 metadata=mode_data.get("metadata", {}),
             )
 
@@ -248,12 +286,6 @@ class ModeConfigManager:
             mode.lora_paths = [str(lora_root / lora.path) for lora in mode.loras]
 
             modes[mode_name] = mode
-
-        for chat_mode_name in chat_by_mode:
-            if chat_mode_name not in modes:
-                raise ValueError(
-                    f"Top-level chat config references unknown mode '{chat_mode_name}'"
-                )
 
         # Validate default mode exists
         if default_mode not in modes:
@@ -267,7 +299,7 @@ class ModeConfigManager:
             lora_root=str(lora_root),
             default_mode=default_mode,
             resolution_sets=resolution_sets,
-            chat=chat_by_mode,
+            chat_connections=chat_connections,
             modes=modes,
         )
 
@@ -309,32 +341,47 @@ class ModeConfigManager:
                 logger.warning(f"  - {error}")
             # Don't raise - allow starting with missing models for development
 
-    def _parse_chat_config(self, mode_name: str, chat_data: Dict[str, Any]) -> ChatBackendConfig:
-        """Parse chat backend settings for a given mode."""
+    def _parse_chat_connection_config(self, connection_name: str, chat_data: Dict[str, Any]) -> ChatConnectionConfig:
+        """Parse reusable chat connection settings."""
         if not isinstance(chat_data, dict):
-            raise ValueError(f"Chat config for mode '{mode_name}' must be a mapping")
+            raise ValueError(f"Chat connection '{connection_name}' must be a mapping")
         endpoint = (chat_data.get("endpoint") or "").strip()
-        model = (chat_data.get("model") or "").strip()
         if not endpoint:
-            raise ValueError(f"Chat config for mode '{mode_name}' missing required field: endpoint")
-        if not model:
-            raise ValueError(f"Chat config for mode '{mode_name}' missing required field: model")
-        try:
-            max_tokens = int(chat_data.get("max_tokens", 1024))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Chat config for mode '{mode_name}' has invalid max_tokens") from e
-        try:
-            temperature = float(chat_data.get("temperature", 0.7))
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Chat config for mode '{mode_name}' has invalid temperature") from e
-        return ChatBackendConfig(
+            raise ValueError(f"Chat connection '{connection_name}' missing required field: endpoint")
+        return ChatConnectionConfig(
             endpoint=endpoint,
-            model=model,
             api_key_env=(chat_data.get("api_key_env") or "OPENAI_API_KEY").strip(),
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system_prompt=chat_data.get("system_prompt"),
         )
+
+    def _parse_optional_int(self, value: Any, owner: str, field_name: str) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"{owner} has invalid {field_name}") from e
+
+    def _parse_optional_float(self, value: Any, owner: str, field_name: str) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"{owner} has invalid {field_name}") from e
+
+    def _normalize_optional_string(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if normalized == "":
+            return None
+        return normalized
+
+    def _merge_system_prompts(self, mode_prompt: Optional[str], override_prompt: Optional[str]) -> Optional[str]:
+        prompts = [prompt for prompt in (self._normalize_optional_string(mode_prompt), self._normalize_optional_string(override_prompt)) if prompt]
+        if not prompts:
+            return None
+        return "\n\n".join(prompts)
 
     def save_config(self, data: Dict[str, Any]):
         """
@@ -366,8 +413,19 @@ class ModeConfigManager:
                 mode_entry["maximum_len"] = mode_data.get("maximum_len")
             if mode_data.get("chat") is not None:
                 raise ValueError(
-                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use top-level 'chat.{mode_name}'"
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_connections and mode chat_* fields"
                 )
+            chat_connection = self._normalize_optional_string(mode_data.get("chat_connection"))
+            chat_model = self._normalize_optional_string(mode_data.get("chat_model"))
+            chat_max_tokens = self._parse_optional_int(mode_data.get("chat_max_tokens"), f"mode '{mode_name}'", "chat_max_tokens")
+            chat_temperature = self._parse_optional_float(mode_data.get("chat_temperature"), f"mode '{mode_name}'", "chat_temperature")
+            chat_system_prompt = self._normalize_optional_string(mode_data.get("chat_system_prompt"))
+            if chat_connection and chat_connection not in (data.get("chat_connections") or {}):
+                raise ValueError(f"Mode '{mode_name}' references unknown chat_connection '{chat_connection}'")
+            if chat_connection and not chat_model:
+                raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
+            if chat_model and not chat_connection:
+                raise ValueError(f"Mode '{mode_name}' must set chat_connection when chat_model is configured")
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
             for cap_field in (
@@ -392,6 +450,16 @@ class ModeConfigManager:
                 mode_entry["allowed_scheduler_ids"] = mode_data.get("allowed_scheduler_ids")
             if mode_data.get("default_scheduler_id") is not None:
                 mode_entry["default_scheduler_id"] = mode_data.get("default_scheduler_id")
+            if chat_connection is not None:
+                mode_entry["chat_connection"] = chat_connection
+            if chat_model is not None:
+                mode_entry["chat_model"] = chat_model
+            if chat_max_tokens is not None:
+                mode_entry["chat_max_tokens"] = chat_max_tokens
+            if chat_temperature is not None:
+                mode_entry["chat_temperature"] = chat_temperature
+            if chat_system_prompt is not None:
+                mode_entry["chat_system_prompt"] = chat_system_prompt
             loras = mode_data.get("loras", [])
             if loras:
                 mode_entry["loras"] = [
@@ -402,30 +470,20 @@ class ModeConfigManager:
                 ]
             yaml_data["modes"][mode_name] = mode_entry
 
-        raw_chat = data.get("chat")
-        if raw_chat is None:
-            raw_chat = {}
-        if not isinstance(raw_chat, dict):
-            raise ValueError("save_config requires chat to be a mapping when provided")
-        unknown_chat_modes = sorted(
-            mode_name for mode_name in raw_chat.keys() if mode_name not in data["modes"]
-        )
-        if unknown_chat_modes:
-            raise ValueError(
-                "save_config chat entries reference missing modes: "
-                + ", ".join(unknown_chat_modes)
-            )
-        if raw_chat:
-            yaml_data["chat"] = {}
-            for chat_mode_name, chat_data in raw_chat.items():
-                chat_cfg = self._parse_chat_config(chat_mode_name, chat_data)
-                yaml_data["chat"][chat_mode_name] = {
-                    "endpoint": chat_cfg.endpoint,
-                    "model": chat_cfg.model,
-                    "api_key_env": chat_cfg.api_key_env,
-                    "max_tokens": chat_cfg.max_tokens,
-                    "temperature": chat_cfg.temperature,
-                    "system_prompt": chat_cfg.system_prompt,
+        if data.get("chat") not in (None, {}):
+            raise ValueError("save_config does not support legacy top-level 'chat'; use 'chat_connections'")
+        raw_chat_connections = data.get("chat_connections")
+        if raw_chat_connections is None:
+            raw_chat_connections = {}
+        if not isinstance(raw_chat_connections, dict):
+            raise ValueError("save_config requires chat_connections to be a mapping when provided")
+        if raw_chat_connections:
+            yaml_data["chat_connections"] = {}
+            for connection_name, connection_data in raw_chat_connections.items():
+                chat_connection = self._parse_chat_connection_config(connection_name, connection_data)
+                yaml_data["chat_connections"][connection_name] = {
+                    "endpoint": chat_connection.endpoint,
+                    "api_key_env": chat_connection.api_key_env,
                 }
 
         # Write atomically-ish: write to temp then rename
@@ -473,9 +531,39 @@ class ModeConfigManager:
         """Get the default mode configuration."""
         return self.get_mode(self.config.default_mode)
 
-    def get_chat_config(self, mode_name: str) -> Optional[ChatBackendConfig]:
-        """Get global chat config for a mode, if present."""
-        return self.config.chat.get(mode_name)
+    def resolve_chat_config(self, mode_name: str, overrides: Optional[Dict[str, Any]] = None) -> Optional[ChatBackendConfig]:
+        """Resolve a mode's chat config from its connection plus mode defaults."""
+        overrides = overrides or {}
+        mode = self.get_mode(mode_name)
+        if not mode.chat_connection:
+            return None
+
+        connection = self.config.chat_connections[mode.chat_connection]
+        model = self._normalize_optional_string(overrides.get("model")) or mode.chat_model
+        if not model:
+            raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
+
+        max_tokens = self._parse_optional_int(overrides.get("max_tokens"), f"mode '{mode_name}'", "max_tokens")
+        if max_tokens is None:
+            max_tokens = mode.chat_max_tokens if mode.chat_max_tokens is not None else 1024
+
+        temperature = self._parse_optional_float(overrides.get("temperature"), f"mode '{mode_name}'", "temperature")
+        if temperature is None:
+            temperature = mode.chat_temperature if mode.chat_temperature is not None else 0.7
+
+        system_prompt = self._merge_system_prompts(
+            mode.chat_system_prompt,
+            overrides.get("system_prompt"),
+        )
+
+        return ChatBackendConfig(
+            endpoint=connection.endpoint,
+            model=model,
+            api_key_env=connection.api_key_env,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system_prompt=system_prompt,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Export configuration as dictionary."""
@@ -484,16 +572,12 @@ class ModeConfigManager:
             "lora_root": self.config.lora_root,
             "default_mode": self.config.default_mode,
             "resolution_sets": self.config.resolution_sets,
-            "chat": {
-                mode_name: {
-                    "endpoint": chat_cfg.endpoint,
-                    "model": chat_cfg.model,
-                    "api_key_env": chat_cfg.api_key_env,
-                    "max_tokens": chat_cfg.max_tokens,
-                    "temperature": chat_cfg.temperature,
-                    "system_prompt": chat_cfg.system_prompt,
+            "chat_connections": {
+                connection_name: {
+                    "endpoint": chat_connection.endpoint,
+                    "api_key_env": chat_connection.api_key_env,
                 }
-                for mode_name, chat_cfg in self.config.chat.items()
+                for connection_name, chat_connection in self.config.chat_connections.items()
             },
             "modes": {
                 name: {
@@ -533,6 +617,11 @@ class ModeConfigManager:
                     "allow_custom_negative_prompt": mode.allow_custom_negative_prompt,
                     "allowed_scheduler_ids": mode.allowed_scheduler_ids,
                     "default_scheduler_id": mode.default_scheduler_id,
+                    "chat_connection": mode.chat_connection,
+                    "chat_model": mode.chat_model,
+                    "chat_max_tokens": mode.chat_max_tokens,
+                    "chat_temperature": mode.chat_temperature,
+                    "chat_system_prompt": mode.chat_system_prompt,
                     "metadata": mode.metadata,
                 }
                 for name, mode in self.config.modes.items()
