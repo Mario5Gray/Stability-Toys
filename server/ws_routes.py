@@ -315,7 +315,15 @@ def _resolve_chat_config(state, params: dict) -> Optional[tuple[ChatConfig, Opti
 
     mode = mode_config.get_mode(mode_name)
     maximum_len = getattr(mode, "maximum_len", None)
-    chat_cfg = mode_config.get_chat_config(mode_name)
+    chat_cfg = mode_config.resolve_chat_config(
+        mode_name,
+        overrides={
+            "model": params.get("model"),
+            "max_tokens": params.get("max_tokens"),
+            "temperature": params.get("temperature"),
+            "system_prompt": params.get("system_prompt"),
+        },
+    )
     if chat_cfg is None:
         return None
 
@@ -335,7 +343,10 @@ def _resolve_chat_config(state, params: dict) -> Optional[tuple[ChatConfig, Opti
 def _build_chat_messages(prompt: str, system_prompt: Optional[str]) -> List[Dict[str, str]]:
     messages: List[Dict[str, str]] = []
     if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
+        for item in system_prompt.split("\n\n"):
+            content = item.strip()
+            if content:
+                messages.append({"role": "system", "content": content})
     messages.append({"role": "user", "content": prompt})
     return messages
 
@@ -360,14 +371,10 @@ async def _run_chat(ws: WebSocket, client_id: str, job_id: str, params: dict) ->
 
         client = ChatCompletionsClient(chat_cfg)
         stream = bool(params.get("stream", True))
-        max_tokens = params.get("max_tokens")
-        if max_tokens is not None:
-            max_tokens = int(max_tokens)
+        max_tokens = chat_cfg.max_tokens
         if maximum_len is not None:
-            max_tokens = min(max_tokens if max_tokens is not None else chat_cfg.max_tokens, int(maximum_len))
-        temperature = params.get("temperature")
-        if temperature is not None:
-            temperature = float(temperature)
+            max_tokens = min(max_tokens, int(maximum_len))
+        temperature = chat_cfg.temperature
         messages = _build_chat_messages(prompt, chat_cfg.system_prompt)
 
         if stream:

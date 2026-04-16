@@ -709,7 +709,7 @@ class TestJobSubmit:
                     patch.dict(os.environ, {"CHAT_ENDPOINT": "http://localhost:11434/v1", "CHAT_MODEL": "llama3.2"}, clear=False):
                 get_mode_config.return_value = SimpleNamespace(
                     get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
-                    get_chat_config=lambda name: None,
+                    resolve_chat_config=lambda name, overrides=None: None,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -754,7 +754,7 @@ class TestJobSubmit:
                     patch("backends.chat_client.ChatCompletionsClient.complete", new=AsyncMock(return_value="assistant reply")):
                 get_mode_config.return_value = SimpleNamespace(
                     get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
-                    get_chat_config=lambda name: fake_chat_cfg,
+                    resolve_chat_config=lambda name, overrides=None: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -805,7 +805,7 @@ class TestJobSubmit:
                     patch("backends.chat_client.ChatCompletionsClient.stream", new=_fake_stream):
                 get_mode_config.return_value = SimpleNamespace(
                     get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
-                    get_chat_config=lambda name: fake_chat_cfg,
+                    resolve_chat_config=lambda name, overrides=None: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -859,7 +859,7 @@ class TestJobSubmit:
                     patch("backends.chat_client.ChatCompletionsClient.complete", new=complete_mock):
                 get_mode_config.return_value = SimpleNamespace(
                     get_mode=lambda name: SimpleNamespace(name=name, maximum_len=120),
-                    get_chat_config=lambda name: fake_chat_cfg,
+                    resolve_chat_config=lambda name, overrides=None: fake_chat_cfg,
                     get_default_mode=lambda: "sdxl-general",
                 )
 
@@ -884,6 +884,98 @@ class TestJobSubmit:
                 assert complete_mock.await_count == 1
                 _, kwargs = complete_mock.await_args
                 assert kwargs["max_tokens"] == 120
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_chat_job_appends_request_system_prompt_after_mode_prompt(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        fake_chat_cfg = SimpleNamespace(
+            endpoint="http://localhost:11434/v1",
+            model="llama3.2",
+            api_key_env="OPENAI_API_KEY",
+            max_tokens=128,
+            temperature=0.4,
+            system_prompt="Mode prompt\n\nRequest prompt",
+        )
+        complete_mock = AsyncMock(return_value="assistant reply")
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch("backends.chat_client.ChatCompletionsClient.complete", new=complete_mock):
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
+                    resolve_chat_config=lambda name, overrides=None: fake_chat_cfg,
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-override",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": False,
+                            "system_prompt": "Request prompt",
+                        },
+                    })
+                    ws.receive_json()
+                    ws.receive_json()
+
+                messages = complete_mock.await_args.args[0]
+                assert messages[0] == {"role": "system", "content": "Mode prompt"}
+                assert messages[1] == {"role": "system", "content": "Request prompt"}
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_chat_job_passes_model_override_without_connection_cross_validation(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+
+        fake_chat_cfg = SimpleNamespace(
+            endpoint="http://localhost:11434/v1",
+            model="override-model",
+            api_key_env="OPENAI_API_KEY",
+            max_tokens=128,
+            temperature=0.4,
+            system_prompt=None,
+        )
+        complete_mock = AsyncMock(side_effect=RuntimeError("backend rejected model"))
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config, \
+                    patch("backends.chat_client.ChatCompletionsClient.complete", new=complete_mock):
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(name=name, maximum_len=None),
+                    resolve_chat_config=lambda name, overrides=None: fake_chat_cfg,
+                    get_default_mode=lambda: "sdxl-general",
+                )
+
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "chat-model-override",
+                        "jobType": "chat",
+                        "params": {
+                            "prompt": "hello",
+                            "stream": False,
+                            "model": "override-model",
+                        },
+                    })
+                    ws.receive_json()
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert "backend rejected model" in err["error"]
         finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None
