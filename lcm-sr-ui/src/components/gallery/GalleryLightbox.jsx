@@ -5,6 +5,7 @@ import { createCache } from '../../utils/cache';
 import { GalleryGrid } from './GalleryGrid';
 import { GalleryImageViewer } from './GalleryImageViewer';
 import { FloatingActionBar } from './FloatingActionBar';
+import { GalleryZoomOverlay } from './GalleryZoomOverlay';
 import { useSelection } from '../../hooks/useSelection';
 
 export function GalleryLightbox({
@@ -19,6 +20,7 @@ export function GalleryLightbox({
 }) {
   const [items, setItems] = useState([]);
   const [viewerItem, setViewerItem] = useState(null);
+  const [zoomItem, setZoomItem] = useState(null);
   const [opacity, setOpacity] = useState(0.95);
 
   const selection = useSelection(items);
@@ -152,12 +154,20 @@ export function GalleryLightbox({
             onOpenViewer={setViewerItem}
             onToggle={(id) => selection.toggle(id)}
             onRange={(id) => selection.rangeTo(id)}
-            onZoom={() => {}}
+            onZoom={(item) => setZoomItem(item)}
             selectedIds={selection.selectedIds}
             anchorId={selection.anchorId}
           />
         )}
       </div>
+
+      {zoomItem && (
+        <GalleryZoomOverlay
+          item={zoomItem}
+          resolveImageUrl={resolveImageUrl}
+          onClose={() => setZoomItem(null)}
+        />
+      )}
 
       {!viewerItem && (
         <FloatingActionBar

@@ -126,7 +126,7 @@ export function GalleryGrid({
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="grid" className="grid gap-2" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div role="grid" className="grid gap-2 overflow-visible" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         {pageItems.map((item) => (
           <GalleryThumbnail
             key={item.id}
