@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 
 export function GalleryZoomOverlay({ item, resolveImageUrl, onClose }) {
   const [url, setUrl] = useState(null);
@@ -35,6 +35,14 @@ export function GalleryZoomOverlay({ item, resolveImageUrl, onClose }) {
           className="absolute -top-2 -right-2 rounded-full bg-background border p-1 hover:bg-muted"
         >
           <X className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Open in new tab"
+          onClick={() => { if (url) window.open(url, '_blank'); }}
+          className="absolute -top-2 right-6 rounded-full bg-background border p-1 hover:bg-muted"
+        >
+          <ExternalLink className="h-4 w-4" />
         </button>
         {url ? (
           <img

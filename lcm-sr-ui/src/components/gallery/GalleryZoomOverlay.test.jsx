@@ -42,4 +42,21 @@ describe('GalleryZoomOverlay', () => {
     fireEvent.mouseDown(screen.getByTestId('zoom-backdrop'));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('renders an Open in new tab button', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false });
+    await act(async () => {
+      render(
+        <GalleryZoomOverlay
+          item={{ id: 'id_1', serverImageUrl: 'http://example.com/a.png', params: { prompt: 'p' }, addedAt: 1 }}
+          resolveImageUrl={(it) => Promise.resolve(it.serverImageUrl)}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+    await screen.findByAltText('p');
+    fireEvent.click(screen.getByRole('button', { name: /open in new tab/i }));
+    expect(openSpy).toHaveBeenCalledWith('http://example.com/a.png', '_blank');
+    openSpy.mockRestore();
+  });
 });

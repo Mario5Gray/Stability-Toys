@@ -1,6 +1,6 @@
 // src/components/gallery/GalleryImageViewer.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 
 export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen }) {
   const [url, setUrl] = useState(null);
@@ -51,6 +51,19 @@ export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen
         className="absolute top-2 left-2 z-10 p-1 rounded-full bg-background/80 hover:bg-background transition-colors"
       >
         <ChevronLeft className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
+        aria-label="Open in new tab"
+        onClick={() => {
+          if (!urlRef.current) return;
+          const win = window.open(urlRef.current, '_blank');
+          onWindowOpen?.(win);
+        }}
+        className="absolute top-2 right-2 z-10 p-1 rounded-full bg-background/80 hover:bg-background transition-colors"
+      >
+        <ExternalLink className="h-5 w-5" />
       </button>
 
       <div

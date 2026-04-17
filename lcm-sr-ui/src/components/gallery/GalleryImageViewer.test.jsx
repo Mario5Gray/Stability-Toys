@@ -172,4 +172,24 @@ describe('GalleryImageViewer', () => {
     const metaBar = screen.getByTestId('metadata-bar');
     expect(metaBar.className).toContain('pointer-events-none');
   });
+
+  it('renders an Open in new tab button that calls window.open with resolved url', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false });
+    const onWindowOpen = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={item}
+          resolveImageUrl={resolve}
+          onBack={vi.fn()}
+          onWindowOpen={onWindowOpen}
+        />,
+      );
+    });
+    await screen.findByAltText('a cat');
+    fireEvent.click(screen.getByRole('button', { name: /open in new tab/i }));
+    expect(openSpy).toHaveBeenCalledWith('http://example.com/img.png', '_blank');
+    expect(onWindowOpen).toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
 });
