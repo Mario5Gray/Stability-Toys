@@ -314,7 +314,7 @@ NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "1"))
 QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
 PORT = int(os.environ.get("PORT", "4200"))
 REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
-
+UI_DIST = bool(os.environ.get("UI_DIST", False))
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
 model_root_path = ModelPaths(root=MODEL_ROOT)
 
@@ -811,7 +811,7 @@ logger.info("WebSocket endpoint mounted at /v1/ws, upload at /v1/upload")
 
 # UI static mount (serves Vite dist)
 _ui_dist = "/opt/lcm-sr-server/ui-dist"
-if os.path.isdir(_ui_dist):
+if UI_DIST == true and os.path.isdir(_ui_dist):
     app.mount(
         "/",
         StaticFiles(directory=_ui_dist, html=True),
