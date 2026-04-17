@@ -3,13 +3,22 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const PAGE_SIZE = 20;
 
-// 1x1 transparent PNG used as placeholder src so <img> is always in the DOM
 const PLACEHOLDER_SRC =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-function GalleryThumbnail({ item, resolveImageUrl, onOpenViewer }) {
+function GalleryThumbnail({
+  item,
+  resolveImageUrl,
+  onOpenViewer,
+  onToggle,
+  onRange,
+  onZoom,
+  selected,
+  isAnchor,
+}) {
   const [url, setUrl] = useState(null);
   const urlRef = useRef(null);
+  const clickTimerRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -20,9 +29,23 @@ function GalleryThumbnail({ item, resolveImageUrl, onOpenViewer }) {
       }
     });
     return () => { active = false; };
-  // resolveImageUrl is excluded: callers must ensure a stable reference (useCallback)
-  // Re-running the effect on item.id change is sufficient for gallery item rendering
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleClick(e) {
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    const shift = e.shiftKey;
+    const mod = e.metaKey || e.ctrlKey;
+    clickTimerRef.current = setTimeout(() => {
+      if (shift) onRange?.(item.id);
+      else onToggle?.(item.id, { shift, mod });
+    }, 180);
+  }
+
+  function handleDoubleClick() {
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = null;
+    onZoom?.(item);
+  }
 
   function handleKeyDown(e) {
     if (e.key === ' ' && urlRef.current) {
@@ -31,19 +54,36 @@ function GalleryThumbnail({ item, resolveImageUrl, onOpenViewer }) {
     }
   }
 
+  const ringClass = selected
+    ? 'ring-2 ring-primary'
+    : isAnchor
+      ? 'ring-2 ring-primary/40'
+      : '';
+
   return (
     <div
+      role="gridcell"
+      aria-selected={selected ? 'true' : 'false'}
       data-gallery-cell
       tabIndex={0}
-      className="relative w-32 h-32 rounded-md overflow-hidden cursor-pointer bg-muted focus:outline-none focus:ring-2 focus:ring-primary"
+      className={`relative w-32 h-32 rounded-md overflow-hidden cursor-pointer bg-muted focus:outline-none focus:ring-2 focus:ring-primary transition-transform duration-150 motion-reduce:transition-none hover:scale-[1.08] motion-reduce:hover:scale-100 ${ringClass}`}
       onKeyDown={handleKeyDown}
     >
       <img
         src={url ?? PLACEHOLDER_SRC}
         alt={item.params?.prompt ?? ''}
         className={`w-full h-full object-cover${url ? '' : ' opacity-0'}`}
-        onClick={() => onOpenViewer(item)}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
       />
+      {selected && (
+        <div
+          aria-hidden="true"
+          className="absolute top-1 left-1 rounded-full bg-primary text-primary-foreground h-5 w-5 flex items-center justify-center text-xs"
+        >
+          ✓
+        </div>
+      )}
       {!url && (
         <div
           aria-hidden="true"
@@ -56,12 +96,20 @@ function GalleryThumbnail({ item, resolveImageUrl, onOpenViewer }) {
   );
 }
 
-export function GalleryGrid({ items, resolveImageUrl, onOpenViewer }) {
+export function GalleryGrid({
+  items,
+  resolveImageUrl,
+  onOpenViewer,
+  onToggle,
+  onRange,
+  onZoom,
+  selectedIds,
+  anchorId,
+}) {
   const [page, setPage] = useState(0);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
 
-  // resets page when item count changes (e.g. parent re-fetches gallery)
   useEffect(() => {
     setPage(0);
   }, [items.length]);
@@ -78,13 +126,18 @@ export function GalleryGrid({ items, resolveImageUrl, onOpenViewer }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div role="grid" className="grid gap-2" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         {pageItems.map((item) => (
           <GalleryThumbnail
             key={item.id}
             item={item}
             resolveImageUrl={resolveImageUrl}
             onOpenViewer={onOpenViewer}
+            onToggle={onToggle}
+            onRange={onRange}
+            onZoom={onZoom}
+            selected={selectedIds?.has(item.id) ?? false}
+            isAnchor={anchorId === item.id}
           />
         ))}
       </div>

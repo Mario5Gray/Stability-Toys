@@ -4,31 +4,41 @@ import { X } from 'lucide-react';
 import { createCache } from '../../utils/cache';
 import { GalleryGrid } from './GalleryGrid';
 import { GalleryImageViewer } from './GalleryImageViewer';
+import { FloatingActionBar } from './FloatingActionBar';
+import { useSelection } from '../../hooks/useSelection';
 
-export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onClose }) {
+export function GalleryLightbox({
+  galleryId,
+  galleryName,
+  getGalleryImages,
+  onClose,
+  trashMode = false,
+  onMoveToTrash,
+  onRestoreFromTrash,
+  onHardDelete,
+}) {
   const [items, setItems] = useState([]);
   const [viewerItem, setViewerItem] = useState(null);
   const [opacity, setOpacity] = useState(0.95);
 
+  const selection = useSelection(items);
+
   const cacheRef = useRef(null);
-  const blobUrlsRef = useRef(new Map()); // cacheKey -> blobUrl
+  const blobUrlsRef = useRef(new Map());
   const childWindowsRef = useRef([]);
 
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
-  // Lazy-init the lcm-image-cache handle
   function getCache() {
     if (!cacheRef.current) cacheRef.current = createCache();
     return cacheRef.current;
   }
 
-  // Fetch items on mount
   useEffect(() => {
     getGalleryImages(galleryId).then(setItems);
   }, [galleryId, getGalleryImages]);
 
-  // Revoke blob URLs on unmount
   useEffect(() => {
     return () => {
       for (const url of blobUrlsRef.current.values()) {
@@ -37,7 +47,6 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
     };
   }, []);
 
-  // ESC key handler
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === 'Escape') closeAll();
@@ -45,7 +54,6 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // closeAll is excluded: onClose is accessed via onCloseRef (always current) — re-adding the listener on every render is unnecessary
 
   function closeAll() {
     for (const win of childWindowsRef.current) {
@@ -77,14 +85,35 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
     return item.serverImageUrl ?? null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const displayName = (galleryName ?? '').slice(0, 16);
+  async function handleDeleteAction() {
+    if (selection.selectedIds.size === 0) return;
+    const ids = [...selection.selectedIds];
+    await onMoveToTrash?.(ids);
+    selection.clear();
+    setItems(await getGalleryImages(galleryId));
+  }
+
+  async function handleRestoreAction() {
+    const ids = [...selection.selectedIds];
+    await onRestoreFromTrash?.(ids);
+    selection.clear();
+    setItems(await getGalleryImages(galleryId));
+  }
+
+  async function handleHardDeleteAction() {
+    const ids = [...selection.selectedIds];
+    await onHardDelete?.(ids);
+    selection.clear();
+    setItems(await getGalleryImages(galleryId));
+  }
+
+  const displayName = (galleryName ?? (trashMode ? 'Trash' : '')).slice(0, 16);
 
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col"
       style={{ backgroundColor: `rgba(0,0,0,${opacity})` }}
     >
-      {/* Toolbar */}
       <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 text-white">
         <span className="font-medium truncate max-w-[160px]">{displayName}</span>
         <input
@@ -97,7 +126,6 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
           className="w-28 accent-primary"
           aria-label="Background opacity"
         />
-        {/* Reserved button slot — future additions go here */}
         <div className="flex-1" />
         <button
           type="button"
@@ -109,7 +137,6 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
         </button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         {viewerItem ? (
           <GalleryImageViewer
@@ -123,9 +150,25 @@ export function GalleryLightbox({ galleryId, galleryName, getGalleryImages, onCl
             items={items}
             resolveImageUrl={resolveImageUrl}
             onOpenViewer={setViewerItem}
+            onToggle={(id) => selection.toggle(id)}
+            onRange={(id) => selection.rangeTo(id)}
+            onZoom={() => {}}
+            selectedIds={selection.selectedIds}
+            anchorId={selection.anchorId}
           />
         )}
       </div>
+
+      {!viewerItem && (
+        <FloatingActionBar
+          selectedCount={selection.selectedIds.size}
+          trashMode={trashMode}
+          onDelete={handleDeleteAction}
+          onRestore={handleRestoreAction}
+          onHardDelete={handleHardDeleteAction}
+          onClear={selection.clear}
+        />
+      )}
     </div>
   );
 }

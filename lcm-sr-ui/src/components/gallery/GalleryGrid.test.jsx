@@ -22,16 +22,26 @@ function makeItem(n, override = {}) {
 const resolve = (item) => Promise.resolve(item.serverImageUrl);
 const resolveNull = () => Promise.resolve(null);
 
+const defaultProps = {
+  resolveImageUrl: resolve,
+  onOpenViewer: vi.fn(),
+  onToggle: vi.fn(),
+  onRange: vi.fn(),
+  onZoom: vi.fn(),
+  selectedIds: new Set(),
+  anchorId: null,
+};
+
 describe('GalleryGrid', () => {
   it('shows empty state when items is empty', () => {
-    render(<GalleryGrid items={[]} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+    render(<GalleryGrid items={[]} {...defaultProps} />);
     expect(screen.getByText(/no images in this gallery yet/i)).toBeInTheDocument();
   });
 
   it('renders thumbnail cells for each item on the first page', async () => {
     const items = Array.from({ length: 5 }, (_, i) => makeItem(i));
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} />);
     });
     const imgs = screen.getAllByRole('img');
     expect(imgs).toHaveLength(5);
@@ -40,7 +50,7 @@ describe('GalleryGrid', () => {
   it('paginates — only shows 20 items per page', async () => {
     const items = Array.from({ length: 25 }, (_, i) => makeItem(i));
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} />);
     });
     expect(screen.getAllByRole('img')).toHaveLength(20);
     expect(screen.getByText(/page 1 of 2/i)).toBeInTheDocument();
@@ -49,7 +59,7 @@ describe('GalleryGrid', () => {
   it('Next button advances to page 2', async () => {
     const items = Array.from({ length: 25 }, (_, i) => makeItem(i));
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} />);
     });
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
     expect(screen.getByText(/page 2 of 2/i)).toBeInTheDocument();
@@ -59,26 +69,16 @@ describe('GalleryGrid', () => {
   it('Prev button is disabled on first page', async () => {
     const items = Array.from({ length: 5 }, (_, i) => makeItem(i));
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} />);
     });
     expect(screen.getByRole('button', { name: /prev/i })).toBeDisabled();
-  });
-
-  it('calls onOpenViewer when a thumbnail is clicked', async () => {
-    const onOpen = vi.fn();
-    const items = [makeItem(0)];
-    await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={onOpen} />);
-    });
-    fireEvent.click(screen.getByRole('img'));
-    expect(onOpen).toHaveBeenCalledWith(items[0]);
   });
 
   it('Space key on a thumbnail opens window.open with the resolved URL', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const items = [makeItem(0)];
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolve} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} />);
     });
     const cell = screen.getByRole('img').closest('[data-gallery-cell]');
     fireEvent.keyDown(cell, { key: ' ' });
@@ -90,11 +90,84 @@ describe('GalleryGrid', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const items = [makeItem(0, { serverImageUrl: null })];
     await act(async () => {
-      render(<GalleryGrid items={items} resolveImageUrl={resolveNull} onOpenViewer={vi.fn()} />);
+      render(<GalleryGrid items={items} {...defaultProps} resolveImageUrl={resolveNull} />);
     });
     const cell = document.querySelector('[data-gallery-cell]');
     fireEvent.keyDown(cell, { key: ' ' });
     expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+});
+
+describe('GalleryGrid — selection', () => {
+  it('click on thumbnail calls onToggle with item id', async () => {
+    vi.useFakeTimers();
+    const items = Array.from({ length: 3 }, (_, i) => makeItem(i));
+    const onToggle = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryGrid
+          items={items}
+          {...defaultProps}
+          onToggle={onToggle}
+        />,
+      );
+    });
+    fireEvent.click(screen.getAllByRole('img')[1]);
+    vi.advanceTimersByTime(200);
+    expect(onToggle).toHaveBeenCalledWith('id_1', { shift: false, mod: false });
+    vi.useRealTimers();
+  });
+
+  it('shift+click calls onRange', async () => {
+    vi.useFakeTimers();
+    const items = Array.from({ length: 3 }, (_, i) => makeItem(i));
+    const onRange = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryGrid
+          items={items}
+          {...defaultProps}
+          onRange={onRange}
+        />,
+      );
+    });
+    fireEvent.click(screen.getAllByRole('img')[2], { shiftKey: true });
+    vi.advanceTimersByTime(200);
+    expect(onRange).toHaveBeenCalledWith('id_2');
+    vi.useRealTimers();
+  });
+
+  it('double-click calls onZoom', async () => {
+    const items = [makeItem(0)];
+    const onZoom = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryGrid
+          items={items}
+          {...defaultProps}
+          onZoom={onZoom}
+        />,
+      );
+    });
+    fireEvent.doubleClick(screen.getAllByRole('img')[0]);
+    expect(onZoom).toHaveBeenCalledWith(items[0]);
+  });
+
+  it('selected items get an aria-selected=true attribute', async () => {
+    const items = Array.from({ length: 2 }, (_, i) => makeItem(i));
+    await act(async () => {
+      render(
+        <GalleryGrid
+          items={items}
+          {...defaultProps}
+          selectedIds={new Set(['id_1'])}
+          anchorId={'id_1'}
+        />,
+      );
+    });
+    const cells = screen.getAllByRole('gridcell');
+    expect(cells[1].getAttribute('aria-selected')).toBe('true');
+    expect(cells[0].getAttribute('aria-selected')).toBe('false');
   });
 });
