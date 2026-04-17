@@ -1,5 +1,7 @@
-store/
+uv.lock
+store/*
 .codex/
+models/
 AGENTS.md
 CLAUDE.md
 FP_CLAUDE.md
