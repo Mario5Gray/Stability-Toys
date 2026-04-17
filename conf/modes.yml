@@ -28,7 +28,7 @@ resolution_sets:
 
 chat_connections:
   local_default:
-    endpoint: "http://node2.lan:8080"   # base URL, no /chat/completions suffix
+    endpoint: "http://node2.lan:8080/v1"   # base URL, no /chat/completions suffix
     api_key_env: "OPENAI_API_KEY"           # optional for local no-auth hosts
 
 modes:
