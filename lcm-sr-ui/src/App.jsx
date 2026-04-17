@@ -160,6 +160,7 @@ export default function App() {
   const galleryState = useGalleries();
   const frontendVersion = useMemo(() => getFrontendVersion(), []);
   const [openGalleryId, setOpenGalleryId] = useState(null);
+  const [trashOpen, setTrashOpen] = useState(false);
   const didReportRender = useRef(false);
 
   useEffect(() => {
@@ -937,6 +938,7 @@ export default function App() {
             }}
             queueState={queueState}
             galleryState={galleryState}
+            onOpenTrash={() => setTrashOpen(true)}
           />
         </div>
       </div>
@@ -958,6 +960,21 @@ export default function App() {
             galleryName={galleryState.galleries.find((g) => g.id === openGalleryId)?.name ?? ''}
             getGalleryImages={galleryState.getGalleryImages}
             onClose={() => setOpenGalleryId(null)}
+            onMoveToTrash={galleryState.moveToTrash}
+            onRestoreFromTrash={galleryState.restoreFromTrash}
+            onHardDelete={galleryState.hardDelete}
+          />
+        )}
+        {trashOpen && (
+          <GalleryLightbox
+            galleryId={galleryState.TRASH_GALLERY_ID}
+            galleryName="Trash"
+            trashMode
+            getGalleryImages={galleryState.getTrashItems}
+            onClose={() => setTrashOpen(false)}
+            onMoveToTrash={galleryState.moveToTrash}
+            onRestoreFromTrash={galleryState.restoreFromTrash}
+            onHardDelete={galleryState.hardDelete}
           />
         )}
       </Tabs>

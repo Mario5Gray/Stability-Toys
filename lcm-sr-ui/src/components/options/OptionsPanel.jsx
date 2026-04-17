@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Send, Trash2, Combine} from 'lucide-react';
+import { Send, Trash2, Trash, Combine} from 'lucide-react';
 import { DreamControls } from './DreamControls';
 import { SelectedImageControls } from './SelectedImageControls';
 import ModeOptions from './ModeOptions';
@@ -216,6 +216,7 @@ export function OptionsPanel({
   onDenoiseStrengthChange,
   modeState,
   galleryState,
+  onOpenTrash,
 }) {
   const optionsScrollRef = useRef(null);
   const apiClientRef = useRef(null);
@@ -533,11 +534,24 @@ export function OptionsPanel({
           </div>
 
           {galleryState && (
-            <GallerySelector
-              galleries={galleryState.galleries}
-              activeGalleryId={galleryState.activeGalleryId}
-              setActiveGalleryId={galleryState.setActiveGalleryId}
-            />
+            <>
+              <GallerySelector
+                galleries={galleryState.galleries}
+                activeGalleryId={galleryState.activeGalleryId}
+                setActiveGalleryId={galleryState.setActiveGalleryId}
+              />
+              <div className="mt-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={onOpenTrash}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  aria-label="Open trash"
+                >
+                  <Trash className="h-4 w-4" />
+                  <span>Trash</span>
+                </button>
+              </div>
+            </>
           )}
 
           {/* Steps - Segmented Control */}
