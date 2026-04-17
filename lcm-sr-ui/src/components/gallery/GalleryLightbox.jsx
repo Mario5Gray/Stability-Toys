@@ -7,6 +7,7 @@ import { GalleryImageViewer } from './GalleryImageViewer';
 import { FloatingActionBar } from './FloatingActionBar';
 import { GalleryZoomOverlay } from './GalleryZoomOverlay';
 import { useSelection } from '../../hooks/useSelection';
+import { useKeymap } from '../../hooks/useKeymap';
 
 export function GalleryLightbox({
   galleryId,
@@ -24,6 +25,7 @@ export function GalleryLightbox({
   const [opacity, setOpacity] = useState(0.95);
 
   const selection = useSelection(items);
+  const keymap = useKeymap();
 
   const cacheRef = useRef(null);
   const blobUrlsRef = useRef(new Map());
@@ -87,6 +89,38 @@ export function GalleryLightbox({
     return item.serverImageUrl ?? null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const currentIndex = items.findIndex((it) => it.id === viewerItem?.id);
+
+  function nextItem() {
+    if (items.length === 0) return;
+    const next = (currentIndex + 1 + items.length) % items.length;
+    setViewerItem(items[next]);
+  }
+
+  function prevItem() {
+    if (items.length === 0) return;
+    const next = (currentIndex - 1 + items.length) % items.length;
+    setViewerItem(items[next]);
+  }
+
+  async function handleViewerDelete() {
+    if (!viewerItem) return;
+    const ids = [viewerItem.id];
+    if (trashMode) await onHardDelete?.(ids);
+    else await onMoveToTrash?.(ids);
+    const refreshed = await getGalleryImages(galleryId);
+    setItems(refreshed);
+    if (refreshed.length === 0) setViewerItem(null);
+    else setViewerItem(refreshed[Math.min(currentIndex, refreshed.length - 1)]);
+  }
+
+  async function handleGridDeleteAction(ids) {
+    if (trashMode) await onHardDelete?.(ids);
+    else await onMoveToTrash?.(ids);
+    selection.clear();
+    setItems(await getGalleryImages(galleryId));
+  }
+
   async function handleDeleteAction() {
     if (selection.selectedIds.size === 0) return;
     const ids = [...selection.selectedIds];
@@ -146,6 +180,10 @@ export function GalleryLightbox({
             resolveImageUrl={resolveImageUrl}
             onBack={() => setViewerItem(null)}
             onWindowOpen={handleWindowOpen}
+            onNext={nextItem}
+            onPrev={prevItem}
+            onDelete={handleViewerDelete}
+            keymap={keymap}
           />
         ) : (
           <GalleryGrid
@@ -155,8 +193,12 @@ export function GalleryLightbox({
             onToggle={(id) => selection.toggle(id)}
             onRange={(id) => selection.rangeTo(id)}
             onZoom={(item) => setZoomItem(item)}
+            onDeleteAction={handleGridDeleteAction}
+            onSelectAll={() => selection.selectAll()}
+            onDeselectAll={() => selection.clear()}
             selectedIds={selection.selectedIds}
             anchorId={selection.anchorId}
+            keymap={keymap}
           />
         )}
       </div>

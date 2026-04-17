@@ -193,3 +193,56 @@ describe('GalleryImageViewer', () => {
     openSpy.mockRestore();
   });
 });
+
+describe('GalleryImageViewer — keyboard navigation', () => {
+  const makeKeymap = () => ({
+    matches: (action, e) => ({
+      next: e.code === 'ArrowRight',
+      prev: e.code === 'ArrowLeft',
+      delete: e.code === 'Backspace',
+      delete_alt: e.code === 'Delete',
+      close: e.code === 'Escape',
+      open_new_tab: e.code === 'Space',
+    }[action] ?? false),
+  });
+
+  it('ArrowRight calls onNext', async () => {
+    const onNext = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={{ id: 'id_1', serverImageUrl: 'x', params: { prompt: 'p' }, addedAt: 1 }}
+          resolveImageUrl={(it) => Promise.resolve(it.serverImageUrl)}
+          onBack={vi.fn()}
+          onNext={onNext}
+          onPrev={vi.fn()}
+          onDelete={vi.fn()}
+          keymap={makeKeymap()}
+          onWindowOpen={vi.fn()}
+        />,
+      );
+    });
+    fireEvent.keyDown(document, { code: 'ArrowRight' });
+    expect(onNext).toHaveBeenCalled();
+  });
+
+  it('Backspace calls onDelete', async () => {
+    const onDelete = vi.fn();
+    await act(async () => {
+      render(
+        <GalleryImageViewer
+          item={{ id: 'id_1', serverImageUrl: 'x', params: { prompt: 'p' }, addedAt: 1 }}
+          resolveImageUrl={(it) => Promise.resolve(it.serverImageUrl)}
+          onBack={vi.fn()}
+          onNext={vi.fn()}
+          onPrev={vi.fn()}
+          onDelete={onDelete}
+          keymap={makeKeymap()}
+          onWindowOpen={vi.fn()}
+        />,
+      );
+    });
+    fireEvent.keyDown(document, { code: 'Backspace' });
+    expect(onDelete).toHaveBeenCalled();
+  });
+});

@@ -171,3 +171,87 @@ describe('GalleryGrid — selection', () => {
     expect(cells[0].getAttribute('aria-selected')).toBe('false');
   });
 });
+
+describe('GalleryGrid — keyboard navigation', () => {
+  function makeKeymap() {
+    return {
+      matches: (action, e) => {
+        const map = {
+          right: e.code === 'ArrowRight',
+          next: e.code === 'ArrowRight',
+          left: e.code === 'ArrowLeft',
+          prev: e.code === 'ArrowLeft',
+          down: e.code === 'ArrowDown',
+          up: e.code === 'ArrowUp',
+          delete: e.code === 'Backspace',
+          delete_alt: e.code === 'Delete',
+          select_all: e.code === 'KeyA' && (e.metaKey || e.ctrlKey),
+          deselect_all: e.code === 'Escape',
+          zoom: e.code === 'Enter',
+          open_new_tab: e.code === 'Space',
+        };
+        return map[action] ?? false;
+      },
+    };
+  }
+
+  function renderGrid(overrides = {}) {
+    const items = Array.from({ length: 10 }, (_, i) => makeItem(i));
+    const props = {
+      items, resolveImageUrl: resolve, onOpenViewer: vi.fn(),
+      onToggle: vi.fn(), onRange: vi.fn(), onZoom: vi.fn(),
+      onDeleteAction: vi.fn(), onSelectAll: vi.fn(), onDeselectAll: vi.fn(),
+      selectedIds: new Set(), anchorId: null,
+      keymap: makeKeymap(),
+      ...overrides,
+    };
+    render(<GalleryGrid {...props} />);
+    return props;
+  }
+
+  it('ArrowRight moves focus to the next cell', async () => {
+    renderGrid();
+    await act(async () => {
+      screen.getAllByRole('gridcell')[0].focus();
+    });
+    fireEvent.keyDown(document.activeElement, { code: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getAllByRole('gridcell')[1]);
+  });
+
+  it('Backspace calls onDeleteAction with selection', async () => {
+    const selected = new Set(['id_2']);
+    const props = renderGrid({ selectedIds: selected });
+    await act(async () => {
+      screen.getAllByRole('gridcell')[0].focus();
+    });
+    fireEvent.keyDown(document.activeElement, { code: 'Backspace' });
+    expect(props.onDeleteAction).toHaveBeenCalledWith(['id_2']);
+  });
+
+  it('Backspace with empty selection deletes focused cell', async () => {
+    const props = renderGrid();
+    await act(async () => {
+      screen.getAllByRole('gridcell')[0].focus();
+    });
+    fireEvent.keyDown(document.activeElement, { code: 'Backspace' });
+    expect(props.onDeleteAction).toHaveBeenCalledWith(['id_0']);
+  });
+
+  it('Cmd+A triggers select all', async () => {
+    const props = renderGrid();
+    await act(async () => {
+      screen.getAllByRole('gridcell')[0].focus();
+    });
+    fireEvent.keyDown(document.activeElement, { code: 'KeyA', metaKey: true });
+    expect(props.onSelectAll).toHaveBeenCalled();
+  });
+
+  it('Escape triggers deselect all', async () => {
+    const props = renderGrid();
+    await act(async () => {
+      screen.getAllByRole('gridcell')[0].focus();
+    });
+    fireEvent.keyDown(document.activeElement, { code: 'Escape' });
+    expect(props.onDeselectAll).toHaveBeenCalled();
+  });
+});

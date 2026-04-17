@@ -1,7 +1,8 @@
 // src/components/gallery/GalleryGrid.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const PAGE_SIZE = 20;
+const COLS = 5;
 
 const PLACEHOLDER_SRC =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -103,10 +104,15 @@ export function GalleryGrid({
   onToggle,
   onRange,
   onZoom,
+  onDeleteAction,
+  onSelectAll,
+  onDeselectAll,
   selectedIds,
   anchorId,
+  keymap,
 }) {
   const [page, setPage] = useState(0);
+  const gridRef = useRef(null);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
 
@@ -115,6 +121,33 @@ export function GalleryGrid({
   }, [items.length]);
 
   const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const focusCellIndex = useCallback((idx) => {
+    const cells = gridRef.current?.querySelectorAll('[data-gallery-cell]');
+    if (!cells) return;
+    const clamped = Math.max(0, Math.min(cells.length - 1, idx));
+    cells[clamped]?.focus();
+  }, []);
+
+  function handleGridKeyDown(e) {
+    if (!keymap) return;
+    const cells = Array.from(gridRef.current?.querySelectorAll('[data-gallery-cell]') ?? []);
+    const idx = cells.indexOf(document.activeElement);
+    if (idx < 0) return;
+    if (keymap.matches('right', e) || keymap.matches('next', e)) { e.preventDefault(); focusCellIndex(idx + 1); return; }
+    if (keymap.matches('left', e)  || keymap.matches('prev', e)) { e.preventDefault(); focusCellIndex(idx - 1); return; }
+    if (keymap.matches('down', e)) { e.preventDefault(); focusCellIndex(idx + COLS); return; }
+    if (keymap.matches('up', e))   { e.preventDefault(); focusCellIndex(idx - COLS); return; }
+    if (keymap.matches('select_all', e)) { e.preventDefault(); onSelectAll?.(); return; }
+    if (keymap.matches('deselect_all', e)) { e.preventDefault(); onDeselectAll?.(); return; }
+    if (keymap.matches('delete', e) || keymap.matches('delete_alt', e)) {
+      e.preventDefault();
+      const selected = selectedIds && selectedIds.size > 0 ? [...selectedIds] : [pageItems[idx]?.id].filter(Boolean);
+      if (selected.length > 0) onDeleteAction?.(selected);
+      return;
+    }
+    if (keymap.matches('zoom', e)) { e.preventDefault(); if (pageItems[idx]) onZoom?.(pageItems[idx]); return; }
+  }
 
   if (items.length === 0) {
     return (
@@ -126,7 +159,7 @@ export function GalleryGrid({
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="grid" className="grid gap-2 overflow-visible" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div ref={gridRef} role="grid" tabIndex={-1} onKeyDown={handleGridKeyDown} className="grid gap-2 overflow-visible" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
         {pageItems.map((item) => (
           <GalleryThumbnail
             key={item.id}
