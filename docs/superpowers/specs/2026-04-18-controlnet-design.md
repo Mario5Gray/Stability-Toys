@@ -116,7 +116,12 @@ Rules:
 - `control_type` is canonical UI and API vocabulary such as `canny` or `depth`
 - `model_id` is optional at the API layer if the mode policy supplies a default
 - `strength`, `start_percent`, and `end_percent` are validated server-side
-- attachment order is preserved and treated as meaningful runtime input
+- attachment order is preserved and treated as meaningful runtime input — Diffusers multi-ControlNet accepts an ordered list and applies bindings in that order; the backend must not reorder
+- `attachment_id` is client-generated (UUID or short random token) and must be unique within the request; the backend echoes it in `controlnet_artifacts` so the frontend can correlate emitted maps with submitted attachments. Requests with duplicate `attachment_id` values are rejected.
+
+Asset reference unification:
+
+- `source_asset_ref` and `map_asset_ref` share a single reference namespace with existing `fileRef` values from `upload_routes.py`. Any valid upload ref is a valid source. Derived control maps are emitted into the same namespace (see section 3). The frontend does not need to distinguish `fileRef` from "asset ref" — they are the same string.
 
 Recommended dataclasses or Pydantic models:
 
@@ -203,7 +208,20 @@ V1 storage expectations:
 - generation responses must surface emitted artifacts
 - frontend can reuse them in later requests during that session without recomputation
 
+V1 backing store:
+
+- extend the existing `upload_routes.py` in-process ref table rather than introducing a new persistence layer
+- entries gain a `kind` field (`upload` or `control_map`) and an optional metadata blob (see `Recommended artifact metadata` below); uploads retain their current behavior
+- lifetime remains process-scoped (lost on server restart); frontend must tolerate stale refs by re-preprocessing
+- no cross-session or cross-user isolation in v1; a follow-up can add per-session scoping when auth lands
+- eviction: LRU capped by total byte budget (configurable, default 512 MB); `control_map` entries referenced by a recent generation are pinned for at least one generation cycle to avoid mid-request eviction
+
 This is intentionally smaller than a full gallery asset platform. The only hard requirement in v1 is that derived maps survive long enough to be inspected and reused.
+
+Resolution handling:
+
+- preprocessor output dimensions match the source image dimensions
+- at generation time, the CUDA provider resizes the map to the active generation size using a deterministic resampler (bilinear for depth, nearest for canny edges). Out-of-band resolution is not a user-facing error in v1.
 
 ### 4. Preprocessor seam
 
@@ -255,13 +273,15 @@ class ControlNetProvider(Protocol):
         mode: ModeConfig,
         attachments: list[ResolvedControlNetAttachment],
     ) -> list[BackendControlNetBinding]: ...
-    def apply(
+    def run(
         self,
-        pipe: Any,
+        mode: ModeConfig,
         bindings: list[BackendControlNetBinding],
         req: GenerateRequest,
-    ) -> Any: ...
+    ) -> GenerateResult: ...
 ```
+
+Rationale for the shape: `run(...)` takes the resolved request and returns a generation result. CUDA implements it by building or retrieving a Diffusers pipeline, wiring ControlNet conditioning, and invoking it. Pipeline objects are a CUDA implementation detail and do not appear in the protocol; RKNN can implement `run` over a different runtime without adapting to a Diffusers-shaped `pipe` argument.
 
 V1 behavior:
 
@@ -289,6 +309,19 @@ The CUDA worker should not own:
 - long-lived policy truth
 - preprocessor choice
 - asset storage semantics
+
+ControlNet model registry:
+
+- allowed `model_id` values are defined in a new config file `conf/controlnets.yaml` (sibling of `modes.yaml`), mapping `model_id -> {path, compatible_with: [base_model_family], control_types: [canny, depth, ...]}`
+- `ModeConfig.controlnet_policy.allowed_control_types.<type>.allowed_model_ids` references entries from this registry
+- startup validation confirms every policy-referenced `model_id` resolves to a registry entry whose `compatible_with` includes the mode's base model family
+
+Model cache and VRAM:
+
+- CUDA provider keeps a process-global LRU of loaded ControlNet models keyed by `model_id`, capped by model count (default 3) and total VRAM budget (configurable, default 4 GB across all ControlNet models combined)
+- eviction runs before loading a new model that would exceed either cap; evicted models are `.to("cpu")` then dropped
+- cache is read-through: a request that references an already-resident model skips loading
+- multi-attachment generations pin all referenced models for the duration of the generation call to prevent mid-run eviction
 
 Practical note:
 
@@ -371,6 +404,10 @@ This allows the frontend to:
 - store them in message metadata or local cache
 - reuse them later without reparsing English or calling a second route
 
+WebSocket parity:
+
+- the `job:complete` frame for a generation carries the same `controlnet_artifacts` array as the HTTP `/generate` response. Field name and semantics are identical; only the transport differs.
+
 ## Failure Handling
 
 V1 failure behavior should be narrow and visible:
@@ -380,6 +417,15 @@ V1 failure behavior should be narrow and visible:
 - reject the entire request if preprocessing fails for any attachment
 - preserve already emitted artifact refs in the error payload when practical
 - fail clearly when a backend does not support ControlNet rather than falling back silently
+
+Attachment-invalid classes:
+
+- unknown `control_type` for the active mode
+- `model_id` not in the policy's allowed list (or not in `controlnets.yaml`)
+- `strength` or percent fields outside policy bounds, or `start_percent > end_percent`
+- asset-resolution failures: `source_asset_ref` or `map_asset_ref` unknown to the ref table, expired (post-eviction), or of the wrong `kind` (e.g., a `control_map` ref supplied where a source image was expected is allowed; an `upload` ref supplied as `map_asset_ref` is allowed as a pre-derived map but must be readable as an image)
+- duplicate `attachment_id` within the same request
+- missing both `map_asset_ref` and `source_asset_ref`, or supplying both
 
 Rationale:
 
@@ -445,6 +491,24 @@ Implement in this order:
 7. Extend the frontend options and generation state with ControlNet attachments
 8. Surface emitted control-map artifacts and enable reuse
 9. Add tests and manual validation
+
+## Scope And Decomposition
+
+This spec is large enough that a single implementation plan would be unwieldy. The rollout order above clusters naturally into three plan-sized tracks:
+
+1. **Request, policy, and enforcement** — sections 1, 2, 7. Adds `controlnets` to the request model, `controlnet_policy` to mode config, `/api/modes` serialization, and backend enforcement. No preprocessing, no execution. Shippable behind a mode flag.
+2. **Asset layer and preprocessors** — sections 3, 4. Extends the upload ref table with `kind`/metadata and LRU eviction, implements `canny` and `depth` preprocessors, adds artifact emission to the response contract (section 9, HTTP + WS).
+3. **CUDA provider, frontend, and reuse** — sections 5, 6, 8. Adds `conf/controlnets.yaml`, CUDA provider + model cache, frontend options-panel UI, and emitted-artifact reuse.
+
+Each track gets its own FP parent issue under STABL-jhpayntq's pattern (parent plus atomic subissues). The writing-plans skill will produce one plan per track.
+
+## Open Questions
+
+- **Session scoping for the ref table.** V1 keeps process-global refs. Once auth is introduced, should refs become per-session? Out of scope for v1; revisit alongside auth.
+- **`controlnets.yaml` location.** `conf/` is the recommendation; if the repo prefers colocation under `models/` or inline in `modes.yaml`, flag during plan.
+- **Preprocessor library choices.** `canny` typically uses OpenCV; `depth` uses MiDaS or Depth-Anything. V1 should pick one of each, with the Protocol accommodating replacement. Specific library choice is a plan-time decision, not a spec-time one.
+- **Per-generation seed for preprocessors.** Canny is deterministic; depth models may not be. Seed plumbing for reproducibility is deferred unless a preprocessor is nondeterministic in practice.
+- **Cross-mode control-map reuse.** A map emitted under mode A can technically be supplied to mode B if both allow the same `control_type`. Allow for v1; restrict only if a concrete problem surfaces.
 
 ## V1 And V2 Split
 
