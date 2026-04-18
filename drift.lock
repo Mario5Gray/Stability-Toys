@@ -38,3 +38,8 @@ docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:6f6cbb0f4336ff4d
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/server/ws_routes.py sig:59cceadfffb6cefc
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/yume/dream_worker.py sig:74951856580f16bc
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> backends/cuda_worker.py sig:8773a60df79a3745
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> lcm-sr-ui/src/components/options/OptionsPanel.jsx sig:017d47b91c69de87
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:397fc7c077987f45
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/model_routes.py sig:062359ec7c9beb22
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/upload_routes.py sig:4bf678de158e64b2
