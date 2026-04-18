@@ -812,7 +812,7 @@ logger.info("WebSocket endpoint mounted at /v1/ws, upload at /v1/upload")
 
 # UI static mount (serves Vite dist)
 _ui_dist = "/opt/lcm-sr-server/ui-dist"
-if UI_DIST == True and os.path.isdir(_ui_dist):
+if UI_DIST and os.path.isdir(_ui_dist):
     app.mount(
         "/",
         StaticFiles(directory=_ui_dist, html=True),
