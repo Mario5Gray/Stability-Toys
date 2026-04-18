@@ -54,8 +54,18 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "local preflight failed: not inside a git repository" >&2
+  exit 1
+fi
+
 if [ -z "$branch" ]; then
   branch="$(git branch --show-current)"
+fi
+
+if [ -z "$branch" ]; then
+  echo "local preflight failed: could not resolve branch; detached HEAD" >&2
+  exit 1
 fi
 
 if [ "$dry_run" -eq 1 ]; then
@@ -68,5 +78,4 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
-echo "implementation pending" >&2
-exit 1
+git push "$remote_name" "$branch"

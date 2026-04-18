@@ -87,3 +87,71 @@ def test_help_exits_successfully(tmp_path):
 
     assert result.returncode == 0
     assert "--repo-path <path>" in result.stdout
+
+
+def test_uses_explicit_branch_for_push(tmp_path):
+    log_path = tmp_path / "calls.log"
+    log_path.touch()
+    bin_dir = _make_stub_bin(tmp_path)
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "TEST_LOG": str(log_path),
+        "TEST_BRANCH": "main",
+        "TEST_REMOTE_HOME": "/home/tester",
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "--branch", "gallery-ux-polish"],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    log = log_path.read_text()
+    assert "git push origin gallery-ux-polish\n" in log
+
+
+def test_detached_head_without_branch_flag_fails_before_push(tmp_path):
+    log_path = tmp_path / "calls.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf '\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        "#!/bin/sh\nexit 99\n",
+    )
+    env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    result = subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "could not resolve branch" in result.stderr
+    assert not log_path.exists()
