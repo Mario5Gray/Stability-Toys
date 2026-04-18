@@ -75,8 +75,10 @@ def _make_pipe():
     pipe.unet.config = SimpleNamespace(cross_attention_dim=2048)
     pipe.text_encoder = MagicMock()
     pipe.text_encoder.config = SimpleNamespace(hidden_size=768)
+    pipe.tokenizer = object()
     pipe.text_encoder_2 = MagicMock()
     pipe.text_encoder_2.config = SimpleNamespace(hidden_size=1280)
+    pipe.tokenizer_2 = object()
     pipe.to.return_value = pipe
     return pipe
 
@@ -163,6 +165,35 @@ class TestSchedulerSelection:
 
 
 class TestSdxlCapabilityLoader:
+    def test_sdxl_single_file_uses_local_companion_config_when_provided(self):
+        pipe = _make_pipe()
+        model_info = SimpleNamespace(
+            loader_format="single_file",
+            scheduler_profile="native",
+            metadata={"single_file_config": "configs/sdxl-base"},
+        )
+
+        with patch.dict(os.environ, _BASE_ENV, clear=False), \
+             patch("backends.cuda_worker.os.path.isdir", side_effect=lambda path: path == "/models/checkpoints/configs/sdxl-base"), \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", return_value=pipe, create=True) as mock_single, \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_pretrained", side_effect=AssertionError("from_pretrained should not be called"), create=True), \
+             patch("backends.cuda_worker.LCMScheduler.from_config", create=True) as mock_lcm, \
+             patch.object(DiffusersSDXLCudaWorker, "_setup_pipe_memory_opts", return_value=pipe):
+            worker = DiffusersSDXLCudaWorker(
+                worker_id=0,
+                model_path="/models/checkpoints/sdxl-base.safetensors",
+                model_info=model_info,
+            )
+
+        mock_single.assert_called_once_with(
+            "/models/checkpoints/sdxl-base.safetensors",
+            torch_dtype="fp16_sentinel",
+            local_files_only=True,
+            config="/models/checkpoints/configs/sdxl-base",
+        )
+        mock_lcm.assert_not_called()
+        assert worker.pipe is pipe
+
     def test_sdxl_single_file_native_scheduler_keeps_pipeline_scheduler(self):
         pipe = _make_pipe()
         model_info = SimpleNamespace(loader_format="single_file", scheduler_profile="native")
@@ -185,6 +216,21 @@ class TestSdxlCapabilityLoader:
         )
         mock_lcm.assert_not_called()
         assert worker.pipe is pipe
+
+    def test_sdxl_single_file_missing_required_components_raises_clear_error(self):
+        pipe = _make_pipe()
+        pipe.tokenizer_2 = None
+        model_info = SimpleNamespace(loader_format="single_file", scheduler_profile="native", metadata={})
+
+        with patch.dict(os.environ, _BASE_ENV, clear=False), \
+             patch("backends.cuda_worker.StableDiffusionXLPipeline.from_single_file", return_value=pipe, create=True), \
+             patch.object(DiffusersSDXLCudaWorker, "_setup_pipe_memory_opts", return_value=pipe):
+            with pytest.raises(RuntimeError, match="missing required SDXL components: tokenizer_2"):
+                DiffusersSDXLCudaWorker(
+                    worker_id=0,
+                    model_path="/models/checkpoints/sdxl-base.safetensors",
+                    model_info=model_info,
+                )
 
     def test_sdxl_single_file_missing_local_assets_raises_clear_error(self):
         model_info = SimpleNamespace(loader_format="single_file", scheduler_profile="native")

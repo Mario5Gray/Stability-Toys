@@ -68,6 +68,7 @@ def mock_mode_config():
     mode_sdxl.allow_custom_negative_prompt = True
     mode_sdxl.allowed_scheduler_ids = ["euler", "dpmpp_2m"]
     mode_sdxl.default_scheduler_id = "euler"
+    mode_sdxl.metadata = {"single_file_config": "configs/sdxl-base"}
 
     mode_sd15 = Mock()
     mode_sd15.name = "sd15-fast"
@@ -91,6 +92,7 @@ def mock_mode_config():
     mode_sd15.allow_custom_negative_prompt = False
     mode_sd15.allowed_scheduler_ids = None
     mode_sd15.default_scheduler_id = None
+    mode_sd15.metadata = {}
 
     config.get_mode.side_effect = lambda name: {
         "sdxl-general": mode_sdxl,
@@ -686,6 +688,7 @@ class TestWorkerLifecycle:
         assert model_info.allow_custom_negative_prompt is True
         assert model_info.allowed_scheduler_ids == ["euler", "dpmpp_2m"]
         assert model_info.default_scheduler_id == "euler"
+        assert model_info.metadata["single_file_config"] == "configs/sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()

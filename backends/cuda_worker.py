@@ -189,6 +189,46 @@ class CudaWorkerBase:
             self._img2img_pipe.scheduler = scheduler
         return selected
 
+    def _model_metadata(self) -> dict[str, Any]:
+        metadata = getattr(self.model_info, "metadata", None)
+        return metadata if isinstance(metadata, dict) else {}
+
+    def _resolve_sdxl_single_file_config(self, ckpt_path: str) -> Optional[str]:
+        raw_path = self._model_metadata().get("single_file_config") or os.environ.get("SDXL_SINGLE_FILE_CONFIG")
+        if not raw_path:
+            return None
+
+        config_path = str(raw_path).strip()
+        if not config_path:
+            return None
+
+        if not os.path.isabs(config_path):
+            config_path = os.path.join(os.path.dirname(ckpt_path), config_path)
+
+        if not os.path.isdir(config_path):
+            raise RuntimeError(
+                f"SDXL single-file config path does not exist or is not a directory: {config_path}"
+            )
+
+        return config_path
+
+    def _validate_sdxl_pipeline(self, pipe: Any, ckpt_path: str, format_name: str) -> None:
+        required_components = (
+            "tokenizer",
+            "tokenizer_2",
+            "text_encoder",
+            "text_encoder_2",
+            "unet",
+            "vae",
+        )
+        missing = [name for name in required_components if getattr(pipe, name, None) is None]
+        if missing:
+            missing_list = ", ".join(missing)
+            raise RuntimeError(
+                f"SDXL pipeline for {os.path.basename(ckpt_path)} ({format_name}) is missing required SDXL "
+                f"components: {missing_list}. Provide a local diffusers config directory for this checkpoint."
+            )
+
     # ---------------------------
     # Style application (exclusive)
     # ---------------------------
@@ -539,16 +579,24 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         else:
             # Single-file SDXL checkpoint
             try:
+                single_file_kwargs = {
+                    "torch_dtype": self.dtype,
+                    "local_files_only": True,
+                }
+                config_path = self._resolve_sdxl_single_file_config(ckpt_path)
+                if config_path is not None:
+                    single_file_kwargs["config"] = config_path
                 pipe = StableDiffusionXLPipeline.from_single_file(
                     ckpt_path,
-                    torch_dtype=self.dtype,
-                    local_files_only=True,
+                    **single_file_kwargs,
                 )
             except OSError as exc:
                 raise RuntimeError(
                     f"local-only SDXL single-file load failed for {ckpt_path}: {exc}"
                 ) from exc
             format_name = "single-file"
+
+        self._validate_sdxl_pipeline(pipe, ckpt_path, format_name)
 
         scheduler_profile = "native" if self._scheduler_profile == "unknown" else self._scheduler_profile
         if scheduler_profile == "lcm":

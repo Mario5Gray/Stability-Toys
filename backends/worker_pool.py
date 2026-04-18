@@ -67,6 +67,12 @@ def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInf
         value = getattr(mode, field, None)
         if value is not None:
             setattr(resolved, field, value)
+    mode_metadata = getattr(mode, "metadata", None) or {}
+    if mode_metadata:
+        resolved.metadata = {
+            **getattr(resolved, "metadata", {}),
+            **mode_metadata,
+        }
     return resolved
 
 
