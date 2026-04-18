@@ -20,6 +20,10 @@ function loadPersistedMessages() {
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
     return parsed.map((msg) => {
+      // Interrupted streaming CHAT bubbles become error state
+      if (msg.kind === MESSAGE_KINDS.CHAT && msg.streaming) {
+        return { ...msg, streaming: false, kind: MESSAGE_KINDS.ERROR, text: 'Interrupted', cancelHandle: undefined };
+      }
       if (msg.kind === MESSAGE_KINDS.IMAGE) {
         const nextHistory = Array.isArray(msg.imageHistory)
           ? msg.imageHistory.map((entry) => {

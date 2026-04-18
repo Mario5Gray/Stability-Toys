@@ -30,6 +30,10 @@ export function ChatContainer({
   copied,
   activeGalleryId,
   onAddToGallery,
+  // Slash-command / chat routing
+  slashCtx,
+  inputMode,
+  onSetInputMode,
 }) {
   return (
     <Card className="option-panel-area overflow-hidden rounded-xl shadow-sm h-full flex flex-col">
@@ -85,6 +89,9 @@ export function ChatContainer({
           onFocus={composer?.onFocus}
           inflightCount={inflightCount}
           serverLabel={serverLabel}
+          slashCtx={slashCtx}
+          inputMode={inputMode}
+          onSetInputMode={onSetInputMode}
         />
       </CardContent>
     </Card>

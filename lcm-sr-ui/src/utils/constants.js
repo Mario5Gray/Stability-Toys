@@ -237,6 +237,7 @@ export const MESSAGE_KINDS = {
   IMAGE: "image",
   PENDING: "pending",
   ERROR: "error",
+  CHAT: "chat",
 };
 
 export const MESSAGE_ROLES = {

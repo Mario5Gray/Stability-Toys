@@ -1,7 +1,7 @@
 // src/components/chat/MessageBubble.jsx
 
 import React from 'react';
-import { X, Loader2, ChevronLeft, ChevronRight, Radio, RotateCcw, MoveRight } from 'lucide-react';
+import { X, Loader2, ChevronLeft, ChevronRight, Radio, RotateCcw, MoveRight, MessageSquare } from 'lucide-react';
 import { MESSAGE_ROLES, MESSAGE_KINDS } from '../../utils/constants';
 
 /**
@@ -130,6 +130,49 @@ export function MessageBubble({
         size={msg.meta?.request?.size}
         onCancel={onCancel}
       />
+    );
+  }
+
+  // CHAT bubbles — simple text rendering with streaming indicator + cancel
+  if (msg.kind === MESSAGE_KINDS.CHAT) {
+    const chatUserBubble = isUser
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-muted';
+    return (
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} px-2`}>
+        <div
+          className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm text-sm leading-relaxed ${chatUserBubble}`}
+        >
+          {!isUser && (
+            <div className="flex items-center gap-1 mb-1 text-xs text-muted-foreground">
+              <MessageSquare className="h-3 w-3" />
+              <span>chat</span>
+            </div>
+          )}
+          <div className="whitespace-pre-wrap">
+            {msg.text}
+            {msg.streaming && !msg.text && (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+              </span>
+            )}
+            {msg.streaming && msg.text && (
+              <span className="inline-block w-1 h-3 ml-0.5 bg-current animate-pulse rounded-sm align-middle" />
+            )}
+          </div>
+          {msg.streaming && msg.cancelHandle && (
+            <button
+              className="mt-2 flex items-center gap-1 text-xs opacity-60 hover:opacity-100 transition-opacity"
+              onClick={() => msg.cancelHandle.cancel()}
+              title="Cancel"
+              type="button"
+            >
+              <X className="h-3 w-3" />
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
     );
   }
 

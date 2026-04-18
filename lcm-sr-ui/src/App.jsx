@@ -21,6 +21,7 @@ import ModeEditor from './components/config/ModeEditor';
 import WorkflowEditor from './components/config/WorkflowEditor';
 import { useWs } from './hooks/useWs';
 import { useJobQueue } from './hooks/useJobQueue';
+import { useChatJob } from './hooks/useChatJob';
 import { emitUiEvent } from './utils/otelTelemetry';
 import {
   clearActiveSource,
@@ -155,8 +156,10 @@ export function getModeDefaultsSyncPlan(modeState, draft, lastAppliedDraftDefaul
 }
 
 export default function App() {
-  useWs(); // auto-connect WS singleton on mount
+  const ws = useWs(); // auto-connect WS singleton on mount
   const queueState = useJobQueue();
+  const chatJob = useChatJob();
+  const [inputMode, setInputMode] = useState('generate'); // 'generate' | 'chat'
   const galleryState = useGalleries();
   const frontendVersion = useMemo(() => getFrontendVersion(), []);
   const [openGalleryId, setOpenGalleryId] = useState(null);
@@ -197,6 +200,7 @@ export default function App() {
     setMsgRef,
     clearHistory,
     deleteMessage,
+    createErrorMessage,
   } = chatState;
   const autoSelectedMessageIdRef = useRef(null);
   const handleGenerationAutoSelect = useCallback(
@@ -799,6 +803,30 @@ export default function App() {
     onKeyDown,
     handleComposerFocus,
   ]);
+  // Slash-command dispatch context — passed down into MessageComposer via ChatContainer
+  const slashCtx = useMemo(() => ({
+    addMessage,
+    updateMessage,
+    createErrorMessage,
+    activeMode: modeState.activeModeName ?? null,
+    chatEnabled: Boolean(modeState.activeMode?.chat_enabled),
+    inputMode,
+    setInputMode,
+    chatJob,
+    runGenerate,
+    wsConnected: ws.connected,
+  }), [
+    addMessage,
+    updateMessage,
+    createErrorMessage,
+    modeState.activeModeName,
+    modeState.activeMode,
+    inputMode,
+    chatJob,
+    runGenerate,
+    ws.connected,
+  ]);
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -877,6 +905,9 @@ export default function App() {
             onImageError={onImageError}
             activeGalleryId={galleryState.activeGalleryId}
             onAddToGallery={onAddToGallery}
+            slashCtx={slashCtx}
+            inputMode={inputMode}
+            onSetInputMode={setInputMode}
           />
 
           {/* Options Panel */}
