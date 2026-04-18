@@ -306,3 +306,60 @@ def test_remote_refresh_switches_branch_then_resets_hard(tmp_path):
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert 'git -C "$worktree_path" switch "$branch"' in remote_script
     assert 'git -C "$worktree_path" reset --hard "$remote_name/$branch"' in remote_script
+
+
+def test_full_sync_uses_repo_path_override_and_remote_override(tmp_path):
+    log_path = tmp_path / "calls.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf 'gallery-ux-polish\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            printf '/srv/stability/.worktrees/gallery-ux-polish\\n'
+            """
+        ),
+    )
+    env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    result = subprocess.run(
+        [
+            str(SCRIPT),
+            "--remote", "upstream",
+            "--repo-path", "/srv/stability",
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "git push upstream gallery-ux-polish\n" in log_path.read_text()
+    assert result.stdout.strip() == "enigma:/srv/stability/.worktrees/gallery-ux-polish"
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert 'git -C "$repo_root" fetch "$remote_name"' in remote_script
+    assert 'worktree_path="$repo_root/.worktrees/$branch"' in remote_script
