@@ -79,3 +79,27 @@ if [ "$dry_run" -eq 1 ]; then
 fi
 
 git push "$remote_name" "$branch"
+
+remote_path="$(ssh "$host" "branch=$(printf %q "$branch") repo_path=$(printf %q "$repo_path") remote_name=$(printf %q "$remote_name") bash -s" <<'EOF'
+set -euo pipefail
+
+repo_root="$(eval "printf '%s' $repo_path")"
+worktree_path="$repo_root/.worktrees/$branch"
+
+if ! git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "remote prepare failed: repo path is not a git repository: $repo_root" >&2
+  exit 1
+fi
+
+git -C "$repo_root" fetch "$remote_name"
+mkdir -p "$repo_root/.worktrees"
+
+if [ ! -d "$worktree_path/.git" ] && [ ! -f "$worktree_path/.git" ]; then
+  git -C "$repo_root" worktree add -B "$branch" "$worktree_path" "$remote_name/$branch"
+fi
+
+printf '%s\n' "$worktree_path"
+EOF
+)"
+
+printf '%s:%s\n' "$host" "$remote_path"
