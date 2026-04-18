@@ -209,3 +209,100 @@ def test_remote_phase_uses_single_ssh_session_and_creates_branch_worktree(tmp_pa
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert 'git -C "$repo_root" fetch "$remote_name"' in remote_script
     assert 'git -C "$repo_root" worktree add -B "$branch" "$worktree_path" "$remote_name/$branch"' in remote_script
+
+
+def test_remote_refresh_aborts_when_status_porcelain_is_non_empty(tmp_path):
+    log_path = tmp_path / "calls.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf 'gallery-ux-polish\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            cat > "{tmp_path}/remote-script.sh"
+            exit 0
+            """
+        ),
+    )
+    env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert 'git -C "$worktree_path" status --porcelain' in remote_script
+
+
+def test_remote_refresh_switches_branch_then_resets_hard(tmp_path):
+    log_path = tmp_path / "calls.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf 'gallery-ux-polish\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            cat > "{tmp_path}/remote-script.sh"
+            exit 0
+            """
+        ),
+    )
+    env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert 'git -C "$worktree_path" switch "$branch"' in remote_script
+    assert 'git -C "$worktree_path" reset --hard "$remote_name/$branch"' in remote_script

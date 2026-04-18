@@ -94,7 +94,14 @@ fi
 git -C "$repo_root" fetch "$remote_name"
 mkdir -p "$repo_root/.worktrees"
 
-if [ ! -d "$worktree_path/.git" ] && [ ! -f "$worktree_path/.git" ]; then
+if [ -d "$worktree_path" ]; then
+  if [ -n "$(git -C "$worktree_path" status --porcelain)" ]; then
+    echo "remote prepare failed: worktree is dirty: $worktree_path" >&2
+    exit 1
+  fi
+  git -C "$worktree_path" switch "$branch"
+  git -C "$worktree_path" reset --hard "$remote_name/$branch"
+else
   git -C "$repo_root" worktree add -B "$branch" "$worktree_path" "$remote_name/$branch"
 fi
 
