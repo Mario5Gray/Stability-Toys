@@ -1,6 +1,7 @@
 // src/hooks/useImageGeneration.js
 
 import { useCallback, useRef, useEffect, useState } from 'react';
+import { useOperationsController } from '../contexts/OperationsContext';
 import { createApiClient, createApiConfig } from '../utils/api';
 import { createCache, generateCacheKey } from '../utils/cache';
 import { eightDigitSeed, clampInt, safeJsonString, nowId } from '../utils/helpers';
@@ -96,6 +97,8 @@ async function hydrateCacheEntry({ cache, cacheKey, serverImageUrl, signal }) {
  * Hook for image generation and super-resolution operations.
  */
 export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) {
+  const { start: startOperation } = useOperationsController();
+
   // API client and cache (created once)
   const apiClientRef = useRef(null);
   const cacheRef = useRef(null);
@@ -117,6 +120,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const [dreamMessageId, setDreamMessageId] = useState(null);
   const dreamTimerRef = useRef(null);
   const dreamParamsRef = useRef(null);
+  const dreamStatusRef = useRef(null);
   const dreamHistoryByMsgIdRef = useRef(new Map());
   const dreamTemperatureRef = useRef(dreamTemperature);
   const dreamIntervalRef = useRef(dreamInterval);
@@ -330,6 +334,10 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
       const apiRef = api;
 
+      const genHandle = !isDream
+        ? startOperation({ key: `generation:${assistantId}`, text: 'Generating', tone: 'active' })
+        : null;
+
       const jobId = jobQueue.enqueue({
         priority: isDream ? PRIORITY.BACKGROUND : PRIORITY.NORMAL,
         source: isDream ? 'dream' : 'generate',
@@ -510,6 +518,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         const errMsg =
           err?.name === ABORT_ERROR_NAME ? UI_MESSAGES.CANCELED : err?.message || String(err);
 
+        genHandle?.error({ text: errMsg });
+
         const savedParams = {
           prompt: promptParam,
           negativePrompt: negativePromptParam,
@@ -538,6 +548,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         jobQueue.removeEventListener('error', onError);
         jobQueue.removeEventListener('cancel', onCancel);
 
+        genHandle?.error({ text: UI_MESSAGES.CANCELED });
+
         updateMessage(assistantId, {
           kind: targetMessageId ? MESSAGE_KINDS.IMAGE : MESSAGE_KINDS.ERROR,
           isRegenerating: false,
@@ -552,6 +564,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
         jobQueue.removeEventListener('error', onError);
         jobQueue.removeEventListener('cancel', onCancel);
         jobQueue.removeEventListener('complete', onComplete);
+        genHandle?.complete({ text: 'Generated' });
       };
 
       jobQueue.addEventListener('error', onError);
@@ -560,7 +573,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
 
       return assistantId;
     },
-    [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey]
+    [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey, startOperation]
   );
 
   /**
@@ -785,6 +798,11 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       if (dreamTimerRef.current) clearInterval(dreamTimerRef.current);
 
       dreamParamsRef.current = { ...baseParams };
+      dreamStatusRef.current = startOperation({
+        key: 'dream:active',
+        text: 'Dream active',
+        tone: 'active',
+      });
       setIsDreaming(true);
 
       // First dream: create a fresh message
@@ -795,7 +813,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       // Subsequent dreams paint into the same message
       restartDreamInterval();
     },
-    [runDreamCycle, restartDreamInterval]
+    [runDreamCycle, restartDreamInterval, startOperation]
   );
 
   const stopDreaming = useCallback(() => {
@@ -803,6 +821,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
       clearInterval(dreamTimerRef.current);
       dreamTimerRef.current = null;
     }
+    dreamStatusRef.current?.complete({ text: 'Dream stopped' });
+    dreamStatusRef.current = null;
     setIsDreaming(false);
     setDreamMessageId(null);
     dreamParamsRef.current = null;
@@ -811,6 +831,7 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
   const guideDream = useCallback((newBaseParams) => {
     if (!isDreaming) return;
     dreamParamsRef.current = { ...newBaseParams };
+    dreamStatusRef.current?.setDetail(`Guiding: ${(newBaseParams.prompt || '').slice(0, 40)}`);
   }, [isDreaming]);
 
   /**
@@ -831,6 +852,8 @@ export function useImageGeneration(addMessage, updateMessage, setSelectedMsgId) 
     setDreamMessageId(newId);
     if (newId) dreamHistoryByMsgIdRef.current.set(newId, []);
     dreamMessageIdRef.current = newId;
+
+    dreamStatusRef.current?.setText('Dream saved — continuing');
 
     // Now fix the interval to paint into the new message
     restartDreamInterval();

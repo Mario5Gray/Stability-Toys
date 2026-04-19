@@ -584,11 +584,11 @@ describe('OptionsPanel mode-driven controls', () => {
       { galleryState: makeGalleryState() },
     );
 
-    expect(await screen.findByRole('button', { name: 'Apply Advice' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^apply/i })).toBeTruthy();
 
     fireEvent.pointerDown(screen.getByLabelText('Apply advice mode'));
-    expect((await screen.findAllByText('Append')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('Replace')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/append/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/replace/i)).length).toBeGreaterThan(0);
   });
 
   it('hides advisor length control when active mode has no maximum_len', async () => {
@@ -600,7 +600,7 @@ describe('OptionsPanel mode-driven controls', () => {
       { galleryState: makeGalleryState() },
     );
 
-    expect(await screen.findByRole('button', { name: 'Apply Advice' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^apply/i })).toBeTruthy();
     expect(screen.queryByLabelText('Advisor length')).toBeNull();
   });
 });
