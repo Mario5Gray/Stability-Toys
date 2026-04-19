@@ -53,3 +53,12 @@ def enforce_controlnet_policy(req: Any, mode: Any) -> None:
                 f"[{type_policy.min_strength}, {type_policy.max_strength}] for "
                 f"control_type '{attachment.control_type}' in mode '{mode.name}'"
             )
+
+
+def ensure_controlnet_dispatch_supported(req: Any) -> None:
+    attachments = getattr(req, "controlnets", None)
+    if attachments:
+        raise NotImplementedError(
+            "ControlNet provider not yet implemented on this backend "
+            "(Track 3 delivers execution)"
+        )

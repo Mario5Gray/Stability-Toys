@@ -163,3 +163,26 @@ def test_valid_attachment_passes_through_unchanged():
     enforce_controlnet_policy(req, _make_mode(_canny_policy()))
     assert req.controlnets[0].model_id == "sdxl-canny"
     assert req.controlnets[0].end_percent == 0.75
+
+
+def test_dispatch_stub_rejects_validated_controlnets():
+    from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+
+    class R:
+        pass
+    r = R()
+    r.controlnets = [object()]
+    with pytest.raises(NotImplementedError, match="ControlNet provider not yet implemented"):
+        ensure_controlnet_dispatch_supported(r)
+
+
+def test_dispatch_stub_noop_when_no_controlnets():
+    from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+
+    class R:
+        pass
+    r = R()
+    r.controlnets = None
+    ensure_controlnet_dispatch_supported(r)
+    r.controlnets = []
+    ensure_controlnet_dispatch_supported(r)

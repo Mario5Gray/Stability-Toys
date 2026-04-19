@@ -148,6 +148,8 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 )
                 from server.controlnet_constraints import enforce_controlnet_policy
                 enforce_controlnet_policy(req, mode)
+                from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+                ensure_controlnet_dispatch_supported(req)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
