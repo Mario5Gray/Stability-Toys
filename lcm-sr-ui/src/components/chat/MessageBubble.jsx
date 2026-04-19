@@ -282,21 +282,6 @@ export function MessageBubble({
                     }
                   }}
                 />
-                {/* Status badges */}
-                {(isDreamMessage || msg.isRegenerating) && (
-                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
-                    {isDreamMessage && !msg.isRegenerating && (
-                      <span className="bg-purple-600/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm animate-pulse">
-                        dreaming
-                      </span>
-                    )}
-                    {msg.isRegenerating && (
-                      <span className="bg-slate-800/80 text-white text-xs px-2 py-1 rounded backdrop-blur-sm animate-pulse">
-                        generating
-                      </span>
-                    )}
-                  </div>
-                )}
                 {/* Error indicator tooltip + retry button */}
                 {msg.hasError && msg.errorText && (
                   <div
