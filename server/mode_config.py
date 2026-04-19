@@ -751,6 +751,22 @@ class ModeConfigManager:
                     "default_scheduler_id": mode.default_scheduler_id,
                     "chat_delegate": mode.chat_delegate,
                     "metadata": mode.metadata,
+                    "controlnet_policy": {
+                        "enabled": mode.controlnet_policy.enabled,
+                        "max_attachments": mode.controlnet_policy.max_attachments,
+                        "allow_reuse_emitted_maps": mode.controlnet_policy.allow_reuse_emitted_maps,
+                        "allowed_control_types": {
+                            type_name: {
+                                "default_model_id": type_policy.default_model_id,
+                                "allowed_model_ids": list(type_policy.allowed_model_ids),
+                                "allow_preprocess": type_policy.allow_preprocess,
+                                "default_strength": type_policy.default_strength,
+                                "min_strength": type_policy.min_strength,
+                                "max_strength": type_policy.max_strength,
+                            }
+                            for type_name, type_policy in mode.controlnet_policy.allowed_control_types.items()
+                        },
+                    },
                 }
                 for name, mode in self.config.modes.items()
             },

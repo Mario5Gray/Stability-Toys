@@ -1032,3 +1032,45 @@ modes:
     )
     with pytest.raises(ValueError, match="controlnet_policy"):
         ModeConfigManager(config_path=str(tmp_path))
+
+
+def test_to_dict_serializes_controlnet_policy(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-cn
+resolution_sets:
+  default:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  sdxl-cn:
+    model: checkpoints/sdxl.safetensors
+    default_size: 1024x1024
+    controlnet_policy:
+      enabled: true
+      max_attachments: 2
+      allow_reuse_emitted_maps: true
+      allowed_control_types:
+        canny:
+          default_model_id: sdxl-canny
+          allowed_model_ids: [sdxl-canny]
+"""
+    )
+    mgr = ModeConfigManager(config_path=str(tmp_path))
+    data = mgr.to_dict()
+    policy = data["modes"]["sdxl-cn"]["controlnet_policy"]
+    assert policy["enabled"] is True
+    assert policy["max_attachments"] == 2
+    assert policy["allow_reuse_emitted_maps"] is True
+    canny = policy["allowed_control_types"]["canny"]
+    assert canny["default_model_id"] == "sdxl-canny"
+    assert canny["allowed_model_ids"] == ["sdxl-canny"]
+    assert canny["allow_preprocess"] is True
+    assert canny["default_strength"] == 1.0
+    assert canny["min_strength"] == 0.0
+    assert canny["max_strength"] == 2.0
