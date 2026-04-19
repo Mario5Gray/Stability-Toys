@@ -294,6 +294,7 @@ def _build_generate_request(params: dict):
         superres=params.get("superres", False),
         superres_magnitude=params.get("superres_magnitude", 2),
         denoise_strength=params.get("denoise_strength", 0.75),
+        controlnets=params.get("controlnets"),
     )
 
 
