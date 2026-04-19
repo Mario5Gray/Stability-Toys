@@ -311,6 +311,7 @@ class ModeConfigManager:
                 default_scheduler_id=mode_data.get("default_scheduler_id"),
                 chat_delegate=chat_delegate,
                 metadata=mode_data.get("metadata", {}),
+                controlnet_policy=self._parse_controlnet_policy(mode_name, mode_data.get("controlnet_policy")),
             )
 
             # Resolve absolute paths
@@ -373,6 +374,63 @@ class ModeConfigManager:
             for error in errors:
                 logger.warning(f"  - {error}")
             # Don't raise - allow starting with missing models for development
+
+    _ALLOWED_CONTROLNET_POLICY_KEYS = {
+        "enabled", "max_attachments", "allow_reuse_emitted_maps", "allowed_control_types",
+    }
+
+    _ALLOWED_CONTROLNET_TYPE_KEYS = {
+        "default_model_id", "allowed_model_ids", "allow_preprocess",
+        "default_strength", "min_strength", "max_strength",
+    }
+
+    def _parse_controlnet_policy(self, mode_name: str, raw: Any) -> ControlNetPolicy:
+        if raw is None:
+            return ControlNetPolicy()
+        if not isinstance(raw, dict):
+            raise ValueError(f"Mode '{mode_name}' controlnet_policy must be a mapping")
+        unknown = set(raw.keys()) - self._ALLOWED_CONTROLNET_POLICY_KEYS
+        if unknown:
+            raise ValueError(
+                f"Mode '{mode_name}' controlnet_policy has unknown keys: {sorted(unknown)}"
+            )
+        allowed_types_raw = raw.get("allowed_control_types") or {}
+        if not isinstance(allowed_types_raw, dict):
+            raise ValueError(
+                f"Mode '{mode_name}' controlnet_policy.allowed_control_types must be a mapping"
+            )
+        allowed_types: Dict[str, ControlNetControlTypePolicy] = {}
+        for type_name, type_raw in allowed_types_raw.items():
+            if type_raw is None:
+                type_raw = {}
+            if not isinstance(type_raw, dict):
+                raise ValueError(
+                    f"Mode '{mode_name}' controlnet_policy.allowed_control_types.{type_name} must be a mapping"
+                )
+            unknown_type = set(type_raw.keys()) - self._ALLOWED_CONTROLNET_TYPE_KEYS
+            if unknown_type:
+                raise ValueError(
+                    f"Mode '{mode_name}' controlnet_policy.allowed_control_types.{type_name} has unknown keys: {sorted(unknown_type)}"
+                )
+            allowed_ids = type_raw.get("allowed_model_ids") or []
+            if not isinstance(allowed_ids, list) or not all(isinstance(x, str) for x in allowed_ids):
+                raise ValueError(
+                    f"Mode '{mode_name}' controlnet_policy.allowed_control_types.{type_name}.allowed_model_ids must be a list of strings"
+                )
+            allowed_types[type_name] = ControlNetControlTypePolicy(
+                default_model_id=type_raw.get("default_model_id"),
+                allowed_model_ids=list(allowed_ids),
+                allow_preprocess=bool(type_raw.get("allow_preprocess", True)),
+                default_strength=float(type_raw.get("default_strength", 1.0)),
+                min_strength=float(type_raw.get("min_strength", 0.0)),
+                max_strength=float(type_raw.get("max_strength", 2.0)),
+            )
+        return ControlNetPolicy(
+            enabled=bool(raw.get("enabled", False)),
+            max_attachments=int(raw.get("max_attachments", 0)),
+            allow_reuse_emitted_maps=bool(raw.get("allow_reuse_emitted_maps", False)),
+            allowed_control_types=allowed_types,
+        )
 
     def _parse_chat_connection_config(self, connection_name: str, chat_data: Dict[str, Any]) -> ChatConnectionConfig:
         """Parse reusable chat connection settings."""
