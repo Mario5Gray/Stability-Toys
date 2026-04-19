@@ -82,3 +82,28 @@ def test_attachment_rejects_blank_attachment_id():
             control_type="canny",
             map_asset_ref="asset_a",
         )
+
+
+def test_generate_request_accepts_controlnets_list():
+    from server.lcm_sr_server import GenerateRequest
+
+    req = GenerateRequest(
+        prompt="a cat",
+        controlnets=[
+            {
+                "attachment_id": "cn_1",
+                "control_type": "canny",
+                "map_asset_ref": "asset_a",
+            }
+        ],
+    )
+    assert req.controlnets is not None
+    assert len(req.controlnets) == 1
+    assert req.controlnets[0].attachment_id == "cn_1"
+
+
+def test_generate_request_controlnets_defaults_to_none():
+    from server.lcm_sr_server import GenerateRequest
+
+    req = GenerateRequest(prompt="a cat")
+    assert req.controlnets is None
