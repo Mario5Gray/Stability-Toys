@@ -76,6 +76,37 @@ Every multi-action panel must expose exactly one primary action. Supporting acti
 
 It does not own animated working state. That moves to `PendingOperationsPane`.
 
+### Operations Store
+
+The operations store should use React context plus `useReducer`, not a new external state library.
+
+Rationale:
+
+- `lcm-sr-ui` does not currently depend on Zustand or another shared store library
+- the operations surface is app-global UI state, which fits a provider mounted near the app shell
+- this avoids introducing a new dependency for a narrowly scoped cross-cutting concern
+- context plus reducer is sufficient for keyed upsert, completion expiry, and cancellation metadata
+
+Recommended shape:
+
+- `OperationsProvider`
+- `useOperationsStore()` for read access
+- `useOperationsController()` for write access and status-handle creation
+
+Responsibilities:
+
+- keep a keyed map of operations
+- expose deterministic ordering for rendering
+- own completion and error expiry timers
+- support upsert-by-key
+- keep operation metadata serializable and UI-oriented
+
+Non-responsibilities:
+
+- own backend job state
+- parse transport payloads directly inside the reducer
+- bypass feature-specific adapters
+
 ### PendingOperationsPane
 
 `PendingOperationsPane` lives directly under the header and above the scrollable chat transcript.
@@ -150,6 +181,37 @@ Advisor should map into the pattern as:
   - helper: depends on apply mode, such as `Append to prompt` or `Replace prompt`
 
 The current `Apply Mode` selector should be visually grouped with the `Apply` action rather than floating as an unrelated input above the button row.
+
+## SurfaceHeader Design
+
+### Structure
+
+`SurfaceHeader` is a calm top band for major surfaces. It should feel informative and stable, not animated or busy.
+
+It contains:
+
+- title
+- durable meta chips such as frontend version, backend version, and current mode summary
+- one short summary line for persistent guidance or recency
+
+### Layout Rules
+
+- header content must wrap cleanly on narrow widths
+- meta chips may wrap to additional lines
+- header content must not compete visually with the operations pane below it
+- active status badges should not live here once the operations pane exists
+
+### Chat Application
+
+For chat, `SurfaceHeader` should replace the current mixed header behavior in [ChatHeader.jsx](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/components/chat/ChatHeader.jsx):
+
+- keep title and durable version chips
+- keep the keyboard tip or other calm helper text
+- remove animated dream-mode presentation from the header once dream state is represented in `PendingOperationsPane`
+
+The header remains in scope for this work because it is part of the control-surface stack:
+
+`SurfaceHeader -> PendingOperationsPane -> content`
 
 ## PendingOperationsPane Design
 
@@ -244,11 +306,14 @@ Supported semantics:
 - `setDetail()`
 - `setProgress()`
 - `setTone()`
+- `cancel()`
 - `complete()`
 - `error()`
 - `remove()`
 
 The handle updates semantic state only. The pane owns visual policy such as glow, fade, landing style, and auto-retirement.
+
+`cancel()` is optional and only present when the underlying operation exposes a real cancellation callback or cancellable operation key. The controller should not invent cancellation where none exists.
 
 ### Keyed Updates
 
@@ -305,7 +370,24 @@ If future backend work exposes finer-grained advisor progress, the same adapter 
 
 ### Dream Mode
 
-Dream mode may expose a long-lived operation with calm recurring state, but should stop rendering a separate animated badge on image content once the pane represents that activity.
+Dream mode should enter the operations system from the existing lifecycle in [useImageGeneration.js](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/hooks/useImageGeneration.js), not from presentation components.
+
+Concrete entry points:
+
+- `startDreaming()` creates or upserts a keyed dream operation
+- `restartDreamInterval()` updates recurring detail such as cadence
+- `guideDream()` may update detail text to reflect a newly guided target
+- `saveDreamAndContinue()` keeps the same dream operation but refreshes its detail to reflect the new active message
+- `stopDreaming()` completes or removes the dream operation
+
+Representative dream operation shape:
+
+- key: `dream:active`
+- title: `Dream mode`
+- detail: `Exploring variations`
+- optional detail updates: `Every 5s`, `Guided to selected image`
+
+Once dream lifecycle is routed through the operations store, animated dream badges should be removed from both image content and chat header.
 
 ## Visual Language
 
@@ -340,9 +422,11 @@ Prohibited patterns:
 
 ### Phase 1: Shared Primitives
 
+- add `SurfaceHeader`
 - add `PanelActionBar`
 - add `PendingOperationsPane`
-- add an operations store and status controller abstraction
+- add an `OperationsProvider` based on React context plus `useReducer`
+- add a status controller abstraction exposed through controller hooks
 
 ### Phase 2: Advisor Migration
 
@@ -353,8 +437,10 @@ Prohibited patterns:
 
 ### Phase 3: Chat And Generation Migration
 
+- migrate chat header to `SurfaceHeader`
 - replace the sticky placeholder strip in chat with `PendingOperationsPane`
 - route generation lifecycle into the operations store
+- route dream lifecycle from `useImageGeneration()` into the operations store
 - remove animated `generating` and `dreaming` badges from message content
 
 ### Phase 4: Structured Generation Progress
@@ -362,6 +448,8 @@ Prohibited patterns:
 - expose structured denoising progress from generation logic
 - translate that progress into pane updates
 - add queue and cancellation metadata where available
+
+Phase 4 depends on backend work to emit structured progress from generation callbacks such as `callback_on_step_end`. It should be planned as a dependency-sensitive track that can slip independently of the earlier UI migration work.
 
 ## Validation Criteria
 
