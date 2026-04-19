@@ -495,6 +495,9 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
         state = _get_app_state(ws)
         req = _build_generate_request(params)
 
+        from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+        ensure_controlnet_dispatch_supported(req)
+
         # Resolve optional init image reference
         init_image_bytes = None
         init_image_ref = params.get("init_image_ref")

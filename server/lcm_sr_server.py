@@ -539,11 +539,11 @@ def generate(req: GenerateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        try:
-            from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-            ensure_controlnet_dispatch_supported(req)
-        except NotImplementedError as e:
-            raise HTTPException(status_code=501, detail=str(e))
+    try:
+        from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+        ensure_controlnet_dispatch_supported(req)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
 
     try:
         fut = runtime.submit_generate(req, timeout_s=0.25)
