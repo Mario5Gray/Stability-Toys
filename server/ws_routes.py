@@ -146,6 +146,8 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                     env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
                     env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
                 )
+                from server.controlnet_constraints import enforce_controlnet_policy
+                enforce_controlnet_policy(req, mode)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None

@@ -533,6 +533,12 @@ def generate(req: GenerateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+        try:
+            from server.controlnet_constraints import enforce_controlnet_policy
+            enforce_controlnet_policy(req, mode)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     try:
         fut = runtime.submit_generate(req, timeout_s=0.25)
     except queue.Full:
