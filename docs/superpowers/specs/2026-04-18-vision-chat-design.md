@@ -53,13 +53,15 @@ vision_resize: int = 512
 "vision_default_prompt": mode_data.get("vision_default_prompt", "Describe this image."),
 ```
 
-`to_dict()` in `mode_config.py` derives these from the resolved delegate:
+`to_dict()` in `mode_config.py` adds three keys inside the existing per-mode dict comprehension.
+The delegate is looked up from `self.config.chat_delegates` using `mode.chat_delegate`:
 
 ```python
-delegate = config.chat_delegates.get(mode.chat_delegate)
-"vision_enabled": bool(delegate and delegate.vision),
-"vision_resize": delegate.vision_resize if delegate else 512,
-"vision_default_prompt": delegate.vision_default_prompt if delegate else "Describe this image.",
+# inside the per-mode dict, alongside existing "chat_delegate": mode.chat_delegate
+_d = self.config.chat_delegates.get(mode.chat_delegate) if mode.chat_delegate else None
+"vision_enabled": bool(_d and _d.vision),
+"vision_resize": _d.vision_resize if _d else 512,
+"vision_default_prompt": _d.vision_default_prompt if _d else "Describe this image.",
 ```
 
 ---
@@ -75,11 +77,30 @@ delegate = config.chat_delegates.get(mode.chat_delegate)
 
 #### `_run_chat` additions
 
+`_resolve_chat_config` (ws_routes helper) converts `ChatBackendConfig` → `ChatConfig` and drops
+delegate-level metadata. Vision fields must be read directly from the delegate **before** that
+conversion, so `_run_chat` does a second lookup:
+
 ```python
 image_b64 = params.get("image_b64")  # base64 PNG string, no data: prefix
 
+# Resolve delegate for vision metadata (separate from ChatConfig used by the client)
+mode_config_mgr = get_mode_config()
+_mode_name = params.get("mode") or (
+    state.worker_pool.get_current_mode()
+    if getattr(state, "use_mode_system", False) and getattr(state, "worker_pool", None)
+    else None
+) or mode_config_mgr.get_default_mode()
+_mode = mode_config_mgr.get_mode(_mode_name)
+_delegate = (
+    mode_config_mgr.config.chat_delegates.get(_mode.chat_delegate)
+    if _mode.chat_delegate else None
+)
+vision_enabled = bool(_delegate and _delegate.vision)
+vision_system_prompt = (_delegate.vision_system_prompt if _delegate else None)
+
 # Gate: reject vision request if delegate doesn't support it
-if image_b64 and not chat_cfg.vision:
+if image_b64 and not vision_enabled:
     await hub.send(client_id, {
         "type": "job:error",
         "jobId": job_id,
@@ -89,7 +110,7 @@ if image_b64 and not chat_cfg.vision:
 
 # Select system prompt
 effective_system = (
-    chat_cfg.vision_system_prompt if image_b64 and chat_cfg.vision_system_prompt
+    vision_system_prompt if image_b64 and vision_system_prompt
     else chat_cfg.system_prompt
 )
 
@@ -104,6 +125,9 @@ else:
 
 messages = _build_chat_messages(user_content, effective_system)
 ```
+
+Note: mode-name resolution duplicates the logic already in `_resolve_chat_config`. This is
+intentional — extracting a shared helper is a follow-up concern, not in scope here.
 
 #### `_build_chat_messages` signature
 

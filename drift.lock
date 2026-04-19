@@ -43,3 +43,15 @@ docs/superpowers/specs/2026-04-18-controlnet-design.md -> lcm-sr-ui/src/componen
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:397fc7c077987f45
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/model_routes.py sig:062359ec7c9beb22
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/upload_routes.py sig:4bf678de158e64b2
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> backends/chat_client.py#ChatCompletionsClient sig:2ca36e410b8bbad9
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> lcm-sr-ui/src/App.jsx sig:c0fd9a5d07998c90
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> lcm-sr-ui/src/components/chat/MessageComposer.jsx sig:4fe444f9d067469e
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/mode_config.py#ChatDelegateConfig sig:c6f0b42056d1ff7f
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/mode_config.py#to_dict sig:9d5f243d353430d6
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/model_routes.py sig:027d1f3b098e0a7e
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_build_chat_messages sig:bbbfbc7422f5f3ef
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_resolve_chat_config sig:0c4b52fbde3479c9
+docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_run_chat sig:44540cfdc2703728
+docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> backends/chat_client.py sig:fa99d66f0d8725ea
+docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> lcm-sr-ui/src/hooks/useGalleryAdvisor.js sig:9d00862e33c9e6f4
+docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
