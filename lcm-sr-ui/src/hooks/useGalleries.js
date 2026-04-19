@@ -9,6 +9,8 @@ const DB_VERSION = 2;
 const STORE_NAME = 'gallery_items';
 const ADVISOR_STORE = 'advisor_states';
 
+export const TRASH_GALLERY_ID = '__trash__';
+
 function openGalleryDb() {
   if (typeof indexedDB === 'undefined') {
     return Promise.reject(new Error('[useGalleries] IndexedDB is not available'));
@@ -137,6 +139,104 @@ export function useGalleries() {
     }
   }, [getDb, bumpGalleryRevision]);
 
+  const moveToTrash = useCallback(async (itemIds) => {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const affectedGalleries = new Set();
+      await Promise.all(itemIds.map(async (id) => {
+        const row = await promisifyRequest(store.get(id));
+        if (!row || row.galleryId === TRASH_GALLERY_ID) return;
+        affectedGalleries.add(row.galleryId);
+        const next = {
+          ...row,
+          sourceGalleryId: row.galleryId,
+          trashedAt: Date.now(),
+          galleryId: TRASH_GALLERY_ID,
+        };
+        await promisifyRequest(store.put(next));
+      }));
+      for (const galleryId of affectedGalleries) bumpGalleryRevision(galleryId);
+      bumpGalleryRevision(TRASH_GALLERY_ID);
+    } catch (err) {
+      console.warn('[useGalleries] moveToTrash failed:', err);
+    }
+  }, [getDb, bumpGalleryRevision]);
+
+  const restoreFromTrash = useCallback(async (itemIds) => {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const galleriesList = JSON.parse(localStorage.getItem(LS_GALLERIES_KEY) || '[]');
+      const knownIds = new Set(galleriesList.map((g) => g.id));
+      const activeId = localStorage.getItem(LS_ACTIVE_KEY);
+      const fallback = (activeId && knownIds.has(activeId)) ? activeId : galleriesList[0]?.id ?? null;
+      const affectedGalleries = new Set();
+      await Promise.all(itemIds.map(async (id) => {
+        const row = await promisifyRequest(store.get(id));
+        if (!row || row.galleryId !== TRASH_GALLERY_ID) return;
+        const target = (row.sourceGalleryId && knownIds.has(row.sourceGalleryId)) ? row.sourceGalleryId : fallback;
+        if (!target) {
+          await promisifyRequest(store.delete(id));
+          return;
+        }
+        const next = { ...row, galleryId: target };
+        delete next.sourceGalleryId;
+        delete next.trashedAt;
+        await promisifyRequest(store.put(next));
+        affectedGalleries.add(target);
+      }));
+      for (const galleryId of affectedGalleries) bumpGalleryRevision(galleryId);
+      bumpGalleryRevision(TRASH_GALLERY_ID);
+    } catch (err) {
+      console.warn('[useGalleries] restoreFromTrash failed:', err);
+    }
+  }, [getDb, bumpGalleryRevision]);
+
+  const hardDelete = useCallback(async (itemIds) => {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      await Promise.all(itemIds.map((id) => promisifyRequest(store.delete(id))));
+      bumpGalleryRevision(TRASH_GALLERY_ID);
+    } catch (err) {
+      console.warn('[useGalleries] hardDelete failed:', err);
+    }
+  }, [getDb, bumpGalleryRevision]);
+
+  const getTrashItems = useCallback(async () => {
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const rows = await promisifyRequest(tx.objectStore(STORE_NAME).index('galleryId').getAll(TRASH_GALLERY_ID));
+      return rows.slice().sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0));
+    } catch (err) {
+      console.warn('[useGalleries] getTrashItems failed:', err);
+      return [];
+    }
+  }, [getDb]);
+
+  const removeGalleryItem = useCallback(async (itemId) => {
+    if (!itemId) return;
+    try {
+      const db = await getDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const row = await promisifyRequest(store.get(itemId));
+      if (!row) return;
+      await promisifyRequest(store.delete(itemId));
+      bumpGalleryRevision(row.galleryId);
+    } catch (err) {
+      console.warn('[useGalleries] removeGalleryItem failed:', err);
+    }
+  }, [getDb, bumpGalleryRevision]);
+
   const getGalleryImages = useCallback(async (galleryId) => {
     if (!galleryId) return [];
     try {
@@ -159,5 +259,11 @@ export function useGalleries() {
     removeFromGallery,
     getGalleryImages,
     getGalleryRevision: (galleryId) => galleryRevisions[galleryId] || 0,
+    moveToTrash,
+    restoreFromTrash,
+    hardDelete,
+    getTrashItems,
+    removeGalleryItem,
+    TRASH_GALLERY_ID,
   };
 }

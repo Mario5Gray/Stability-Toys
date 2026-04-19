@@ -604,3 +604,17 @@ describe('OptionsPanel mode-driven controls', () => {
     expect(screen.queryByLabelText('Advisor length')).toBeNull();
   });
 });
+
+describe('OptionsPanel — trash tab', () => {
+  it('renders a Trash button outside the gallery list and calls onOpenTrash on click', () => {
+    const onOpenTrash = vi.fn();
+    renderOptionsPanel(
+      makeModeState('SDXL', { default_size: '512x512', resolution_options: [] }),
+      makeParams(),
+      { galleryState: makeGalleryState(), onOpenTrash },
+    );
+    const btn = screen.getByRole('button', { name: /trash/i });
+    fireEvent.click(btn);
+    expect(onOpenTrash).toHaveBeenCalled();
+  });
+});

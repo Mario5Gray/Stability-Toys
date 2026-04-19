@@ -1,0 +1,12 @@
+keymap:
+  next:         { code: ArrowRight, label: "Next" }
+  prev:         { code: ArrowLeft,  label: "Previous" }
+  up:           { code: ArrowUp,    label: "Up" }
+  down:         { code: ArrowDown,  label: "Down" }
+  delete:       { code: Backspace,  label: "Delete" }
+  delete_alt:   { code: Delete,     label: "Delete" }
+  select_all:   { code: KeyA, mod: mod, label: "Select all" }
+  deselect_all: { code: Escape,     label: "Deselect" }
+  close:        { code: Escape,     label: "Close" }
+  zoom:         { code: Enter,      label: "Zoom overlay" }
+  open_new_tab: { code: Space,      label: "Open in new tab" }

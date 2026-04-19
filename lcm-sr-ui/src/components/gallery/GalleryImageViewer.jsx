@@ -1,8 +1,8 @@
 // src/components/gallery/GalleryImageViewer.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 
-export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen }) {
+export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen, onNext, onPrev, onDelete, keymap }) {
   const [url, setUrl] = useState(null);
   const urlRef = useRef(null);
   const containerRef = useRef(null);
@@ -22,6 +22,7 @@ export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (keymap) return;
     function onKeyDown(e) {
       if (e.key === ' ' && urlRef.current) {
         e.preventDefault();
@@ -31,7 +32,24 @@ export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onWindowOpen]);
+  }, [keymap, onWindowOpen]);
+
+  useEffect(() => {
+    if (!keymap) return;
+    function onKeyDown(e) {
+      if (keymap.matches('next', e)) { e.preventDefault(); onNext?.(); return; }
+      if (keymap.matches('prev', e)) { e.preventDefault(); onPrev?.(); return; }
+      if (keymap.matches('delete', e) || keymap.matches('delete_alt', e)) { e.preventDefault(); onDelete?.(); return; }
+      if (keymap.matches('close', e)) { e.preventDefault(); onBack?.(); return; }
+      if (keymap.matches('open_new_tab', e) && urlRef.current) {
+        e.preventDefault();
+        const win = window.open(urlRef.current, '_blank');
+        onWindowOpen?.(win);
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [keymap, onNext, onPrev, onDelete, onBack, onWindowOpen]);
 
   function handleMouseMove(e) {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -51,6 +69,19 @@ export function GalleryImageViewer({ item, resolveImageUrl, onBack, onWindowOpen
         className="absolute top-2 left-2 z-10 p-1 rounded-full bg-background/80 hover:bg-background transition-colors"
       >
         <ChevronLeft className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
+        aria-label="Open in new tab"
+        onClick={() => {
+          if (!urlRef.current) return;
+          const win = window.open(urlRef.current, '_blank');
+          onWindowOpen?.(win);
+        }}
+        className="absolute top-2 right-2 z-10 p-1 rounded-full bg-background/80 hover:bg-background transition-colors"
+      >
+        <ExternalLink className="h-5 w-5" />
       </button>
 
       <div

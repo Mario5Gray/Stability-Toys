@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { GalleryLightbox } from './GalleryLightbox';
@@ -99,4 +99,65 @@ describe('GalleryLightbox', () => {
     expect(slider).toHaveAttribute('max', '1');
   });
 
+});
+
+describe('GalleryLightbox — selection action bar', () => {
+  it('renders the action bar after selecting a thumbnail and fires onMoveToTrash on Delete', async () => {
+    const getImages = vi.fn(async () => items);
+    const onMoveToTrash = vi.fn(async () => {});
+
+    await act(async () => {
+      render(
+        <GalleryLightbox
+          galleryId="gal_1"
+          galleryName="Alpha"
+          getGalleryImages={getImages}
+          onClose={vi.fn()}
+          onMoveToTrash={onMoveToTrash}
+          onRestoreFromTrash={vi.fn()}
+          onHardDelete={vi.fn()}
+        />,
+      );
+    });
+
+    const firstImg = screen.getAllByRole('img')[0];
+    fireEvent.click(firstImg);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /menu/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^delete$/i }));
+    expect(onMoveToTrash).toHaveBeenCalledWith(['r1']);
+  });
+
+  it('in trash mode, menu shows Restore and Delete permanently', async () => {
+    const trashItems = [
+      { id: 'id_1', galleryId: '__trash__', cacheKey: 'k1', serverImageUrl: 'x', params: { prompt: 'trashed' }, addedAt: 1 },
+    ];
+    const getImages = vi.fn(async () => trashItems);
+    const onRestore = vi.fn(async () => {});
+    const onHardDelete = vi.fn(async () => {});
+
+    await act(async () => {
+      render(
+        <GalleryLightbox
+          galleryId="__trash__"
+          galleryName="Trash"
+          trashMode
+          getGalleryImages={getImages}
+          onClose={vi.fn()}
+          onMoveToTrash={vi.fn()}
+          onRestoreFromTrash={onRestore}
+          onHardDelete={onHardDelete}
+        />,
+      );
+    });
+
+    await waitFor(() => expect(screen.getAllByRole('img').length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole('img')[0]);
+    await new Promise((r) => setTimeout(r, 200));
+    fireEvent.click(screen.getByRole('button', { name: /menu/i }));
+    expect(screen.getByRole('menuitem', { name: /restore/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /delete permanently/i })).toBeInTheDocument();
+  });
 });

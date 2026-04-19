@@ -158,3 +158,122 @@ describe('useGalleries — IndexedDB addToGallery / getGalleryImages', () => {
     expect(result.current.getGalleryRevision(galleryId)).toBeGreaterThan(before);
   });
 });
+
+describe('useGalleries — trash layer', () => {
+  it('moveToTrash flips galleryId to TRASH_GALLERY_ID and preserves sourceGalleryId', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const galleryId = result.current.activeGalleryId;
+    let itemId;
+    await act(async () => {
+      await result.current.addToGallery('key_1', {
+        serverImageUrl: 'x', params: {}, galleryId,
+      });
+      const items = await result.current.getGalleryImages(galleryId);
+      itemId = items[0].id;
+    });
+
+    await act(async () => {
+      await result.current.moveToTrash([itemId]);
+    });
+
+    const sourceItems = await result.current.getGalleryImages(galleryId);
+    const trashItems = await result.current.getTrashItems();
+    expect(sourceItems).toHaveLength(0);
+    expect(trashItems).toHaveLength(1);
+    expect(trashItems[0].sourceGalleryId).toBe(galleryId);
+    expect(trashItems[0].trashedAt).toBeTypeOf('number');
+  });
+
+  it('restoreFromTrash returns items to their original gallery and clears trash fields', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const galleryId = result.current.activeGalleryId;
+    let itemId;
+    await act(async () => {
+      await result.current.addToGallery('key_1', { serverImageUrl: 'x', params: {}, galleryId });
+      const items = await result.current.getGalleryImages(galleryId);
+      itemId = items[0].id;
+      await result.current.moveToTrash([itemId]);
+    });
+
+    await act(async () => {
+      await result.current.restoreFromTrash([itemId]);
+    });
+
+    const restored = await result.current.getGalleryImages(galleryId);
+    const trashItems = await result.current.getTrashItems();
+    expect(restored).toHaveLength(1);
+    expect(restored[0].sourceGalleryId).toBeUndefined();
+    expect(restored[0].trashedAt).toBeUndefined();
+    expect(trashItems).toHaveLength(0);
+  });
+
+  it('restoreFromTrash routes orphaned items into the active gallery if origin is gone', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const origin = result.current.activeGalleryId;
+    let itemId;
+    await act(async () => {
+      await result.current.addToGallery('key_1', { serverImageUrl: 'x', params: {}, galleryId: origin });
+      const items = await result.current.getGalleryImages(origin);
+      itemId = items[0].id;
+      await result.current.moveToTrash([itemId]);
+      result.current.createGallery('Beta');
+    });
+    const beta = result.current.activeGalleryId;
+
+    // simulate origin removal by directly editing localStorage gallery list
+    const filtered = JSON.parse(localStorage.getItem('lcm-galleries')).filter(g => g.id !== origin);
+    localStorage.setItem('lcm-galleries', JSON.stringify(filtered));
+
+    await act(async () => { await result.current.restoreFromTrash([itemId]); });
+
+    const betaItems = await result.current.getGalleryImages(beta);
+    expect(betaItems).toHaveLength(1);
+    expect(betaItems[0].id).toBe(itemId);
+  });
+
+  it('hardDelete removes rows permanently', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const galleryId = result.current.activeGalleryId;
+    let itemId;
+    await act(async () => {
+      await result.current.addToGallery('key_1', { serverImageUrl: 'x', params: {}, galleryId });
+      const items = await result.current.getGalleryImages(galleryId);
+      itemId = items[0].id;
+      await result.current.moveToTrash([itemId]);
+      await result.current.hardDelete([itemId]);
+    });
+    expect(await result.current.getTrashItems()).toHaveLength(0);
+  });
+
+  it('getGalleryImages never returns trashed rows', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const galleryId = result.current.activeGalleryId;
+    await act(async () => {
+      await result.current.addToGallery('a', { serverImageUrl: 'x', params: {}, galleryId });
+      await result.current.addToGallery('b', { serverImageUrl: 'y', params: {}, galleryId });
+      const items = await result.current.getGalleryImages(galleryId);
+      await result.current.moveToTrash([items[0].id]);
+    });
+    const remaining = await result.current.getGalleryImages(galleryId);
+    expect(remaining).toHaveLength(1);
+  });
+
+  it('removeGalleryItem deletes a single row by id', async () => {
+    const { result } = renderHook(() => useGalleries());
+    await act(async () => { result.current.createGallery('Alpha'); });
+    const galleryId = result.current.activeGalleryId;
+    let itemId;
+    await act(async () => {
+      await result.current.addToGallery('key_1', { serverImageUrl: 'x', params: {}, galleryId });
+      const items = await result.current.getGalleryImages(galleryId);
+      itemId = items[0].id;
+      await result.current.removeGalleryItem(itemId);
+    });
+    expect(await result.current.getGalleryImages(galleryId)).toHaveLength(0);
+  });
+});
