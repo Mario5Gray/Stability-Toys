@@ -176,6 +176,12 @@ async def list_modes():
                 "allow_custom_negative_prompt": mode_data.get("allow_custom_negative_prompt", False),
                 "allowed_scheduler_ids": mode_data.get("allowed_scheduler_ids"),
                 "default_scheduler_id": mode_data.get("default_scheduler_id"),
+                "controlnet_policy": mode_data.get("controlnet_policy") or {
+                    "enabled": False,
+                    "max_attachments": 0,
+                    "allow_reuse_emitted_maps": False,
+                    "allowed_control_types": {},
+                },
             }
             for name, mode_data in modes_dict["modes"].items()
         },

@@ -575,3 +575,111 @@ async def test_cancel_job_route_reports_not_found_when_pool_cannot_cancel():
 
     assert result == {"job_id": "missing", "status": "not_found"}
     pool.cancel_job.assert_called_once_with("missing")
+
+
+async def test_list_modes_includes_controlnet_policy():
+    config = Mock()
+    config.to_dict.return_value = {
+        "default_mode": "sdxl-cn",
+        "resolution_sets": {"default": [{"size": "1024x1024", "aspect_ratio": "1:1"}]},
+        "chat_connections": {},
+        "chat_delegates": {},
+        "modes": {
+            "sdxl-cn": {
+                "model": "checkpoints/sdxl.safetensors",
+                "model_path": "/models/checkpoints/sdxl.safetensors",
+                "loras": [],
+                "default_size": "1024x1024",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "maximum_len": None,
+                "loader_format": None,
+                "checkpoint_precision": None,
+                "checkpoint_variant": None,
+                "scheduler_profile": None,
+                "recommended_size": None,
+                "runtime_quantize": None,
+                "runtime_offload": None,
+                "runtime_attention_slicing": None,
+                "runtime_enable_xformers": None,
+                "resolution_set": "default",
+                "resolution_options": [{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                "negative_prompt_templates": {},
+                "default_negative_prompt_template": None,
+                "allow_custom_negative_prompt": False,
+                "allowed_scheduler_ids": None,
+                "default_scheduler_id": None,
+                "chat_delegate": None,
+                "metadata": {},
+                "controlnet_policy": {
+                    "enabled": True,
+                    "max_attachments": 2,
+                    "allow_reuse_emitted_maps": True,
+                    "allowed_control_types": {
+                        "canny": {
+                            "default_model_id": "sdxl-canny",
+                            "allowed_model_ids": ["sdxl-canny"],
+                            "allow_preprocess": True,
+                            "default_strength": 0.8,
+                            "min_strength": 0.0,
+                            "max_strength": 2.0,
+                        }
+                    },
+                },
+            },
+        },
+    }
+
+    with patch("server.model_routes.get_mode_config", return_value=config):
+        data = await model_routes.list_modes()
+
+    policy = data["modes"]["sdxl-cn"]["controlnet_policy"]
+    assert policy["enabled"] is True
+    assert policy["allowed_control_types"]["canny"]["default_model_id"] == "sdxl-canny"
+
+
+async def test_list_modes_controlnet_policy_defaults_when_absent():
+    config = Mock()
+    config.to_dict.return_value = {
+        "default_mode": "sd15",
+        "resolution_sets": {"default": [{"size": "512x512", "aspect_ratio": "1:1"}]},
+        "chat_connections": {},
+        "chat_delegates": {},
+        "modes": {
+            "sd15": {
+                "model": "checkpoints/sd15.safetensors",
+                "model_path": "/models/checkpoints/sd15.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+                "default_steps": 20,
+                "default_guidance": 7.0,
+                "maximum_len": None,
+                "loader_format": None,
+                "checkpoint_precision": None,
+                "checkpoint_variant": None,
+                "scheduler_profile": None,
+                "recommended_size": None,
+                "runtime_quantize": None,
+                "runtime_offload": None,
+                "runtime_attention_slicing": None,
+                "runtime_enable_xformers": None,
+                "resolution_set": "default",
+                "resolution_options": [{"size": "512x512", "aspect_ratio": "1:1"}],
+                "negative_prompt_templates": {},
+                "default_negative_prompt_template": None,
+                "allow_custom_negative_prompt": False,
+                "allowed_scheduler_ids": None,
+                "default_scheduler_id": None,
+                "chat_delegate": None,
+                "metadata": {},
+                # no controlnet_policy key
+            },
+        },
+    }
+
+    with patch("server.model_routes.get_mode_config", return_value=config):
+        data = await model_routes.list_modes()
+
+    policy = data["modes"]["sd15"]["controlnet_policy"]
+    assert policy["enabled"] is False
+    assert policy["allowed_control_types"] == {}
