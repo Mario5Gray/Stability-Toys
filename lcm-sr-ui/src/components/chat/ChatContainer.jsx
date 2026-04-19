@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MessageComposer } from "./MessageComposer";
 import { MessageBubble } from "./MessageBubble";
 import { ChatHeader } from "./ChatHeader";
+import { PendingOperationsPane } from "@/components/ui/PendingOperationsPane";
 
 export function ChatContainer({
   messages,
@@ -38,13 +39,9 @@ export function ChatContainer({
   return (
     <Card className="option-panel-area overflow-hidden rounded-xl shadow-sm h-full flex flex-col">
       <ChatHeader
-        inflightCount={inflightCount}
-        isDreaming={isDreaming}
         srLevel={srLevel}
         frontendVersion={frontendVersion}
         backendVersion={backendVersion}
-        onCopyPrompt={onCopyPrompt}
-        copied={copied}
       />
       <CardContent className="flex flex-1 flex-col p-0 min-h-0">
         <ScrollToBottom
@@ -53,8 +50,8 @@ export function ChatContainer({
           followButtonClassName="scroll-to-bottom-button"
         >
           <div className="relative">
-            <div className="sticky top-0 z-10 text-center py-1 bg-background/80 backdrop-blur-sm">
-              <div className="text-xs text-white text-muted-foreground">[]</div>
+            <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+              <PendingOperationsPane />
             </div>
 
             <div className="space-y-4">
