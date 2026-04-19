@@ -814,6 +814,7 @@ export default function App() {
     setInputMode,
     chatJob,
     runGenerate,
+    onSendPrompt: defaultComposer.onSendPrompt,
     wsConnected: ws.connected,
   }), [
     addMessage,
@@ -824,6 +825,7 @@ export default function App() {
     inputMode,
     chatJob,
     runGenerate,
+    defaultComposer.onSendPrompt,
     ws.connected,
   ]);
 

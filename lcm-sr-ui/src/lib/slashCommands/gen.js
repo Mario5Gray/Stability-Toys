@@ -7,7 +7,7 @@ import { register } from '../slashCommands.js';
 
 function genHandler({ args, ctx }) {
   if (!args) return false;
-  ctx.runGenerate({ prompt: args });
+  ctx.onSendPrompt?.(args);
   ctx.setInputMode('generate');
   return true;
 }

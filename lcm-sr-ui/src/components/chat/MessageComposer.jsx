@@ -74,11 +74,10 @@ export function MessageComposer({
    * Dispatch a plain chat turn (inputMode === 'chat', no slash prefix).
    */
   const dispatchPlainChat = React.useCallback((text) => {
-    if (!slashCtx) return;
-    // Reuse /chat handler with synthetic parsed args
+    if (!slashCtx) return false;
     const chatEntry = get('chat');
-    if (!chatEntry) return;
-    chatEntry.handler({ args: text, ctx: slashCtx });
+    if (!chatEntry) return false;
+    return chatEntry.handler({ args: text, ctx: slashCtx });
   }, [slashCtx]);
 
   const send = React.useCallback(() => {
@@ -118,8 +117,8 @@ export function MessageComposer({
 
     // Plain chat mode routing
     if (inputMode === 'chat' && slashCtx) {
-      dispatchPlainChat(text);
-      setDraft('');
+      const ok = dispatchPlainChat(text);
+      if (ok !== false) setDraft('');
       return;
     }
 

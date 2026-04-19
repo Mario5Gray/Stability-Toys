@@ -48,12 +48,13 @@ register('chat', {
 
     let rafBuffer = '';
     let rafPending = false;
+    let terminated = false;
 
     const flushDelta = () => {
       const chunk = rafBuffer;
       rafBuffer = '';
       rafPending = false;
-      if (chunk) {
+      if (chunk && !terminated) {
         ctx.updateMessage(assistantId, (prev) => ({ ...prev, text: prev.text + chunk }));
       }
     };
@@ -64,6 +65,7 @@ register('chat', {
         ctx.updateMessage(assistantId, { jobId });
       },
       onDelta: (text) => {
+        if (terminated) return;
         rafBuffer += text;
         if (!rafPending) {
           rafPending = true;
@@ -71,9 +73,11 @@ register('chat', {
         }
       },
       onComplete: ({ text }) => {
+        terminated = true;
         ctx.updateMessage(assistantId, { text, streaming: false, jobId: null });
       },
       onError: (errMsg) => {
+        terminated = true;
         ctx.updateMessage(assistantId, (prev) => ({
           ...prev,
           kind: MESSAGE_KINDS.ERROR,

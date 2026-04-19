@@ -17,10 +17,16 @@ export function useChatJob() {
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.state !== 'disconnected') return;
-      for (const [, h] of byCorr.current) h.onError?.('Connection lost');
-      for (const [, h] of byJob.current)  h.onError?.('Connection lost');
+      const handles = [
+        ...Array.from(byCorr.current.values()),
+        ...Array.from(byJob.current.values()),
+      ];
       byCorr.current.clear();
       byJob.current.clear();
+      for (const h of handles) {
+        h.cleanup();
+        h.onError?.('Connection lost');
+      }
     };
     wsClient.addEventListener('statechange', handler);
     return () => wsClient.removeEventListener('statechange', handler);
@@ -83,6 +89,7 @@ export function useChatJob() {
     return {
       cancel: () => {
         if (jobId) wsClient.send({ type: 'job:cancel', jobId });
+        onError?.('Cancelled');
         cleanup();
       },
     };
