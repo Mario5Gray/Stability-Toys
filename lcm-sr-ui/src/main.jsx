@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { emitUiEvent } from "./utils/otelTelemetry";
+import { OperationsProvider } from "./contexts/OperationsContext";
 
 if (!window.__appStartTime) {
   window.__appStartTime = performance.now();
@@ -32,6 +33,8 @@ if (!window.__otelErrorHooked) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <OperationsProvider>
+      <App />
+    </OperationsProvider>
   </React.StrictMode>
 );
