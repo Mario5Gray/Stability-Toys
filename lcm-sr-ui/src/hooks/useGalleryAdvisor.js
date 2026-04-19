@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildAdvisorEvidence } from '../utils/advisorEvidence';
+import { useOperationsController } from '../contexts/OperationsContext';
 
 function resolveLengthLimit(state, maximumLen) {
   const configured = Number(maximumLen);
@@ -25,6 +26,7 @@ export function useGalleryAdvisor({
   saveAdvisorState,
   setDraftPrompt,
 }) {
+  const { start: startOperation } = useOperationsController();
   const [state, setState] = useState(advisorState);
   const persistState = useCallback(async (nextState) => {
     if (!saveAdvisorState) return;
@@ -74,7 +76,14 @@ export function useGalleryAdvisor({
     setState(building);
     await persistState(building);
 
+    const statusHandle = startOperation({
+      key: `advisor-rebuild:${galleryId}`,
+      text: 'Building digest',
+      tone: 'active',
+    });
+
     try {
+      statusHandle.setDetail('Analyzing evidence');
       const response = await api.fetchPost('/api/advisors/digest', {
         gallery_id: galleryId,
         mode: modeName || undefined,
@@ -97,6 +106,7 @@ export function useGalleryAdvisor({
       };
       setState(next);
       await persistState(next);
+      statusHandle.complete({ text: 'Digest updated' });
       return next;
     } catch (error) {
       const failed = {
@@ -107,9 +117,10 @@ export function useGalleryAdvisor({
       };
       setState(failed);
       await persistState(failed);
+      statusHandle.error({ text: error.message || 'Advisor rebuild failed' });
       throw error;
     }
-  }, [api, evidence, galleryId, galleryRevision, maximumLen, modeName, persistState, state]);
+  }, [api, evidence, galleryId, galleryRevision, maximumLen, modeName, persistState, startOperation, state]);
 
   const applyAdvice = useCallback((mode) => {
     if (!state?.advice_text) return;
