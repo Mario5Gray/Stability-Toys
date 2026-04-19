@@ -50,6 +50,17 @@ class ChatConnectionConfig:
 
 
 @dataclass
+class ChatDelegateConfig:
+    """Named bundle: connection + model + inference params bound to one logical chat persona."""
+    name: str
+    connection: str          # key into chat_connections
+    model: str
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    system_prompt: Optional[str] = None
+
+
+@dataclass
 class ModeConfig:
     """Configuration for a single mode."""
     name: str
@@ -75,11 +86,7 @@ class ModeConfig:
     allow_custom_negative_prompt: bool = False
     allowed_scheduler_ids: Optional[List[str]] = None
     default_scheduler_id: Optional[str] = None
-    chat_connection: Optional[str] = None
-    chat_model: Optional[str] = None
-    chat_max_tokens: Optional[int] = None
-    chat_temperature: Optional[float] = None
-    chat_system_prompt: Optional[str] = None
+    chat_delegate: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Resolved absolute paths (set after loading)
@@ -95,6 +102,7 @@ class ModesYAML:
     default_mode: str
     resolution_sets: Dict[str, List[Dict[str, str]]]
     chat_connections: Dict[str, ChatConnectionConfig]
+    chat_delegates: Dict[str, ChatDelegateConfig]
     modes: Dict[str, ModeConfig]
 
 
@@ -197,6 +205,16 @@ class ModeConfigManager:
             for connection_name, chat_data in raw_chat_connections.items()
         }
 
+        raw_chat_delegates = data.get("chat_delegates")
+        if raw_chat_delegates is None:
+            raw_chat_delegates = {}
+        if not isinstance(raw_chat_delegates, dict):
+            raise ValueError("modes.yml field 'chat_delegates' must be a mapping")
+        chat_delegates = {
+            delegate_name: self._parse_chat_delegate_config(delegate_name, delegate_data, chat_connections)
+            for delegate_name, delegate_data in raw_chat_delegates.items()
+        }
+
         # Parse mode definitions
         modes = {}
         for mode_name, mode_data in data["modes"].items():
@@ -204,8 +222,14 @@ class ModeConfigManager:
                 raise ValueError(f"Mode '{mode_name}' missing required field: model")
             if "chat" in mode_data and mode_data.get("chat") is not None:
                 raise ValueError(
-                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_connections and mode chat_* fields"
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_delegates"
                 )
+            for old_field in ("chat_connection", "chat_model", "chat_max_tokens", "chat_temperature", "chat_system_prompt"):
+                if mode_data.get(old_field) is not None:
+                    raise ValueError(
+                        f"Mode '{mode_name}' uses removed field '{old_field}'; "
+                        f"define a chat_delegate in chat_delegates: and reference it via chat_delegate:"
+                    )
 
             resolution_set = mode_data.get("resolution_set") or "default"
             if resolution_set not in resolution_sets:
@@ -219,30 +243,16 @@ class ModeConfigManager:
                     f"Mode '{mode_name}' default_size '{default_size}' is not present in resolution_set '{resolution_set}'"
                 )
 
-            chat_connection = mode_data.get("chat_connection")
-            chat_model = self._normalize_optional_string(mode_data.get("chat_model"))
-            chat_max_tokens = self._parse_optional_int(mode_data.get("chat_max_tokens"), f"mode '{mode_name}'", "chat_max_tokens")
-            chat_temperature = self._parse_optional_float(mode_data.get("chat_temperature"), f"mode '{mode_name}'", "chat_temperature")
-            chat_system_prompt = self._normalize_optional_string(mode_data.get("chat_system_prompt"))
-            if chat_connection is not None:
-                chat_connection = str(chat_connection).strip()
-            if chat_connection == "":
-                chat_connection = None
-            if chat_connection and chat_connection not in chat_connections:
-                raise ValueError(f"Mode '{mode_name}' references unknown chat_connection '{chat_connection}'")
-            if chat_connection and not chat_model:
-                raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
-            if chat_model and not chat_connection:
-                raise ValueError(f"Mode '{mode_name}' must set chat_connection when chat_model is configured")
+            chat_delegate = self._normalize_optional_string(mode_data.get("chat_delegate"))
+            if chat_delegate and chat_delegate not in chat_delegates:
+                raise ValueError(f"Mode '{mode_name}' references unknown chat_delegate '{chat_delegate}'")
 
             # Parse LoRAs
             loras = []
             for lora_def in mode_data.get("loras", []):
                 if isinstance(lora_def, str):
-                    # Simple format: just path
                     loras.append(LoRAConfig(path=lora_def))
                 elif isinstance(lora_def, dict):
-                    # Full format: {path, strength, adapter_name}
                     loras.append(LoRAConfig(
                         path=lora_def["path"],
                         strength=lora_def.get("strength", 1.0),
@@ -273,11 +283,7 @@ class ModeConfigManager:
                 allow_custom_negative_prompt=bool(mode_data.get("allow_custom_negative_prompt", False)),
                 allowed_scheduler_ids=mode_data.get("allowed_scheduler_ids"),
                 default_scheduler_id=mode_data.get("default_scheduler_id"),
-                chat_connection=chat_connection,
-                chat_model=chat_model,
-                chat_max_tokens=chat_max_tokens,
-                chat_temperature=chat_temperature,
-                chat_system_prompt=chat_system_prompt,
+                chat_delegate=chat_delegate,
                 metadata=mode_data.get("metadata", {}),
             )
 
@@ -300,6 +306,7 @@ class ModeConfigManager:
             default_mode=default_mode,
             resolution_sets=resolution_sets,
             chat_connections=chat_connections,
+            chat_delegates=chat_delegates,
             modes=modes,
         )
 
@@ -351,6 +358,35 @@ class ModeConfigManager:
         return ChatConnectionConfig(
             endpoint=endpoint,
             api_key_env=(chat_data.get("api_key_env") or "OPENAI_API_KEY").strip(),
+        )
+
+    def _parse_chat_delegate_config(
+        self,
+        delegate_name: str,
+        delegate_data: Dict[str, Any],
+        chat_connections: Dict[str, ChatConnectionConfig],
+    ) -> ChatDelegateConfig:
+        """Parse a chat_delegates entry, validating the referenced connection exists."""
+        if not isinstance(delegate_data, dict):
+            raise ValueError(f"Chat delegate '{delegate_name}' must be a mapping")
+        connection = (delegate_data.get("connection") or "").strip()
+        if not connection:
+            raise ValueError(f"Chat delegate '{delegate_name}' missing required field: connection")
+        if connection not in chat_connections:
+            raise ValueError(f"Chat delegate '{delegate_name}' references unknown connection '{connection}'")
+        model = (delegate_data.get("model") or "").strip()
+        if not model:
+            raise ValueError(f"Chat delegate '{delegate_name}' missing required field: model")
+        max_tokens = self._parse_optional_int(delegate_data.get("max_tokens"), f"chat_delegate '{delegate_name}'", "max_tokens")
+        temperature = self._parse_optional_float(delegate_data.get("temperature"), f"chat_delegate '{delegate_name}'", "temperature")
+        system_prompt = self._normalize_optional_string(delegate_data.get("system_prompt"))
+        return ChatDelegateConfig(
+            name=delegate_name,
+            connection=connection,
+            model=model,
+            max_tokens=max_tokens if max_tokens is not None else 1024,
+            temperature=temperature if temperature is not None else 0.7,
+            system_prompt=system_prompt,
         )
 
     def _parse_optional_int(self, value: Any, owner: str, field_name: str) -> Optional[int]:
@@ -413,19 +449,17 @@ class ModeConfigManager:
                 mode_entry["maximum_len"] = mode_data.get("maximum_len")
             if mode_data.get("chat") is not None:
                 raise ValueError(
-                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_connections and mode chat_* fields"
+                    f"Mode '{mode_name}' contains legacy mode-scoped chat config; use chat_delegates"
                 )
-            chat_connection = self._normalize_optional_string(mode_data.get("chat_connection"))
-            chat_model = self._normalize_optional_string(mode_data.get("chat_model"))
-            chat_max_tokens = self._parse_optional_int(mode_data.get("chat_max_tokens"), f"mode '{mode_name}'", "chat_max_tokens")
-            chat_temperature = self._parse_optional_float(mode_data.get("chat_temperature"), f"mode '{mode_name}'", "chat_temperature")
-            chat_system_prompt = self._normalize_optional_string(mode_data.get("chat_system_prompt"))
-            if chat_connection and chat_connection not in (data.get("chat_connections") or {}):
-                raise ValueError(f"Mode '{mode_name}' references unknown chat_connection '{chat_connection}'")
-            if chat_connection and not chat_model:
-                raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
-            if chat_model and not chat_connection:
-                raise ValueError(f"Mode '{mode_name}' must set chat_connection when chat_model is configured")
+            for old_field in ("chat_connection", "chat_model", "chat_max_tokens", "chat_temperature", "chat_system_prompt"):
+                if mode_data.get(old_field) is not None:
+                    raise ValueError(
+                        f"Mode '{mode_name}' uses removed field '{old_field}'; "
+                        f"define a chat_delegate in chat_delegates: and reference it via chat_delegate:"
+                    )
+            chat_delegate = self._normalize_optional_string(mode_data.get("chat_delegate"))
+            if chat_delegate and chat_delegate not in (data.get("chat_delegates") or {}):
+                raise ValueError(f"Mode '{mode_name}' references unknown chat_delegate '{chat_delegate}'")
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
             for cap_field in (
@@ -450,16 +484,8 @@ class ModeConfigManager:
                 mode_entry["allowed_scheduler_ids"] = mode_data.get("allowed_scheduler_ids")
             if mode_data.get("default_scheduler_id") is not None:
                 mode_entry["default_scheduler_id"] = mode_data.get("default_scheduler_id")
-            if chat_connection is not None:
-                mode_entry["chat_connection"] = chat_connection
-            if chat_model is not None:
-                mode_entry["chat_model"] = chat_model
-            if chat_max_tokens is not None:
-                mode_entry["chat_max_tokens"] = chat_max_tokens
-            if chat_temperature is not None:
-                mode_entry["chat_temperature"] = chat_temperature
-            if chat_system_prompt is not None:
-                mode_entry["chat_system_prompt"] = chat_system_prompt
+            if chat_delegate is not None:
+                mode_entry["chat_delegate"] = chat_delegate
             loras = mode_data.get("loras", [])
             if loras:
                 mode_entry["loras"] = [
@@ -471,20 +497,38 @@ class ModeConfigManager:
             yaml_data["modes"][mode_name] = mode_entry
 
         if data.get("chat") not in (None, {}):
-            raise ValueError("save_config does not support legacy top-level 'chat'; use 'chat_connections'")
-        raw_chat_connections = data.get("chat_connections")
-        if raw_chat_connections is None:
-            raw_chat_connections = {}
+            raise ValueError("save_config does not support legacy top-level 'chat'; use 'chat_delegates'")
+        raw_chat_connections = data.get("chat_connections") or {}
         if not isinstance(raw_chat_connections, dict):
             raise ValueError("save_config requires chat_connections to be a mapping when provided")
         if raw_chat_connections:
             yaml_data["chat_connections"] = {}
             for connection_name, connection_data in raw_chat_connections.items():
-                chat_connection = self._parse_chat_connection_config(connection_name, connection_data)
+                conn = self._parse_chat_connection_config(connection_name, connection_data)
                 yaml_data["chat_connections"][connection_name] = {
-                    "endpoint": chat_connection.endpoint,
-                    "api_key_env": chat_connection.api_key_env,
+                    "endpoint": conn.endpoint,
+                    "api_key_env": conn.api_key_env,
                 }
+
+        raw_chat_delegates = data.get("chat_delegates") or {}
+        if not isinstance(raw_chat_delegates, dict):
+            raise ValueError("save_config requires chat_delegates to be a mapping when provided")
+        if raw_chat_delegates:
+            parsed_connections = {
+                k: self._parse_chat_connection_config(k, v)
+                for k, v in raw_chat_connections.items()
+            }
+            yaml_data["chat_delegates"] = {}
+            for delegate_name, delegate_data in raw_chat_delegates.items():
+                d = self._parse_chat_delegate_config(delegate_name, delegate_data, parsed_connections)
+                entry: Dict[str, Any] = {"connection": d.connection, "model": d.model}
+                if d.max_tokens != 1024:
+                    entry["max_tokens"] = d.max_tokens
+                if d.temperature != 0.7:
+                    entry["temperature"] = d.temperature
+                if d.system_prompt is not None:
+                    entry["system_prompt"] = d.system_prompt
+                yaml_data["chat_delegates"][delegate_name] = entry
 
         # Write atomically-ish: write to temp then rename
         tmp_path = self.config_path.with_suffix(".yml.tmp")
@@ -532,29 +576,23 @@ class ModeConfigManager:
         return self.get_mode(self.config.default_mode)
 
     def resolve_chat_config(self, mode_name: str, overrides: Optional[Dict[str, Any]] = None) -> Optional[ChatBackendConfig]:
-        """Resolve a mode's chat config from its connection plus mode defaults."""
+        """Resolve a mode's chat config via its chat_delegate."""
         overrides = overrides or {}
         mode = self.get_mode(mode_name)
-        if not mode.chat_connection:
+        if not mode.chat_delegate:
             return None
 
-        connection = self.config.chat_connections[mode.chat_connection]
-        model = self._normalize_optional_string(overrides.get("model")) or mode.chat_model
-        if not model:
-            raise ValueError(f"Mode '{mode_name}' must set chat_model when chat_connection is configured")
+        delegate = self.config.chat_delegates[mode.chat_delegate]
+        connection = self.config.chat_connections[delegate.connection]
 
+        model = self._normalize_optional_string(overrides.get("model")) or delegate.model
         max_tokens = self._parse_optional_int(overrides.get("max_tokens"), f"mode '{mode_name}'", "max_tokens")
         if max_tokens is None:
-            max_tokens = mode.chat_max_tokens if mode.chat_max_tokens is not None else 1024
-
+            max_tokens = delegate.max_tokens
         temperature = self._parse_optional_float(overrides.get("temperature"), f"mode '{mode_name}'", "temperature")
         if temperature is None:
-            temperature = mode.chat_temperature if mode.chat_temperature is not None else 0.7
-
-        system_prompt = self._merge_system_prompts(
-            mode.chat_system_prompt,
-            overrides.get("system_prompt"),
-        )
+            temperature = delegate.temperature
+        system_prompt = self._merge_system_prompts(delegate.system_prompt, overrides.get("system_prompt"))
 
         return ChatBackendConfig(
             endpoint=connection.endpoint,
@@ -578,6 +616,16 @@ class ModeConfigManager:
                     "api_key_env": chat_connection.api_key_env,
                 }
                 for connection_name, chat_connection in self.config.chat_connections.items()
+            },
+            "chat_delegates": {
+                delegate_name: {
+                    "connection": delegate.connection,
+                    "model": delegate.model,
+                    "max_tokens": delegate.max_tokens,
+                    "temperature": delegate.temperature,
+                    "system_prompt": delegate.system_prompt,
+                }
+                for delegate_name, delegate in self.config.chat_delegates.items()
             },
             "modes": {
                 name: {
@@ -617,11 +665,7 @@ class ModeConfigManager:
                     "allow_custom_negative_prompt": mode.allow_custom_negative_prompt,
                     "allowed_scheduler_ids": mode.allowed_scheduler_ids,
                     "default_scheduler_id": mode.default_scheduler_id,
-                    "chat_connection": mode.chat_connection,
-                    "chat_model": mode.chat_model,
-                    "chat_max_tokens": mode.chat_max_tokens,
-                    "chat_temperature": mode.chat_temperature,
-                    "chat_system_prompt": mode.chat_system_prompt,
+                    "chat_delegate": mode.chat_delegate,
                     "metadata": mode.metadata,
                 }
                 for name, mode in self.config.modes.items()

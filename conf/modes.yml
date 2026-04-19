@@ -28,8 +28,16 @@ resolution_sets:
 
 chat_connections:
   local_default:
-    endpoint: "http://node2.lan:8080/v1"   # base URL, no /chat/completions suffix
-    api_key_env: "OPENAI_API_KEY"           # optional for local no-auth hosts
+    endpoint: "http://node2.lan:8080/v1"
+    api_key_env: "OPENAI_API_KEY"
+
+chat_delegates:
+  sdxl_advisor:
+    connection: local_default
+    model: "gemma3-1b"
+    max_tokens: 750
+    temperature: 0.4
+    system_prompt: "You are a concise SDXL prompt advisor."
 
 modes:
   lcm-general:
@@ -45,7 +53,8 @@ modes:
     allowed_scheduler_ids:
       - euler
       - lcm
-    default_scheduler_id: lcm    
+    default_scheduler_id: lcm
+    chat_delegate: sdxl_advisor
   lcm-runwayml:
     model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512
@@ -59,7 +68,8 @@ modes:
     allowed_scheduler_ids:
       - euler
       - lcm
-    default_scheduler_id: lcm    
+    default_scheduler_id: lcm
+    chat_delegate: sdxl_advisor
   SDXL:
     model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
     loader_format: single_file
@@ -87,8 +97,4 @@ modes:
       - euler
       - lcm
     default_scheduler_id: dpmpp_2m
-    chat_connection: local_default
-    chat_model: "gemma3-1b"
-    chat_max_tokens: 750
-    chat_temperature: 0.4
-    chat_system_prompt: "You are a concise SDXL prompt advisor."
+    chat_delegate: sdxl_advisor

@@ -81,7 +81,7 @@ modes:
     assert mode.runtime_enable_xformers is True
 
 
-def test_mode_config_parses_chat_connections_and_flat_mode_chat_fields(tmp_path):
+def test_mode_config_parses_chat_delegates(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -96,15 +96,18 @@ chat_connections:
   local_default:
     endpoint: http://localhost:11434/v1
     api_key_env: OPENAI_API_KEY
+chat_delegates:
+  advisor:
+    connection: local_default
+    model: llama3.2
+    max_tokens: 768
+    temperature: 0.4
+    system_prompt: You are concise.
 modes:
   sdxl-chat:
     model: checkpoints/sdxl/sdxl-base.safetensors
     default_size: 512x512
-    chat_connection: local_default
-    chat_model: llama3.2
-    chat_max_tokens: 768
-    chat_temperature: 0.4
-    chat_system_prompt: You are concise.
+    chat_delegate: advisor
 """.strip()
     )
 
@@ -114,8 +117,7 @@ modes:
     mode = manager.get_mode("sdxl-chat")
     chat_cfg = manager.resolve_chat_config("sdxl-chat")
 
-    assert mode.chat_connection == "local_default"
-    assert mode.chat_model == "llama3.2"
+    assert mode.chat_delegate == "advisor"
     assert chat_cfg is not None
     assert chat_cfg.endpoint == "http://localhost:11434/v1"
     assert chat_cfg.model == "llama3.2"
@@ -123,7 +125,9 @@ modes:
     assert chat_cfg.max_tokens == 768
     assert chat_cfg.temperature == 0.4
     assert chat_cfg.system_prompt == "You are concise."
-    assert manager.to_dict()["chat_connections"]["local_default"]["endpoint"] == "http://localhost:11434/v1"
+    d = manager.to_dict()
+    assert d["chat_connections"]["local_default"]["endpoint"] == "http://localhost:11434/v1"
+    assert d["chat_delegates"]["advisor"]["model"] == "llama3.2"
 
 
 def test_mode_config_rejects_mode_scoped_chat_block(tmp_path):
@@ -183,7 +187,7 @@ modes:
         ModeConfigManager(str(tmp_path))
 
 
-def test_mode_config_rejects_unknown_chat_connection(tmp_path):
+def test_mode_config_rejects_unknown_chat_delegate(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -197,18 +201,21 @@ resolution_sets:
 chat_connections:
   local_default:
     endpoint: http://localhost:11434/v1
+chat_delegates:
+  advisor:
+    connection: local_default
+    model: llama3.2
 modes:
   sdxl-chat:
     model: checkpoints/sdxl/sdxl-base.safetensors
     default_size: 512x512
-    chat_connection: missing_connection
-    chat_model: llama3.2
+    chat_delegate: missing_delegate
 """.strip()
     )
 
     from server.mode_config import ModeConfigManager
 
-    with pytest.raises(ValueError, match="unknown chat_connection 'missing_connection'"):
+    with pytest.raises(ValueError, match="unknown chat_delegate 'missing_delegate'"):
         ModeConfigManager(str(tmp_path))
 
 
@@ -488,7 +495,7 @@ modes:
     }
 
 
-def test_mode_config_save_config_round_trips_chat_connections(tmp_path):
+def test_mode_config_save_config_round_trips_chat_delegates(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -503,15 +510,18 @@ chat_connections:
   local_default:
     endpoint: http://localhost:11434/v1
     api_key_env: OPENAI_API_KEY
+chat_delegates:
+  concise_advisor:
+    connection: local_default
+    model: llama3.2
+    max_tokens: 512
+    temperature: 0.5
+    system_prompt: You are concise.
 modes:
   sdxl:
     model: checkpoints/sdxl/model.safetensors
     default_size: 512x512
-    chat_connection: local_default
-    chat_model: llama3.2
-    chat_max_tokens: 512
-    chat_temperature: 0.5
-    chat_system_prompt: You are concise.
+    chat_delegate: concise_advisor
 """.strip()
     )
 
@@ -526,8 +536,8 @@ modes:
 
     assert "chat" not in saved
     assert saved["chat_connections"]["local_default"]["endpoint"] == "http://localhost:11434/v1"
-    assert saved["modes"]["sdxl"]["chat_connection"] == "local_default"
-    assert saved["modes"]["sdxl"]["chat_model"] == "llama3.2"
+    assert saved["chat_delegates"]["concise_advisor"]["model"] == "llama3.2"
+    assert saved["modes"]["sdxl"]["chat_delegate"] == "concise_advisor"
     assert reloaded_chat is not None
     assert reloaded_chat.endpoint == "http://localhost:11434/v1"
     assert reloaded_chat.max_tokens == 512
@@ -560,7 +570,7 @@ modes:
     assert "chat_connections" not in saved
 
 
-def test_mode_config_save_config_rejects_chat_connections_references_to_missing_modes(tmp_path):
+def test_mode_config_save_config_rejects_unknown_chat_delegate_ref(tmp_path):
     cfg = tmp_path / "modes.yml"
     cfg.write_text(
         """
@@ -585,10 +595,12 @@ modes:
     payload["chat_connections"] = {
         "local_default": {"endpoint": "http://localhost:11434/v1", "api_key_env": "OPENAI_API_KEY"}
     }
-    payload["modes"]["sdxl"]["chat_connection"] = "missing"
-    payload["modes"]["sdxl"]["chat_model"] = "llama3.2"
+    payload["chat_delegates"] = {
+        "advisor": {"connection": "local_default", "model": "llama3.2"}
+    }
+    payload["modes"]["sdxl"]["chat_delegate"] = "missing"
 
-    with pytest.raises(ValueError, match="unknown chat_connection 'missing'"):
+    with pytest.raises(ValueError, match="unknown chat_delegate 'missing'"):
         manager.save_config(payload)
 
 
@@ -616,7 +628,7 @@ modes:
     payload = manager.to_dict()
     payload["modes"]["sdxl"]["chat"] = {"endpoint": "http://localhost:11434/v1", "model": "llama3.2"}
 
-    with pytest.raises(ValueError, match="legacy mode-scoped chat config; use chat_connections and mode chat_\\* fields"):
+    with pytest.raises(ValueError, match="legacy mode-scoped chat config; use chat_delegates"):
         manager.save_config(payload)
 
 

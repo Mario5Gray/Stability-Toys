@@ -159,7 +159,7 @@ async def list_modes():
                 "default_steps": mode_data["default_steps"],
                 "default_guidance": mode_data["default_guidance"],
                 "maximum_len": mode_data.get("maximum_len"),
-                "chat_enabled": name in (modes_dict.get("chat") or {}),
+                "chat_enabled": bool(mode_data.get("chat_delegate")),
                 "loader_format": mode_data.get("loader_format"),
                 "checkpoint_precision": mode_data.get("checkpoint_precision"),
                 "checkpoint_variant": mode_data.get("checkpoint_variant"),
@@ -399,7 +399,8 @@ class ModesBulkSaveRequest(BaseModel):
     lora_root: str
     default_mode: str
     resolution_sets: Dict[str, Any]
-    chat: Optional[Dict[str, Any]] = None
+    chat_connections: Optional[Dict[str, Any]] = None
+    chat_delegates: Optional[Dict[str, Any]] = None
     modes: Dict[str, Any]
 
 
@@ -409,14 +410,11 @@ async def save_all_modes(request: ModesBulkSaveRequest):
     config = get_mode_config()
     pool = get_worker_pool()
     data = request.model_dump()
-    if data.get("chat") is None:
-        data["chat"] = config.to_dict().get("chat", {})
-    if data.get("chat"):
-        data["chat"] = {
-            mode_name: chat_cfg
-            for mode_name, chat_cfg in data["chat"].items()
-            if mode_name in data["modes"]
-        }
+    existing = config.to_dict()
+    if data.get("chat_connections") is None:
+        data["chat_connections"] = existing.get("chat_connections", {})
+    if data.get("chat_delegates") is None:
+        data["chat_delegates"] = existing.get("chat_delegates", {})
 
     if not data.get("modes"):
         raise HTTPException(status_code=400, detail="At least one mode must exist")
@@ -512,9 +510,6 @@ async def delete_mode(name: str):
 
     was_loaded = name == pool.get_current_mode()
     del data["modes"][name]
-    chat_cfg = data.get("chat")
-    if isinstance(chat_cfg, dict):
-        chat_cfg.pop(name, None)
 
     try:
         config.save_config(data)
