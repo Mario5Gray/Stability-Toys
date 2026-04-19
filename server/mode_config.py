@@ -61,6 +61,31 @@ class ChatDelegateConfig:
 
 
 @dataclass
+class ControlNetControlTypePolicy:
+    """Per-control-type policy within a mode's controlnet_policy."""
+    default_model_id: Optional[str] = None
+    allowed_model_ids: List[str] = field(default_factory=list)
+    allow_preprocess: bool = True
+    default_strength: float = 1.0
+    min_strength: float = 0.0
+    max_strength: float = 2.0
+
+
+@dataclass
+class ControlNetPolicy:
+    """Mode-owned ControlNet policy.
+
+    When `enabled` is False, any request carrying `controlnets` is rejected.
+    `allowed_control_types` maps canonical control-type names (e.g. 'canny')
+    to their per-type policy. Absent control types are forbidden.
+    """
+    enabled: bool = False
+    max_attachments: int = 0
+    allow_reuse_emitted_maps: bool = False
+    allowed_control_types: Dict[str, ControlNetControlTypePolicy] = field(default_factory=dict)
+
+
+@dataclass
 class ModeConfig:
     """Configuration for a single mode."""
     name: str
@@ -88,6 +113,7 @@ class ModeConfig:
     default_scheduler_id: Optional[str] = None
     chat_delegate: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    controlnet_policy: ControlNetPolicy = field(default_factory=ControlNetPolicy)
 
     # Resolved absolute paths (set after loading)
     model_path: Optional[str] = None

@@ -914,3 +914,20 @@ modes:
     assert reloaded.default_scheduler_id == "euler"
     assert reloaded.resolution_set == "base"
     assert reloaded.resolution_options == [{"size": "512x512", "aspect_ratio": "1:1"}]
+
+
+def test_controlnet_policy_dataclass_defaults():
+    from server.mode_config import ControlNetPolicy, ControlNetControlTypePolicy
+
+    policy = ControlNetPolicy()
+    assert policy.enabled is False
+    assert policy.max_attachments == 0
+    assert policy.allow_reuse_emitted_maps is False
+    assert policy.allowed_control_types == {}
+
+    type_policy = ControlNetControlTypePolicy(default_model_id="sdxl-canny")
+    assert type_policy.allowed_model_ids == []
+    assert type_policy.allow_preprocess is True
+    assert type_policy.default_strength == 1.0
+    assert type_policy.min_strength == 0.0
+    assert type_policy.max_strength == 2.0
