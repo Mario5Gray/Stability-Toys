@@ -578,6 +578,14 @@ class ModeConfigManager:
                     else lora["path"]
                     for lora in loras
                 ]
+            cn_policy = mode_data.get("controlnet_policy") or {}
+            if cn_policy.get("enabled") or cn_policy.get("allowed_control_types"):
+                mode_entry["controlnet_policy"] = {
+                    "enabled": cn_policy.get("enabled", False),
+                    "max_attachments": cn_policy.get("max_attachments", 0),
+                    "allow_reuse_emitted_maps": cn_policy.get("allow_reuse_emitted_maps", False),
+                    "allowed_control_types": cn_policy.get("allowed_control_types") or {},
+                }
             yaml_data["modes"][mode_name] = mode_entry
 
         if data.get("chat") not in (None, {}):
