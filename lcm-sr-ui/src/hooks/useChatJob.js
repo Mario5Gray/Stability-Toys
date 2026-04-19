@@ -41,8 +41,25 @@ export function useChatJob() {
     const corrId = nextCorrId();
     const unsubs = [];
     let jobId = null;
+    let cancelRequested = false;
+    let closed = false;
+    let terminated = false;
+
+    const emitError = (message) => {
+      if (terminated) return;
+      terminated = true;
+      onError?.(message);
+    };
+
+    const emitComplete = (text) => {
+      if (terminated) return;
+      terminated = true;
+      onComplete?.({ text });
+    };
 
     const cleanup = () => {
+      if (closed) return;
+      closed = true;
       for (const u of unsubs) u();
       byCorr.current.delete(corrId);
       if (jobId) byJob.current.delete(jobId);
@@ -53,6 +70,11 @@ export function useChatJob() {
       if (msg.id !== corrId) return;
       jobId = msg.jobId;
       byCorr.current.delete(corrId);
+      if (cancelRequested) {
+        wsClient.send({ type: 'job:cancel', jobId });
+        cleanup();
+        return;
+      }
       byJob.current.set(jobId, { cleanup, onError });
       onAck?.({ jobId });
     }));
@@ -67,17 +89,17 @@ export function useChatJob() {
     unsubs.push(wsClient.on('job:complete', (msg) => {
       if (!jobId || msg.jobId !== jobId) return;
       cleanup();
-      onComplete?.({ text: msg.outputs?.[0]?.text ?? '' });
+      emitComplete(msg.outputs?.[0]?.text ?? '');
     }));
 
     // job:error — matched by jobId
     unsubs.push(wsClient.on('job:error', (msg) => {
       if (!jobId || msg.jobId !== jobId) return;
       cleanup();
-      onError?.(msg.error || 'Chat job failed');
+      emitError(msg.error || 'Chat job failed');
     }));
 
-    byCorr.current.set(corrId, { cleanup, onError });
+    byCorr.current.set(corrId, { cleanup, onError: emitError });
 
     wsClient.send({
       type: 'job:submit',
@@ -88,9 +110,11 @@ export function useChatJob() {
 
     return {
       cancel: () => {
+        if (terminated) return;
+        cancelRequested = true;
+        emitError('Cancelled');
         if (jobId) wsClient.send({ type: 'job:cancel', jobId });
-        onError?.('Cancelled');
-        cleanup();
+        if (jobId) cleanup();
       },
     };
   }, []);
