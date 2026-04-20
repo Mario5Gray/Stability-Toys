@@ -284,6 +284,8 @@ Feature code should not render pane rows directly. It should receive a lightweig
 Representative shape:
 
 ```ts
+const operations = useOperationsController();
+
 const status = operations.start({
   key: 'advisor-rebuild:gal_1',
   kind: 'advisor',
