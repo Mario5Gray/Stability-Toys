@@ -3,17 +3,15 @@ import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-2xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-2xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 active:scale-95 active:brightness-90",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:opacity-90",
-        outline:
-          "border border-input bg-background hover:bg-muted/60 hover:text-foreground",
-        secondary: "bg-muted text-foreground hover:bg-muted/80",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:opacity-90",
-        ghost: "hover:bg-muted/60",
+        default: "bg-indigo-600 text-white hover:bg-indigo-500",
+        outline: "border border-gray-300 bg-indigo-700 text-white hover:bg-indigo-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700",
+        secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600",
+        destructive: "bg-red-600 text-white hover:bg-red-700",
+        ghost: "hover:bg-gray-100 dark:hover:bg-zinc-700",
       },
       size: {
         default: "h-10 px-4 py-2",

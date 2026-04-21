@@ -196,7 +196,7 @@ export default function ModeEditor({ modeState }) {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="rounded-lg border bg-indigo-300 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h3 className="font-medium">Runtime Status</h3>
@@ -244,16 +244,16 @@ export default function ModeEditor({ modeState }) {
           }
 
           return (
-            <Card key={name} className="p-4">
+            <Card key={name} className="p-4 bg-indigo-300">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ">
                   <span className="font-medium">{name}</span>
                   {isDefault && <Badge variant="secondary">default</Badge>}
                 </div>
                 <div className="flex gap-2">
                   {!isDefault && (
                     <Button variant="outline" size="sm" onClick={() => setDefaultMode(name)} disabled={editing !== null} title="Set as default">
-                      <Star className="h-4 w-4" />
+                      <Star className="h-4 w-4 fill-current" />
                     </Button>
                   )}
                   <Button variant="outline" size="sm" onClick={() => startEdit(name)} disabled={editing !== null}>
@@ -308,7 +308,7 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
   };
 
   return (
-    <Card className="p-4 border-2 border-primary space-y-4">
+    <Card className="p-4 border-2 border-primary space-y-4 bg-indigo-100">
 
       <h3 className="font-medium">{isNew ? 'New Mode' : `Editing: ${draft.name}`}</h3>
 
@@ -316,19 +316,35 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
         <div>
           <Label>Mode Name</Label>
           <Input value={draft.name} onChange={e => patch('name', e.target.value)}
-            disabled={!isNew} placeholder="my-mode" />
+            disabled={!isNew} placeholder="my-mode" className={CSS_CLASSES.SELECT_CONTENT}/>
         </div>
         <div>
           <Label>Model</Label>
-          <Select value={draft.model} onValueChange={v => patch('model', v)}>
+          <Select value={draft.model} onValueChange={v => patch('model', v)} >
             <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
               <SelectValue placeholder="Select Model"/>
               </SelectTrigger>
             <SelectContent className={CSS_CLASSES.SELECT_CONTENT}>
-              {inventory.models.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              {/* Include current value if not in inventory */}
+              {(() => {
+                const groups = {};
+                inventory.models.forEach(m => {
+                  const slash = m.indexOf('/');
+                  const grp = slash !== -1 ? m.slice(0, slash) : '';
+                  (groups[grp] = groups[grp] || []).push(m);
+                });
+                return Object.entries(groups).map(([grp, models]) => (
+                  <React.Fragment key={grp}>
+                    {grp && <div className="px-2 pt-2 pb-0.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{grp}</div>}
+                    {models.map(m => {
+                      const base = m.slice(m.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
+                      const label = base.length > 18 ? base.slice(0, 18) + '…' : base;
+                      return <SelectItem key={m} value={m}>{label}</SelectItem>;
+                    })}
+                  </React.Fragment>
+                ));
+              })()}
               {draft.model && !inventory.models.includes(draft.model) && (
-                <SelectItem value={draft.model}>{draft.model} (current)</SelectItem>
+                <SelectItem value={draft.model}>{(() => { const s = draft.model.slice(draft.model.lastIndexOf('/') + 1).replace(/\.[^.]+$/, ''); return s.length > 18 ? s.slice(0, 18) + '…' : s; })()} (current)</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -350,12 +366,14 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
         <div>
           <Label>Default Steps</Label>
           <Input type="number" min={1} max={100} value={draft.default_steps}
-            onChange={e => patch('default_steps', parseInt(e.target.value) || 1)} />
+            onChange={e => patch('default_steps', parseInt(e.target.value) || 1)} 
+            className={CSS_CLASSES.SELECT_CONTENT}/>
         </div>
         <div>
           <Label>Default Guidance</Label>
           <Input type="number" min={0} max={30} step={0.1} value={draft.default_guidance}
-            onChange={e => patch('default_guidance', parseFloat(e.target.value) || 0)} />
+            onChange={e => patch('default_guidance', parseFloat(e.target.value) || 0)} 
+            className={CSS_CLASSES.SELECT_CONTENT}/>
         </div>
       </div>
 
@@ -383,10 +401,10 @@ function ModeForm({ draft, setDraft, inventory, onSave, onCancel, saving, isNew 
             <div className="flex items-center gap-2 w-40">
               <span className="text-xs text-muted-foreground w-6">{lora.strength.toFixed(1)}</span>
               <Slider min={0} max={2} step={0.1} value={[lora.strength]}
-                onValueChange={([v]) => updateLora(idx, 'strength', v)} />
+                onValueChange={([v]) => updateLora(idx, 'strength', v)} className="bg-purple-200 fill-current" />
             </div>
-            <Button variant="ghost" size="sm" onClick={() => removeLora(idx)}>
-              <Trash2 className="h-3 w-3" />
+            <Button variant="destructive" size="sm" onClick={() => removeLora(idx)}>
+              <Trash2 className="h-5 w-5" />
             </Button>
           </div>
         ))}

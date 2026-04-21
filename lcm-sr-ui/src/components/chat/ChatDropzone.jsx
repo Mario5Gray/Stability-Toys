@@ -10,14 +10,12 @@ import { useDropIngest } from "@/hooks/useDropIngest";
  *  - addMessage
  *  - setSelectedMsgId
  *  - setUploadFile (optional; recommended so drop selects image, not upload)
- *  - onInitImageSelect (optional; persists the init image for img2img generation)
  *  - children
  */
 export function ChatDropzone({
   addMessage,
   setSelectedMsgId,
   setUploadFile,
-  onInitImageSelect,
   children,
 }) {
   const { ingestFiles } = useDropIngest({
@@ -29,22 +27,12 @@ export function ChatDropzone({
   const onDrop = useMemo(
     () => async (acceptedFiles) => {
       try {
-        // Set the first dropped file as init image for img2img
-        if (acceptedFiles.length > 0 && onInitImageSelect) {
-          const file = acceptedFiles[0];
-          try {
-            await onInitImageSelect(file);
-          } catch (persistError) {
-            console.error("[ChatDropzone] init image persistence failed:", persistError);
-          }
-        }
-        // Also run ingest (extracts embedded params from PNG metadata if present)
         await ingestFiles(acceptedFiles);
       } catch (e) {
         console.error("[ChatDropzone] ingest failed:", e);
       }
     },
-    [ingestFiles, onInitImageSelect]
+    [ingestFiles]
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -81,8 +69,8 @@ export function ChatDropzone({
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
-                <div className="font-medium">Drop to set init image</div>
-                <div className="opacity-80">Used as starting point for generation</div>
+                <div className="font-medium">Drop image to import</div>
+                <div className="opacity-80">PNG metadata will be extracted if present</div>
               </div>
             )}
           </div>

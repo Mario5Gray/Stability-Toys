@@ -39,7 +39,7 @@ export default function ModeOptions({
   return (
     <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
       <div className="space-y-1">
-        <span className="text-sm font-medium">Mode</span>
+        <span className="text-sm font-medium optionTop">Mode</span>
         <Select value={activeModeName} onValueChange={setDefaultMode} disabled={isSwitching}>
           <SelectTrigger className={CSS_CLASSES.SELECT_TRIGGER}>
             <SelectValue placeholder="Select Mode" />

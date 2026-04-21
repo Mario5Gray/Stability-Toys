@@ -51,7 +51,7 @@ export function GalleryCreatePopover({ onCreateGallery }) {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 w-56 rounded-2xl border bg-background shadow-xl p-3 space-y-2">
+        <div className="absolute top-full left-0 mt-1 z-50 w-56 rounded-2xl border bg-indigo-100 dark:bg-zinc-900 shadow-xl p-3 space-y-2">
           <Label htmlFor={inputId}>Gallery name</Label>
           <Input
             id={inputId}

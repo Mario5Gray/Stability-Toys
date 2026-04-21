@@ -32,7 +32,7 @@ export function GalleryZoomOverlay({ item, resolveImageUrl, onClose }) {
           type="button"
           aria-label="Close zoom"
           onClick={onClose}
-          className="absolute -top-2 -right-2 rounded-full bg-background border p-1 hover:bg-muted"
+          className="absolute -top-2 -right-2 rounded-full bg-purple-100 border-purple-600 p-1 hover:bg-muted"
         >
           <X className="h-4 w-4" />
         </button>
@@ -40,7 +40,7 @@ export function GalleryZoomOverlay({ item, resolveImageUrl, onClose }) {
           type="button"
           aria-label="Open in new tab"
           onClick={() => { if (url) window.open(url, '_blank'); }}
-          className="absolute -top-2 right-6 rounded-full bg-background border p-1 hover:bg-muted"
+          className="absolute -top-2 right-6 rounded-full bg-purple-100 border border-purple-600 p-1 hover:bg-muted"
         >
           <ExternalLink className="h-4 w-4" />
         </button>

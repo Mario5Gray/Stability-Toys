@@ -1,6 +1,8 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Check, RefreshCw, RotateCcw } from 'lucide-react';
 import { PanelActionBar } from '@/components/ui/PanelActionBar';
 
@@ -30,44 +32,38 @@ export function AdvisorPanel({
 
   return (
     <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
-      <Label>Advisor</Label>
+      <Label className="optionTop">Advisor</Label>
 
       <label className="flex items-center justify-between text-sm">
         <span>Auto-Advice</span>
-        <input
-          aria-label="Auto advice"
-          type="checkbox"
-          checked={Boolean(state?.auto_advice)}
-          onChange={(e) => onAutoAdviceChange(e.target.checked)}
-        />
+          <Switch aria-label="Auto advice"
+            checked={Boolean(state?.auto_advice)}
+            onCheckedChange={(e) => onAutoAdviceChange(e.target.checked)}
+          />
       </label>
 
       <div className="space-y-2">
-        <Label htmlFor="advisor-temperature">Temperature</Label>
-        <input
-          id="advisor-temperature"
+        <Label>Temperature</Label>
+        <Slider
           aria-label="Advisor temperature"
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={state?.temperature ?? 0.4}
-          onChange={(e) => onTemperatureChange(Number(e.target.value))}
+          min={0}
+          max={1}
+          step={0.05}
+          value={[state?.temperature ?? 0.4]}
+          onValueChange={([v]) => onTemperatureChange(v)}
         />
       </div>
 
       {hasMaximumLen && (
         <div className="space-y-2">
-          <Label htmlFor="advisor-length">Length</Label>
-          <input
-            id="advisor-length"
+          <Label>Length</Label>
+          <Slider
             aria-label="Advisor length"
-            type="range"
-            min="0"
+            min={0}
             max={maximumLen}
-            step="1"
-            value={state?.length_limit ?? 0}
-            onChange={(e) => onLengthChange(Number(e.target.value))}
+            step={1}
+            value={[state?.length_limit ?? 0]}
+            onValueChange={([v]) => onLengthChange(v)}
           />
         </div>
       )}
@@ -91,7 +87,7 @@ export function AdvisorPanel({
           aria-label="Apply advice mode"
           value={applyMode}
           onChange={(e) => onApplyModeChange(e.target.value)}
-          className="flex-1 h-8 rounded-lg border border-input bg-background px-2 py-1 text-sm"
+          className="flex-1 h-8 rounded-lg border border-gray-300 bg-white text-gray-800 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
           <option value="append">Append to prompt</option>
           <option value="replace">Replace prompt</option>

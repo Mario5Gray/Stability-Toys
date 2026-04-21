@@ -1,5 +1,36 @@
 @import "tailwindcss";
 
+.option-panel-area {
+  padding-top: 0 !important;
+}
+
+
+.option-panel-area > label:first-child,
+.option-panel-area > label:first-of-type {
+  display: block !important;
+  text-align: center !important;
+  padding: 0.25rem 1rem 0.25rem 1rem;
+  margin: 0 -1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.optionTop {
+  display: block !important;
+  text-align: center !important;
+  padding: 0.25rem 1rem !important;
+  margin: 0 -1rem !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  background: linear-gradient(to bottom, #818cf8, #f3e8ff) !important;
+  color: #1e1b4b !important;
+  border-radius: 1rem 1rem 0 0 !important;
+}
+
 .send-btn {
   transition: filter 120ms ease, transform 120ms ease;
 }

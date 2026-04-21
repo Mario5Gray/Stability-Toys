@@ -504,7 +504,7 @@ export function OptionsPanel({
           {/* Init Image for img2img */}
           {initImage && (
             <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
-              <div className="font-medium text-sm">Init Image</div>
+              <div className="font-medium text-sm optionTop">Init Image</div>
               <InitImagePreview initImage={initImage} onClear={onClearInitImage} />
               <StrengthSlider
                 value={denoiseStrength ?? 0.75}
@@ -514,9 +514,9 @@ export function OptionsPanel({
           )}
 
           {/* Prompt, steps, cfg, seed, resolution */}
-          <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
+          <div className="space-y-3 rounded-2xl border p-4 option-panel-area ">
           <div className="space-y-1">
-            <Label>
+            <Label className="optionTop">
               {selectedParams ? 'Draft prompt — Shift+Enter to apply' : 'Draft prompt'}
             </Label>
             <Textarea
@@ -747,7 +747,7 @@ export function OptionsPanel({
               <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
                 {negativePromptOptions.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Negative Prompt Template</Label>
+                    <Label className="optionTop">Negative Prompt Template</Label>
                     <Select
                       value={negativePromptTemplateId || undefined}
                       onValueChange={(value) => {
@@ -856,7 +856,7 @@ export function OptionsPanel({
 
           {/* Seed */}
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
-            <Label>Next Seed</Label>
+            <Label className="optionTop">Next Seed</Label>
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <Select
@@ -934,7 +934,7 @@ export function OptionsPanel({
 
           {/* Super-Resolution Upload */}
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
-            <div className="font-medium">Super-resolve an uploaded image</div>
+            <div className="text-center font-small optionTop">Super-resolve an uploaded image</div>
 
             {/* Magnitude */}
             <div className="space-y-2">
@@ -991,7 +991,7 @@ export function OptionsPanel({
 
           {/* Cache Management */}
           <div className="space-y-3 rounded-2xl border p-4 option-panel-area">
-            <div className="font-medium">Image Cache</div>
+            <div className="text-center font-tiny optionTop">Image Cache Stats</div>
             {cacheStats && (
               <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
                 <div className="flex justify-between">

@@ -6,8 +6,6 @@ import {
   buildSelectedSeedDeltaPayload,
   fetchBlobFromCandidates,
   getModeDefaultsSyncPlan,
-  getChatInitImageSuppressionKey,
-  shouldPersistSelectedChatInitImage,
 } from './App';
 
 afterEach(() => {
@@ -15,67 +13,7 @@ afterEach(() => {
 });
 
 describe('App img2img source promotion helpers', () => {
-  it('does not repersist when the active chat source matches the selected message origin', () => {
-    const activeInitImage = {
-      originType: 'chat',
-      originMessageId: 'msg-123',
-    };
-    const selectedImage = {
-      kind: 'image',
-      id: 'msg-123',
-    };
-
-    expect(shouldPersistSelectedChatInitImage(activeInitImage, selectedImage)).toBe(false);
-  });
-
-  it('does not repersist while an upload init image is active', () => {
-    const activeInitImage = {
-      originType: 'upload',
-      originMessageId: null,
-    };
-    const selectedImage = {
-      kind: 'image',
-      id: 'msg-456',
-    };
-
-    expect(shouldPersistSelectedChatInitImage(activeInitImage, selectedImage)).toBe(false);
-  });
-
-  it('does not repersist immediately after clearing the same chat image', () => {
-    const activeInitImage = null;
-    const selectedImage = {
-      kind: 'image',
-      id: 'msg-456',
-    };
-
-    expect(
-      shouldPersistSelectedChatInitImage(activeInitImage, selectedImage, 'msg-456')
-    ).toBe(false);
-  });
-
-  it('does not promote an auto-selected generated image into the init image', () => {
-    const activeInitImage = null;
-    const selectedImage = {
-      kind: 'image',
-      id: 'msg-999',
-    };
-
-    expect(
-      shouldPersistSelectedChatInitImage(activeInitImage, selectedImage, null, 'msg-999')
-    ).toBe(false);
-  });
-
-  it('derives restored chat suppression from originMessageId, not source id', () => {
-    const restoredSource = {
-      originType: 'chat',
-      id: 'persisted-row-id',
-      originMessageId: 'msg-789',
-    };
-
-    expect(getChatInitImageSuppressionKey(restoredSource)).toBe('msg-789');
-  });
-
-  it('tries later chat init image candidates when the first fetch fails', async () => {
+it('tries later chat init image candidates when the first fetch fails', async () => {
     const firstResponse = new Error('stale first candidate');
     const blob = new Blob(['chat-bytes'], { type: 'image/png' });
     const fetchSpy = vi

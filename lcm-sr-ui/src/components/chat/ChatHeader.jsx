@@ -23,7 +23,7 @@ export function ChatHeader({
 
   return (
     <SurfaceHeader
-      title="LCM + SR Chat"
+      title="[ N Ξ U R Ø   C Λ N V Λ S ]"
       chips={chips}
       summary={UI_MESSAGES.KEYBOARD_TIP}
     />

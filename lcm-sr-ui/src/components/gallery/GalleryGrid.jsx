@@ -56,9 +56,9 @@ function GalleryThumbnail({
   }
 
   const ringClass = selected
-    ? 'ring-2 ring-primary'
+    ? 'ring-2 ring-indigo-300'
     : isAnchor
-      ? 'ring-2 ring-primary/40'
+      ? 'ring-2 ring-indigo-100'
       : '';
 
   return (
@@ -80,7 +80,7 @@ function GalleryThumbnail({
       {selected && (
         <div
           aria-hidden="true"
-          className="absolute top-1 left-1 rounded-full bg-primary text-primary-foreground h-5 w-5 flex items-center justify-center text-xs"
+          className="absolute top-1 left-1 rounded-full bg-indigo-300 text-indigo-900 h-5 w-5 flex items-center justify-center text-xs font-bold"
         >
           ✓
         </div>
@@ -178,7 +178,7 @@ export function GalleryGrid({
       <div className="flex items-center justify-center gap-4 text-sm">
         <button
           type="button"
-          className="px-3 py-1 rounded border disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted"
+          className="px-3 py-5 rounded border disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted"
           disabled={page === 0}
           onClick={() => setPage((p) => p - 1)}
           aria-label="Prev"

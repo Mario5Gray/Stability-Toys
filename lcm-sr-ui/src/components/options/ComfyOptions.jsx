@@ -147,7 +147,7 @@ export function ComfyOptions({
 
   return (
     <div className="option-panel-area space-y-3 rounded-2xl border p-4">
-      <Label className="text-base font-semibold">ComfyUI Workflow</Label>
+      <Label className="text-base font-semibold optionTop">ComfyUI Workflow</Label>
 
       {/* Progress */}
       <div className="flex w-full gap-2 w-full bg-neutral-quaternary rounded-full h-2">

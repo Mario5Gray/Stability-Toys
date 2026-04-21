@@ -34,26 +34,6 @@ import { GalleryCreatePopover } from './components/gallery/GalleryCreatePopover'
 import { GalleryLightbox } from './components/gallery/GalleryLightbox';
 import { getFrontendVersion } from './utils/version';
 
-export function shouldPersistSelectedChatInitImage(
-  activeInitImage,
-  selectedImage,
-  suppressedOriginMessageId = null,
-  autoSelectedMessageId = null
-) {
-  if (!selectedImage || selectedImage.kind !== 'image') return false;
-  if (suppressedOriginMessageId && suppressedOriginMessageId === selectedImage.id) return false;
-  if (autoSelectedMessageId && autoSelectedMessageId === selectedImage.id) return false;
-  if (activeInitImage?.originType === 'upload') return false;
-  if (activeInitImage?.originType === 'chat' && activeInitImage?.originMessageId === selectedImage.id) {
-    return false;
-  }
-  return true;
-}
-
-export function getChatInitImageSuppressionKey(source) {
-  if (!source || source.originType !== 'chat') return null;
-  return source.originMessageId ?? null;
-}
 
 export async function fetchBlobFromCandidates(candidateUrls) {
   const urls = Array.from(new Set((candidateUrls || []).filter(Boolean)));
@@ -203,10 +183,8 @@ export default function App() {
     deleteMessage,
     createErrorMessage,
   } = chatState;
-  const autoSelectedMessageIdRef = useRef(null);
   const handleGenerationAutoSelect = useCallback(
     (id) => {
-      autoSelectedMessageIdRef.current = id;
       setSelectedMsgId(id);
     },
     [setSelectedMsgId]
@@ -321,7 +299,6 @@ export default function App() {
     DEFAULT_IMG2IMG_DENOISE_STRENGTH
   );
   const initImageRef = useRef(initImage);
-  const chatPromotionRef = useRef(null);
 
   useEffect(() => {
     initImageRef.current = initImage;
@@ -364,7 +341,6 @@ export default function App() {
       const nextDefault =
         restored.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      chatPromotionRef.current = getChatInitImageSuppressionKey(restored);
     };
 
     restoreActiveInitImage();
@@ -397,7 +373,6 @@ export default function App() {
       setActiveSourceId(row.id);
       const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
       setSourceDefaultDenoiseStrength(nextDefault);
-      chatPromotionRef.current = null;
       updateInitImage({
         sourceId: row.id,
         originType: row.originType,
@@ -413,89 +388,11 @@ export default function App() {
   );
 
   const clearInitImage = useCallback(async () => {
-    const nextSuppressionKey = initImage?.originMessageId ?? null;
     updateInitImage(null);
     setSourceDefaultDenoiseStrength(DEFAULT_IMG2IMG_DENOISE_STRENGTH);
-    chatPromotionRef.current = nextSuppressionKey;
     await clearActiveSource();
-  }, [initImage, updateInitImage]);
+  }, [updateInitImage]);
 
-  const persistChatInitImage = useCallback(
-    async (selectedImage) => {
-      if (!selectedImage || selectedImage.kind !== 'image') return null;
-      if (chatPromotionRef.current === selectedImage.id) {
-        return null;
-      }
-
-      const cacheUrl = selectedImage.params
-        ? await getImageFromCache(selectedImage.params)
-        : null;
-      const { blob, resolvedUrl } = await fetchBlobFromCandidates([
-        selectedImage.serverImageUrl,
-        selectedImage.imageUrl,
-        cacheUrl,
-      ]);
-      const filename = `chat_${selectedImage.id}.png`;
-      const serverImageUrl = selectedImage.serverImageUrl || (
-        typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')
-          ? resolvedUrl
-          : null
-      );
-      const row = await saveSource({
-        originType: 'chat',
-        originMessageId: selectedImage.id,
-        blob,
-        mimeType: blob.type || 'image/png',
-        filename,
-        cacheKey: selectedImage.meta?.cacheKey || null,
-        serverImageUrl,
-        defaultDenoiseStrength: DEFAULT_IMG2IMG_DENOISE_STRENGTH,
-      });
-
-      setActiveSourceId(row.id);
-      const nextDefault = row.defaultDenoiseStrength ?? DEFAULT_IMG2IMG_DENOISE_STRENGTH;
-      setSourceDefaultDenoiseStrength(nextDefault);
-      chatPromotionRef.current = selectedImage.id;
-
-      const file = new File([blob], row.filename, { type: row.mimeType });
-      updateInitImage({
-        sourceId: row.id,
-        originType: row.originType,
-        originMessageId: selectedImage.id,
-        file,
-        objectUrl: URL.createObjectURL(blob),
-        filename: row.filename,
-        cacheKey: row.cacheKey ?? null,
-        serverImageUrl: row.serverImageUrl ?? null,
-      });
-
-      return { row, file };
-    },
-    [getImageFromCache, updateInitImage]
-  );
-
-  useEffect(() => {
-    const activeInitImage = initImageRef.current;
-    if (!shouldPersistSelectedChatInitImage(
-      activeInitImage,
-      selectedMsg,
-      chatPromotionRef.current,
-      autoSelectedMessageIdRef.current
-    )) return;
-
-    void persistChatInitImage(selectedMsg).catch((err) => {
-      console.error('[App] Failed to persist chat init image:', err);
-    });
-  }, [
-    selectedMsg,
-    selectedMsgId,
-    selectedMsg?.kind,
-    selectedMsg?.imageUrl,
-    selectedMsg?.serverImageUrl,
-    selectedMsg?.params,
-    selectedMsg?.meta?.cacheKey,
-    persistChatInitImage,
-  ]);
 
   // Copy feedback
   const [copied, setCopied] = useState(false);
@@ -763,7 +660,6 @@ export default function App() {
   }, [selectedMsgId, selectedParams, clearSelection]);
 
   const handleToggleSelectMsg = useCallback((id) => {
-    autoSelectedMessageIdRef.current = null;
     setBlurredSelection(null);
     toggleSelectMsg(id);
   }, [toggleSelectMsg]);
@@ -877,7 +773,6 @@ export default function App() {
         addMessage={addMessage}
         setSelectedMsgId={setSelectedMsgId}
         setUploadFile={setUploadFile}
-        onInitImageSelect={persistInitImageSelection}
       >       
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">

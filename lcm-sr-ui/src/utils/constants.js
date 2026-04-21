@@ -177,7 +177,7 @@ export const DEBOUNCE_CONFIG = {
  * CSS CLASSES (Reusable)
  * ========================================================================== */
 export const CSS_CLASSES = {
-  SELECT_TRIGGER: "rounded-2xl bg-background text-foreground shadow-sm border",
+  SELECT_TRIGGER: "rounded-2xl bg-purple-200 text-foreground shadow-sm border",
   SELECT_CONTENT: "!bg-white !text-black !opacity-100 shadow-xl border border-black/10",
   SELECT_ITEM: "!bg-white !text-black data-[highlighted]:!bg-black/5",
   INPUT: "rounded-2xl bg-background text-foreground shadow-sm border",
