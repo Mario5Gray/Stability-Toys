@@ -1,6 +1,6 @@
 # Operations Surface Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace scattered animated status labels and ad-hoc action rows with a unified `OperationsProvider` context, `PanelActionBar`, `PendingOperationsPane`, and `SurfaceHeader` primitives wired into the advisor and generation lifecycles.
 
@@ -42,7 +42,7 @@
 - Create: `lcm-sr-ui/src/contexts/OperationsContext.jsx`
 - Create: `lcm-sr-ui/src/contexts/OperationsContext.test.jsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```jsx
 // lcm-sr-ui/src/contexts/OperationsContext.test.jsx
@@ -144,14 +144,14 @@ describe('OperationsContext', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests, confirm failure**
+- [x] **Step 2: Run tests, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/contexts/OperationsContext.test.jsx
 ```
 Expected: `FAIL` — module not found.
 
-- [ ] **Step 3: Implement OperationsContext**
+- [x] **Step 3: Implement OperationsContext**
 
 ```jsx
 // lcm-sr-ui/src/contexts/OperationsContext.jsx
@@ -282,14 +282,14 @@ export function useOperationsController() {
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/contexts/OperationsContext.test.jsx
 ```
 Expected: all 7 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/contexts/OperationsContext.jsx lcm-sr-ui/src/contexts/OperationsContext.test.jsx
@@ -304,7 +304,7 @@ git commit -m "feat: add OperationsContext — store, controller, status handle 
 - Create: `lcm-sr-ui/src/components/ui/PanelActionBar.jsx`
 - Create: `lcm-sr-ui/src/components/ui/PanelActionBar.test.jsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/PanelActionBar.test.jsx
@@ -363,14 +363,14 @@ describe('PanelActionBar', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests, confirm failure**
+- [x] **Step 2: Run tests, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/PanelActionBar.test.jsx
 ```
 Expected: `FAIL` — module not found.
 
-- [ ] **Step 3: Implement PanelActionBar**
+- [x] **Step 3: Implement PanelActionBar**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/PanelActionBar.jsx
@@ -417,14 +417,14 @@ export function PanelActionBar({ primary, secondary = [] }) {
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/PanelActionBar.test.jsx
 ```
 Expected: all 6 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/ui/PanelActionBar.jsx lcm-sr-ui/src/components/ui/PanelActionBar.test.jsx
@@ -439,7 +439,7 @@ git commit -m "feat: add PanelActionBar — primary/secondary action footer prim
 - Create: `lcm-sr-ui/src/components/ui/PendingOperationsPane.jsx`
 - Create: `lcm-sr-ui/src/components/ui/PendingOperationsPane.test.jsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/PendingOperationsPane.test.jsx
@@ -524,14 +524,14 @@ describe('PendingOperationsPane', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests, confirm failure**
+- [x] **Step 2: Run tests, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/PendingOperationsPane.test.jsx
 ```
 Expected: `FAIL` — module not found.
 
-- [ ] **Step 3: Implement PendingOperationsPane**
+- [x] **Step 3: Implement PendingOperationsPane**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/PendingOperationsPane.jsx
@@ -596,14 +596,14 @@ export function PendingOperationsPane() {
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/PendingOperationsPane.test.jsx
 ```
 Expected: all 6 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/ui/PendingOperationsPane.jsx lcm-sr-ui/src/components/ui/PendingOperationsPane.test.jsx
@@ -618,7 +618,7 @@ git commit -m "feat: add PendingOperationsPane — operations display surface wi
 - Create: `lcm-sr-ui/src/components/ui/SurfaceHeader.jsx`
 - Create: `lcm-sr-ui/src/components/ui/SurfaceHeader.test.jsx`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/SurfaceHeader.test.jsx
@@ -665,14 +665,14 @@ describe('SurfaceHeader', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests, confirm failure**
+- [x] **Step 2: Run tests, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/SurfaceHeader.test.jsx
 ```
 Expected: `FAIL` — module not found.
 
-- [ ] **Step 3: Implement SurfaceHeader**
+- [x] **Step 3: Implement SurfaceHeader**
 
 ```jsx
 // lcm-sr-ui/src/components/ui/SurfaceHeader.jsx
@@ -702,14 +702,14 @@ export function SurfaceHeader({ title, chips = [], summary }) {
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/ui/SurfaceHeader.test.jsx
 ```
 Expected: all 4 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/ui/SurfaceHeader.jsx lcm-sr-ui/src/components/ui/SurfaceHeader.test.jsx
@@ -727,7 +727,7 @@ git commit -m "feat: add SurfaceHeader — calm title/chip/summary primitive"
 
 The current `AdvisorPanel.jsx` has three equal-weight buttons in a `flex gap-2` row (lines 95–105) and `Building digest...` animated status text (lines 65–73). Replace with `PanelActionBar`. Group Apply Mode select adjacent to the Apply action in the footer region. Remove `Building digest...` — local status shows only durable state (last-updated timestamp or error text).
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```jsx
 // Add to a new file: lcm-sr-ui/src/components/options/AdvisorPanel.test.jsx
@@ -790,14 +790,14 @@ describe('AdvisorPanel', () => {
 });
 ```
 
-- [ ] **Step 2: Run test, confirm failure**
+- [x] **Step 2: Run test, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/options/AdvisorPanel.test.jsx
 ```
 Expected: `FAIL` — test file not found or existing panel renders the old markup.
 
-- [ ] **Step 3: Rewrite AdvisorPanel.jsx**
+- [x] **Step 3: Rewrite AdvisorPanel.jsx**
 
 Replace the entire file with the following. Key changes from current:
 - `flex gap-2` three-button row → `PanelActionBar`
@@ -935,14 +935,14 @@ export function AdvisorPanel({
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/options/AdvisorPanel.test.jsx
 ```
 Expected: all 5 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/options/AdvisorPanel.jsx lcm-sr-ui/src/components/options/AdvisorPanel.test.jsx
@@ -959,7 +959,7 @@ git commit -m "feat: migrate AdvisorPanel to PanelActionBar — primary/secondar
 
 `rebuildAdvisor` currently goes through `building` → `fresh`/`error` entirely in local state. Wire it into the operations store so a keyed operation appears in `PendingOperationsPane` during rebuild.
 
-- [ ] **Step 1: Update existing tests to add OperationsProvider wrapper**
+- [x] **Step 1: Update existing tests to add OperationsProvider wrapper**
 
 The existing tests in `useGalleryAdvisor.test.jsx` call `renderHook(() => useGalleryAdvisor(...))` without any wrapper. After adding `useOperationsController()` to the hook, this will throw. Wrap each `renderHook` call with `OperationsProvider`:
 
@@ -994,7 +994,7 @@ const { result, rerender } = renderHook((props) => useGalleryAdvisor(props), {
 });
 ```
 
-- [ ] **Step 2: Write a new failing test for operations-store integration**
+- [x] **Step 2: Write a new failing test for operations-store integration**
 
 Add after the existing tests in `useGalleryAdvisor.test.jsx`:
 
@@ -1029,14 +1029,14 @@ it('rebuildAdvisor creates an active operation and completes it on success', asy
 });
 ```
 
-- [ ] **Step 3: Run tests, confirm the new test fails (existing tests now pass with wrapper)**
+- [x] **Step 3: Run tests, confirm the new test fails (existing tests now pass with wrapper)**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/hooks/useGalleryAdvisor.test.jsx
 ```
 Expected: 3 existing tests pass (with updated wrapper), new integration test fails.
 
-- [ ] **Step 4: Add useOperationsController to useGalleryAdvisor**
+- [x] **Step 4: Add useOperationsController to useGalleryAdvisor**
 
 In `lcm-sr-ui/src/hooks/useGalleryAdvisor.js`:
 
@@ -1106,14 +1106,14 @@ const rebuildAdvisor = useCallback(async () => {
 }, [api, evidence, galleryId, galleryRevision, maximumLen, modeName, persistState, state, startOperation]);
 ```
 
-- [ ] **Step 5: Run tests, confirm all pass**
+- [x] **Step 5: Run tests, confirm all pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/hooks/useGalleryAdvisor.test.jsx
 ```
 Expected: all 4 tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lcm-sr-ui/src/hooks/useGalleryAdvisor.js lcm-sr-ui/src/hooks/useGalleryAdvisor.test.jsx
@@ -1131,7 +1131,7 @@ git commit -m "feat: wire advisor rebuild into operations store — keyed status
 
 `useImageGeneration` and `useGalleryAdvisor` (called inside `App`) both call `useOperationsController()`. The provider must be above `App` in the tree so these hooks can read context.
 
-- [ ] **Step 1: Add OperationsProvider to main.jsx**
+- [x] **Step 1: Add OperationsProvider to main.jsx**
 
 ```jsx
 // lcm-sr-ui/src/main.jsx  (full file)
@@ -1177,14 +1177,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 );
 ```
 
-- [ ] **Step 2: Run full test suite, confirm no regressions**
+- [x] **Step 2: Run full test suite, confirm no regressions**
 
 ```bash
 cd lcm-sr-ui && npm test
 ```
 Expected: all tests pass. `App.test.jsx` may need `OperationsProvider` in its render wrapper — if so, add it to `App.test.jsx` the same way (wrap render in `<OperationsProvider>`).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lcm-sr-ui/src/main.jsx
@@ -1201,7 +1201,7 @@ git commit -m "feat: mount OperationsProvider in app shell"
 
 Current `ChatHeader` has an `isDreaming` animated badge with `animate-pulse`. Replace with `SurfaceHeader`. Remove the dream badge — dream state is represented in `PendingOperationsPane` after Task 10.
 
-- [ ] **Step 1: Update ChatHeader.test.jsx with new assertions**
+- [x] **Step 1: Update ChatHeader.test.jsx with new assertions**
 
 Replace the existing test file:
 
@@ -1242,14 +1242,14 @@ describe('ChatHeader', () => {
 });
 ```
 
-- [ ] **Step 2: Run test, confirm failure** (current header still has dream badge code)
+- [x] **Step 2: Run test, confirm failure** (current header still has dream badge code)
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/chat/ChatHeader.test.jsx
 ```
 Expected: animate-pulse test fails.
 
-- [ ] **Step 3: Rewrite ChatHeader.jsx**
+- [x] **Step 3: Rewrite ChatHeader.jsx**
 
 ```jsx
 // lcm-sr-ui/src/components/chat/ChatHeader.jsx
@@ -1278,14 +1278,14 @@ export function ChatHeader({ srLevel, frontendVersion, backendVersion }) {
 }
 ```
 
-- [ ] **Step 4: Run tests, confirm pass**
+- [x] **Step 4: Run tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/chat/ChatHeader.test.jsx
 ```
 Expected: all 4 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/chat/ChatHeader.jsx lcm-sr-ui/src/components/chat/ChatHeader.test.jsx
@@ -1303,7 +1303,7 @@ Two changes:
 1. Replace the `[]` sticky strip placeholder (line 56-58) with `<PendingOperationsPane />`.
 2. Remove props no longer passed to `ChatHeader`: `isDreaming`, `inflightCount`, `onCopyPrompt`, `copied` (they were vestigial in the header). The `isDreaming` prop stays in `ChatContainer`'s own props because it still flows to each `MessageBubble` as `isDreamMessage`.
 
-- [ ] **Step 1: Update ChatContainer.jsx**
+- [x] **Step 1: Update ChatContainer.jsx**
 
 Replace the file:
 
@@ -1405,14 +1405,14 @@ export function ChatContainer({
 }
 ```
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 ```bash
 cd lcm-sr-ui && npm test
 ```
 Expected: all tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/chat/ChatContainer.jsx
@@ -1436,7 +1436,7 @@ Wire four lifecycle paths into the operations store:
 
 The dream handle is held in a `useRef` so it survives across `startDreaming`/`stopDreaming` calls without needing to be in the dependency arrays of every dream callback.
 
-- [ ] **Step 1: Add import and controller call**
+- [x] **Step 1: Add import and controller call**
 
 At the top of `useImageGeneration.js`, add the import:
 
@@ -1451,7 +1451,7 @@ const { start: startOperation } = useOperationsController();
 const dreamStatusRef = useRef(null);
 ```
 
-- [ ] **Step 2: Wire generation operations into runGenerate**
+- [x] **Step 2: Wire generation operations into runGenerate**
 
 Inside the `runGenerate` `useCallback`, immediately after the `const assistantId = ...` line and before the `if (targetMessageId)` block, add:
 
@@ -1485,7 +1485,7 @@ Add `startOperation` to `runGenerate`'s `useCallback` deps array:
 [api, cache, addMessage, updateMessage, setSelectedMsgId, scheduleHydration, linkMsgToCacheKey, startOperation]
 ```
 
-- [ ] **Step 3: Wire dream lifecycle**
+- [x] **Step 3: Wire dream lifecycle**
 
 Replace `startDreaming` with:
 
@@ -1571,14 +1571,14 @@ const saveDreamAndContinue = useCallback(() => {
 }, [isDreaming, runDreamCycle, restartDreamInterval, startOperation]);
 ```
 
-- [ ] **Step 4: Run full test suite**
+- [x] **Step 4: Run full test suite**
 
 ```bash
 cd lcm-sr-ui && npm test
 ```
 Expected: all tests pass. (useImageGeneration has no direct unit tests but the App integration tests should still pass.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/hooks/useImageGeneration.js
@@ -1594,7 +1594,7 @@ git commit -m "feat: wire dream and generation lifecycle into operations store"
 
 Remove the animated `dreaming` and `generating` badge overlay (lines 286–299 in current file). Dream mode and generation activity are now represented in `PendingOperationsPane`, not on image content.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 In `MessageBubble.gallery.test.jsx` (or a new `MessageBubble.badges.test.jsx`), add:
 
@@ -1650,14 +1650,14 @@ describe('MessageBubble animated badges', () => {
 });
 ```
 
-- [ ] **Step 2: Run test, confirm failure**
+- [x] **Step 2: Run test, confirm failure**
 
 ```bash
 cd lcm-sr-ui && npx vitest run src/components/chat/MessageBubble.badges.test.jsx
 ```
 Expected: `FAIL` — `animate-pulse` elements found.
 
-- [ ] **Step 3: Remove animated badge overlay from MessageBubble.jsx**
+- [x] **Step 3: Remove animated badge overlay from MessageBubble.jsx**
 
 Locate and remove the following block (currently after the `<img>` element, inside the `image-frame` div):
 
@@ -1681,14 +1681,14 @@ Locate and remove the following block (currently after the `<img>` element, insi
 
 Do not remove anything else — dream history navigation (`hasDreamHistory` controls), double-click handler (`isDreamMessage && onDreamSave`), or cursor styling (`isDreamMessage ? 'cursor-pointer' : ''`) must all remain.
 
-- [ ] **Step 4: Run all tests, confirm pass**
+- [x] **Step 4: Run all tests, confirm pass**
 
 ```bash
 cd lcm-sr-ui && npm test
 ```
 Expected: all tests pass including the new badge tests and existing `MessageBubble.gallery.test.jsx`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lcm-sr-ui/src/components/chat/MessageBubble.jsx lcm-sr-ui/src/components/chat/MessageBubble.badges.test.jsx
@@ -1711,9 +1711,9 @@ Phase 4 depends on the backend emitting structured progress events from `callbac
 
 Before calling this complete:
 
-- [ ] Advisor footer actions remain legible and inside bounds at 360px width (visually verify in browser)
-- [ ] First-time user can identify all Advisor footer actions as buttons without hovering
-- [ ] Active work (dream mode, rebuild) appears in the sticky pane, not as animated labels on image content or in the header
-- [ ] Removing an animated badge from MessageBubble has not broken dream history navigation (prev/next/live buttons still work)
-- [ ] Generation and advisor status can be updated through handles without any direct pane rendering
-- [ ] Running `npm test` passes all tests with zero failures
+- [x] Advisor footer actions remain legible and inside bounds at 360px width (visually verify in browser)
+- [x] First-time user can identify all Advisor footer actions as buttons without hovering
+- [x] Active work (dream mode, rebuild) appears in the sticky pane, not as animated labels on image content or in the header
+- [x] Removing an animated badge from MessageBubble has not broken dream history navigation (prev/next/live buttons still work)
+- [x] Generation and advisor status can be updated through handles without any direct pane rendering
+- [x] Running `npm test` passes all tests with zero failures
