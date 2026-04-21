@@ -579,7 +579,12 @@ class ModeConfigManager:
                     for lora in loras
                 ]
             cn_policy = mode_data.get("controlnet_policy") or {}
-            if cn_policy.get("enabled") or cn_policy.get("allowed_control_types"):
+            if (
+                cn_policy.get("enabled")
+                or cn_policy.get("max_attachments", 0) != 0
+                or cn_policy.get("allow_reuse_emitted_maps", False)
+                or cn_policy.get("allowed_control_types")
+            ):
                 mode_entry["controlnet_policy"] = {
                     "enabled": cn_policy.get("enabled", False),
                     "max_attachments": cn_policy.get("max_attachments", 0),

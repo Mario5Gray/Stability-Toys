@@ -15,7 +15,7 @@ class ControlNetAttachment(BaseModel):
     map_asset_ref: Optional[str] = Field(default=None)
     source_asset_ref: Optional[str] = Field(default=None)
     preprocess: Optional[ControlNetPreprocessRequest] = Field(default=None)
-    strength: float = Field(default=1.0, ge=0.0, le=2.0)
+    strength: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     start_percent: float = Field(default=0.0, ge=0.0, le=1.0)
     end_percent: float = Field(default=1.0, ge=0.0, le=1.0)
 

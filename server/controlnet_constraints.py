@@ -41,11 +41,15 @@ def enforce_controlnet_policy(req: Any, mode: Any) -> None:
                     f"in mode '{mode.name}' (no default configured)"
                 )
             attachment.model_id = type_policy.default_model_id
-        elif attachment.model_id not in type_policy.allowed_model_ids:
+
+        if type_policy.allowed_model_ids and attachment.model_id not in type_policy.allowed_model_ids:
             raise ValueError(
                 f"model_id '{attachment.model_id}' not allowed for control_type "
                 f"'{attachment.control_type}' in mode '{mode.name}'"
             )
+
+        if attachment.strength is None:
+            attachment.strength = type_policy.default_strength
 
         if not (type_policy.min_strength <= attachment.strength <= type_policy.max_strength):
             raise ValueError(

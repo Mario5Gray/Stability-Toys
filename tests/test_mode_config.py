@@ -1116,3 +1116,36 @@ modes:
     canny = policy.allowed_control_types["canny"]
     assert canny.default_model_id == "sdxl-canny"
     assert canny.max_strength == 1.5
+
+
+def test_save_config_preserves_disabled_nondefault_controlnet_policy_round_trip(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    cfg = tmp_path / "modes.yml"
+    cfg.write_text(
+        """
+model_root: /models
+lora_root: /models/loras
+default_mode: sdxl-cn
+resolution_sets:
+  default:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  sdxl-cn:
+    model: checkpoints/sdxl.safetensors
+    default_size: 1024x1024
+    controlnet_policy:
+      enabled: false
+      max_attachments: 2
+      allow_reuse_emitted_maps: true
+"""
+    )
+    mgr = ModeConfigManager(config_path=str(tmp_path))
+    mgr.save_config(mgr.to_dict())
+    reloaded = mgr.config.modes["sdxl-cn"]
+    policy = reloaded.controlnet_policy
+    assert policy.enabled is False
+    assert policy.max_attachments == 2
+    assert policy.allow_reuse_emitted_maps is True
+    assert policy.allowed_control_types == {}

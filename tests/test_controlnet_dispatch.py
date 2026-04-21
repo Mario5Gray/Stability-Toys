@@ -85,3 +85,44 @@ async def test_ws_run_generate_rejects_controlnets_on_non_mode_system():
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
     assert errors, "expected a job:error message"
     assert "ControlNet provider not yet implemented" in errors[0]["error"]
+
+
+async def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_current_mode():
+    """Mode-system WS pre-submit path must still 501-stub when no model is loaded."""
+    import server.ws_routes as ws
+
+    mock_ws = MagicMock()
+    mock_state = MagicMock()
+    mock_state.use_mode_system = True
+    mock_state.worker_pool.get_current_mode.return_value = None
+    mock_ws.app.state = mock_state
+
+    sent_messages = []
+
+    async def fake_send(client_id, msg):
+        sent_messages.append(msg)
+
+    with patch.object(ws.hub, "send", side_effect=fake_send):
+        with patch("server.ws_routes._get_app_state", return_value=mock_state):
+            await ws.handle_job_submit(
+                mock_ws,
+                {
+                    "id": "corr1",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "controlnets": [
+                            {
+                                "attachment_id": "cn_1",
+                                "control_type": "canny",
+                                "map_asset_ref": "asset_a",
+                            }
+                        ],
+                    },
+                },
+                "client1",
+            )
+
+    errors = [m for m in sent_messages if m.get("type") == "job:error"]
+    assert errors, "expected a job:error message"
+    assert "ControlNet provider not yet implemented" in errors[0]["error"]

@@ -149,6 +149,31 @@ def test_rejects_preprocess_when_type_policy_forbids():
         enforce_controlnet_policy(_req([att]), _make_mode(policy))
 
 
+def test_applies_default_strength_when_omitted():
+    att = ControlNetAttachment(
+        attachment_id="cn_1",
+        control_type="canny",
+        map_asset_ref="asset_a",
+        model_id="sdxl-canny",
+    )
+    req = _req([att])
+    enforce_controlnet_policy(req, _make_mode(_canny_policy()))
+    assert req.controlnets[0].strength == 0.8
+
+
+def test_explicit_strength_not_overridden_by_default():
+    att = ControlNetAttachment(
+        attachment_id="cn_1",
+        control_type="canny",
+        map_asset_ref="asset_a",
+        model_id="sdxl-canny",
+        strength=0.5,
+    )
+    req = _req([att])
+    enforce_controlnet_policy(req, _make_mode(_canny_policy()))
+    assert req.controlnets[0].strength == 0.5
+
+
 def test_valid_attachment_passes_through_unchanged():
     att = ControlNetAttachment(
         attachment_id="cn_1",
@@ -163,6 +188,18 @@ def test_valid_attachment_passes_through_unchanged():
     enforce_controlnet_policy(req, _make_mode(_canny_policy()))
     assert req.controlnets[0].model_id == "sdxl-canny"
     assert req.controlnets[0].end_percent == 0.75
+
+
+def test_rejects_misconfigured_default_model_id_not_in_allowed():
+    policy = _canny_policy()
+    policy.allowed_control_types["canny"].default_model_id = "rogue-default"
+    att = ControlNetAttachment(
+        attachment_id="cn_1",
+        control_type="canny",
+        map_asset_ref="asset_a",
+    )
+    with pytest.raises(ValueError, match="model_id 'rogue-default'"):
+        enforce_controlnet_policy(_req([att]), _make_mode(policy))
 
 
 def test_dispatch_stub_rejects_validated_controlnets():
