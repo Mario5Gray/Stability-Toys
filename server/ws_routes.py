@@ -146,6 +146,10 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                     env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
                     env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
                 )
+                from server.controlnet_constraints import enforce_controlnet_policy
+                enforce_controlnet_policy(req, mode)
+            from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+            ensure_controlnet_dispatch_supported(req)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
@@ -294,6 +298,7 @@ def _build_generate_request(params: dict):
         superres=params.get("superres", False),
         superres_magnitude=params.get("superres_magnitude", 2),
         denoise_strength=params.get("denoise_strength", 0.75),
+        controlnets=params.get("controlnets"),
     )
 
 
@@ -489,6 +494,9 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
     try:
         state = _get_app_state(ws)
         req = _build_generate_request(params)
+
+        from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+        ensure_controlnet_dispatch_supported(req)
 
         # Resolve optional init image reference
         init_image_bytes = None

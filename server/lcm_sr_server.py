@@ -56,6 +56,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel, Field
+from server.controlnet_models import ControlNetAttachment
 
 from transformers import CLIPTokenizer
 from server.comfy_routes import router as comfy_router
@@ -142,6 +143,10 @@ class GenerateRequest(BaseModel):
         ge=0.01,
         le=1.0,
         description="Denoise strength for img2img (0.01=keep image, 1.0=fully regenerate).",
+    )
+    controlnets: Optional[List[ControlNetAttachment]] = Field(
+        default=None,
+        description="Optional list of ControlNet attachments; validated against the active mode's controlnet_policy.",
     )
 
 # -----------------------------
@@ -527,6 +532,18 @@ def generate(req: GenerateRequest):
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+
+        try:
+            from server.controlnet_constraints import enforce_controlnet_policy
+            enforce_controlnet_policy(req, mode)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+        ensure_controlnet_dispatch_supported(req)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
 
     try:
         fut = runtime.submit_generate(req, timeout_s=0.25)
