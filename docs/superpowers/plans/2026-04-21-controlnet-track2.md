@@ -69,7 +69,7 @@ Use this section during review completion to decide what can start immediately, 
 | Create   | `server/controlnet_preprocessing.py` | `preprocess_controlnet_attachments()` — drive preprocessing per-request |
 | Modify   | `server/controlnet_models.py`         | Add `ControlNetArtifactRef` response model                              |
 | Modify   | `server/lcm_sr_server.py`             | Run preprocessing before stub; include artifacts in 501 detail          |
-| Modify   | `server/ws_routes.py`                 | Run preprocessing; include artifacts in `job:error` + `job:complete`    |
+| Modify   | `server/ws_routes.py`                 | Run preprocessing; include artifacts in `job:error`; foundation wired for `job:complete` (full emission: Track 3) |
 | Create   | `tests/test_asset_store.py`           | AssetStore core + eviction + pinning                                    |
 | Create   | `tests/test_controlnet_preprocessors.py` | Protocol, registry, canny happy/fail, depth happy/fail              |
 | Create   | `tests/test_controlnet_preprocessing.py` | `preprocess_controlnet_attachments` — happy path + error cases       |
@@ -1272,22 +1272,47 @@ except NotImplementedError as e:
 
 The second block lives outside the `if current_mode:` scope.
 
-- [ ] **Step 1: Write a deterministic seam test for artifact surfacing in the 501 response**
+- [ ] **Step 1a: Keep the existing seam test — it already lives in `tests/test_controlnet_preprocessing.py`**
 
-This test exercises the seam between preprocessing and the stub dispatch by calling the HTTP-handler logic directly on a fake request, bypassing the mode system entirely. No `TestClient`, no ambient config.
+The two tests added in Task 8 (`test_preprocessing_emits_artifact_with_correct_metadata` and `test_preprocessing_propagates_resolution_failure`) verify `preprocess_controlnet_attachments` in isolation. They should already pass at this point. No changes needed.
 
-Append to `tests/test_controlnet_preprocessing.py`:
+Run to confirm:
+
+```
+python -m pytest tests/test_controlnet_preprocessing.py -q
+```
+
+Expected: passes. If they fail, debug Task 8 before continuing.
+
+- [ ] **Step 1b: Write the HTTP contract test — verifies `lcm_sr_server.py` wires preprocessing into the 501 detail**
+
+This test uses `TestClient` but with all external dependencies mocked explicitly — no ambient mode system, no real worker pool, no model files. It is marked `@pytest.mark.integration` to allow CI to skip it in unit-only runs, but it is fully deterministic.
+
+Create `tests/test_controlnet_http_contract.py`:
 
 ```python
+# tests/test_controlnet_http_contract.py
+"""
+Integration contract tests for ControlNet wiring in lcm_sr_server.py.
+
+All external dependencies (mode config, asset store, preprocessor registry,
+worker pool) are mocked explicitly. Tests are deterministic.
+
+Run with: pytest tests/test_controlnet_http_contract.py -v
+Skip in unit-only CI: pytest -m "not integration"
+"""
 import io
 import pytest
 from unittest.mock import MagicMock, patch
+from fastapi.testclient import TestClient
 from PIL import Image as PILImage
 
-from server.controlnet_models import ControlNetAttachment, ControlNetPreprocessRequest
 from server.controlnet_preprocessors import ControlMapResult
-from server.controlnet_preprocessing import preprocess_controlnet_attachments
-from server.asset_store import AssetStore
+from server.mode_config import (
+    ControlNetControlTypePolicy,
+    ControlNetPolicy,
+    ModeConfig,
+)
 
 
 def _make_png(w: int = 8, h: int = 8) -> bytes:
@@ -1296,72 +1321,153 @@ def _make_png(w: int = 8, h: int = 8) -> bytes:
     return buf.getvalue()
 
 
-def test_preprocessing_emits_artifact_with_correct_metadata():
-    """
-    Seam test: preprocess_controlnet_attachments resolves a source ref,
-    calls the preprocessor, stores the emitted map, and returns the artifact
-    metadata that the HTTP handler will forward in the 501 detail.
-
-    No mode system, no TestClient, no ambient config.
-    """
-    store = AssetStore(byte_budget=64 * 1024 * 1024)
-    source_ref = store.insert("upload", _make_png(8, 8))
-
-    att = ControlNetAttachment(
-        attachment_id="cn_1",
-        control_type="canny",
-        source_asset_ref=source_ref,
-        preprocess=ControlNetPreprocessRequest(id="canny", options={}),
-        model_id="sdxl-canny",
+def _make_mode_with_canny() -> ModeConfig:
+    """A minimal ModeConfig with canny ControlNet enabled."""
+    return ModeConfig(
+        name="sdxl-cn-test",
+        model="checkpoints/sdxl.safetensors",
+        default_size="1024x1024",
+        resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        controlnet_policy=ControlNetPolicy(
+            enabled=True,
+            max_attachments=1,
+            allow_reuse_emitted_maps=True,
+            allowed_control_types={
+                "canny": ControlNetControlTypePolicy(
+                    default_model_id="sdxl-canny",
+                    allowed_model_ids=["sdxl-canny"],
+                    allow_preprocess=True,
+                    default_strength=0.8,
+                    min_strength=0.0,
+                    max_strength=2.0,
+                )
+            },
+        ),
     )
+
+
+@pytest.mark.integration
+def test_http_generate_501_includes_controlnet_artifacts():
+    """
+    POST /generate with a valid ControlNet attachment:
+    - preprocessing runs and emits an artifact
+    - the 501 detail dict includes controlnet_artifacts with correct fields
+    """
+    from server.asset_store import AssetStore
+    from server.lcm_sr_server import app
+
+    store = AssetStore(byte_budget=64 * 1024 * 1024)
+    source_ref = store.insert("upload", _make_png())
 
     fake_result = ControlMapResult(
         preprocessor_id="canny",
         control_type="canny",
-        image_bytes=_make_png(8, 8),
+        image_bytes=_make_png(),
         width=8,
         height=8,
     )
-
     mock_registry = MagicMock()
     mock_registry.get.return_value = MagicMock(run=MagicMock(return_value=fake_result))
 
-    class FakeReq:
-        controlnets = [att]
+    mock_mode_config = MagicMock()
+    mock_mode_config.get_mode.return_value = _make_mode_with_canny()
 
-    artifacts = preprocess_controlnet_attachments(FakeReq(), store=store, registry=mock_registry)
+    mock_runtime = MagicMock()
+    mock_runtime.get_current_mode.return_value = "sdxl-cn-test"
+    mock_runtime.supports_modes = True
 
-    assert len(artifacts) == 1
-    art = artifacts[0]
-    assert art.attachment_id == "cn_1"
-    assert art.control_type == "canny"
-    assert art.preprocessor_id == "canny"
-    assert art.asset_ref  # non-empty ref
-    # Emitted map is now retrievable from the store
-    assert store.resolve(art.asset_ref) is not None
+    with (
+        patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
+        patch("server.lcm_sr_server.get_store", return_value=store),
+        patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", mock_registry),
+        patch("server.lcm_sr_server._get_runtime", return_value=mock_runtime),
+    ):
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/generate", json={
+            "prompt": "a cat",
+            "controlnets": [{
+                "attachment_id": "cn_1",
+                "control_type": "canny",
+                "source_asset_ref": source_ref,
+                "preprocess": {"id": "canny", "options": {}},
+            }],
+        })
+
+    assert resp.status_code == 501
+    body = resp.json()
+    detail = body["detail"]
+    assert isinstance(detail, dict), f"expected dict detail, got: {detail!r}"
+    assert "controlnet_artifacts" in detail
+    arts = detail["controlnet_artifacts"]
+    assert len(arts) == 1
+    assert arts[0]["attachment_id"] == "cn_1"
+    assert arts[0]["control_type"] == "canny"
+    assert arts[0]["preprocessor_id"] == "canny"
+    assert arts[0]["asset_ref"]
 
 
-def test_preprocessing_propagates_resolution_failure():
-    """Asset ref not in store raises ValueError before calling the preprocessor."""
+@pytest.mark.integration
+def test_http_generate_400_when_controlnet_policy_disabled():
+    """
+    POST /generate with controlnets on a mode that has controlnet_policy.enabled=False
+    returns 400, not 501, before preprocessing runs.
+    """
+    from server.asset_store import AssetStore
+    from server.lcm_sr_server import app
+    from server.mode_config import ControlNetPolicy
+
     store = AssetStore(byte_budget=64 * 1024 * 1024)
-    att = ControlNetAttachment(
-        attachment_id="cn_bad",
-        control_type="canny",
-        source_asset_ref="does_not_exist",
-        preprocess=ControlNetPreprocessRequest(id="canny", options={}),
-        model_id="sdxl-canny",
+    source_ref = store.insert("upload", _make_png())
+
+    disabled_mode = ModeConfig(
+        name="sdxl-plain",
+        model="checkpoints/sdxl.safetensors",
+        default_size="1024x1024",
+        resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        controlnet_policy=ControlNetPolicy(enabled=False),
     )
 
-    class FakeReq:
-        controlnets = [att]
+    mock_mode_config = MagicMock()
+    mock_mode_config.get_mode.return_value = disabled_mode
 
-    with pytest.raises(ValueError, match="does_not_exist"):
-        preprocess_controlnet_attachments(FakeReq(), store=store, registry=MagicMock())
+    mock_runtime = MagicMock()
+    mock_runtime.get_current_mode.return_value = "sdxl-plain"
+    mock_runtime.supports_modes = True
+
+    with (
+        patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
+        patch("server.lcm_sr_server.get_store", return_value=store),
+        patch("server.lcm_sr_server._get_runtime", return_value=mock_runtime),
+    ):
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/generate", json={
+            "prompt": "a cat",
+            "controlnets": [{
+                "attachment_id": "cn_1",
+                "control_type": "canny",
+                "source_asset_ref": source_ref,
+                "preprocess": {"id": "canny", "options": {}},
+                "model_id": "sdxl-canny",
+            }],
+        })
+
+    assert resp.status_code == 400
+    assert "does not enable ControlNet" in resp.json()["detail"]
 ```
 
-This test drives `preprocess_controlnet_attachments` with an explicit `AssetStore` instance and mock registry — no mode config, no FastAPI app, no ambient state. It locks the seam that the HTTP handler relies on.
+> **Note on `_get_runtime`:** The test patches `server.lcm_sr_server._get_runtime`. If the HTTP handler accesses the runtime via a module-level singleton rather than a named helper, patch the actual attribute path. Check `lcm_sr_server.py` around line 514 and adjust the patch target to match how `runtime` is obtained in the `/generate` handler after Track 1 lands.
 
-- [ ] **Step 2: Locate the enforcement block in `server/lcm_sr_server.py`**
+- [ ] **Step 2: Run both tests — seam passes, HTTP contract fails (wiring not done yet)**
+
+```
+python -m pytest tests/test_controlnet_preprocessing.py tests/test_controlnet_http_contract.py -v
+```
+
+Expected:
+- `tests/test_controlnet_preprocessing.py` — PASS (wired in Task 8)
+- `tests/test_controlnet_http_contract.py` — FAIL on `assert resp.status_code == 501` (preprocessing not yet wired into `/generate`)
+
+- [ ] **Step 3: Locate the enforcement block in `server/lcm_sr_server.py`**
 
 Find lines in `lcm_sr_server.py` that look like:
 
@@ -1379,7 +1485,7 @@ Find lines in `lcm_sr_server.py` that look like:
         raise HTTPException(status_code=501, detail=str(e))
 ```
 
-- [ ] **Step 3: Add preprocessing between the two blocks**
+- [ ] **Step 4: Add preprocessing between the two blocks**
 
 Replace the section starting at `enforce_controlnet_policy` through the `ensure_controlnet_dispatch_supported` handler with:
 
@@ -1415,17 +1521,18 @@ Also add `emitted_artifacts: list = []` just before the `if current_mode:` block
         ...
 ```
 
-- [ ] **Step 4: Run the existing test suite to catch regressions**
+- [ ] **Step 5: Run HTTP contract tests + regression**
 
 ```
-python -m pytest tests/test_controlnet_constraints.py tests/test_controlnet_models.py tests/test_controlnet_dispatch.py tests/test_mode_config.py tests/test_ws_build_generate_request.py -q
+python -m pytest tests/test_controlnet_http_contract.py tests/test_controlnet_preprocessing.py tests/test_controlnet_constraints.py tests/test_controlnet_models.py tests/test_controlnet_dispatch.py tests/test_mode_config.py tests/test_ws_build_generate_request.py -v
 ```
-Expected: same pass/fail ratio as before (3 known failures in `test_model_routes.py` are pre-existing baseline).
 
-- [ ] **Step 5: Commit**
+Expected: `test_controlnet_http_contract.py` now PASS (both `test_http_generate_501_includes_controlnet_artifacts` and `test_http_generate_400_when_controlnet_policy_disabled`). All other prior tests still PASS.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add server/lcm_sr_server.py
+git add server/lcm_sr_server.py tests/test_controlnet_http_contract.py
 git commit -m "feat(controlnet): wire preprocessing into HTTP /generate, surface artifacts in 501 detail (STABL-vnpknuvo)"
 ```
 
