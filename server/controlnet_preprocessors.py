@@ -30,7 +30,12 @@ class PreprocessorRegistry:
     def __init__(self) -> None:
         self._registry: dict[str, ControlMapPreprocessor] = {}
 
-    def register(self, preprocessor: ControlMapPreprocessor) -> None:
+    def register(self, preprocessor: ControlMapPreprocessor, *, replace: bool = False) -> None:
+        existing = self._registry.get(preprocessor.preprocessor_id)
+        if existing is not None and not replace:
+            raise ValueError(
+                f"preprocessor {preprocessor.preprocessor_id!r} is already registered"
+            )
         self._registry[preprocessor.preprocessor_id] = preprocessor
 
     def get(self, preprocessor_id: str) -> ControlMapPreprocessor | None:
