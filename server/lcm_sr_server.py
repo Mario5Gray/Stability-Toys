@@ -518,6 +518,8 @@ def generate(req: GenerateRequest):
                 )
 
     current_mode = runtime.get_current_mode() if supports_modes else None
+    emitted_artifacts: list = []
+
     if current_mode:
         mode_config = get_mode_config()
         mode = mode_config.get_mode(current_mode)
@@ -539,11 +541,20 @@ def generate(req: GenerateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+        try:
+            from server.controlnet_preprocessing import preprocess_controlnet_attachments
+            from server.asset_store import get_store
+            emitted_artifacts = preprocess_controlnet_attachments(req, get_store())
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     try:
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         ensure_controlnet_dispatch_supported(req)
     except NotImplementedError as e:
-        raise HTTPException(status_code=501, detail=str(e))
+        artifact_dicts = [a.model_dump() for a in emitted_artifacts]
+        detail = str(e) if not artifact_dicts else {"error": str(e), "controlnet_artifacts": artifact_dicts}
+        raise HTTPException(status_code=501, detail=detail)
 
     try:
         fut = runtime.submit_generate(req, timeout_s=0.25)
