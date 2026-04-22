@@ -85,6 +85,52 @@ def test_total_bytes_reduced_after_cleanup_expired():
     assert store.total_bytes == 3
 
 
+def test_evicts_lru_when_budget_exceeded():
+    store = AssetStore(byte_budget=10)
+    ref_a = store.insert("upload", b"aaaaaaa")
+    ref_b = store.insert("upload", b"bbbb")
+
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"bbbb"
+
+
+def test_pinned_ref_survives_budget_pressure():
+    store = AssetStore(byte_budget=10)
+    ref_a = store.insert("upload", b"aaaaaaa")
+    store.pin(ref_a)
+    ref_b = store.insert("upload", b"bbbb")
+
+    assert store.resolve(ref_a).data == b"aaaaaaa"
+    with pytest.raises(KeyError):
+        store.resolve(ref_b)
+
+
+def test_evicts_oldest_unpinned_when_multiple_candidates():
+    store = AssetStore(byte_budget=15)
+    ref_a = store.insert("upload", b"a" * 6)
+    ref_b = store.insert("upload", b"b" * 6)
+    store.resolve(ref_b)
+    ref_c = store.insert("upload", b"c" * 6)
+
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"b" * 6
+    assert store.resolve(ref_c).data == b"c" * 6
+
+
+def test_unpin_allows_eviction():
+    store = AssetStore(byte_budget=10)
+    ref_a = store.insert("upload", b"aaaaaaa")
+    store.pin(ref_a)
+    store.unpin(ref_a)
+    ref_b = store.insert("upload", b"bbbb")
+
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"bbbb"
+
+
 def test_resolve_returns_snapshot_not_live_entry():
     store = AssetStore()
     ref = store.insert("upload", b"hello", metadata={"source": "user"})
