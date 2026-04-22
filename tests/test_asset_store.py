@@ -61,6 +61,30 @@ def test_total_bytes_sums_all_entries():
     assert store.total_bytes == 5
 
 
+def test_total_bytes_tracks_eviction_result():
+    store = AssetStore(byte_budget=10)
+    ref_a = store.insert("upload", b"aaaaaaa")
+    ref_b = store.insert("upload", b"bbbb")
+
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"bbbb"
+    assert store.total_bytes == 4
+
+
+def test_total_bytes_reduced_after_cleanup_expired():
+    store = AssetStore()
+    old_ref = store.insert("upload", b"abcd")
+    keep_ref = store.insert("upload", b"xyz")
+    store._entries[old_ref].created_at = time.time() - 400
+
+    removed = store.cleanup_expired(ttl_s=300)
+
+    assert removed == [old_ref]
+    assert store.resolve(keep_ref).data == b"xyz"
+    assert store.total_bytes == 3
+
+
 def test_resolve_returns_snapshot_not_live_entry():
     store = AssetStore()
     ref = store.insert("upload", b"hello", metadata={"source": "user"})
@@ -83,6 +107,13 @@ def test_unpin_missing_raises_key_error():
     store = AssetStore()
     with pytest.raises(KeyError, match="not found"):
         store.unpin("missing")
+
+
+def test_unpin_zero_pin_count_raises_value_error():
+    store = AssetStore()
+    ref = store.insert("upload", b"hello")
+    with pytest.raises(ValueError, match="already 0"):
+        store.unpin(ref)
 
 
 def test_insert_rejects_unknown_kind():

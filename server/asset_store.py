@@ -56,7 +56,7 @@ class AssetStore:
             return replace(entry, metadata=dict(entry.metadata))
 
     def cleanup_expired(self, ttl_s: float = 300.0) -> list[str]:
-        """Evict upload entries by age since insertion, not by last access time."""
+        """Evict unpinned upload entries by age since insertion, not last access time."""
         now = time.time()
         with self._lock:
             expired = [
@@ -81,8 +81,9 @@ class AssetStore:
             entry = self._entries.get(ref)
             if entry is None:
                 raise KeyError(f"asset ref {ref!r} not found or evicted")
-            if entry.pin_count > 0:
-                entry.pin_count -= 1
+            if entry.pin_count == 0:
+                raise ValueError("pin_count is already 0")
+            entry.pin_count -= 1
 
     @property
     def total_bytes(self) -> int:
@@ -90,6 +91,7 @@ class AssetStore:
             return self._total_bytes
 
     def _evict_to_budget(self) -> None:
+        # Caller must hold self._lock.
         while self._total_bytes > self._byte_budget:
             candidates = [entry for entry in self._entries.values() if entry.pin_count == 0]
             if not candidates:
