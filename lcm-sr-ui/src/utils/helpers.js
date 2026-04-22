@@ -140,7 +140,11 @@ export function readErrorFromArrayBuffer(res, buf) {
     if (ct.includes("application/json")) {
       try {
         const j = JSON.parse(text);
-        return j?.detail ?? j?.error ?? text;
+        const detail = j?.detail ?? j?.error ?? text;
+        // detail may be a structured object (e.g. 501 with controlnet_artifacts)
+        return typeof detail === "object" && detail !== null
+          ? detail.error ?? text
+          : detail;
       } catch {
         return text;
       }

@@ -147,12 +147,15 @@ def test_http_generate_400_when_controlnet_policy_disabled():
     mock_runtime = MagicMock(spec=["switch_mode", "get_current_mode", "submit_generate"])
     mock_runtime.get_current_mode.return_value = "sdxl-plain"
 
+    mock_registry = MagicMock()
+
     original_runtime = getattr(app.state, "generation_runtime", None)
     app.state.generation_runtime = mock_runtime
     try:
         with (
             patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
             patch("server.asset_store.get_store", return_value=store),
+            patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", mock_registry),
         ):
             client = TestClient(app, raise_server_exceptions=False)
             resp = client.post("/generate", json={
@@ -173,3 +176,4 @@ def test_http_generate_400_when_controlnet_policy_disabled():
 
     assert resp.status_code == 400
     assert "does not enable ControlNet" in resp.json()["detail"]
+    mock_registry.get.assert_not_called()
