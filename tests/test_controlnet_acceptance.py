@@ -128,31 +128,43 @@ def test_emitted_artifact_ref_reusable_as_map_asset_ref():
 # Eviction under byte-budget pressure
 # ------------------------------------------------------------------ #
 
-def test_eviction_removes_oldest_control_map_when_budget_exceeded():
-    store = AssetStore(byte_budget=20)
+def test_lru_eviction_removes_least_recently_used_control_map_when_budget_exceeded():
+    store = AssetStore(byte_budget=25)
     source_ref = store.insert("upload", b"src")  # 3 bytes
+    store.pin(source_ref)
 
     att1 = ControlNetAttachment(
         attachment_id="cn_1", control_type="canny",
         source_asset_ref=source_ref,
         preprocess=ControlNetPreprocessRequest(id="canny"),
     )
-    artifacts1 = preprocess_controlnet_attachments(_req([att1]), store, registry=_fake_reg("canny", b"x" * 10))
+    artifacts1 = preprocess_controlnet_attachments(_req([att1]), store, registry=_fake_reg("canny", b"x" * 7))
     ref1 = artifacts1[0].asset_ref
-
-    store.resolve(ref1)  # make ref1 recently accessed
 
     att2 = ControlNetAttachment(
         attachment_id="cn_2", control_type="canny",
         source_asset_ref=source_ref,
         preprocess=ControlNetPreprocessRequest(id="canny"),
     )
-    try:
-        preprocess_controlnet_attachments(_req([att2]), store, registry=_fake_reg("canny", b"y" * 12))
-    except ValueError:
-        pytest.skip("source_ref was evicted before second preprocess; expected if budget is very tight")
+    artifacts2 = preprocess_controlnet_attachments(_req([att2]), store, registry=_fake_reg("canny", b"y" * 7))
+    ref2 = artifacts2[0].asset_ref
 
-    assert store.total_bytes <= 20
+    store.resolve(ref1)  # make ref1 the most recently used control map
+
+    att3 = ControlNetAttachment(
+        attachment_id="cn_3", control_type="canny",
+        source_asset_ref=source_ref,
+        preprocess=ControlNetPreprocessRequest(id="canny"),
+    )
+    artifacts3 = preprocess_controlnet_attachments(_req([att3]), store, registry=_fake_reg("canny", b"q" * 10))
+    ref3 = artifacts3[0].asset_ref
+
+    assert store.total_bytes <= 25
+    assert store.resolve(ref1).data == b"x" * 7
+    assert store.resolve(ref3).data == b"q" * 10
+    with pytest.raises(KeyError, match="not found or evicted"):
+        store.resolve(ref2)
+    store.unpin(source_ref)
 
 
 def test_pinned_ref_survives_eviction():
@@ -165,9 +177,13 @@ def test_pinned_ref_survives_eviction():
         source_asset_ref=source_ref,
         preprocess=ControlNetPreprocessRequest(id="canny"),
     )
-    preprocess_controlnet_attachments(_req([att]), store, registry=_fake_reg("canny", b"z" * 14))
+    artifacts = preprocess_controlnet_attachments(_req([att]), store, registry=_fake_reg("canny", b"z" * 14))
+    emitted_ref = artifacts[0].asset_ref
 
     assert store.resolve(source_ref).data == b"src"
+    with pytest.raises(KeyError, match="not found or evicted"):
+        store.resolve(emitted_ref)
+    assert store.total_bytes == len(b"src")
     store.unpin(source_ref)
 
 
