@@ -143,6 +143,18 @@ def test_canny_preprocessor_returns_png_control_map():
     assert decoded.size == (4, 4)
 
 
+def test_canny_respects_custom_thresholds():
+    preprocessor = CannyPreprocessor()
+
+    result = preprocessor.run(
+        _solid_rgb_png_bytes(size=(32, 32)),
+        {"low_threshold": 50, "high_threshold": 150},
+    )
+
+    assert result.width == 32
+    assert result.height == 32
+
+
 def test_canny_preprocessor_raises_for_invalid_bytes():
     preprocessor = CannyPreprocessor()
 
