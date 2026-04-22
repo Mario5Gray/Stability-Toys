@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from server import ws_routes
 from server.ws_hub import WSHub, hub
 from server.ws_routes import ws_router
-from server.upload_routes import upload_router, UPLOADS
+from server.upload_routes import upload_router
 
 
 # ---------------------------------------------------------------------------
