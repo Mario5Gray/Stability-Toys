@@ -143,16 +143,28 @@ def test_canny_preprocessor_returns_png_control_map():
     assert decoded.size == (4, 4)
 
 
-def test_canny_respects_custom_thresholds():
+def test_canny_threshold_controls_edge_detection_sensitivity():
+    # Sharp half-black / half-white edge: Sobel gradient ≈ 1020.
+    # Loose thresholds (0, 10)  → gradient >> high  → edge detected.
+    # Tight thresholds (2000, 4000) → gradient << high → no edge detected.
+    # If thresholds were silently replaced by defaults (100, 200) the tight
+    # assertion would fail because 1020 > 200.
+    arr = np.zeros((16, 16, 3), dtype=np.uint8)
+    arr[:, 8:] = 255
+    buf = io.BytesIO()
+    Image.fromarray(arr, "RGB").save(buf, format="PNG")
+    source = buf.getvalue()
+
     preprocessor = CannyPreprocessor()
 
-    result = preprocessor.run(
-        _solid_rgb_png_bytes(size=(32, 32)),
-        {"low_threshold": 50, "high_threshold": 150},
-    )
+    loose = preprocessor.run(source, {"low_threshold": 0, "high_threshold": 10})
+    tight = preprocessor.run(source, {"low_threshold": 2000, "high_threshold": 4000})
 
-    assert result.width == 32
-    assert result.height == 32
+    loose_arr = np.array(png_bytes_to_pil(loose.image_bytes))
+    tight_arr = np.array(png_bytes_to_pil(tight.image_bytes))
+
+    assert loose_arr.max() > 0, "loose thresholds must detect the sharp edge"
+    assert tight_arr.max() == 0, "tight thresholds must suppress all edges"
 
 
 def test_canny_preprocessor_raises_for_invalid_bytes():
