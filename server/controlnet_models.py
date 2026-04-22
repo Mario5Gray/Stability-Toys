@@ -34,3 +34,11 @@ class ControlNetAttachment(BaseModel):
         if self.start_percent > self.end_percent:
             raise ValueError("start_percent must be <= end_percent")
         return self
+
+
+class ControlNetArtifactRef(BaseModel):
+    attachment_id: str = Field(..., min_length=1)
+    asset_ref: str = Field(..., min_length=1)
+    control_type: str = Field(..., min_length=1)
+    preprocessor_id: str = Field(..., min_length=1)
+    source_asset_ref: str = Field(..., min_length=1)
