@@ -183,6 +183,27 @@ def test_depth_preprocessor_uses_stubbed_pipeline_and_normalizes_output():
     assert decoded.getpixel((1, 1)) == (255, 255, 255)
 
 
+def test_depth_preprocessor_emits_rgb_png_control_map():
+    class _StubDepthPreprocessor(DepthPreprocessor):
+        def _get_pipe(self):
+            def _pipe(pil_img):
+                return {
+                    "depth": Image.fromarray(
+                        np.array([[0.0, 2.0], [4.0, 6.0]], dtype=np.float32)
+                    )
+                }
+
+            return _pipe
+
+    preprocessor = _StubDepthPreprocessor(model_id="stub-model")
+
+    result = preprocessor.run(_solid_rgb_png_bytes(size=(2, 2)), {})
+
+    decoded = Image.open(io.BytesIO(result.image_bytes))
+    assert decoded.size == (2, 2)
+    assert decoded.mode == "RGB"
+
+
 def test_depth_preprocessor_get_pipe_caches_pipeline_instance(monkeypatch):
     created = []
 
@@ -205,6 +226,27 @@ def test_depth_preprocessor_get_pipe_caches_pipeline_instance(monkeypatch):
     assert created == [first]
 
 
+def test_depth_preprocessor_rejects_invalid_source_bytes_before_pipe_call():
+    class _StubDepthPreprocessor(DepthPreprocessor):
+        def __init__(self) -> None:
+            super().__init__(model_id="stub-model")
+            self.pipe_calls = 0
+
+        def _get_pipe(self):
+            def _pipe(pil_img):
+                self.pipe_calls += 1
+                return {"depth": Image.new("L", pil_img.size, color=1)}
+
+            return _pipe
+
+    preprocessor = _StubDepthPreprocessor()
+
+    with pytest.raises(ValueError, match="failed to decode image bytes"):
+        preprocessor.run(b"not-an-image", {})
+
+    assert preprocessor.pipe_calls == 0
+
+
 def test_depth_preprocessor_normalizes_flat_depth_map_to_black():
     class _FlatDepthPreprocessor(DepthPreprocessor):
         def _get_pipe(self):
@@ -224,3 +266,4 @@ def test_depth_preprocessor_normalizes_flat_depth_map_to_black():
     decoded = png_bytes_to_pil(result.image_bytes)
     assert decoded.getpixel((0, 0)) == (0, 0, 0)
     assert decoded.getpixel((1, 1)) == (0, 0, 0)
+
