@@ -7,9 +7,14 @@ from server.asset_store import get_store
 
 @pytest.fixture(autouse=True)
 def _clear_store():
-    get_store()._entries.clear()
+    store = get_store()
+    with store._lock:
+        store._entries.clear()
+        store._total_bytes = 0
     yield
-    get_store()._entries.clear()
+    with store._lock:
+        store._entries.clear()
+        store._total_bytes = 0
 
 
 app = FastAPI()
