@@ -130,6 +130,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     fut = None
     req = None
     pre_submit_job_error: Optional[str] = None
+    pre_submit_artifacts: list = []
 
     if job_type == "generate" and getattr(state, "use_mode_system", False):
         from backends.worker_pool import GenerationJob
@@ -148,6 +149,9 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 )
                 from server.controlnet_constraints import enforce_controlnet_policy
                 enforce_controlnet_policy(req, mode)
+                from server.controlnet_preprocessing import preprocess_controlnet_attachments
+                from server.asset_store import get_store
+                pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
             ensure_controlnet_dispatch_supported(req)
         except Exception as e:
@@ -178,11 +182,14 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     })
 
     if pre_submit_job_error is not None:
-        await hub.send(client_id, {
+        error_frame: dict = {
             "type": "job:error",
             "jobId": job_id,
             "error": pre_submit_job_error,
-        })
+        }
+        if pre_submit_artifacts:
+            error_frame["controlnet_artifacts"] = [artifact.model_dump() for artifact in pre_submit_artifacts]
+        await hub.send(client_id, error_frame)
         return
 
     if job_type == "generate":
@@ -491,9 +498,14 @@ async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut)
 
 async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict) -> None:
     """Run a generate job using the same code path as POST /generate."""
+    _run_artifacts: list = []
     try:
         state = _get_app_state(ws)
         req = _build_generate_request(params)
+
+        from server.controlnet_preprocessing import preprocess_controlnet_attachments
+        from server.asset_store import get_store
+        _run_artifacts = preprocess_controlnet_attachments(req, get_store())
 
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         ensure_controlnet_dispatch_supported(req)
@@ -531,7 +543,10 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
 
     except Exception as e:
         logger.error("Generate job %s failed: %s", job_id, e, exc_info=True)
-        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
+        error_frame: dict = {"type": "job:error", "jobId": job_id, "error": str(e)}
+        if _run_artifacts:
+            error_frame["controlnet_artifacts"] = [artifact.model_dump() for artifact in _run_artifacts]
+        await hub.send(client_id, error_frame)
 
 
 # ---------------------------------------------------------------------------

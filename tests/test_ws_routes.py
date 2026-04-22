@@ -25,6 +25,9 @@ from server import ws_routes
 from server.ws_hub import WSHub, hub
 from server.ws_routes import ws_router
 from server.upload_routes import upload_router
+from server.asset_store import get_store
+from server.controlnet_preprocessors import ControlMapResult, PreprocessorRegistry
+from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +49,45 @@ def _make_test_app():
 
 app = _make_test_app()
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _clear_store():
+    store = get_store()
+    with store._lock:
+        store._entries.clear()
+        store._total_bytes = 0
+    yield
+    with store._lock:
+        store._entries.clear()
+        store._total_bytes = 0
+
+
+def _solid_png_bytes(w: int = 8, h: int = 8) -> bytes:
+    from PIL import Image
+    import io
+
+    img = Image.new("RGB", (w, h), color=(100, 100, 100))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _fake_preprocessor_registry(preprocessor_id: str = "canny") -> PreprocessorRegistry:
+    result = ControlMapResult(
+        preprocessor_id=preprocessor_id,
+        control_type=preprocessor_id,
+        image_bytes=b"cmap-output",
+        width=8,
+        height=8,
+    )
+    fake = MagicMock()
+    fake.preprocessor_id = preprocessor_id
+    fake.control_type = preprocessor_id
+    fake.run = MagicMock(return_value=result)
+    reg = PreprocessorRegistry()
+    reg.register(fake)
+    return reg
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +240,54 @@ class TestJobSubmit:
             err = ws.receive_json()
             assert err["type"] == "job:error"
             assert err["jobId"] == ack["jobId"]
+
+    def test_generate_job_error_includes_controlnet_artifacts_after_preprocessing(self):
+        source_ref = get_store().insert("upload", _solid_png_bytes())
+        fake_registry = _fake_preprocessor_registry("canny")
+        captured = {}
+
+        def _fake_dispatch_guard(req):
+            captured["attachment"] = req.controlnets[0]
+            raise NotImplementedError("ControlNet provider not yet implemented on this backend (Track 3 delivers execution)")
+
+        with patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", fake_registry):
+            with patch("server.controlnet_constraints.ensure_controlnet_dispatch_supported", side_effect=_fake_dispatch_guard):
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-cn-default",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "size": "512x512",
+                            "num_inference_steps": 4,
+                            "guidance_scale": 1.0,
+                            "seed": 12345678,
+                            "controlnets": [
+                                {
+                                    "attachment_id": "cn_1",
+                                    "control_type": "canny",
+                                    "source_asset_ref": source_ref,
+                                    "preprocess": {"id": "canny", "options": {}},
+                                }
+                            ],
+                        },
+                    })
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert "controlnet_artifacts" in err
+                    assert err["controlnet_artifacts"][0]["attachment_id"] == "cn_1"
+
+        emitted_ref = err["controlnet_artifacts"][0]["asset_ref"]
+        assert get_store().resolve(emitted_ref).kind == "control_map"
+        assert captured["attachment"].map_asset_ref == emitted_ref
+        assert captured["attachment"].source_asset_ref is None
+        assert captured["attachment"].preprocess is None
 
     def test_generate_mode_system_forwards_negative_prompt_and_scheduler(self):
         app.state.use_mode_system = True
@@ -366,6 +456,93 @@ class TestJobSubmit:
                 sys.modules.pop("backends.worker_pool", None)
             else:
                 sys.modules["backends.worker_pool"] = original_worker_pool_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
+    def test_generate_mode_system_job_error_includes_controlnet_artifacts_after_preprocessing(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        source_ref = get_store().insert("upload", _solid_png_bytes())
+        fake_registry = _fake_preprocessor_registry("canny")
+        captured = {}
+
+        def _fake_dispatch_guard(req):
+            captured["attachment"] = req.controlnets[0]
+            raise NotImplementedError("ControlNet provider not yet implemented on this backend (Track 3 delivers execution)")
+
+        policy = ControlNetPolicy(
+            enabled=True,
+            max_attachments=2,
+            allow_reuse_emitted_maps=True,
+            allowed_control_types={
+                "canny": ControlNetControlTypePolicy(
+                    default_model_id="sdxl-canny",
+                    allowed_model_ids=["sdxl-canny"],
+                    allow_preprocess=True,
+                    default_strength=1.0,
+                    min_strength=0.0,
+                    max_strength=2.0,
+                )
+            },
+        )
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                        controlnet_policy=policy,
+                    )
+                )
+                with patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", fake_registry):
+                    with patch("server.controlnet_constraints.ensure_controlnet_dispatch_supported", side_effect=_fake_dispatch_guard):
+                        with client.websocket_connect("/v1/ws") as ws:
+                            ws.receive_json()  # consume status
+                            ws.send_json({
+                                "type": "job:submit",
+                                "id": "t-cn-mode",
+                                "jobType": "generate",
+                                "params": {
+                                    "prompt": "a cat",
+                                    "size": "512x512",
+                                    "num_inference_steps": 4,
+                                    "guidance_scale": 1.0,
+                                    "seed": 12345678,
+                                    "controlnets": [
+                                        {
+                                            "attachment_id": "cn_1",
+                                            "control_type": "canny",
+                                            "source_asset_ref": source_ref,
+                                            "preprocess": {"id": "canny", "options": {}},
+                                        }
+                                    ],
+                                },
+                            })
+
+                            ack = ws.receive_json()
+                            assert ack["type"] == "job:ack"
+
+                            err = ws.receive_json()
+                            assert err["type"] == "job:error"
+                            assert err["jobId"] == ack["jobId"]
+                            assert "controlnet_artifacts" in err
+                            assert err["controlnet_artifacts"][0]["attachment_id"] == "cn_1"
+
+            emitted_ref = err["controlnet_artifacts"][0]["asset_ref"]
+            assert get_store().resolve(emitted_ref).kind == "control_map"
+            assert captured["attachment"].map_asset_ref == emitted_ref
+            assert captured["attachment"].source_asset_ref is None
+            assert captured["attachment"].preprocess is None
+            pool.submit_job.assert_not_called()
+        finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
