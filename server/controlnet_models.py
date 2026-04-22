@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ControlNetPreprocessRequest(BaseModel):
@@ -9,6 +9,8 @@ class ControlNetPreprocessRequest(BaseModel):
 
 
 class ControlNetAttachment(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     attachment_id: str = Field(..., min_length=1)
     control_type: str = Field(..., min_length=1)
     model_id: Optional[str] = Field(default=None)

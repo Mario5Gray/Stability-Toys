@@ -1,3 +1,6 @@
+import importlib
+import warnings
+
 import pytest
 from pydantic import ValidationError
 
@@ -107,3 +110,14 @@ def test_generate_request_controlnets_defaults_to_none():
 
     req = GenerateRequest(prompt="a cat")
     assert req.controlnets is None
+
+
+def test_controlnet_models_does_not_warn_for_model_id_field():
+    import server.controlnet_models as controlnet_models
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        importlib.reload(controlnet_models)
+
+    messages = [str(w.message) for w in caught]
+    assert not any('Field "model_id" has conflict with protected namespace "model_"' in msg for msg in messages)
