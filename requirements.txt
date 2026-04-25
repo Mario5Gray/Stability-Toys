@@ -26,6 +26,7 @@ uvloop
 redis>=4.0.0
 
 fastapi==0.115.0
+starlette>=0.37.2,<0.39
 python-multipart
 uvicorn==0.30.6
 pydantic==2.8.2
