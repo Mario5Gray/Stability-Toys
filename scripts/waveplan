@@ -63,6 +63,43 @@ def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def resolve_refs(ref_names: list[str], index: dict) -> list[dict]:
+    """Resolve a list of ref names to their full index entries."""
+    result = []
+    for ref in ref_names:
+        entry = index.get(ref, {})
+        result.append({"ref": ref, **entry})
+    return result
+
+
+def resolve_fp_refs(ref_names: list[str], fp_index: dict) -> list[dict]:
+    """Resolve fp_refs to full entries. fp_index maps ref_name -> FP_ID."""
+    result = []
+    for ref in ref_names:
+        fp_id = fp_index.get(ref, ref)
+        result.append({"ref": ref, "fp_id": fp_id})
+    return result
+
+
+def find_plan_ref(units: dict, task_id: str, doc_index: dict, tasks: dict) -> dict | None:
+    """Find the plan doc_index entry that corresponds to this task.
+
+    For sub-tasks (e.g. T1.1), the task_id maps to a parent task via the
+    'task' field (e.g. T1.1.task == 'T1'). We find the parent task's
+    plan_line, then match it against doc_index entries with kind='plan'.
+    """
+    task = units.get(task_id, {})
+    parent_task = task.get("task", task_id)
+    parent = tasks.get(parent_task, {})
+    plan_line = parent.get("plan_line")
+    if plan_line is None:
+        return None
+    for ref, entry in doc_index.items():
+        if entry.get("kind") == "plan" and entry.get("line") == plan_line:
+            return {"ref": ref, **entry}
+    return None
+
+
 def is_available(task_id: str, units: dict, state: dict) -> bool:
     """Check if a task is available (not taken/completed and all deps completed)."""
     if task_id in state.get("taken", {}):
@@ -87,7 +124,7 @@ def next_available_task(units: dict, state: dict) -> str | None:
     return available[0]
 
 
-def cmd_peek(args, units: dict, state: dict) -> None:
+def cmd_peek(args, units: dict, state: dict, doc_index: dict, fp_index: dict, tasks: dict) -> None:
     """Display the next available task without claiming it."""
     tid = next_available_task(units, state)
     if tid is None:
@@ -101,9 +138,10 @@ def cmd_peek(args, units: dict, state: dict) -> None:
         "kind": task.get("kind"),
         "wave": task.get("wave"),
         "plan_line": task.get("plan_line"),
+        "plan_ref": find_plan_ref(units, tid, doc_index, tasks),
         "depends_on": task.get("depends_on", []),
-        "doc_refs": task.get("doc_refs", []),
-        "fp_refs": task.get("fp_refs", []),
+        "doc_refs": resolve_refs(task.get("doc_refs", []), doc_index),
+        "fp_refs": resolve_fp_refs(task.get("fp_refs", []), fp_index),
         "notes": task.get("notes", []),
     }
     if "command" in task:
@@ -111,7 +149,7 @@ def cmd_peek(args, units: dict, state: dict) -> None:
     print(json.dumps(output, indent=2))
 
 
-def cmd_pop(args, units: dict, state: dict, state_path: Path) -> None:
+def cmd_pop(args, units: dict, state: dict, state_path: Path, doc_index: dict, fp_index: dict, tasks: dict) -> None:
     """Claim the next available task for the given agent."""
     agent = args.agent
     tid = next_available_task(units, state)
@@ -125,6 +163,23 @@ def cmd_pop(args, units: dict, state: dict, state_path: Path) -> None:
         "started_at": ts,
     }
     print(f"Claimed {tid}: {task.get('title')} by {agent}")
+    # Also print the full task JSON for the agent
+    output = {
+        "task_id": tid,
+        "task": task.get("task"),
+        "title": task.get("title"),
+        "kind": task.get("kind"),
+        "wave": task.get("wave"),
+        "plan_line": task.get("plan_line"),
+        "plan_ref": find_plan_ref(units, tid, doc_index, tasks),
+        "depends_on": task.get("depends_on", []),
+        "doc_refs": resolve_refs(task.get("doc_refs", []), doc_index),
+        "fp_refs": resolve_fp_refs(task.get("fp_refs", []), fp_index),
+        "notes": task.get("notes", []),
+    }
+    if "command" in task:
+        output["command"] = task["command"]
+    print(json.dumps(output, indent=2))
     save_json(state_path, state)
 
 
@@ -150,7 +205,7 @@ def cmd_fin(args, units: dict, state: dict) -> None:
     print(f"Completed {tid}: {units[tid].get('title')}")
 
 
-def cmd_get(args, units: dict, state: dict) -> None:
+def cmd_get(args, units: dict, state: dict, doc_index: dict, fp_index: dict, tasks: dict) -> None:
     """Report all taken/completed tasks."""
     taken = state.get("taken", {})
     completed = state.get("completed", {})
@@ -171,6 +226,21 @@ def cmd_get(args, units: dict, state: dict) -> None:
         agent = info.get("taken_by", "")
         if agent:
             print(f"by: {agent}")
+        plan_ref = find_plan_ref(units, tid, doc_index, tasks)
+        if plan_ref:
+            print(f"plan: {plan_ref.get('path', '')}:{plan_ref.get('line', '')}")
+        doc_refs = task.get("doc_refs", [])
+        if doc_refs:
+            print("docs:")
+            for ref in resolve_refs(doc_refs, doc_index):
+                path = ref.get("path", "")
+                line = ref.get("line", "")
+                print(f"  - {ref['ref']} → {path}:{line}")
+        fp_refs = task.get("fp_refs", [])
+        if fp_refs:
+            print("fprs:")
+            for ref in resolve_fp_refs(fp_refs, fp_index):
+                print(f"  - {ref['ref']} → {ref['fp_id']}")
         print()
 
 
@@ -194,17 +264,20 @@ def main() -> None:
 
     plan = load_json(plan_path)
     units = plan.get("units", {})
+    tasks = plan.get("tasks", {})
+    doc_index = plan.get("doc_index", {})
+    fp_index = plan.get("fp_index", {})
     state_path = find_state_file(plan_path)
     state = load_state(state_path, plan_path.name)
 
     if args.command == "peek":
-        cmd_peek(args, units, state)
+        cmd_peek(args, units, state, doc_index, fp_index, tasks)
     elif args.command == "pop":
-        cmd_pop(args, units, state, state_path)
+        cmd_pop(args, units, state, state_path, doc_index, fp_index, tasks)
     elif args.command == "fin":
         cmd_fin(args, units, state)
     elif args.command == "get":
-        cmd_get(args, units, state)
+        cmd_get(args, units, state, doc_index, fp_index, tasks)
 
     # Save state back
     save_json(state_path, state)
