@@ -180,7 +180,42 @@ def cmd_pop(args, units: dict, state: dict, state_path: Path, doc_index: dict, f
     if "command" in task:
         output["command"] = task["command"]
     print(json.dumps(output, indent=2))
-    save_json(state_path, state)
+
+
+def cmd_start_review(args, units: dict, state: dict, state_path: Path) -> None:
+    """Start a review for a task."""
+    tid = args.task_id
+    reviewer = args.reviewer
+    if tid not in units:
+        print(f"ERROR: task '{tid}' not found in plan.", file=sys.stderr)
+        sys.exit(1)
+    if tid not in state.get("taken", {}):
+        print(f"ERROR: task '{tid}' is not currently taken.", file=sys.stderr)
+        sys.exit(1)
+    if "review_entered_at" in state["taken"][tid]:
+        print(f"ERROR: review for {tid} already started.", file=sys.stderr)
+        sys.exit(1)
+    ts = now_str()
+    state["taken"][tid]["review_entered_at"] = ts
+    state["taken"][tid]["reviewer"] = reviewer
+    print(f"Review started for {tid}: {units[tid].get('title')} by {reviewer}")
+
+
+def cmd_end_review(args, units: dict, state: dict, state_path: Path) -> None:
+    """End a review for a task."""
+    tid = args.task_id
+    if tid not in units:
+        print(f"ERROR: task '{tid}' not found in plan.", file=sys.stderr)
+        sys.exit(1)
+    if tid not in state.get("taken", {}):
+        print(f"ERROR: task '{tid}' is not currently taken.", file=sys.stderr)
+        sys.exit(1)
+    if "review_entered_at" not in state["taken"][tid]:
+        print(f"ERROR: no active review for {tid}.", file=sys.stderr)
+        sys.exit(1)
+    ts = now_str()
+    state["taken"][tid]["review_ended_at"] = ts
+    print(f"Review ended for {tid}: {units[tid].get('title')}")
 
 
 def cmd_fin(args, units: dict, state: dict) -> None:
@@ -199,33 +234,104 @@ def cmd_fin(args, units: dict, state: dict) -> None:
         print(f"ERROR: task {tid} has incomplete dependencies: {', '.join(incomplete)}", file=sys.stderr)
         sys.exit(1)
     ts = now_str()
-    state.setdefault("completed", {})[tid] = {"finished_at": ts}
+    # Ensure started_at and taken_by are set (in case task was fin'd without pop)
+    taken_entry = state.setdefault("taken", {})
+    started = taken_entry.get(tid, {}).get("started_at", ts)
+    taken_by = taken_entry.get(tid, {}).get("taken_by", "")
+    review_entered = taken_entry.get(tid, {}).get("review_entered_at", "")
+    review_ended = taken_entry.get(tid, {}).get("review_ended_at", "")
+    reviewer = taken_entry.get(tid, {}).get("reviewer", "")
+    state.setdefault("completed", {})[tid] = {
+        "started_at": started,
+        "taken_by": taken_by,
+        "review_entered_at": review_entered,
+        "review_ended_at": review_ended,
+        "reviewer": reviewer,
+        "finished_at": ts,
+    }
     # Remove from taken if present
     state.get("taken", {}).pop(tid, None)
     print(f"Completed {tid}: {units[tid].get('title')}")
 
 
 def cmd_get(args, units: dict, state: dict, doc_index: dict, fp_index: dict, tasks: dict) -> None:
-    """Report all taken/completed tasks."""
+    """Report tasks based on mode."""
     taken = state.get("taken", {})
     completed = state.get("completed", {})
-    all_ids = sorted(set(list(taken.keys()) + list(completed.keys())))
-    if not all_ids:
-        print("No tasks taken or completed.")
-        return
+    mode = args.mode
+
+    if mode == "taken":
+        all_ids = sorted(taken.keys())
+        if not all_ids:
+            print("No tasks taken.")
+            return
+    elif mode == "open":
+        all_ids = sorted([tid for tid in units if is_available(tid, units, state)])
+        if not all_ids:
+            print("No available tasks.")
+            return
+    elif mode == "complete":
+        all_ids = sorted(completed.keys())
+        if not all_ids:
+            print("No completed tasks.")
+            return
+    elif mode in ("all", "agent"):
+        agent_filter = mode if mode == "agent" else None
+        all_ids = sorted(set(list(taken.keys()) + list(completed.keys())))
+        if agent_filter:
+            all_ids = [tid for tid in all_ids
+                        if taken.get(tid, {}).get("taken_by") == agent_filter
+                        or completed.get(tid, {}).get("taken_by") == agent_filter]
+            if not all_ids:
+                print(f"No tasks for agent '{agent_filter}'.")
+                return
+        elif not all_ids:
+            print("No tasks taken or completed.")
+            return
+    elif mode.startswith("task-"):
+        # Single task lookup
+        tid = mode[5:]  # strip "task-"
+        if tid not in units:
+            print(f"ERROR: task '{tid}' not found in plan.", file=sys.stderr)
+            sys.exit(1)
+        all_ids = [tid]
+    else:
+        # Treat unknown mode as agent name
+        agent_filter = mode
+        all_ids = sorted(set(list(taken.keys()) + list(completed.keys())))
+        all_ids = [tid for tid in all_ids
+                    if taken.get(tid, {}).get("taken_by") == agent_filter
+                    or completed.get(tid, {}).get("taken_by") == agent_filter]
+        if not all_ids:
+            print(f"No tasks for agent '{agent_filter}'.")
+            return
+
     for tid in all_ids:
         task = units.get(tid, {})
         title = task.get("title", "<unknown>")
         print(f"{tid}, {title}")
         info = taken.get(tid, {})
-        if "started_at" in info:
-            print(f"started: {info['started_at']}")
         comp = completed.get(tid, {})
-        if "finished_at" in comp:
-            print(f"finished: {comp['finished_at']}")
-        agent = info.get("taken_by", "")
+        started = info.get("started_at") or comp.get("started_at", "—")
+        finished = comp.get("finished_at", "—")
+        print(f"started: {started}")
+        print(f"finished: {finished}")
+        agent = info.get("taken_by") or comp.get("taken_by", "")
         if agent:
             print(f"by: {agent}")
+        review_entered = info.get("review_entered_at") or comp.get("review_entered_at", "")
+        review_ended = info.get("review_ended_at") or comp.get("review_ended_at", "")
+        reviewer = info.get("reviewer") or comp.get("reviewer", "")
+        if review_entered:
+            print(f"entered review: {review_entered}")
+        if review_ended:
+            print(f"ended review: {review_ended}")
+        if reviewer:
+            print(f"reviewer: {reviewer}")
+        if mode == "open":
+            deps = task.get("depends_on", [])
+            if deps:
+                print(f"depends_on: {', '.join(deps)}")
         plan_ref = find_plan_ref(units, tid, doc_index, tasks)
         if plan_ref:
             print(f"plan: {plan_ref.get('path', '')}:{plan_ref.get('line', '')}")
@@ -250,11 +356,18 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("peek", help="Show next available task")
-    pop_p = sub.add_parser("pop", help="Claim next available task")
+    pop_p = sub.add_parser("pop", help="Claim next available task: pop <agent>")
     pop_p.add_argument("agent", help="Agent name claiming the task")
-    fin_p = sub.add_parser("fin", help="Mark task as completed")
+    rev_start_p = sub.add_parser("start_review", help="Start review: start_review <task_id> <reviewer>")
+    rev_start_p.add_argument("task_id", help="Task ID to review")
+    rev_start_p.add_argument("reviewer", help="Agent name reviewing the task")
+    rev_end_p = sub.add_parser("end_review", help="End review: end_review <task_id>")
+    rev_end_p.add_argument("task_id", help="Task ID to end review for")
+    fin_p = sub.add_parser("fin", help="Mark complete: fin <task_id>")
     fin_p.add_argument("task_id", help="Task ID to complete")
-    sub.add_parser("get", help="Report all taken/completed tasks")
+    get_p = sub.add_parser("get", help="Report tasks: get [all|taken|open|complete|task-<id>|<agent>]")
+    get_p.add_argument("mode", nargs="?", default="all",
+                        help="Filter: all (default), taken, open, complete, task-<id>, or agent name")
 
     args = parser.parse_args()
 
@@ -274,6 +387,10 @@ def main() -> None:
         cmd_peek(args, units, state, doc_index, fp_index, tasks)
     elif args.command == "pop":
         cmd_pop(args, units, state, state_path, doc_index, fp_index, tasks)
+    elif args.command == "start_review":
+        cmd_start_review(args, units, state, state_path)
+    elif args.command == "end_review":
+        cmd_end_review(args, units, state, state_path)
     elif args.command == "fin":
         cmd_fin(args, units, state)
     elif args.command == "get":
