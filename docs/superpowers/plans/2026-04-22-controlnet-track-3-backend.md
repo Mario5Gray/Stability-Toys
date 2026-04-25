@@ -219,7 +219,7 @@ git commit -m "feat(controlnet): add local-path controlnet registry and validati
 - Modify: `server/controlnet_constraints.py`
 - Test: `tests/test_controlnet_execution.py`
 
-- [ ] **Step 1: Write failing binding-resolution tests**
+- [x] **Step 1: Write failing binding-resolution tests**
 
 ```python
 def test_resolve_controlnet_bindings_rejects_wrong_family(tmp_path):
@@ -831,13 +831,13 @@ def test_strict_registry_validation_runs_at_startup(monkeypatch, tmp_path):
         _validate_controlnet_registry_for_startup()
 ```
 
-- [ ] **Step 2: Run the startup-validation test to verify it fails**
+- [x] **Step 2: Run the startup-validation test to verify it fails**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_registry.py -k startup -q`
 
 Expected: `FAIL` because startup validation helper does not exist yet.
 
-- [ ] **Step 3: Add startup validation hook in `lifespan()`**
+- [x] **Step 3: Add startup validation hook in `lifespan()`**
 
 ```python
 def _validate_controlnet_registry_for_startup() -> None:

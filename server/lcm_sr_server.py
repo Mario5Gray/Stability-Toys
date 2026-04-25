@@ -326,10 +326,19 @@ USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0"
 model_root_path = ModelPaths(root=MODEL_ROOT)
 
 
+def _validate_controlnet_registry_for_startup() -> None:
+    from server.controlnet_registry import get_controlnet_registry
+
+    get_controlnet_registry()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting FastAPI server lifespan...")
     logger.info(f"BACKEND={BACKEND}, NUM_WORKERS={NUM_WORKERS}, LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}")
+
+    if os.environ.get("CONTROLNET_REGISTRY_VALIDATION", "strict").strip().lower() == "strict":
+        _validate_controlnet_registry_for_startup()
 
     try:
         provider = get_backend_provider()
