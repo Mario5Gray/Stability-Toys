@@ -71,11 +71,11 @@ def find_state_file(plan_path: Path) -> Path:
     return plan_path.with_suffix(".state.json")
 
 
-def load_state(state_path: Path) -> dict:
+def load_state(state_path: Path, plan_name: str) -> dict:
     """Load state file, creating it if it doesn't exist."""
     if state_path.exists():
         return load_json(state_path)
-    return {"plan": plan_path.name, "taken": {}, "completed": {}}
+    return {"plan": plan_name, "taken": {}, "completed": {}}
 
 
 def now_str() -> str:
@@ -214,7 +214,7 @@ def main() -> None:
     plan = load_json(plan_path)
     units = plan.get("units", {})
     state_path = find_state_file(plan_path)
-    state = load_state(state_path)
+    state = load_state(state_path, plan_path.name)
 
     commands = {
         "peek": cmd_peek,
@@ -282,58 +282,6 @@ cat docs/superpowers/plans/2026-04-22-controlnet-track-3-backend-execution-waves
 ```
 
 Expected: JSON with `taken.T1.1` containing `taken_by: "psi"` and `started_at`.
-
-Update `main` to pass `state_path` to `cmd_pop`:
-
-```python
-def main() -> None:
-    parser = argparse.ArgumentParser(description="waveplan — manage execution waves")
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    sub.add_parser("peek", help="Show next available task")
-    pop_p = sub.add_parser("pop", help="Claim next available task")
-    pop_p.add_argument("agent", help="Agent name claiming the task")
-    fin_p = sub.add_parser("fin", help="Mark task as completed")
-    fin_p.add_argument("task_id", help="Task ID to complete")
-    sub.add_parser("get", help="Report all taken/completed tasks")
-
-    args = parser.parse_args()
-
-    plan_path = find_plan_file()
-    if plan_path is None:
-        sys.exit(1)
-
-    plan = load_json(plan_path)
-    units = plan.get("units", {})
-    state_path = find_state_file(plan_path)
-    state = load_state(state_path)
-
-    commands = {
-        "peek": lambda a: cmd_peek(a, units, state),
-        "pop": lambda a: cmd_pop(a, units, state, state_path),
-        "fin": lambda a: cmd_fin(a, units, state),
-        "get": lambda a: cmd_get(a, units, state),
-    }
-    commands[args.command](args)
-
-    # Save state back for non-peek commands
-    if args.command != "peek":
-        save_json(state_path, state)
-```
-
-- [ ] **Step 2: Test state persistence**
-
-```bash
-python scripts/waveplan pop psi
-python scripts/waveplan get
-```
-
-Expected `get` output:
-```
-T1.1, Write failing registry tests
-started: 2026-04-24 14:30
-by: psi
-```
 
 ---
 
@@ -412,7 +360,7 @@ Expected: "No available tasks."
 
 - [ ] **Step 1: Add `--plan` flag to specify plan file explicitly**
 
-Add to `main`:
+Update `main` to accept `--plan` and pass it to `find_plan_file`:
 
 ```python
 def main() -> None:
@@ -444,6 +392,12 @@ def _find_auto_plan() -> Path | None:
         return None
     print(f"ERROR: multiple *-execution-waves.json files found:\n" + "\n".join(str(m) for m in matches), file=sys.stderr)
     return None
+```
+
+Update the `main()` call to `find_plan_file(plan_path=plan_arg)`:
+
+```python
+    plan_path = find_plan_file(args.plan)
 ```
 
 - [ ] **Step 2: Test explicit plan path**
