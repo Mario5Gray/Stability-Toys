@@ -399,13 +399,13 @@ def test_controlnet_cache_does_not_evict_pinned_entries():
     assert "sdxl-canny" in cache.snapshot()["entries"]
 ```
 
-- [ ] **Step 2: Run the cache tests to verify they fail**
+- [x] **Step 2: Run the cache tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_cache.py -q`
 
 Expected: `ERROR` because `backends.controlnet_cache` does not exist yet.
 
-- [ ] **Step 3: Implement the cache with pin/unpin and LRU eviction**
+- [x] **Step 3: Implement the cache with pin/unpin and LRU eviction**
 
 ```python
 from __future__ import annotations
@@ -459,7 +459,7 @@ class ControlNetModelCache:
             return {"entries": list(self._entries.keys())}
 ```
 
-- [ ] **Step 4: Add singleton access for worker code**
+- [x] **Step 4: Add singleton access for worker code**
 
 ```python
 _CACHE: ControlNetModelCache | None = None
@@ -477,13 +477,13 @@ def reset_controlnet_cache() -> None:
     _CACHE = None
 ```
 
-- [ ] **Step 5: Re-run the cache tests**
+- [x] **Step 5: Re-run the cache tests**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_cache.py -q`
 
 Expected: `2 passed`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/controlnet_cache.py tests/test_controlnet_cache.py
@@ -853,7 +853,7 @@ async def lifespan(app: FastAPI):
     yield
 ```
 
-- [ ] **Step 4: Write the manual CUDA validation checklist**
+- [x] **Step 4: Write the manual CUDA validation checklist**
 
 ```markdown
 # Track 3 ControlNet CUDA Validation

@@ -1,0 +1,97 @@
+{
+  "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
+  "taken": {
+    "T7.1": {
+      "taken_by": "theta",
+      "started_at": "2026-04-25 14:19"
+    }
+  },
+  "completed": {
+    "T1.1": {
+      "started_at": "2026-04-25 01:00",
+      "taken_by": "theta",
+      "finished_at": "2026-04-25 01:00"
+    },
+    "T3.1": {
+      "started_at": "2026-04-25 01:00",
+      "taken_by": "sigma",
+      "finished_at": "2026-04-25 01:01"
+    },
+    "T7.4": {
+      "started_at": "2026-04-25 01:01",
+      "taken_by": "sigma",
+      "finished_at": "2026-04-25 01:01"
+    },
+    "T1.2": {
+      "started_at": "2026-04-25 01:02",
+      "taken_by": "psi",
+      "finished_at": "2026-04-25 01:03"
+    },
+    "T3.2": {
+      "started_at": "2026-04-25 01:05",
+      "taken_by": "sigma",
+      "finished_at": "2026-04-25 01:11"
+    },
+    "T1.3": {
+      "started_at": "2026-04-25 01:12",
+      "taken_by": "sigma",
+      "finished_at": "2026-04-25 01:14"
+    },
+    "T3.3": {
+      "started_at": "2026-04-25 01:15",
+      "taken_by": "sigma",
+      "review_entered_at": "2026-04-25 01:22",
+      "review_ended_at": "2026-04-25 01:23",
+      "reviewer": "theta",
+      "finished_at": "2026-04-25 01:23"
+    },
+    "T1.4": {
+      "started_at": "2026-04-25 01:15",
+      "taken_by": "theta",
+      "review_entered_at": "2026-04-25 01:23",
+      "review_ended_at": "",
+      "reviewer": "theta",
+      "finished_at": "2026-04-25 01:28"
+    },
+    "T1.5": {
+      "started_at": "2026-04-25 01:29",
+      "taken_by": "sigma",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "finished_at": "2026-04-25 01:32"
+    },
+    "T3.4": {
+      "started_at": "2026-04-25 01:24",
+      "taken_by": "sigma",
+      "review_entered_at": "2026-04-25 14:04",
+      "review_ended_at": "2026-04-25 14:05",
+      "reviewer": "theta",
+      "finished_at": "2026-04-25 14:05"
+    },
+    "T3.5": {
+      "started_at": "2026-04-25 14:07",
+      "taken_by": "sigma",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "finished_at": "2026-04-25 14:10"
+    },
+    "T1.6": {
+      "started_at": "2026-04-25 14:11",
+      "taken_by": "sigma",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "finished_at": "2026-04-25 14:12"
+    },
+    "T3.6": {
+      "started_at": "2026-04-25 14:13",
+      "taken_by": "sigma",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "finished_at": "2026-04-25 14:19"
+    }
+  }
+}
