@@ -38,3 +38,24 @@ def test_registry_rejects_missing_local_path_in_strict_mode(tmp_path):
 
     with pytest.raises(ValueError, match="does not exist"):
         load_controlnet_registry(config_path=str(config_path), validation_mode="strict")
+
+
+def test_strict_registry_validation_runs_at_startup(monkeypatch, tmp_path):
+    bad_config = tmp_path / "controlnets.yaml"
+    bad_config.write_text(
+        "models:\n"
+        "  broken:\n"
+        "    path: /does/not/exist\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sdxl]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CONTROLNET_REGISTRY_PATH", str(bad_config))
+    monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "strict")
+
+    from server.controlnet_registry import reset_controlnet_registry
+    from server.lcm_sr_server import _validate_controlnet_registry_for_startup
+
+    reset_controlnet_registry()
+    with pytest.raises(ValueError, match="does not exist"):
+        _validate_controlnet_registry_for_startup()
