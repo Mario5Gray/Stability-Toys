@@ -48,3 +48,5 @@ env.custom
 .worktrees/
 .agents/
 skills-lock.json
+AGENT-PSI.md
+opencode.json
