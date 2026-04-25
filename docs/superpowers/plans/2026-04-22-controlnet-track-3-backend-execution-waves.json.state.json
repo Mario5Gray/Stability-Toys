@@ -3,7 +3,9 @@
   "taken": {
     "T7.1": {
       "taken_by": "theta",
-      "started_at": "2026-04-25 14:19"
+      "started_at": "2026-04-25 14:19",
+      "review_entered_at": "2026-04-25 14:26",
+      "reviewer": "sigma"
     }
   },
   "completed": {

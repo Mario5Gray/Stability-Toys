@@ -1016,8 +1016,10 @@
       "wave": 6,
       "plan_line": 810,
       "depends_on": ["T1.5"],
-      "doc_refs": ["t7_plan", "spec_validation"],
+      "doc_refs": ["t7_plan", "spec_validation", "test_registry", "code_http_generate"],
       "fp_refs": ["track3_parent"],
+      "files": ["tests/test_controlnet_registry.py"],
+      "driven_by": ["server.lcm_sr_server._validate_controlnet_registry_for_startup"],
       "notes": ["Depends on registry singleton/reset hooks from T1."]
     },
     "T7.2": {
@@ -1027,9 +1029,11 @@
       "wave": 7,
       "plan_line": 834,
       "depends_on": ["T7.1"],
-      "doc_refs": ["t7_plan"],
+      "doc_refs": ["t7_plan", "test_registry", "code_http_generate"],
       "fp_refs": ["track3_parent"],
-      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_registry.py -k startup -q"
+      "driven_by": ["tests/test_controlnet_registry.py"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_registry.py -k startup -q",
+      "expected": "FAIL because startup validation helper does not exist yet."
     },
     "T7.3": {
       "task": "T7",

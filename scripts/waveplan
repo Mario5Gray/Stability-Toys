@@ -233,13 +233,17 @@ def cmd_fin(args, units: dict, state: dict) -> None:
     if incomplete:
         print(f"ERROR: task {tid} has incomplete dependencies: {', '.join(incomplete)}", file=sys.stderr)
         sys.exit(1)
-    ts = now_str()
-    # Ensure started_at and taken_by are set (in case task was fin'd without pop)
+    # If review was started but not ended, require review completion first
     taken_entry = state.setdefault("taken", {})
-    started = taken_entry.get(tid, {}).get("started_at", ts)
-    taken_by = taken_entry.get(tid, {}).get("taken_by", "")
     review_entered = taken_entry.get(tid, {}).get("review_entered_at", "")
     review_ended = taken_entry.get(tid, {}).get("review_ended_at", "")
+    if review_entered and not review_ended:
+        print(f"ERROR: task {tid} has an active review. End review before completing.", file=sys.stderr)
+        sys.exit(1)
+    ts = now_str()
+    # Ensure started_at and taken_by are set (in case task was fin'd without pop)
+    started = taken_entry.get(tid, {}).get("started_at", ts)
+    taken_by = taken_entry.get(tid, {}).get("taken_by", "")
     reviewer = taken_entry.get(tid, {}).get("reviewer", "")
     state.setdefault("completed", {})[tid] = {
         "started_at": started,
@@ -353,6 +357,7 @@ def cmd_get(args, units: dict, state: dict, doc_index: dict, fp_index: dict, tas
 def main() -> None:
     parser = argparse.ArgumentParser(description="waveplan — manage execution waves")
     parser.add_argument("--plan", help="Path to the *-execution-waves.json file")
+    parser.add_argument("--state", help="Path to the state JSON file (default: auto-derived from --plan)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("peek", help="Show next available task")
@@ -380,7 +385,10 @@ def main() -> None:
     tasks = plan.get("tasks", {})
     doc_index = plan.get("doc_index", {})
     fp_index = plan.get("fp_index", {})
-    state_path = find_state_file(plan_path)
+    if args.state:
+        state_path = Path(args.state)
+    else:
+        state_path = find_state_file(plan_path)
     state = load_state(state_path, plan_path.name)
 
     if args.command == "peek":

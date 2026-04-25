@@ -1,0 +1,38 @@
+{
+  "plan": "test-plan",
+  "units": {
+    "T1.1": {
+      "task": "T1",
+      "title": "Test task one",
+      "kind": "test",
+      "wave": 1,
+      "plan_line": 10,
+      "depends_on": [],
+      "doc_refs": [],
+      "fp_refs": []
+    },
+    "T1.2": {
+      "task": "T1",
+      "title": "Test task two",
+      "kind": "test",
+      "wave": 1,
+      "plan_line": 10,
+      "depends_on": ["T1.1"],
+      "doc_refs": [],
+      "fp_refs": []
+    },
+    "T2.1": {
+      "task": "T2",
+      "title": "Test task three",
+      "kind": "test",
+      "wave": 2,
+      "plan_line": 20,
+      "depends_on": ["T1.2"],
+      "doc_refs": [],
+      "fp_refs": []
+    }
+  },
+  "tasks": {},
+  "doc_index": {},
+  "fp_index": {}
+}
