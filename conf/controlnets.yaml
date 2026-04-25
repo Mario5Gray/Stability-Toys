@@ -1,0 +1,17 @@
+models:
+  sdxl-canny:
+    path: /models/sdxl-canny
+    control_types: [canny]
+    compatible_with: [sdxl]
+  sdxl-depth:
+    path: /models/sdxl-depth
+    control_types: [depth]
+    compatible_with: [sdxl]
+  sd15-canny:
+    path: /models/sd15-canny
+    control_types: [canny]
+    compatible_with: [sd15]
+  sd15-depth:
+    path: /models/sd15-depth
+    control_types: [depth]
+    compatible_with: [sd15]

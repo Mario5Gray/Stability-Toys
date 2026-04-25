@@ -69,7 +69,7 @@
 - Create: `server/controlnet_registry.py`
 - Test: `tests/test_controlnet_registry.py`
 
-- [ ] **Step 1: Write the failing registry tests**
+- [x] **Step 1: Write the failing registry tests**
 
 ```python
 def test_registry_loads_local_controlnet_specs(tmp_path):
@@ -111,13 +111,13 @@ def test_registry_rejects_missing_local_path_in_strict_mode(tmp_path):
         load_controlnet_registry(config_path=str(config_path), validation_mode="strict")
 ```
 
-- [ ] **Step 2: Run the registry tests to verify they fail**
+- [x] **Step 2: Run the registry tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_registry.py -q`
 
 Expected: `ERROR` because `server.controlnet_registry` does not exist yet.
 
-- [ ] **Step 3: Write the minimal registry implementation**
+- [x] **Step 3: Write the minimal registry implementation**
 
 ```python
 from __future__ import annotations
@@ -176,7 +176,7 @@ def load_controlnet_registry(*, config_path: str = "conf/controlnets.yaml", vali
     return ControlNetRegistry(specs=specs, validation_mode=validation_mode)
 ```
 
-- [ ] **Step 4: Add singleton access and validation-mode env support**
+- [x] **Step 4: Add singleton access and validation-mode env support**
 
 ```python
 _registry_singleton: Optional[ControlNetRegistry] = None
@@ -199,13 +199,13 @@ def reset_controlnet_registry() -> None:
     _registry_singleton = None
 ```
 
-- [ ] **Step 5: Re-run the registry tests**
+- [x] **Step 5: Re-run the registry tests**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_registry.py -q`
 
 Expected: `2 passed`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add conf/controlnets.yaml server/controlnet_registry.py tests/test_controlnet_registry.py
