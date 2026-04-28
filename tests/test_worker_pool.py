@@ -12,6 +12,7 @@ import queue
 import time
 import threading
 import sys
+from types import SimpleNamespace
 
 # Mock dependencies just long enough to import the module under test,
 # then restore sys.modules immediately so other test files aren't poisoned.
@@ -785,6 +786,12 @@ class TestJobTypes:
         job = GenerationJob(req=req)
         assert job.job_type == JobType.GENERATION
 
+    def test_generation_job_controlnet_bindings_default_empty_list(self):
+        """Generation jobs should always expose a controlnet binding list."""
+        req = Mock()
+        job = GenerationJob(req=req)
+        assert job.controlnet_bindings == []
+
     def test_mode_switch_job_type(self):
         """Test ModeSwitchJob has correct type."""
         job = ModeSwitchJob(target_mode="test")
@@ -819,6 +826,47 @@ class TestErrorHandling:
         with pytest.raises(KeyError):
             future = worker_pool.switch_mode("invalid-mode")
             future.result(timeout=5.0)
+
+
+class TestControlNetRuntime:
+    """Test the CUDA runtime seam for ControlNet binding resolution."""
+
+    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self, mock_mode_config):
+        """CUDA runtime should resolve ordered bindings before queueing work."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
+        mode = mock_mode_config.get_mode("sdxl-general")
+        store = Mock()
+        detected = SimpleNamespace(variant=SimpleNamespace(value="sdxl-base"))
+
+        with patch("server.mode_config.get_mode_config", return_value=mock_mode_config), \
+             patch("utils.model_detector.detect_model", return_value=detected), \
+             patch("server.asset_store.get_store", return_value=store), \
+             patch("server.controlnet_execution.active_model_family_from_variant", return_value="sdxl"), \
+             patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=["binding"]) as resolve:
+            runtime = CudaGenerationRuntime(pool=pool)
+            runtime.submit_generate(req)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.controlnet_bindings == ["binding"]
+        resolve.assert_called_once()
+        args, kwargs = resolve.call_args
+        assert args == (req,)
+        assert kwargs == {"mode": mode, "store": store, "active_family": "sdxl"}
+
+    def test_backend_capabilities_only_cuda_supports_controlnet(self):
+        """Only the CUDA backend should report ControlNet runtime support."""
+        from backends.platforms.cpu import CPUProvider
+        from backends.platforms.cuda import CUDAProvider
+        from backends.platforms.rknn import RKNNProvider
+
+        assert CUDAProvider().capabilities().supports_controlnet is True
+        assert CPUProvider().capabilities().supports_controlnet is False
+        assert RKNNProvider().capabilities().supports_controlnet is False
 
 
 class TestDefaultFactory:

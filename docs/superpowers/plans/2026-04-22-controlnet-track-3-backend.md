@@ -500,7 +500,7 @@ git commit -m "feat(controlnet): add process-local controlnet model cache"
 - Modify: `backends/worker_pool.py`
 - Test: `tests/test_worker_pool.py`
 
-- [ ] **Step 1: Write failing runtime tests for CUDA-only binding resolution**
+- [x] **Step 1: Write failing runtime tests for CUDA-only binding resolution**
 
 ```python
 def test_cuda_runtime_attaches_controlnet_bindings_before_queueing(mock_mode_config, mock_registry):
