@@ -366,6 +366,17 @@ class TestJobSubmission:
 
         assert worker_pool._get_job_record("job-full") is None
 
+    def test_submit_generation_job_uses_blocking_queue_put_when_timeout_requested(self, worker_pool):
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-timeout")
+
+        with patch.object(worker_pool.q, "put") as put, \
+             patch.object(worker_pool.q, "put_nowait") as put_nowait:
+            worker_pool.submit_job(job, timeout_s=0.25)
+
+        put.assert_called_once_with(job, timeout=0.25)
+        put_nowait.assert_not_called()
+
     def test_oom_cancels_pending_generation_jobs_and_unloads_worker(
         self,
         worker_pool,
@@ -857,6 +868,21 @@ class TestControlNetRuntime:
         args, kwargs = resolve.call_args
         assert args == (req,)
         assert kwargs == {"mode": mode, "store": store, "active_family": "sdxl"}
+
+    def test_cuda_runtime_forwards_queue_timeout_to_worker_pool(self):
+        """CUDA runtime should preserve timeout-aware queueing semantics."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+        runtime.submit_generate(req, timeout_s=0.5)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.req is req
+        assert pool.submit_job.call_args.kwargs == {"timeout_s": 0.5}
 
     def test_backend_capabilities_only_cuda_supports_controlnet(self):
         """Only the CUDA backend should report ControlNet runtime support."""

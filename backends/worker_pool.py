@@ -695,7 +695,7 @@ class WorkerPool:
 
         logger.info("[WorkerPool] Worker loop stopped")
 
-    def submit_job(self, job: Job) -> Future:
+    def submit_job(self, job: Job, *, timeout_s: float | None = 0) -> Future:
         """
         Submit a job to the queue.
 
@@ -703,6 +703,8 @@ class WorkerPool:
 
         Args:
             job: Job to execute
+            timeout_s: Optional queue wait timeout. Values <= 0 keep the
+                non-blocking put_nowait behavior.
 
         Returns:
             Future for job result
@@ -712,7 +714,10 @@ class WorkerPool:
         """
         try:
             self._register_job(job)
-            self.q.put_nowait(job)
+            if timeout_s is not None and timeout_s > 0:
+                self.q.put(job, timeout=timeout_s)
+            else:
+                self.q.put_nowait(job)
             logger.debug(f"[WorkerPool] Job queued: {job.job_type.value}")
             return job.fut
         except queue.Full:

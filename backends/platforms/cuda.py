@@ -23,8 +23,6 @@ class CudaGenerationRuntime:
         from utils.model_detector import detect_model
         from backends.worker_pool import GenerationJob
 
-        del timeout_s
-
         bindings = []
         if getattr(req, "controlnets", None):
             mode_name = self._pool.get_current_mode()
@@ -38,7 +36,7 @@ class CudaGenerationRuntime:
             )
 
         job = GenerationJob(req=req, controlnet_bindings=bindings)
-        return self._pool.submit_job(job)
+        return self._pool.submit_job(job, timeout_s=timeout_s)
 
     def switch_mode(self, mode_name: str, force: bool = False):
         return self._pool.switch_mode(mode_name, force=force)
