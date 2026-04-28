@@ -26,6 +26,10 @@ class CudaGenerationRuntime:
         bindings = []
         if getattr(req, "controlnets", None):
             mode_name = self._pool.get_current_mode()
+            if mode_name is None:
+                raise RuntimeError(
+                    "CudaGenerationRuntime received a ControlNet request before any mode was loaded"
+                )
             mode = get_mode_config().get_mode(mode_name)
             family = active_model_family_from_variant(detect_model(mode.model_path).variant.value)
             bindings = resolve_controlnet_bindings(

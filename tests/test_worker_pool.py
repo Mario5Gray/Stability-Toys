@@ -884,6 +884,21 @@ class TestControlNetRuntime:
         assert queued_job.req is req
         assert pool.submit_job.call_args.kwargs == {"timeout_s": 0.5}
 
+    def test_cuda_runtime_requires_active_mode_for_controlnet_requests(self):
+        """ControlNet requests should fail clearly if no mode is loaded."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.get_current_mode.return_value = None
+        req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+
+        with pytest.raises(RuntimeError, match="before any mode was loaded"):
+            runtime.submit_generate(req)
+
+        pool.submit_job.assert_not_called()
+
     def test_backend_capabilities_only_cuda_supports_controlnet(self):
         """Only the CUDA backend should report ControlNet runtime support."""
         from backends.platforms.cpu import CPUProvider
