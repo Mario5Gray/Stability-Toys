@@ -526,7 +526,7 @@ Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest
 
 Expected: `FAIL` because `GenerationJob` does not carry `controlnet_bindings` and CUDA runtime does not resolve them.
 
-- [ ] **Step 3: Extend backend capabilities and generation job metadata**
+- [x] **Step 3: Extend backend capabilities and generation job metadata**
 
 ```python
 @dataclass(frozen=True)

@@ -118,6 +118,7 @@ class GenerationJob(Job):
     """Job for image generation."""
     req: Any  # GenerateRequest
     init_image: Optional[bytes] = None  # Optional init image bytes for img2img
+    controlnet_bindings: list[Any] = field(default_factory=list)  # Resolved ControlNetBinding list (T3 — populated by CudaGenerationRuntime.submit_generate)
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     def __post_init__(self):
