@@ -566,7 +566,7 @@ def generate(req: GenerateRequest):
         raise HTTPException(status_code=501, detail=detail)
 
     try:
-        fut = runtime.submit_generate(req, timeout_s=0.25)
+        fut = runtime.submit_generate(req)
     except queue.Full:
         raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
 
@@ -756,7 +756,7 @@ def _run_generate_from_dict(gen_req: dict):
     runtime = app.state.generation_runtime
 
     # ---- base SD generation ----
-    fut = runtime.submit_generate(req, timeout_s=0.25)
+    fut = runtime.submit_generate(req)
     png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
 
     # ---- optional SR postprocess ----

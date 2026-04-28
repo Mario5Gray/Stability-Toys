@@ -34,8 +34,8 @@ class RknnGenerationRuntime:
             use_rknn_context_cfgs=use_rknn_context_cfgs,
         )
 
-    def submit_generate(self, req: Any, *, timeout_s: float = 0.25):
-        return self._service.submit(req, timeout_s=timeout_s)
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
+        return self._service.submit(req, timeout_s=0.25 if timeout_s is None else timeout_s)
 
     def get_current_mode(self):
         return None

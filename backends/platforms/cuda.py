@@ -13,7 +13,7 @@ class CudaGenerationRuntime:
             pool = get_worker_pool()
         self._pool = pool
 
-    def submit_generate(self, req: Any, *, timeout_s: float = 0.25):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
         from server.asset_store import get_store
         from server.controlnet_execution import (
             active_model_family_from_variant,

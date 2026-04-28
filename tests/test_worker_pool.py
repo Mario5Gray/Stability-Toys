@@ -360,7 +360,7 @@ class TestJobSubmission:
         req = Mock()
         job = GenerationJob(req=req, job_id="job-full")
 
-        with patch.object(worker_pool.q, "put_nowait", side_effect=queue.Full):
+        with patch.object(worker_pool.q, "put", side_effect=queue.Full):
             with pytest.raises(queue.Full):
                 worker_pool.submit_job(job)
 
@@ -376,6 +376,45 @@ class TestJobSubmission:
 
         put.assert_called_once_with(job, timeout=0.25)
         put_nowait.assert_not_called()
+
+    def test_submit_generation_job_uses_pool_default_timeout_when_override_omitted(
+        self,
+        mock_mode_config,
+        mock_registry,
+        mock_worker_factory,
+    ):
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        pool = WorkerPool(
+            queue_max=10,
+            queue_timeout_s=0.75,
+            worker_factory=mock_worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        try:
+            job = GenerationJob(req=Mock(), job_id="job-default-timeout")
+            with patch.object(pool.q, "put") as put, \
+                 patch.object(pool.q, "put_nowait") as put_nowait:
+                pool.submit_job(job)
+
+            put.assert_called_once_with(job, timeout=0.75)
+            put_nowait.assert_not_called()
+        finally:
+            pool.shutdown()
+            reset_worker_pool()
+
+    def test_submit_generation_job_uses_put_nowait_when_timeout_override_zero(self, worker_pool):
+        job = GenerationJob(req=Mock(), job_id="job-nowait")
+
+        with patch.object(worker_pool.q, "put") as put, \
+             patch.object(worker_pool.q, "put_nowait") as put_nowait:
+            worker_pool.submit_job(job, timeout_s=0)
+
+        put.assert_not_called()
+        put_nowait.assert_called_once_with(job)
 
     def test_oom_cancels_pending_generation_jobs_and_unloads_worker(
         self,
@@ -883,6 +922,21 @@ class TestControlNetRuntime:
         queued_job = pool.submit_job.call_args[0][0]
         assert queued_job.req is req
         assert pool.submit_job.call_args.kwargs == {"timeout_s": 0.5}
+
+    def test_cuda_runtime_uses_pool_default_queue_timeout_when_override_omitted(self):
+        """CUDA runtime should defer to the pool default when no timeout override is given."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+        runtime.submit_generate(req)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.req is req
+        assert pool.submit_job.call_args.kwargs == {"timeout_s": None}
 
     def test_cuda_runtime_requires_active_mode_for_controlnet_requests(self):
         """ControlNet requests should fail clearly if no mode is loaded."""

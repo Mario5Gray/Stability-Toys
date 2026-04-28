@@ -15,7 +15,7 @@ def test_generate_uses_provider_runtime(monkeypatch):
         get_current_mode=lambda: None,
         is_model_loaded=lambda: False,
         get_queue_size=lambda: 0,
-        submit_generate=lambda req, timeout_s=0.25: fut,
+        submit_generate=lambda req: fut,
     )
     monkeypatch.setattr(lcm_sr_server.app.state, "generation_runtime", runtime, raising=False)
     monkeypatch.setattr(lcm_sr_server.app.state, "sr_service", None, raising=False)
@@ -35,7 +35,7 @@ def test_run_generate_from_dict_uses_provider_runtime(monkeypatch):
     fut.set_result((b"png-bytes", 1234))
 
     runtime = SimpleNamespace(
-        submit_generate=lambda req, timeout_s=0.25: fut,
+        submit_generate=lambda req: fut,
     )
     monkeypatch.setattr(lcm_sr_server.app.state, "generation_runtime", runtime, raising=False)
     monkeypatch.setattr(lcm_sr_server.app.state, "sr_service", None, raising=False)
