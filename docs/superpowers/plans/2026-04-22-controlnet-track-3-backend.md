@@ -547,7 +547,7 @@ class GenerationJob(Job):
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 ```
 
-- [ ] **Step 4: Resolve bindings in the CUDA runtime before queueing**
+- [x] **Step 4: Resolve bindings in the CUDA runtime before queueing**
 
 > **Implementer note (carried forward from T4.1 review):** import `active_model_family_from_variant` from `server.controlnet_execution` — that is where it was defined in T2.5. The earlier draft of this snippet wrongly referenced `server.controlnet_registry`. Also keep these imports lazy (inside `submit_generate`) so the existing RED tests in `tests/test_worker_pool.py`, which patch at the definition sites (`server.asset_store.get_store`, `server.controlnet_execution.*`, `utils.model_detector.detect_model`, `server.mode_config.get_mode_config`), still intercept after import-time binding.
 
