@@ -210,7 +210,7 @@ def test_dispatch_stub_rejects_validated_controlnets():
     r = R()
     r.controlnets = [object()]
     with pytest.raises(NotImplementedError, match="ControlNet provider not yet implemented"):
-        ensure_controlnet_dispatch_supported(r)
+        ensure_controlnet_dispatch_supported(r, supports_controlnet=False)
 
 
 def test_dispatch_stub_noop_when_no_controlnets():
@@ -220,6 +220,8 @@ def test_dispatch_stub_noop_when_no_controlnets():
         pass
     r = R()
     r.controlnets = None
-    ensure_controlnet_dispatch_supported(r)
+    ensure_controlnet_dispatch_supported(r, supports_controlnet=False)
     r.controlnets = []
-    ensure_controlnet_dispatch_supported(r)
+    ensure_controlnet_dispatch_supported(r, supports_controlnet=False)
+    r.controlnets = [object()]
+    ensure_controlnet_dispatch_supported(r, supports_controlnet=True)

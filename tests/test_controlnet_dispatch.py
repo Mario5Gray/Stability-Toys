@@ -126,3 +126,75 @@ async def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
     assert errors, "expected a job:error message"
     assert "ControlNet provider not yet implemented" in errors[0]["error"]
+
+
+async def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_current_mode():
+    """Mode-system WS pre-submit path should return the stub error, not TypeError."""
+    import server.ws_routes as ws
+    from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+
+    mock_ws = MagicMock()
+    mock_state = MagicMock()
+    mock_state.use_mode_system = True
+    mock_state.worker_pool.get_current_mode.return_value = "sdxl-general"
+    mock_ws.app.state = mock_state
+
+    sent_messages = []
+
+    async def fake_send(client_id, msg):
+        sent_messages.append(msg)
+
+    policy = ControlNetPolicy(
+        enabled=True,
+        max_attachments=1,
+        allow_reuse_emitted_maps=True,
+        allowed_control_types={
+            "canny": ControlNetControlTypePolicy(
+                default_model_id="sdxl-canny",
+                allowed_model_ids=["sdxl-canny"],
+                allow_preprocess=True,
+                default_strength=0.8,
+                min_strength=0.0,
+                max_strength=2.0,
+            )
+        },
+    )
+
+    with patch.object(ws.hub, "send", side_effect=fake_send):
+        with patch("server.ws_routes._get_app_state", return_value=mock_state):
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = MagicMock(
+                    get_mode=MagicMock(
+                        return_value=MagicMock(
+                            name="sdxl-general",
+                            default_size="1024x1024",
+                            default_steps=30,
+                            default_guidance=7.0,
+                            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                            controlnet_policy=policy,
+                        )
+                    )
+                )
+                await ws.handle_job_submit(
+                    mock_ws,
+                    {
+                        "id": "corr2",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "controlnets": [
+                                {
+                                    "attachment_id": "cn_1",
+                                    "control_type": "canny",
+                                    "map_asset_ref": "asset_a",
+                                }
+                            ],
+                        },
+                    },
+                    "client1",
+                )
+
+    errors = [m for m in sent_messages if m.get("type") == "job:error"]
+    assert errors, "expected a job:error message"
+    assert "ControlNet provider not yet implemented" in errors[0]["error"]
+    assert "missing 1 required keyword-only argument" not in errors[0]["error"]

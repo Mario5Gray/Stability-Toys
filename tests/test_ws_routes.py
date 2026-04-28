@@ -246,7 +246,8 @@ class TestJobSubmit:
         fake_registry = _fake_preprocessor_registry("canny")
         captured = {}
 
-        def _fake_dispatch_guard(req):
+        def _fake_dispatch_guard(req, *, supports_controlnet):
+            assert supports_controlnet is False
             captured["attachment"] = req.controlnets[0]
             raise NotImplementedError("ControlNet provider not yet implemented on this backend (Track 3 delivers execution)")
 
@@ -470,7 +471,8 @@ class TestJobSubmit:
         fake_registry = _fake_preprocessor_registry("canny")
         captured = {}
 
-        def _fake_dispatch_guard(req):
+        def _fake_dispatch_guard(req, *, supports_controlnet):
+            assert supports_controlnet is False
             captured["attachment"] = req.controlnets[0]
             raise NotImplementedError("ControlNet provider not yet implemented on this backend (Track 3 delivers execution)")
 

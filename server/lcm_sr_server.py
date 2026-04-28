@@ -559,7 +559,7 @@ def generate(req: GenerateRequest):
 
     try:
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-        ensure_controlnet_dispatch_supported(req)
+        ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
     except NotImplementedError as e:
         artifact_dicts = [a.model_dump() for a in emitted_artifacts]
         detail = str(e) if not artifact_dicts else {"error": str(e), "controlnet_artifacts": artifact_dicts}

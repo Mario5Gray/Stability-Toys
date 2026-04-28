@@ -265,13 +265,13 @@ def test_resolve_controlnet_bindings_preserves_request_order(tmp_path):
     assert bindings[1].control_image_bytes == b"second-map"
 ```
 
-- [ ] **Step 2: Run the binding tests to verify they fail**
+- [x] **Step 2: Run the binding tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_execution.py -q`
 
 Expected: `ERROR` because `server.controlnet_execution` does not exist yet.
 
-- [ ] **Step 3: Write the runtime binding dataclasses and resolver**
+- [x] **Step 3: Write the runtime binding dataclasses and resolver**
 
 ```python
 from __future__ import annotations
@@ -327,7 +327,7 @@ def resolve_controlnet_bindings(req, *, mode, store: AssetStore, active_family: 
     return bindings
 ```
 
-- [ ] **Step 4: Replace the unconditional dispatch stub with backend-aware gating**
+- [x] **Step 4: Replace the unconditional dispatch stub with backend-aware gating**
 
 ```python
 def ensure_controlnet_dispatch_supported(req: Any, *, supports_controlnet: bool) -> None:
@@ -339,7 +339,7 @@ def ensure_controlnet_dispatch_supported(req: Any, *, supports_controlnet: bool)
         )
 ```
 
-- [ ] **Step 5: Add family detection helper for request-time validation**
+- [x] **Step 5: Add family detection helper for request-time validation**
 
 ```python
 def active_model_family_from_variant(variant: str) -> str:
@@ -350,13 +350,13 @@ def active_model_family_from_variant(variant: str) -> str:
     raise ValueError(f"unsupported active model family for ControlNet: {variant}")
 ```
 
-- [ ] **Step 6: Re-run the binding tests**
+- [x] **Step 6: Re-run the binding tests**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_execution.py -q`
 
 Expected: `2 passed`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/controlnet_execution.py server/controlnet_constraints.py tests/test_controlnet_execution.py

@@ -153,7 +153,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 from server.asset_store import get_store
                 pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-            ensure_controlnet_dispatch_supported(req)
+            ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
@@ -508,7 +508,7 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
         _run_artifacts = preprocess_controlnet_attachments(req, get_store())
 
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-        ensure_controlnet_dispatch_supported(req)
+        ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
 
         # Resolve optional init image reference
         init_image_bytes = None

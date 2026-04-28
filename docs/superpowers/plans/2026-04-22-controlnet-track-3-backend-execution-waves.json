@@ -177,6 +177,11 @@
       "line": 4,
       "kind": "code"
     },
+    "test_constraints": {
+      "path": "tests/test_controlnet_constraints.py",
+      "line": 1,
+      "kind": "test"
+    },
     "code_registry": {
       "path": "server/controlnet_registry.py",
       "line": 1,
@@ -192,8 +197,23 @@
       "line": 1,
       "kind": "test"
     },
+    "test_execution": {
+      "path": "tests/test_controlnet_execution.py",
+      "line": 1,
+      "kind": "test"
+    },
+    "test_dispatch": {
+      "path": "tests/test_controlnet_dispatch.py",
+      "line": 1,
+      "kind": "test"
+    },
     "code_cache": {
       "path": "backends/controlnet_cache.py",
+      "line": 1,
+      "kind": "code"
+    },
+    "code_execution": {
+      "path": "server/controlnet_execution.py",
       "line": 1,
       "kind": "code"
     },
@@ -631,8 +651,10 @@
       "wave": 7,
       "plan_line": 222,
       "depends_on": ["T1.5"],
-      "doc_refs": ["t2_plan", "spec_compat", "track2_preprocess"],
+      "doc_refs": ["t2_plan", "spec_compat", "track2_preprocess", "test_execution", "code_execution"],
       "fp_refs": ["track3_parent", "track1_parent", "track2_parent"],
+      "files": ["tests/test_controlnet_execution.py"],
+      "driven_by": ["server.controlnet_execution.resolve_controlnet_bindings"],
       "notes": ["Assumes get_controlnet_registry exists and Track 2 already backfills map_asset_ref."]
     },
     "T2.2": {
@@ -642,9 +664,11 @@
       "wave": 8,
       "plan_line": 268,
       "depends_on": ["T2.1"],
-      "doc_refs": ["t2_plan"],
+      "doc_refs": ["t2_plan", "test_execution"],
       "fp_refs": ["track3_parent"],
-      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_execution.py -q"
+      "driven_by": ["tests/test_controlnet_execution.py"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_controlnet_execution.py -q",
+      "expected": "ERROR because server.controlnet_execution does not exist yet."
     },
     "T2.3": {
       "task": "T2",
@@ -653,9 +677,16 @@
       "wave": 9,
       "plan_line": 274,
       "depends_on": ["T2.2"],
-      "doc_refs": ["t2_plan", "spec_compat", "spec_request_flow", "track2_preprocess"],
+      "doc_refs": ["t2_plan", "spec_compat", "spec_request_flow", "track2_preprocess", "code_execution", "test_execution"],
       "fp_refs": ["track3_parent", "track2_parent"],
-      "notes": ["Build ordered ControlNetBinding objects from AssetStore bytes."]
+      "files": ["server/controlnet_execution.py", "tests/test_controlnet_execution.py"],
+      "driven_by": ["tests/test_controlnet_execution.py"],
+      "must_define": ["ControlNetBinding", "resolve_controlnet_bindings"],
+      "notes": [
+        "Build ordered ControlNetBinding objects from AssetStore bytes.",
+        "ControlNetAttachment.strength defaults to None in server.controlnet_models.py; resolver must guard that default or the order-preservation test will TypeError on float(None).",
+        "Tests need a temporary registry config with real temp directories because conf/controlnets.yaml uses placeholder /models paths."
+      ]
     },
     "T2.4": {
       "task": "T2",
@@ -664,8 +695,11 @@
       "wave": 10,
       "plan_line": 330,
       "depends_on": ["T2.3"],
-      "doc_refs": ["t2_plan", "track1_stub", "code_constraints"],
+      "doc_refs": ["t2_plan", "track1_stub", "code_constraints", "code_http_generate", "code_ws_presubmit", "code_ws_run_generate", "test_constraints", "test_dispatch"],
       "fp_refs": ["track3_parent", "track1_parent"],
+      "files": ["server/controlnet_constraints.py", "server/lcm_sr_server.py", "server/ws_routes.py", "tests/test_controlnet_constraints.py", "tests/test_controlnet_dispatch.py", "tests/test_ws_routes.py"],
+      "driven_by": ["tests/test_controlnet_constraints.py", "tests/test_controlnet_dispatch.py"],
+      "must_define": ["ensure_controlnet_dispatch_supported"],
       "notes": ["Gate on backend capability rather than unconditional 501."]
     },
     "T2.5": {
@@ -675,8 +709,11 @@
       "wave": 10,
       "plan_line": 342,
       "depends_on": ["T2.3"],
-      "doc_refs": ["t2_plan", "spec_compat"],
+      "doc_refs": ["t2_plan", "spec_compat", "code_execution", "test_execution"],
       "fp_refs": ["track3_parent"],
+      "files": ["server/controlnet_execution.py", "tests/test_controlnet_execution.py"],
+      "driven_by": ["tests/test_controlnet_execution.py"],
+      "must_define": ["active_model_family_from_variant"],
       "notes": ["Resolver needs active base-model family, not just mode name."]
     },
     "T2.6": {
@@ -1042,8 +1079,14 @@
       "wave": 8,
       "plan_line": 840,
       "depends_on": ["T7.2"],
-      "doc_refs": ["t7_plan", "spec_validation"],
+      "doc_refs": ["t7_plan", "spec_validation", "test_registry", "code_http_generate"],
       "fp_refs": ["track3_parent"],
+      "files": ["server/lcm_sr_server.py"],
+      "driven_by": ["tests/test_controlnet_registry.py"],
+      "must_define": [
+        "_validate_controlnet_registry_for_startup",
+        "lifespan"
+      ],
       "notes": ["Strict mode validates at startup; lazy mode still boots."]
     },
     "T7.4": {

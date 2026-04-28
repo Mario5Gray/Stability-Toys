@@ -59,10 +59,10 @@ def enforce_controlnet_policy(req: Any, mode: Any) -> None:
             )
 
 
-def ensure_controlnet_dispatch_supported(req: Any) -> None:
-    attachments = getattr(req, "controlnets", None)
-    if attachments:
+def ensure_controlnet_dispatch_supported(req: Any, *, supports_controlnet: bool) -> None:
+    attachments = getattr(req, "controlnets", None) or []
+    if attachments and not supports_controlnet:
         raise NotImplementedError(
             "ControlNet provider not yet implemented on this backend "
-            "(Track 3 delivers execution)"
+            "(Track 3 delivers execution only on CUDA mode-system)"
         )
