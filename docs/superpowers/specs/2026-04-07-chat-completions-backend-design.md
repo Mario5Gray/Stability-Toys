@@ -27,7 +27,7 @@ The insertion point is the WebSocket job dispatcher in `ws_routes.py`. Today it 
 
 ## Current State
 
-- The WebSocket dispatcher (`ws_routes.py:120`) routes on `jobType`: `generate`, `comfy`, `sr`
+- The WebSocket dispatcher in `server/ws_routes.py` (`handle_job_submit`) routes on `jobType`: `generate`, `comfy`, `sr`, `chat`
 - Each job type follows the same lifecycle: `job:ack` -> optional `job:progress` -> `job:complete` or `job:error`
 - Mode config (`modes.yaml`) defines model paths and generation parameters but has no concept of a chat backend
 - The frontend sends `job:submit` with `jobType` and `params` and handles the response envelope generically

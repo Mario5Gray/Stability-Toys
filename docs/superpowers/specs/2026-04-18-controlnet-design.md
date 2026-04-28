@@ -208,10 +208,10 @@ V1 storage expectations:
 - generation responses must surface emitted artifacts
 - frontend can reuse them in later requests during that session without recomputation
 
-V1 backing store:
+V1 backing store (as implemented):
 
-- extend the existing `upload_routes.py` in-process ref table rather than introducing a new persistence layer
-- entries gain a `kind` field (`upload` or `control_map`) and an optional metadata blob (see `Recommended artifact metadata` below); uploads retain their current behavior
+- the in-process ref table now lives in `server/asset_store.py` (`AssetStore`) rather than inline inside `upload_routes.py`; `upload_routes.py` was migrated onto `AssetStore` in [d3dc6507](https://example.invalid/d3dc6507) and no longer carries its own `UPLOADS` dict
+- entries carry a `kind` field (`upload` or `control_map`) and an optional metadata blob (see `Recommended artifact metadata` below); uploads retain their original 5-minute TTL behavior, control maps are pinned for the current generation
 - lifetime remains process-scoped (lost on server restart); frontend must tolerate stale refs by re-preprocessing
 - no cross-session or cross-user isolation in v1; a follow-up can add per-session scoping when auth lands
 - eviction: LRU capped by total byte budget (configurable, default 512 MB); `control_map` entries referenced by a recent generation are pinned for at least one generation cycle to avoid mid-request eviction
@@ -348,6 +348,8 @@ This logic must run for both:
 The backend should fail early and specifically. Silent dropping of invalid attachments is not allowed.
 
 ### 8. Frontend integration
+
+> **Implementation status (2026-04-27):** Backend portions of this spec (sections 1–3, 7) have shipped through Tracks 1–2 and are progressing through Track 3. The frontend integration described here — including the `ControlNet` section in `OptionsPanel.jsx`, the draft-list contract in `useGenerationParams`, and emitted-artifact reuse — is **not yet implemented** and is queued behind backend execution.
 
 V1 should extend the existing options and generation-parameter path instead of adding a parallel ControlNet app.
 

@@ -1,7 +1,9 @@
 # Vision Chat Design
 
 **Date:** 2026-04-18
-**Status:** Approved
+**Status:** Approved — Not Yet Implemented (as of 2026-04-27)
+
+> **Implementation status:** The chat infrastructure this design layers onto (`ChatDelegateConfig`, `_run_chat`, `_resolve_chat_config`, `_build_chat_messages`, `ChatCompletionsClient`, `MessageComposer`) is in place. The vision-specific additions in this spec — `vision*` fields on `ChatDelegateConfig`, `vision_enabled` / `vision_resize` keys in `to_dict()` and `/api/modes`, and the `slashCtx.visionEnabled` glue in `App.jsx` — are still pending. Treat the code blocks below as the proposed shape, not the current state.
 
 ## Overview
 

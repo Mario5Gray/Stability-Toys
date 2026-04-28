@@ -34,7 +34,7 @@ This keeps connection ownership in mode config, avoids introducing a profile abs
 
 - [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:85) defines `ModesYAML.chat` as a mapping of mode name to `ChatBackendConfig`.
 - [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:476) exposes `get_chat_config(mode_name)`, which resolves chat by mode name rather than by reusable transport id.
-- [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:45) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py:318) both depend on that mode-name lookup shape.
+- [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) both depend on that mode-name lookup shape.
 - [`conf/modes.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes.yml:1) already keeps most mode fields flat and snake_case, so nested `chat` reintroduction would move against the current YAML style.
 
 The current shape works for one-off mode-specific chat config, but it encodes the wrong boundary. A mode should choose a connection. It should not implicitly be the connection namespace.
@@ -129,7 +129,7 @@ The resolver should:
 4. combine connection transport fields with mode behavioral defaults
 5. optionally accept caller-provided behavioral overrides
 
-The resolved object can still be emitted as `ChatConfig` for consumers such as [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:11) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py:318), but its derivation should no longer depend on a mode-name-keyed YAML lookup.
+The resolved object can still be emitted as `ChatConfig` for consumers such as [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py), but its derivation should no longer depend on a mode-name-keyed YAML lookup.
 
 Connection existence should be enforced at config load time, not deferred to first request. At runtime, resolver or caller errors should continue surfacing through the existing error paths rather than adding a second recovery layer.
 
@@ -244,7 +244,7 @@ Failing fast is preferable here because dual-schema support would preserve the s
 
 ### Advisor Path
 
-[`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:41) should resolve the active mode's chat config through the new resolver instead of looking up chat config by mode name.
+[`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) should resolve the active mode's chat config through the new resolver instead of looking up chat config by mode name.
 
 It should also accept neutral request overrides where appropriate for advisor digest generation:
 
