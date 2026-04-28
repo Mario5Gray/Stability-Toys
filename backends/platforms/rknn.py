@@ -35,7 +35,10 @@ class RknnGenerationRuntime:
         )
 
     def submit_generate(self, req: Any, *, timeout_s: float | None = None):
-        return self._service.submit(req, timeout_s=0.25 if timeout_s is None else timeout_s)
+        from backends.worker_pool import DEFAULT_QUEUE_TIMEOUT_S
+
+        effective = DEFAULT_QUEUE_TIMEOUT_S if timeout_s is None else timeout_s
+        return self._service.submit(req, timeout_s=effective)
 
     def get_current_mode(self):
         return None
