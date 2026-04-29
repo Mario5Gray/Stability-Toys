@@ -45,7 +45,11 @@ sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img"].StableDiffusionXLImg2ImgPipeline = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
-from backends.cuda_worker import DiffusersCudaWorker, DiffusersSDXLCudaWorker  # noqa: E402
+from backends.cuda_worker import (  # noqa: E402
+    DiffusersCudaWorker,
+    DiffusersSDXLCudaWorker,
+    _decode_control_image,
+)
 
 
 def _make_req():
@@ -98,6 +102,32 @@ def _fake_cache():
     cache = MagicMock()
     cache.acquire.side_effect = lambda model_id, model_path, loader: f"loaded:{model_id}"
     return cache
+
+
+def test_decode_control_image_converts_rgb_and_resizes():
+    opened, resized = _fake_control_image("decode")
+
+    with patch("backends.cuda_worker.Image.open", return_value=opened):
+        result = _decode_control_image(b"control-map", (512, 512))
+
+    opened.convert.assert_called_once_with("RGB")
+    opened.convert.return_value.resize.assert_called_once_with((512, 512))
+    assert result is resized
+
+
+def test_load_controlnet_model_uses_process_cache():
+    worker = _make_worker(DiffusersCudaWorker)
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    cache = _fake_cache()
+
+    with patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache):
+        loaded = worker._load_controlnet_model(binding)
+
+    assert loaded == "loaded:canny-model"
+    cache.acquire.assert_called_once()
+    args, kwargs = cache.acquire.call_args
+    assert args[:2] == ("canny-model", "/models/canny")
+    assert callable(kwargs["loader"])
 
 
 def test_sd15_worker_passes_single_controlnet_kwargs():

@@ -24,6 +24,13 @@ def _bool_env(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).lower() in ("1", "true", "yes", "on")
 
 
+def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:
+    image = Image.open(io.BytesIO(data)).convert("RGB")
+    if image.size != size:
+        image = image.resize(size)
+    return image
+
+
 class CudaWorkerBase:
     """Shared base for CUDA diffusers workers.
 
@@ -264,6 +271,21 @@ class CudaWorkerBase:
                 except Exception:
                     pass
             self.pipe.fuse_lora(lora_scale=weight)
+
+    def _load_controlnet_model(self, binding: Any) -> Any:
+        from backends.controlnet_cache import get_controlnet_cache
+        from diffusers import ControlNetModel
+
+        cache = get_controlnet_cache()
+        return cache.acquire(
+            binding.model_id,
+            binding.model_path,
+            loader=lambda path: ControlNetModel.from_pretrained(
+                path,
+                torch_dtype=self.dtype,
+                local_files_only=True,
+            ),
+        )
 
 
 class DiffusersCudaWorker(CudaWorkerBase):
