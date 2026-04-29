@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import queue
 from typing import Any
 
 from backends.platforms.base import BackendCapabilities
@@ -14,24 +13,34 @@ class CudaGenerationRuntime:
             pool = get_worker_pool()
         self._pool = pool
 
-    def submit_generate(self, req: Any, *, timeout_s: float = 0.25):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
+        from server.asset_store import get_store
+        from server.controlnet_execution import (
+            active_model_family_from_variant,
+            resolve_controlnet_bindings,
+        )
+        from server.mode_config import get_mode_config
+        from utils.model_detector import detect_model
         from backends.worker_pool import GenerationJob
 
-        job = GenerationJob(req=req)
-        if timeout_s is None or timeout_s <= 0:
-            return self._pool.submit_job(job)
-
-        try:
-            self._pool._register_job(job)  # type: ignore[attr-defined]
-            self._pool.q.put(job, timeout=timeout_s)  # type: ignore[attr-defined]
-            return job.fut
-        except queue.Full:
-            self._pool._finalize_job_record(job.job_id)  # type: ignore[attr-defined]
-            max_size = getattr(self._pool, "queue_max", "unknown")
-            raise queue.Full(
-                f"Job queue full (max: {max_size}). "
-                "Try again later or increase QUEUE_MAX."
+        bindings = []
+        if getattr(req, "controlnets", None):
+            mode_name = self._pool.get_current_mode()
+            if mode_name is None:
+                raise RuntimeError(
+                    "CudaGenerationRuntime received a ControlNet request before any mode was loaded"
+                )
+            mode = get_mode_config().get_mode(mode_name)
+            family = active_model_family_from_variant(detect_model(mode.model_path).variant.value)
+            bindings = resolve_controlnet_bindings(
+                req,
+                mode=mode,
+                store=get_store(),
+                active_family=family,
             )
+
+        job = GenerationJob(req=req, controlnet_bindings=bindings)
+        return self._pool.submit_job(job, timeout_s=timeout_s)
 
     def switch_mode(self, mode_name: str, force: bool = False):
         return self._pool.switch_mode(mode_name, force=force)
@@ -53,7 +62,7 @@ class CUDAProvider:
     backend_id = "cuda"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(True, True, True, True, True)
+        return BackendCapabilities(True, True, True, True, True, True)
 
     def create_worker_factory(self, *args: Any, **kwargs: Any):
         from backends.worker_factory import create_cuda_worker

@@ -10,7 +10,7 @@ class PlaceholderGenerationRuntime:
     def __init__(self, backend_id: str):
         self._backend_id = backend_id
 
-    def submit_generate(self, req: Any, *, timeout_s: float = 0.25):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
         raise NotImplementedError(f"BACKEND={self._backend_id} generation is not implemented")
 
     def get_current_mode(self):

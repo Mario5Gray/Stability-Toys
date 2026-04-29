@@ -12,6 +12,7 @@ import queue
 import time
 import threading
 import sys
+from types import SimpleNamespace
 
 # Mock dependencies just long enough to import the module under test,
 # then restore sys.modules immediately so other test files aren't poisoned.
@@ -359,11 +360,61 @@ class TestJobSubmission:
         req = Mock()
         job = GenerationJob(req=req, job_id="job-full")
 
-        with patch.object(worker_pool.q, "put_nowait", side_effect=queue.Full):
+        with patch.object(worker_pool.q, "put", side_effect=queue.Full):
             with pytest.raises(queue.Full):
                 worker_pool.submit_job(job)
 
         assert worker_pool._get_job_record("job-full") is None
+
+    def test_submit_generation_job_uses_blocking_queue_put_when_timeout_requested(self, worker_pool):
+        req = Mock()
+        job = GenerationJob(req=req, job_id="job-timeout")
+
+        with patch.object(worker_pool.q, "put") as put, \
+             patch.object(worker_pool.q, "put_nowait") as put_nowait:
+            worker_pool.submit_job(job, timeout_s=0.25)
+
+        put.assert_called_once_with(job, timeout=0.25)
+        put_nowait.assert_not_called()
+
+    def test_submit_generation_job_uses_pool_default_timeout_when_override_omitted(
+        self,
+        mock_mode_config,
+        mock_registry,
+        mock_worker_factory,
+    ):
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        pool = WorkerPool(
+            queue_max=10,
+            queue_timeout_s=0.75,
+            worker_factory=mock_worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        try:
+            job = GenerationJob(req=Mock(), job_id="job-default-timeout")
+            with patch.object(pool.q, "put") as put, \
+                 patch.object(pool.q, "put_nowait") as put_nowait:
+                pool.submit_job(job)
+
+            put.assert_called_once_with(job, timeout=0.75)
+            put_nowait.assert_not_called()
+        finally:
+            pool.shutdown()
+            reset_worker_pool()
+
+    def test_submit_generation_job_uses_put_nowait_when_timeout_override_zero(self, worker_pool):
+        job = GenerationJob(req=Mock(), job_id="job-nowait")
+
+        with patch.object(worker_pool.q, "put") as put, \
+             patch.object(worker_pool.q, "put_nowait") as put_nowait:
+            worker_pool.submit_job(job, timeout_s=0)
+
+        put.assert_not_called()
+        put_nowait.assert_called_once_with(job)
 
     def test_oom_cancels_pending_generation_jobs_and_unloads_worker(
         self,
@@ -785,6 +836,12 @@ class TestJobTypes:
         job = GenerationJob(req=req)
         assert job.job_type == JobType.GENERATION
 
+    def test_generation_job_controlnet_bindings_default_empty_list(self):
+        """Generation jobs should always expose a controlnet binding list."""
+        req = Mock()
+        job = GenerationJob(req=req)
+        assert job.controlnet_bindings == []
+
     def test_mode_switch_job_type(self):
         """Test ModeSwitchJob has correct type."""
         job = ModeSwitchJob(target_mode="test")
@@ -819,6 +876,92 @@ class TestErrorHandling:
         with pytest.raises(KeyError):
             future = worker_pool.switch_mode("invalid-mode")
             future.result(timeout=5.0)
+
+
+class TestControlNetRuntime:
+    """Test the CUDA runtime seam for ControlNet binding resolution."""
+
+    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self, mock_mode_config):
+        """CUDA runtime should resolve ordered bindings before queueing work."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
+        mode = mock_mode_config.get_mode("sdxl-general")
+        store = Mock()
+        detected = SimpleNamespace(variant=SimpleNamespace(value="sdxl-base"))
+
+        with patch("server.mode_config.get_mode_config", return_value=mock_mode_config), \
+             patch("utils.model_detector.detect_model", return_value=detected), \
+             patch("server.asset_store.get_store", return_value=store), \
+             patch("server.controlnet_execution.active_model_family_from_variant", return_value="sdxl"), \
+             patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=["binding"]) as resolve:
+            runtime = CudaGenerationRuntime(pool=pool)
+            runtime.submit_generate(req)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.controlnet_bindings == ["binding"]
+        resolve.assert_called_once()
+        args, kwargs = resolve.call_args
+        assert args == (req,)
+        assert kwargs == {"mode": mode, "store": store, "active_family": "sdxl"}
+
+    def test_cuda_runtime_forwards_queue_timeout_to_worker_pool(self):
+        """CUDA runtime should preserve timeout-aware queueing semantics."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+        runtime.submit_generate(req, timeout_s=0.5)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.req is req
+        assert pool.submit_job.call_args.kwargs == {"timeout_s": 0.5}
+
+    def test_cuda_runtime_uses_pool_default_queue_timeout_when_override_omitted(self):
+        """CUDA runtime should defer to the pool default when no timeout override is given."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.submit_job.return_value = Future()
+        req = SimpleNamespace(controlnets=[])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+        runtime.submit_generate(req)
+
+        queued_job = pool.submit_job.call_args[0][0]
+        assert queued_job.req is req
+        assert pool.submit_job.call_args.kwargs == {"timeout_s": None}
+
+    def test_cuda_runtime_requires_active_mode_for_controlnet_requests(self):
+        """ControlNet requests should fail clearly if no mode is loaded."""
+        from backends.platforms.cuda import CudaGenerationRuntime
+
+        pool = Mock()
+        pool.get_current_mode.return_value = None
+        req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
+
+        runtime = CudaGenerationRuntime(pool=pool)
+
+        with pytest.raises(RuntimeError, match="before any mode was loaded"):
+            runtime.submit_generate(req)
+
+        pool.submit_job.assert_not_called()
+
+    def test_backend_capabilities_only_cuda_supports_controlnet(self):
+        """Only the CUDA backend should report ControlNet runtime support."""
+        from backends.platforms.cpu import CPUProvider
+        from backends.platforms.cuda import CUDAProvider
+        from backends.platforms.rknn import RKNNProvider
+
+        assert CUDAProvider().capabilities().supports_controlnet is True
+        assert CPUProvider().capabilities().supports_controlnet is False
+        assert RKNNProvider().capabilities().supports_controlnet is False
 
 
 class TestDefaultFactory:

@@ -500,7 +500,7 @@ git commit -m "feat(controlnet): add process-local controlnet model cache"
 - Modify: `backends/worker_pool.py`
 - Test: `tests/test_worker_pool.py`
 
-- [ ] **Step 1: Write failing runtime tests for CUDA-only binding resolution**
+- [x] **Step 1: Write failing runtime tests for CUDA-only binding resolution**
 
 ```python
 def test_cuda_runtime_attaches_controlnet_bindings_before_queueing(mock_mode_config, mock_registry):
@@ -520,13 +520,13 @@ def test_cuda_runtime_attaches_controlnet_bindings_before_queueing(mock_mode_con
     resolve.assert_called_once()
 ```
 
-- [ ] **Step 2: Run the worker/runtime tests to verify they fail**
+- [x] **Step 2: Run the worker/runtime tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_worker_pool.py -k controlnet -q`
 
 Expected: `FAIL` because `GenerationJob` does not carry `controlnet_bindings` and CUDA runtime does not resolve them.
 
-- [ ] **Step 3: Extend backend capabilities and generation job metadata**
+- [x] **Step 3: Extend backend capabilities and generation job metadata**
 
 ```python
 @dataclass(frozen=True)
@@ -547,17 +547,19 @@ class GenerationJob(Job):
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 ```
 
-- [ ] **Step 4: Resolve bindings in the CUDA runtime before queueing**
+- [x] **Step 4: Resolve bindings in the CUDA runtime before queueing**
+
+> **Implementer note (carried forward from T4.1 review):** import `active_model_family_from_variant` from `server.controlnet_execution` — that is where it was defined in T2.5. The earlier draft of this snippet wrongly referenced `server.controlnet_registry`. Also keep these imports lazy (inside `submit_generate`) so the existing RED tests in `tests/test_worker_pool.py`, which patch at the definition sites (`server.asset_store.get_store`, `server.controlnet_execution.*`, `utils.model_detector.detect_model`, `server.mode_config.get_mode_config`), still intercept after import-time binding.
 
 ```python
-from server.asset_store import get_store
-from server.controlnet_execution import resolve_controlnet_bindings
-from server.controlnet_registry import active_model_family_from_variant
-from server.mode_config import get_mode_config
-from utils.model_detector import detect_model
-
-
 def submit_generate(self, req: Any, *, timeout_s: float = 0.25):
+    from server.asset_store import get_store
+    from server.controlnet_execution import (
+        active_model_family_from_variant,
+        resolve_controlnet_bindings,
+    )
+    from server.mode_config import get_mode_config
+    from utils.model_detector import detect_model
     from backends.worker_pool import GenerationJob
 
     bindings = []

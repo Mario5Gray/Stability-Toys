@@ -11,6 +11,7 @@ class BackendCapabilities:
     supports_superres: bool
     supports_model_registry_stats: bool
     supports_img2img: bool
+    supports_controlnet: bool = False
 
 
 class ModelRegistryProtocol(Protocol):
@@ -38,7 +39,7 @@ class ModelRegistryProtocol(Protocol):
 
 
 class GenerationRuntimeProtocol(Protocol):
-    def submit_generate(self, req: Any, *, timeout_s: float = 0.25) -> Any:
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         ...
 
     def get_current_mode(self) -> Optional[str]:

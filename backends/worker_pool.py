@@ -31,6 +31,8 @@ from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_QUEUE_TIMEOUT_S: float = float(os.environ.get("WORKER_QUEUE_TIMEOUT_S", "0.25"))
+
 
 # Type hints for dependency injection
 class WorkerFactory(Protocol):
@@ -118,6 +120,7 @@ class GenerationJob(Job):
     """Job for image generation."""
     req: Any  # GenerateRequest
     init_image: Optional[bytes] = None  # Optional init image bytes for img2img
+    controlnet_bindings: list[Any] = field(default_factory=list)  # Resolved ControlNetBinding list (T3 — populated by CudaGenerationRuntime.submit_generate)
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     def __post_init__(self):
@@ -199,6 +202,7 @@ class WorkerPool:
     def __init__(
         self,
         queue_max: int = 64,
+        queue_timeout_s: float = DEFAULT_QUEUE_TIMEOUT_S,
         worker_factory: Optional[WorkerFactory] = None,
         mode_config: Optional[ModeConfigManager] = None,
         registry: Optional[ModelRegistry] = None,
@@ -208,6 +212,8 @@ class WorkerPool:
 
         Args:
             queue_max: Maximum queue size
+            queue_timeout_s: Default timeout for queue admission. Values <= 0
+                            keep non-blocking put_nowait behavior.
             worker_factory: Optional factory function for creating workers.
                            Defaults to create_cuda_worker from worker_factory module.
             mode_config: Optional mode configuration manager.
@@ -220,6 +226,7 @@ class WorkerPool:
             for backward compatibility. For testing, inject mocked dependencies.
         """
         self.queue_max = queue_max
+        self.queue_timeout_s = queue_timeout_s
         self.q: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
         self._stop = threading.Event()
         self._worker: Optional[PipelineWorker] = None
@@ -694,7 +701,7 @@ class WorkerPool:
 
         logger.info("[WorkerPool] Worker loop stopped")
 
-    def submit_job(self, job: Job) -> Future:
+    def submit_job(self, job: Job, *, timeout_s: float | None = None) -> Future:
         """
         Submit a job to the queue.
 
@@ -702,6 +709,9 @@ class WorkerPool:
 
         Args:
             job: Job to execute
+            timeout_s: Optional queue wait timeout override. When omitted,
+                uses the pool default. Values <= 0 keep the non-blocking
+                put_nowait behavior.
 
         Returns:
             Future for job result
@@ -709,9 +719,13 @@ class WorkerPool:
         Raises:
             queue.Full if queue is full
         """
+        effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
         try:
             self._register_job(job)
-            self.q.put_nowait(job)
+            if effective_timeout_s > 0:
+                self.q.put(job, timeout=effective_timeout_s)
+            else:
+                self.q.put_nowait(job)
             logger.debug(f"[WorkerPool] Job queued: {job.job_type.value}")
             return job.fut
         except queue.Full:
@@ -876,8 +890,10 @@ def get_worker_pool(
     global _worker_pool
     if _worker_pool is None:
         queue_max = int(os.environ.get("QUEUE_MAX", "64"))
+        queue_timeout_s = DEFAULT_QUEUE_TIMEOUT_S
         _worker_pool = WorkerPool(
             queue_max=queue_max,
+            queue_timeout_s=queue_timeout_s,
             worker_factory=worker_factory,
             mode_config=mode_config,
             registry=registry,
