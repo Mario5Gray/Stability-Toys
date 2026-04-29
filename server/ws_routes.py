@@ -153,7 +153,13 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 from server.asset_store import get_store
                 pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-            ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
+            provider = getattr(state, "backend_provider", None)
+            supports_controlnet = bool(
+                current_mode is not None
+                and provider is not None
+                and provider.capabilities().supports_controlnet
+            )
+            ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
