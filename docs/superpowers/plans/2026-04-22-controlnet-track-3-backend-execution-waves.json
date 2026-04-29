@@ -895,7 +895,7 @@
     "T4.7": {
       "task": "T4",
       "title": "Commit",
-      "kind": "commit",
+      "kind": "commit, merge worktree to main.",
       "wave": 17,
       "plan_line": 598,
       "depends_on": ["T4.6"],

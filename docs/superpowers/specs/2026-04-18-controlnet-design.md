@@ -44,7 +44,7 @@ V2 and later may add drawing, img2img, more preprocessors, and RKNN support.
 
 ## Current State
 
-- [`server/lcm_sr_server.py`](/Users/darkbit1001/workspace/Stability-Toys/server/lcm_sr_server.py) defines `GenerateRequest` and already carries mode-owned generation controls such as `negative_prompt` and `scheduler_id`, but it has no ControlNet request field.
+- [`server/lcm_sr_server.py`](/Users/darkbit1001/workspace/Stability-Toys/server/lcm_sr_server.py) defines `GenerateRequest` and carries mode-owned generation controls such as `negative_prompt` and `scheduler_id`. As implemented in Track 1, `GenerateRequest` now also carries an optional `controlnets: list[ControlNetAttachment]` field; the rest of this section described the pre-Track-1 baseline.
 - [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) translates frontend generation params into `GenerateRequest` and currently forwards negative prompt, scheduler, size, and img2img source references, but not ControlNet attachments.
 - [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py) and [`server/model_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/model_routes.py) already expose the pattern this repo uses for mode-owned policy: parse it in config, serialize it through `/api/modes`, and let the frontend stay dumb.
 - [`server/generation_constraints.py`](/Users/darkbit1001/workspace/Stability-Toys/server/generation_constraints.py) already centralizes mode-aware backend enforcement for generation requests, but only for size and existing defaults.
