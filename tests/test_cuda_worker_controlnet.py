@@ -156,7 +156,7 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
 
     kwargs = worker.pipe.call_args.kwargs
     assert kwargs["controlnet"] == "loaded:canny-model"
-    assert kwargs["image"] is resized
+    assert kwargs["control_image"] is resized
     assert kwargs["controlnet_conditioning_scale"] == 0.4
     assert kwargs["control_guidance_start"] == 0.0
     assert kwargs["control_guidance_end"] == 0.8
@@ -192,7 +192,7 @@ def test_sdxl_worker_passes_controlnet_lists_in_request_order():
 
     kwargs = worker.pipe.call_args.kwargs
     assert kwargs["controlnet"] == ["loaded:canny-model", "loaded:depth-model"]
-    assert kwargs["image"] == [resized_a, resized_b]
+    assert kwargs["control_image"] == [resized_a, resized_b]
     assert kwargs["controlnet_conditioning_scale"] == [0.4, 0.9]
     assert kwargs["control_guidance_start"] == [0.0, 0.1]
     assert kwargs["control_guidance_end"] == [0.8, 1.0]

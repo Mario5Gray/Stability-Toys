@@ -420,6 +420,30 @@ class DiffusersCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
+        # --- ControlNet bindings (ordered, single or list-valued) ---
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        loaded_ids: list[str] = []
+        controlnet_kwargs: dict[str, Any] = {}
+        if bindings:
+            size = (width, height)
+            controlnets: list[Any] = []
+            images: list[Image.Image] = []
+            scales: list[float] = []
+            starts: list[float] = []
+            ends: list[float] = []
+            for binding in bindings:
+                controlnets.append(self._load_controlnet_model(binding))
+                loaded_ids.append(binding.model_id)
+                images.append(_decode_control_image(binding.control_image_bytes, size))
+                scales.append(binding.strength)
+                starts.append(binding.start_percent)
+                ends.append(binding.end_percent)
+            controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
+            controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+            controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
+            controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
+            controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
+
         out = None
         try:
             if init_image is not None:
@@ -429,27 +453,31 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "image": init_pil,
+                    "strength": denoise_strength,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
                 with torch.inference_mode():
-                    out = self._img2img_pipe(
-                        prompt=req.prompt,
-                        negative_prompt=getattr(req, "negative_prompt", None),
-                        image=init_pil,
-                        strength=denoise_strength,
-                        num_inference_steps=int(req.num_inference_steps),
-                        guidance_scale=float(req.guidance_scale),
-                        generator=gen,
-                    )
+                    out = self._img2img_pipe(**pipe_kwargs)
             else:
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "width": width,
+                    "height": height,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
                 with torch.inference_mode():
-                    out = self.pipe(
-                        prompt=req.prompt,
-                        negative_prompt=getattr(req, "negative_prompt", None),
-                        width=width,
-                        height=height,
-                        num_inference_steps=int(req.num_inference_steps),
-                        guidance_scale=float(req.guidance_scale),
-                        generator=gen,
-                    )
+                    out = self.pipe(**pipe_kwargs)
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -470,6 +498,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
         finally:
             out = None  # release on OOM/exception; no-op on success
             self._apply_style(None, 0)
+            # Release ControlNet cache pins
+            if loaded_ids:
+                from backends.controlnet_cache import get_controlnet_cache
+                cache = get_controlnet_cache()
+                for model_id in loaded_ids:
+                    cache.release(model_id)
             torch.cuda.empty_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
@@ -718,6 +752,30 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
+        # --- ControlNet bindings (ordered, single or list-valued) ---
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        loaded_ids: list[str] = []
+        controlnet_kwargs: dict[str, Any] = {}
+        if bindings:
+            size = (width, height)
+            controlnets: list[Any] = []
+            images: list[Image.Image] = []
+            scales: list[float] = []
+            starts: list[float] = []
+            ends: list[float] = []
+            for binding in bindings:
+                controlnets.append(self._load_controlnet_model(binding))
+                loaded_ids.append(binding.model_id)
+                images.append(_decode_control_image(binding.control_image_bytes, size))
+                scales.append(binding.strength)
+                starts.append(binding.start_percent)
+                ends.append(binding.end_percent)
+            controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
+            controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+            controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
+            controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
+            controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
+
         out = None
         try:
             if init_image is not None:
@@ -727,27 +785,31 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "image": init_pil,
+                    "strength": denoise_strength,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
                 with torch.inference_mode():
-                    out = self._img2img_pipe(
-                        prompt=req.prompt,
-                        negative_prompt=getattr(req, "negative_prompt", None),
-                        image=init_pil,
-                        strength=denoise_strength,
-                        num_inference_steps=int(req.num_inference_steps),
-                        guidance_scale=float(req.guidance_scale),
-                        generator=gen,
-                    )
+                    out = self._img2img_pipe(**pipe_kwargs)
             else:
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "width": width,
+                    "height": height,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
                 with torch.inference_mode():
-                    out = self.pipe(
-                        prompt=req.prompt,
-                        negative_prompt=getattr(req, "negative_prompt", None),
-                        width=width,
-                        height=height,
-                        num_inference_steps=int(req.num_inference_steps),
-                        guidance_scale=float(req.guidance_scale),
-                        generator=gen,
-                    )
+                    out = self.pipe(**pipe_kwargs)
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -768,6 +830,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         finally:
             out = None  # release on OOM/exception; no-op on success
             self._apply_style(None, 0)
+            # Release ControlNet cache pins
+            if loaded_ids:
+                from backends.controlnet_cache import get_controlnet_cache
+                cache = get_controlnet_cache()
+                for model_id in loaded_ids:
+                    cache.release(model_id)
             torch.cuda.empty_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
