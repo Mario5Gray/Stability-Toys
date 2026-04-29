@@ -548,6 +548,62 @@ class TestJobSubmit:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
+    def test_generate_mode_system_forwards_supports_controlnet_true_when_backend_capability_set(self):
+        """T6.3 regression: when an active mode is loaded and the backend provider
+        reports supports_controlnet=True, the dispatch guard must receive True
+        rather than the legacy False stub."""
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "sdxl-general"
+        finished_fut: concurrent.futures.Future = concurrent.futures.Future()
+        finished_fut.set_exception(RuntimeError("test stub: skip backend execution"))
+        pool.submit_job.return_value = finished_fut
+        app.state.worker_pool = pool
+        app.state.storage = None
+        app.state.backend_provider = SimpleNamespace(
+            capabilities=lambda: SimpleNamespace(supports_controlnet=True)
+        )
+
+        captured: dict = {}
+
+        def _capture_guard(req, *, supports_controlnet):
+            captured["supports_controlnet"] = supports_controlnet
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="512x512",
+                        default_steps=4,
+                        default_guidance=1.0,
+                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                        controlnet_policy=None,
+                    )
+                )
+                with patch("server.controlnet_constraints.ensure_controlnet_dispatch_supported", side_effect=_capture_guard):
+                    with client.websocket_connect("/v1/ws") as ws:
+                        ws.receive_json()  # consume status
+                        ws.send_json({
+                            "type": "job:submit",
+                            "id": "t-cn-true",
+                            "jobType": "generate",
+                            "params": {
+                                "prompt": "a cat",
+                                "size": "512x512",
+                                "num_inference_steps": 4,
+                                "guidance_scale": 1.0,
+                                "seed": 12345678,
+                            },
+                        })
+                        ws.receive_json()  # ack
+
+            assert captured["supports_controlnet"] is True
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+            app.state.backend_provider = None
+
     def test_generate_mode_system_rejects_invalid_size_before_submit(self):
         app.state.use_mode_system = True
         pool = MagicMock()
