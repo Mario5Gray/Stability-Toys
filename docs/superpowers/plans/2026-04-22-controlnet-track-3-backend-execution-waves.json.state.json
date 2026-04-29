@@ -1,9 +1,9 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
   "taken": {
-    "T5.1": {
+    "T6.3": {
       "taken_by": "sigma",
-      "started_at": "2026-04-28 19:25",
+      "started_at": "2026-04-28 22:42",
       "review_entered_at": "",
       "review_ended_at": "",
       "reviewer": "",
@@ -238,6 +238,16 @@
       "reviewer": "",
       "git_sha": "876c71f",
       "finished_at": "2026-04-28 21:25"
+    },
+    "T5.1": {
+      "taken_by": "sigma",
+      "started_at": "2026-04-28 19:25",
+      "review_entered_at": "2026-04-28 21:47",
+      "review_ended_at": "2026-04-28 22:24",
+      "reviewer": "theta",
+      "review_note": "no blockers",
+      "git_sha": "approved",
+      "finished_at": "2026-04-28 22:42"
     },
     "T7.1": {
       "taken_by": "theta",
