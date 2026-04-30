@@ -287,6 +287,9 @@ class CudaWorkerBase:
             ),
         )
 
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        raise NotImplementedError
+
 
 class DiffusersCudaWorker(CudaWorkerBase):
     """
@@ -395,6 +398,14 @@ class DiffusersCudaWorker(CudaWorkerBase):
             f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
         )
 
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        from diffusers import StableDiffusionControlNetPipeline
+
+        return StableDiffusionControlNetPipeline.from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+        )
+
     # ---------------------------
     # Job execution
     # ---------------------------
@@ -420,32 +431,37 @@ class DiffusersCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        # --- ControlNet bindings (ordered, single or list-valued) ---
         bindings = getattr(job, "controlnet_bindings", []) or []
         loaded_ids: list[str] = []
         controlnet_kwargs: dict[str, Any] = {}
-        if bindings:
-            size = (width, height)
-            controlnets: list[Any] = []
-            images: list[Image.Image] = []
-            scales: list[float] = []
-            starts: list[float] = []
-            ends: list[float] = []
-            for binding in bindings:
-                controlnets.append(self._load_controlnet_model(binding))
-                loaded_ids.append(binding.model_id)
-                images.append(_decode_control_image(binding.control_image_bytes, size))
-                scales.append(binding.strength)
-                starts.append(binding.start_percent)
-                ends.append(binding.end_percent)
-            controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
-            controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
-            controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
-            controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
-            controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
 
         out = None
         try:
+            if init_image is not None and bindings:
+                raise NotImplementedError(
+                    "ControlNet bindings on the img2img path are not supported in v1."
+                )
+
+            if bindings:
+                size = (width, height)
+                controlnets: list[Any] = []
+                images: list[Image.Image] = []
+                scales: list[float] = []
+                starts: list[float] = []
+                ends: list[float] = []
+                for binding in bindings:
+                    controlnets.append(self._load_controlnet_model(binding))
+                    loaded_ids.append(binding.model_id)
+                    images.append(_decode_control_image(binding.control_image_bytes, size))
+                    scales.append(binding.strength)
+                    starts.append(binding.start_percent)
+                    ends.append(binding.end_percent)
+                controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
+                controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+                controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
+                controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
+                controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
+
             if init_image is not None:
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
@@ -476,8 +492,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     "generator": gen,
                     **controlnet_kwargs,
                 }
+                pipe = self.pipe
+                controlnet_obj = pipe_kwargs.pop("controlnet", None)
+                if controlnet_obj is not None:
+                    pipe = self._build_controlnet_pipe(controlnet_obj)
                 with torch.inference_mode():
-                    out = self.pipe(**pipe_kwargs)
+                    out = pipe(**pipe_kwargs)
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -717,6 +737,14 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
         )
 
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        from diffusers import StableDiffusionXLControlNetPipeline
+
+        return StableDiffusionXLControlNetPipeline.from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+        )
+
     # ---------------------------
     # Job execution
     # ---------------------------
@@ -752,32 +780,37 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        # --- ControlNet bindings (ordered, single or list-valued) ---
         bindings = getattr(job, "controlnet_bindings", []) or []
         loaded_ids: list[str] = []
         controlnet_kwargs: dict[str, Any] = {}
-        if bindings:
-            size = (width, height)
-            controlnets: list[Any] = []
-            images: list[Image.Image] = []
-            scales: list[float] = []
-            starts: list[float] = []
-            ends: list[float] = []
-            for binding in bindings:
-                controlnets.append(self._load_controlnet_model(binding))
-                loaded_ids.append(binding.model_id)
-                images.append(_decode_control_image(binding.control_image_bytes, size))
-                scales.append(binding.strength)
-                starts.append(binding.start_percent)
-                ends.append(binding.end_percent)
-            controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
-            controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
-            controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
-            controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
-            controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
 
         out = None
         try:
+            if init_image is not None and bindings:
+                raise NotImplementedError(
+                    "ControlNet bindings on the img2img path are not supported in v1."
+                )
+
+            if bindings:
+                size = (width, height)
+                controlnets: list[Any] = []
+                images: list[Image.Image] = []
+                scales: list[float] = []
+                starts: list[float] = []
+                ends: list[float] = []
+                for binding in bindings:
+                    controlnets.append(self._load_controlnet_model(binding))
+                    loaded_ids.append(binding.model_id)
+                    images.append(_decode_control_image(binding.control_image_bytes, size))
+                    scales.append(binding.strength)
+                    starts.append(binding.start_percent)
+                    ends.append(binding.end_percent)
+                controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
+                controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+                controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
+                controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
+                controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
+
             if init_image is not None:
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
@@ -808,8 +841,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     "generator": gen,
                     **controlnet_kwargs,
                 }
+                pipe = self.pipe
+                controlnet_obj = pipe_kwargs.pop("controlnet", None)
+                if controlnet_obj is not None:
+                    pipe = self._build_controlnet_pipe(controlnet_obj)
                 with torch.inference_mode():
-                    out = self.pipe(**pipe_kwargs)
+                    out = pipe(**pipe_kwargs)
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
