@@ -1,9 +1,9 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
   "taken": {
-    "T6.3": {
+    "T5.5": {
       "taken_by": "sigma",
-      "started_at": "2026-04-28 22:42",
+      "started_at": "2026-04-30 00:21",
       "review_entered_at": "",
       "review_ended_at": "",
       "reviewer": "",
@@ -248,6 +248,46 @@
       "review_note": "no blockers",
       "git_sha": "approved",
       "finished_at": "2026-04-28 22:42"
+    },
+    "T5.2": {
+      "taken_by": "sigma",
+      "started_at": "2026-04-29 02:54",
+      "review_entered_at": "2026-04-29 03:57",
+      "review_ended_at": "2026-04-29 03:58",
+      "reviewer": "theta",
+      "review_note": "Verify-task contract met: command run verbatim, expected RED reproduced. Ready for end-review.",
+      "git_sha": "deferred",
+      "finished_at": "2026-04-29 03:58"
+    },
+    "T5.3": {
+      "taken_by": "sigma",
+      "started_at": "2026-04-29 03:59",
+      "review_entered_at": "2026-04-29 12:38",
+      "review_ended_at": "2026-04-29 13:39",
+      "reviewer": "theta",
+      "review_note": "Forward note for T5.4: The cache loader closure captures self.dtype by reference. T5.4 must ensure the dtype is set on the worker instance before any run_job() call that resolves bindings, otherwise the lazy from_pretrained will raise on first cache miss. Existing cuda_worker init paths already set self.dtype, so this should be a non-issue — flagging only because the closure is the kind of thing that bites if dtype is ever reset mid-run.\n\nReady for end-review.",
+      "git_sha": "ffce306",
+      "finished_at": "2026-04-29 13:40"
+    },
+    "T5.4": {
+      "taken_by": "theta",
+      "started_at": "2026-04-29 13:40",
+      "review_entered_at": "2026-04-30 00:19",
+      "review_ended_at": "2026-04-30 00:20",
+      "reviewer": "sigma",
+      "review_note": "The concrete diffusers integration detail that the worker must swap from plain StableDiffusionPipeline / StableDiffusionXLPipeline to a ControlNet-capable pipeline class when bindings are present.",
+      "git_sha": "69005d2",
+      "finished_at": "2026-04-30 00:21"
+    },
+    "T6.3": {
+      "taken_by": "sigma",
+      "started_at": "2026-04-28 22:42",
+      "review_entered_at": "2026-04-28 22:59",
+      "review_ended_at": "2026-04-29 02:51",
+      "reviewer": "sigma",
+      "review_note": "The new test in tests/test_ws_routes.py (line 541) closes the specific supports_controlnet=True coverage gap I flagged for T6.3. It complements the existing false-fallback assertions without bleeding into the later success-path artifact work. Residual risk is low and mostly limited to the still-uncovered HTTP-side True branch, but that is no longer a review concern for this change.",
+      "git_sha": "ba6d594",
+      "finished_at": "2026-04-29 02:51"
     },
     "T7.1": {
       "taken_by": "theta",
