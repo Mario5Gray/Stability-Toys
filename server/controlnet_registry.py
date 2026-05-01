@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
+import os
 
 import yaml
 
@@ -37,7 +38,14 @@ def _validate_local_path(spec: ControlNetModelSpec) -> None:
         raise ValueError(f"ControlNet model path does not exist: {spec.path}")
 
 
-def load_controlnet_registry(*, config_path: str = "conf/controlnets.yaml", validation_mode: str = "strict") -> ControlNetRegistry:
+def default_controlnet_registry_path() -> str:
+    config_root = os.environ.get("MODE_CONFIG_PATH", "conf")
+    return str(Path(config_root) / "controlnets.yaml")
+
+
+def load_controlnet_registry(*, config_path: Optional[str] = None, validation_mode: str = "strict") -> ControlNetRegistry:
+    if config_path is None:
+        config_path = default_controlnet_registry_path()
     raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
     models = raw.get("models") or {}
     specs: Dict[str, ControlNetModelSpec] = {}
@@ -60,10 +68,8 @@ _registry_singleton: Optional[ControlNetRegistry] = None
 def get_controlnet_registry() -> ControlNetRegistry:
     global _registry_singleton
     if _registry_singleton is None:
-        import os
-
         _registry_singleton = load_controlnet_registry(
-            config_path=os.environ.get("CONTROLNET_REGISTRY_PATH", "conf/controlnets.yaml"),
+            config_path=os.environ.get("CONTROLNET_REGISTRY_PATH") or default_controlnet_registry_path(),
             validation_mode=os.environ.get("CONTROLNET_REGISTRY_VALIDATION", "strict").strip().lower(),
         )
     return _registry_singleton

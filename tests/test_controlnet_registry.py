@@ -59,3 +59,28 @@ def test_strict_registry_validation_runs_at_startup(monkeypatch, tmp_path):
     reset_controlnet_registry()
     with pytest.raises(ValueError, match="does not exist"):
         _validate_controlnet_registry_for_startup()
+
+
+def test_registry_defaults_to_mode_config_path(monkeypatch, tmp_path):
+    config_dir = tmp_path / "conf"
+    config_dir.mkdir()
+    config_path = config_dir / "controlnets.yaml"
+    model_dir = tmp_path / "models" / "sdxl-canny"
+    model_dir.mkdir(parents=True)
+    config_path.write_text(
+        "models:\n"
+        "  sdxl-canny:\n"
+        f"    path: {model_dir}\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sdxl]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MODE_CONFIG_PATH", str(config_dir))
+    monkeypatch.delenv("CONTROLNET_REGISTRY_PATH", raising=False)
+
+    from server.controlnet_registry import get_controlnet_registry, reset_controlnet_registry
+
+    reset_controlnet_registry()
+    registry = get_controlnet_registry()
+
+    assert registry.get_required("sdxl-canny").path == str(model_dir)

@@ -31,6 +31,7 @@ LABEL io.platform.base-ref="${PLATFORM_BASE_REF}"
 
 WORKDIR /app
 
+COPY conf/ /app/conf/
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/

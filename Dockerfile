@@ -134,6 +134,7 @@ EOI
 
 
 # Copy server code 
+COPY conf/ /app/conf/
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/
