@@ -5,24 +5,21 @@ Uses Starlette TestClient with real WebSocket connections against a
 minimal FastAPI app that mounts the WS router.
 """
 
-import asyncio
 import concurrent.futures
-import json
 import queue
-import time
 import types
 from types import SimpleNamespace
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-import sys, os
+import os
+import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from server import ws_routes
-from server.ws_hub import WSHub, hub
 from server.ws_routes import ws_router
 from server.upload_routes import upload_router
 from server.asset_store import get_store
@@ -48,7 +45,8 @@ def _make_test_app():
 
 
 app = _make_test_app()
-client = TestClient(app)
+_client_cm = TestClient(app)
+client = _client_cm.__enter__()
 
 
 @pytest.fixture(autouse=True)
@@ -61,6 +59,12 @@ def _clear_store():
     with store._lock:
         store._entries.clear()
         store._total_bytes = 0
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _close_test_client():
+    yield
+    _client_cm.__exit__(None, None, None)
 
 
 def _solid_png_bytes(w: int = 8, h: int = 8) -> bytes:

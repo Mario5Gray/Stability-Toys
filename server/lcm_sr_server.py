@@ -51,6 +51,7 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request
+from fastapi import APIRouter
 from fastapi.responses import Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,8 +59,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from server.controlnet_models import ControlNetAttachment
 
-from transformers import CLIPTokenizer
-from server.comfy_routes import router as comfy_router
+try:
+    from transformers import CLIPTokenizer
+except ImportError:  # pragma: no cover - exercised in lean test environments
+    CLIPTokenizer = None
+try:
+    from server.comfy_routes import router as comfy_router
+except ImportError:  # pragma: no cover - exercised in lean test environments
+    comfy_router = APIRouter()
 
 from server.ws_routes import ws_router, register_job_hook, _build_status
 from server.ws_hub import hub
@@ -211,6 +218,10 @@ class PipelineService:
 
         # 2) only init RKNN assets if needed
         if not use_cuda:
+            if CLIPTokenizer is None:
+                raise RuntimeError(
+                    "transformers is required for RKNN pipeline initialization"
+                )
             with open(self.paths.scheduler_config, "r") as f:
                 self.scheduler_config = json.load(f)
             self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch16")

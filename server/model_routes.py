@@ -147,6 +147,8 @@ async def list_modes():
     config = get_mode_config()
 
     modes_dict = config.to_dict()
+    legacy_chat = modes_dict.get("chat") or {}
+    chat_delegates = modes_dict.get("chat_delegates") or {}
 
     return {
         "default_mode": modes_dict["default_mode"],
@@ -159,7 +161,7 @@ async def list_modes():
                 "default_steps": mode_data["default_steps"],
                 "default_guidance": mode_data["default_guidance"],
                 "maximum_len": mode_data.get("maximum_len"),
-                "chat_enabled": bool(mode_data.get("chat_delegate")),
+                "chat_enabled": bool(mode_data.get("chat_delegate")) or name in legacy_chat or name in chat_delegates,
                 "loader_format": mode_data.get("loader_format"),
                 "checkpoint_precision": mode_data.get("checkpoint_precision"),
                 "checkpoint_variant": mode_data.get("checkpoint_variant"),
@@ -405,6 +407,7 @@ class ModesBulkSaveRequest(BaseModel):
     lora_root: str
     default_mode: str
     resolution_sets: Dict[str, Any]
+    chat: Optional[Dict[str, Any]] = None
     chat_connections: Optional[Dict[str, Any]] = None
     chat_delegates: Optional[Dict[str, Any]] = None
     modes: Dict[str, Any]
@@ -417,10 +420,26 @@ async def save_all_modes(request: ModesBulkSaveRequest):
     pool = get_worker_pool()
     data = request.model_dump()
     existing = config.to_dict()
+    if data.get("chat") is None:
+        data["chat"] = existing.get("chat", {})
     if data.get("chat_connections") is None:
         data["chat_connections"] = existing.get("chat_connections", {})
     if data.get("chat_delegates") is None:
         data["chat_delegates"] = existing.get("chat_delegates", {})
+
+    active_mode_names = set(data["modes"].keys())
+    if isinstance(data.get("chat"), dict):
+        data["chat"] = {
+            mode_name: chat_cfg
+            for mode_name, chat_cfg in data["chat"].items()
+            if mode_name in active_mode_names
+        }
+    if isinstance(data.get("chat_delegates"), dict):
+        data["chat_delegates"] = {
+            delegate_name: delegate_cfg
+            for delegate_name, delegate_cfg in data["chat_delegates"].items()
+            if delegate_name in active_mode_names
+        }
 
     if not data.get("modes"):
         raise HTTPException(status_code=400, detail="At least one mode must exist")
@@ -516,6 +535,10 @@ async def delete_mode(name: str):
 
     was_loaded = name == pool.get_current_mode()
     del data["modes"][name]
+    if isinstance(data.get("chat"), dict):
+        data["chat"].pop(name, None)
+    if isinstance(data.get("chat_delegates"), dict):
+        data["chat_delegates"].pop(name, None)
 
     try:
         config.save_config(data)

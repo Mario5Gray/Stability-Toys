@@ -5,11 +5,9 @@ Tests the FastAPI endpoints for workflow management.
 """
 
 import pytest
-import pytest_asyncio
 import tempfile
 import os
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import sys
 
 import yaml
@@ -91,7 +89,8 @@ def test_app(workflow_manager):
 def client(test_app, workflow_manager):
     """Create a test client with mocked workflow config."""
     with patch('server.workflow_routes.get_workflow_config', return_value=workflow_manager):
-        yield TestClient(test_app)
+        with TestClient(test_app) as test_client:
+            yield test_client
 
 
 class TestListWorkflows:
@@ -289,20 +288,19 @@ class TestCreateOrUpdateWorkflow:
         app.include_router(router)
 
         with patch('server.workflow_routes.get_workflow_config', return_value=manager):
-            client = TestClient(app)
+            with TestClient(app) as client:
+                # Delete the placeholder, leaving no valid default
+                data = manager.to_dict()
+                del data["workflows"]["placeholder"]
+                data["default_workflow"] = ""
+                manager.config.default_workflow = ""
 
-            # Delete the placeholder, leaving no valid default
-            data = manager.to_dict()
-            del data["workflows"]["placeholder"]
-            data["default_workflow"] = ""
-            manager.config.default_workflow = ""
+                response = client.post("/api/workflows/first", json={
+                    "display_name": "First",
+                    "workflow": {}
+                })
 
-            response = client.post("/api/workflows/first", json={
-                "display_name": "First",
-                "workflow": {}
-            })
-
-            assert response.status_code == 200
+                assert response.status_code == 200
 
 
 class TestBulkSaveWorkflows:

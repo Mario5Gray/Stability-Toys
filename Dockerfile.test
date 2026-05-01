@@ -71,6 +71,15 @@ RUN pip install --no-cache-dir --upgrade pip
 
 COPY requirements.txt /app/requirements.txt
 COPY requirements-test.txt /app/requirements-test.txt
+COPY conf/ /app/conf/
+COPY docker/ /app/docker/
+COPY docker-cuda.yml /app/docker-cuda.yml
+COPY docker-rknn.yml /app/docker-rknn.yml
+COPY docker-compose.live-test.yml /app/docker-compose.live-test.yml
+COPY Dockerfile /app/Dockerfile
+COPY Dockerfile.live-test /app/Dockerfile.live-test
+COPY Makefile /app/Makefile
+COPY Makefile.test /app/Makefile.test
 
 RUN if [ "${BACKEND}" != "cuda" ]; then \
         pip install --no-cache-dir \
@@ -93,11 +102,12 @@ COPY persistence/ /app/persistence/
 COPY backends/ /app/backends/
 COPY invokers/ /app/invokers/
 COPY utils/ /app/utils/
+COPY scripts/ /app/scripts/
 COPY tests/ /app/tests/
 COPY *.py /app/
 COPY *.sh /app/
 
-RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh && \
+RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh /app/scripts/enigma-worktree.sh && \
     mkdir -p /app/logs /conf /store /workflows
 
 CMD ["pytest", "tests/", "-v", "-m", "not slow"]

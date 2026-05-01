@@ -85,6 +85,20 @@ def _get_app_state(ws: WebSocket):
     return ws.app.state
 
 
+def _requests_controlnet(params: dict) -> bool:
+    return bool(params.get("controlnets"))
+
+
+def _supports_controlnet(provider: Any) -> bool:
+    if provider is None:
+        return False
+    try:
+        capabilities = provider.capabilities()
+    except Exception:
+        return False
+    return getattr(capabilities, "supports_controlnet", False) is True
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -135,9 +149,13 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     if job_type == "generate" and getattr(state, "use_mode_system", False):
         from backends.worker_pool import GenerationJob
 
-        req = _build_generate_request(params)
         try:
             current_mode = state.worker_pool.get_current_mode()
+            supports_controlnet = (
+                current_mode is not None
+                and _supports_controlnet(getattr(state, "backend_provider", None))
+            )
+            req = _build_generate_request(params)
             if current_mode:
                 mode = get_mode_config().get_mode(current_mode)
                 finalize_mode_generate_request(
@@ -153,12 +171,6 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 from server.asset_store import get_store
                 pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-            provider = getattr(state, "backend_provider", None)
-            supports_controlnet = bool(
-                current_mode is not None
-                and provider is not None
-                and provider.capabilities().supports_controlnet
-            )
             ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
         except Exception as e:
             pre_submit_job_error = str(e)

@@ -16,6 +16,7 @@ import queue
 import threading
 import time
 import uuid
+from collections.abc import Mapping
 from copy import deepcopy
 import torch
 from abc import ABC, abstractmethod
@@ -69,12 +70,17 @@ def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInf
         value = getattr(mode, field, None)
         if value is not None:
             setattr(resolved, field, value)
-    mode_metadata = getattr(mode, "metadata", None) or {}
-    if mode_metadata:
+    existing_metadata = getattr(resolved, "metadata", None)
+    if not isinstance(existing_metadata, Mapping):
+        existing_metadata = {}
+    mode_metadata = getattr(mode, "metadata", None)
+    if isinstance(mode_metadata, Mapping) and mode_metadata:
         resolved.metadata = {
-            **getattr(resolved, "metadata", {}),
-            **mode_metadata,
+            **dict(existing_metadata),
+            **dict(mode_metadata),
         }
+    elif existing_metadata:
+        resolved.metadata = dict(existing_metadata)
     return resolved
 
 

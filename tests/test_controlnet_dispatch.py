@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -54,7 +56,11 @@ def test_ws_build_rejects_disabled_mode_controlnet():
         enforce_controlnet_policy(req, mode)
 
 
-async def test_ws_run_generate_rejects_controlnets_on_non_mode_system():
+def _run(coro):
+    return asyncio.run(coro)
+
+
+def test_ws_run_generate_rejects_controlnets_on_non_mode_system():
     """_run_generate (non-mode-system/RKNN WS path) must 501-stub controlnets."""
     from server.controlnet_models import ControlNetAttachment
     import server.ws_routes as ws
@@ -77,17 +83,24 @@ async def test_ws_run_generate_rejects_controlnets_on_non_mode_system():
 
     with patch.object(ws.hub, "send", side_effect=fake_send):
         with patch("server.ws_routes._get_app_state", return_value=mock_state):
-            await ws._run_generate(mock_ws, "client1", "job1", {
-                "prompt": "a cat",
-                "controlnets": [att.model_dump()],
-            })
+            _run(
+                ws._run_generate(
+                    mock_ws,
+                    "client1",
+                    "job1",
+                    {
+                        "prompt": "a cat",
+                        "controlnets": [att.model_dump()],
+                    },
+                )
+            )
 
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
     assert errors, "expected a job:error message"
     assert "ControlNet provider not yet implemented" in errors[0]["error"]
 
 
-async def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_current_mode():
+def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_current_mode():
     """Mode-system WS pre-submit path must still 501-stub when no model is loaded."""
     import server.ws_routes as ws
 
@@ -104,23 +117,25 @@ async def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_
 
     with patch.object(ws.hub, "send", side_effect=fake_send):
         with patch("server.ws_routes._get_app_state", return_value=mock_state):
-            await ws.handle_job_submit(
-                mock_ws,
-                {
-                    "id": "corr1",
-                    "jobType": "generate",
-                    "params": {
-                        "prompt": "a cat",
-                        "controlnets": [
-                            {
-                                "attachment_id": "cn_1",
-                                "control_type": "canny",
-                                "map_asset_ref": "asset_a",
-                            }
-                        ],
+            _run(
+                ws.handle_job_submit(
+                    mock_ws,
+                    {
+                        "id": "corr1",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "controlnets": [
+                                {
+                                    "attachment_id": "cn_1",
+                                    "control_type": "canny",
+                                    "map_asset_ref": "asset_a",
+                                }
+                            ],
+                        },
                     },
-                },
-                "client1",
+                    "client1",
+                )
             )
 
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
@@ -128,7 +143,7 @@ async def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_
     assert "ControlNet provider not yet implemented" in errors[0]["error"]
 
 
-async def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_current_mode():
+def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_current_mode():
     """Mode-system WS pre-submit path should return the stub error, not TypeError."""
     import server.ws_routes as ws
     from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
@@ -175,23 +190,25 @@ async def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_curr
                         )
                     )
                 )
-                await ws.handle_job_submit(
-                    mock_ws,
-                    {
-                        "id": "corr2",
-                        "jobType": "generate",
-                        "params": {
-                            "prompt": "a cat",
-                            "controlnets": [
-                                {
-                                    "attachment_id": "cn_1",
-                                    "control_type": "canny",
-                                    "map_asset_ref": "asset_a",
-                                }
-                            ],
+                _run(
+                    ws.handle_job_submit(
+                        mock_ws,
+                        {
+                            "id": "corr2",
+                            "jobType": "generate",
+                            "params": {
+                                "prompt": "a cat",
+                                "controlnets": [
+                                    {
+                                        "attachment_id": "cn_1",
+                                        "control_type": "canny",
+                                        "map_asset_ref": "asset_a",
+                                    }
+                                ],
+                            },
                         },
-                    },
-                    "client1",
+                        "client1",
+                    )
                 )
 
     errors = [m for m in sent_messages if m.get("type") == "job:error"]

@@ -273,6 +273,28 @@ class TestWorkerPoolInit:
         pool.shutdown()
         reset_worker_pool()
 
+    def test_init_ignores_non_mapping_detected_metadata(self, mock_mode_config, mock_registry, mock_worker_factory):
+        """Non-mapping metadata from mocked model detection should not break initialization."""
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        detected = Mock()
+        detected.metadata = Mock()
+
+        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
+            pool = WorkerPool(
+                queue_max=10,
+                worker_factory=mock_worker_factory,
+                mode_config=mock_mode_config,
+                registry=mock_registry,
+            )
+
+        model_info = mock_worker_factory.call_args.kwargs["model_info"]
+        assert model_info.metadata == {"single_file_config": "configs/sdxl-base"}
+
+        pool.shutdown()
+        reset_worker_pool()
+
 
 class TestJobSubmission:
     """Test job submission and execution."""

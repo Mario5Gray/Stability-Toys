@@ -3,12 +3,12 @@ Shared pytest fixtures and configuration for Dream Lab tests.
 """
 
 import pytest
-import pytest_asyncio
 import asyncio
+import inspect
 import numpy as np
 from PIL import Image
 import io
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 import sys
 import os
 
@@ -125,6 +125,20 @@ def pytest_collection_modifyitems(config, items):
         basename = os.path.basename(modfile)
         if basename.startswith("test_ws_") or basename == "test_jobs_callback.py":
             item.add_marker(pytest.mark.ws)
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """Run bare async test functions even when pytest-asyncio is unavailable."""
+    testfunction = pyfuncitem.obj
+    if not inspect.iscoroutinefunction(testfunction):
+        return None
+
+    funcargs = {
+        name: pyfuncitem.funcargs[name]
+        for name in pyfuncitem._fixtureinfo.argnames
+    }
+    asyncio.run(testfunction(**funcargs))
+    return True
 
 
 def assert_valid_score(score):

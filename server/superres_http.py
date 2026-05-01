@@ -29,7 +29,7 @@ def load_superres_runtime_settings(
     *,
     cuda_available: Optional[bool] = None,
 ) -> SuperResRuntimeSettings:
-    env = environ or os.environ
+    env = os.environ if environ is None else environ
     backend = (env.get("BACKEND") or "").lower().strip()
     allowed = {"cuda", "rknn", "mlx", "cpu"}
     if not backend:

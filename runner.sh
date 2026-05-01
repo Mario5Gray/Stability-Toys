@@ -6,10 +6,10 @@ if [ -z ${MODELS_HOST_PATH} ]; then
 fi
 
 if [[ "$PLATFORM" == "x86_64" ]]; then
-  export EXTRA_ARGS='--env-file env.cuda --env-file env.custom --env-file env.dev --name lcm-sd-ui --gpus=all darkbit1001/lcm-sd-ui:latest'
+  export EXTRA_ARGS='--env-file env.cuda --env-file env.custom --env-file env.dev --name lcm-sd-ui --gpus=all harbor.lan/lcm-sd-ui:latest'
 
 else 
-  export EXTRA_ARGS='--env-file env.custom --env-file env.dev --env-file env.rknn --name lcm-sd-ui darkbit1001/lcm-sd-ui:latest'
+  export EXTRA_ARGS='--env-file env.custom --env-file env.dev --env-file env.rknn --name lcm-sd-ui harbor.lan/lcm-sd-ui:latest'
 fi
 BACKEND=cuda
 set -x

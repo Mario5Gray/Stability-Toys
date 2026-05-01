@@ -16,9 +16,6 @@ import pytest
 # Stub heavy dependencies before importing cuda_worker.
 _STUBS = [
     "numpy",
-    "PIL",
-    "PIL.Image",
-    "PIL.PngImagePlugin",
     "diffusers",
     "diffusers.schedulers",
     "diffusers.schedulers.scheduling_lcm",
@@ -48,6 +45,7 @@ sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img"].StableDiffusionXLImg2ImgPipeline = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
+import backends.cuda_worker as cuda_worker_module  # noqa: E402
 from backends.cuda_worker import CudaWorkerBase, DiffusersSDXLCudaWorker  # noqa: E402
 
 _BASE_ENV = {
@@ -58,6 +56,8 @@ _BASE_ENV = {
     "CUDA_QUANTIZE": "none",
     "CUDA_OFFLOAD": "none",
 }
+
+_EXPECTED_FP16 = cuda_worker_module.torch.float16
 
 
 def _make_base(extra_env=None, model_info=None):
@@ -187,7 +187,7 @@ class TestSdxlCapabilityLoader:
 
         mock_single.assert_called_once_with(
             "/models/checkpoints/sdxl-base.safetensors",
-            torch_dtype="fp16_sentinel",
+            torch_dtype=_EXPECTED_FP16,
             local_files_only=True,
             config="/models/checkpoints/configs/sdxl-base",
         )
@@ -211,7 +211,7 @@ class TestSdxlCapabilityLoader:
 
         mock_single.assert_called_once_with(
             "/models/checkpoints/sdxl-base.safetensors",
-            torch_dtype="fp16_sentinel",
+            torch_dtype=_EXPECTED_FP16,
             local_files_only=True,
         )
         mock_lcm.assert_not_called()
@@ -268,7 +268,7 @@ class TestSdxlCapabilityLoader:
 
         mock_pretrained.assert_called_once_with(
             "/models/diffusers/sdxl-base",
-            torch_dtype="fp16_sentinel",
+            torch_dtype=_EXPECTED_FP16,
             use_safetensors=True,
             variant="fp16",
         )
@@ -318,7 +318,7 @@ class TestNegativePromptForwarding:
     def test_sdxl_img2img_normalizes_vae_dtype_before_execution(self):
         worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
         worker.device = "cuda:0"
-        worker.dtype = "fp16_sentinel"
+        worker.dtype = _EXPECTED_FP16
         worker.worker_id = 0
         worker.pipe = _make_pipe()
         worker._img2img_pipe = MagicMock()
@@ -353,6 +353,6 @@ class TestNegativePromptForwarding:
 
             worker.run_job(job)
 
-        worker.pipe.vae.to.assert_called_once_with("cuda:0", dtype="fp16_sentinel")
+        worker.pipe.vae.to.assert_called_once_with("cuda:0", dtype=_EXPECTED_FP16)
         assert worker._img2img_pipe.vae is worker.pipe.vae
         assert worker._img2img_pipe.call_args.kwargs["negative_prompt"] == "blurry, watermark"

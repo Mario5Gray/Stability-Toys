@@ -49,21 +49,22 @@ class WorkflowConfigManager:
 
     def __init__(self, config_path: str):
         if not config_path:
-            raise ValueError(f"ComfyUI workflows not specified! current WORKFLOWS_PATH={self.config_path}")
-        
-        self.config_path = Path(os.path.join(Path(config_path), "workflows.yml"))
+            raise ValueError("ComfyUI workflows not specified")
+
+        raw_path = Path(config_path)
+        if raw_path.suffix in {".yml", ".yaml"}:
+            self.config_path = raw_path
+        else:
+            self.config_path = raw_path / "workflows.yml"
         
         self.config: WorkflowsYAML = None  # type: ignore[assignment]
         self._load_config()
 
     def _load_config(self):
         if not self.config_path.exists():
-            logger.warning(
-                f"[WorkflowConfig] workflows.yml not found at {self.config_path}. "
-                "Workflows will be empty until the file is created."
+            raise FileNotFoundError(
+                f"workflows.yml not found at {self.config_path}"
             )
-            self.config = WorkflowsYAML(default_workflow="", workflows={})
-            return
 
         logger.info(f"[WorkflowConfig] Loading configuration from {self.config_path}")
 
@@ -71,18 +72,14 @@ class WorkflowConfigManager:
             data = yaml.safe_load(f)
 
         if not data:
-            logger.warning("[WorkflowConfig] workflows.yml is empty; no workflows loaded")
-            self.config = WorkflowsYAML(default_workflow="", workflows={})
-            return
+            raise ValueError("workflows.yml is empty")
 
         default_workflow = data.get("default_workflow", "")
         if not default_workflow:
-            logger.warning("[WorkflowConfig] workflows.yml missing default_workflow")
+            raise ValueError("workflows.yml missing default_workflow")
 
         if not data.get("workflows"):
-            logger.warning("[WorkflowConfig] workflows.yml has no workflows defined")
-            self.config = WorkflowsYAML(default_workflow=default_workflow, workflows={})
-            return
+            raise ValueError("workflows.yml missing workflows")
 
         workflows: Dict[str, WorkflowConfig] = {}
 
@@ -112,10 +109,19 @@ class WorkflowConfigManager:
             )
 
         if default_workflow and default_workflow not in workflows:
-            logger.warning(
-                f"[WorkflowConfig] default_workflow '{default_workflow}' not found in workflows. "
-                f"Available: {list(workflows.keys())}"
-            )
+            # Allow the single placeholder bootstrap file used by the editor
+            # flow to load so the first real workflow can replace it.
+            if len(workflows) == 1 and "placeholder" in workflows:
+                logger.warning(
+                    "[WorkflowConfig] default_workflow '%s' missing; using placeholder bootstrap workflow",
+                    default_workflow,
+                )
+                default_workflow = "placeholder"
+            else:
+                raise ValueError(
+                    f"default_workflow '{default_workflow}' not found in workflows. "
+                    f"Available: {list(workflows.keys())}"
+                )
 
         self.config = WorkflowsYAML(
             default_workflow=default_workflow,

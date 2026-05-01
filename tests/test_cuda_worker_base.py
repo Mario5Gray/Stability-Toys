@@ -19,9 +19,6 @@ from unittest.mock import MagicMock, patch
 # ---------------------------------------------------------------------------
 _STUBS = [
     "numpy",
-    "PIL",
-    "PIL.Image",
-    "PIL.PngImagePlugin",
     "diffusers",
     "diffusers.schedulers",
     "diffusers.schedulers.scheduling_lcm",

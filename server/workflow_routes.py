@@ -48,6 +48,32 @@ async def list_workflows():
     }
 
 
+@router.post("/workflows/reload")
+async def reload_workflows_config():
+    """
+    Reload workflows.yml configuration from disk.
+    """
+    try:
+        reload_workflow_config()
+        config = get_workflow_config()
+        workflows = config.list_workflows()
+
+        logger.info(f"[API] Workflow configuration reloaded: {len(workflows)} workflows")
+
+        return {
+            "status": "reloaded",
+            "workflows_count": len(workflows),
+            "workflows": workflows,
+            "default_workflow": config.get_default_workflow(),
+        }
+    except Exception as e:
+        logger.error(f"[API] Workflow config reload failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reload workflow configuration: {e}",
+        )
+
+
 @router.get("/workflows/{name}")
 async def get_workflow(name: str):
     """
@@ -156,29 +182,3 @@ async def delete_workflow(name: str):
     except Exception as e:
         logger.error(f"[API] Delete workflow failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/workflows/reload")
-async def reload_workflows_config():
-    """
-    Reload workflows.yml configuration from disk.
-    """
-    try:
-        reload_workflow_config()
-        config = get_workflow_config()
-        workflows = config.list_workflows()
-
-        logger.info(f"[API] Workflow configuration reloaded: {len(workflows)} workflows")
-
-        return {
-            "status": "reloaded",
-            "workflows_count": len(workflows),
-            "workflows": workflows,
-            "default_workflow": config.get_default_workflow(),
-        }
-    except Exception as e:
-        logger.error(f"[API] Workflow config reload failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to reload workflow configuration: {e}",
-        )

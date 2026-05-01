@@ -14,8 +14,6 @@ def _make_app():
 
 def test_advisor_digest_route_returns_digest_payload():
     app = _make_app()
-    client = TestClient(app)
-
     payload = {
         "gallery_id": "gal_1",
         "evidence": {"version": 1, "gallery_id": "gal_1", "items": []},
@@ -25,14 +23,15 @@ def test_advisor_digest_route_returns_digest_payload():
         "length_limit": 120,
     }
 
-    with patch("server.advisor_routes.generate_digest", new=AsyncMock(return_value=payload)):
-        res = client.post(
-            "/api/advisors/digest",
-            json={
-                "gallery_id": "gal_1",
-                "evidence": {"version": 1, "gallery_id": "gal_1", "items": []},
-            },
-        )
+    with TestClient(app) as client:
+        with patch("server.advisor_routes.generate_digest", new=AsyncMock(return_value=payload)):
+            res = client.post(
+                "/api/advisors/digest",
+                json={
+                    "gallery_id": "gal_1",
+                    "evidence": {"version": 1, "gallery_id": "gal_1", "items": []},
+                },
+            )
 
     assert res.status_code == 200
     assert res.json()["digest_text"] == "digest text"
@@ -40,16 +39,15 @@ def test_advisor_digest_route_returns_digest_payload():
 
 def test_advisor_digest_route_returns_400_on_validation_failure():
     app = _make_app()
-    client = TestClient(app)
-
-    with patch("server.advisor_routes.generate_digest", new=AsyncMock(side_effect=ValueError("bad request"))):
-        res = client.post(
-            "/api/advisors/digest",
-            json={
-                "gallery_id": "gal_1",
-                "evidence": {"version": 1, "gallery_id": "gal_1", "items": []},
-            },
-        )
+    with TestClient(app) as client:
+        with patch("server.advisor_routes.generate_digest", new=AsyncMock(side_effect=ValueError("bad request"))):
+            res = client.post(
+                "/api/advisors/digest",
+                json={
+                    "gallery_id": "gal_1",
+                    "evidence": {"version": 1, "gallery_id": "gal_1", "items": []},
+                },
+            )
 
     assert res.status_code == 400
     assert "bad request" in res.json()["detail"]

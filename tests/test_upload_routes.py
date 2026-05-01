@@ -19,7 +19,14 @@ def _clear_store():
 
 app = FastAPI()
 app.include_router(upload_router)
-client = TestClient(app)
+_client_cm = TestClient(app)
+client = _client_cm.__enter__()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _close_test_client():
+    yield
+    _client_cm.__exit__(None, None, None)
 
 
 def test_upload_returns_file_ref():
