@@ -1,9 +1,9 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
   "taken": {
-    "T5.5": {
+    "T6.1": {
       "taken_by": "sigma",
-      "started_at": "2026-04-30 00:21",
+      "started_at": "2026-05-01 12:25",
       "review_entered_at": "",
       "review_ended_at": "",
       "reviewer": "",
@@ -278,6 +278,26 @@
       "review_note": "The concrete diffusers integration detail that the worker must swap from plain StableDiffusionPipeline / StableDiffusionXLPipeline to a ControlNet-capable pipeline class when bindings are present.",
       "git_sha": "69005d2",
       "finished_at": "2026-04-30 00:21"
+    },
+    "T5.5": {
+      "taken_by": "sigma",
+      "started_at": "2026-04-30 00:21",
+      "review_entered_at": "2026-05-01 12:22",
+      "review_ended_at": "2026-05-01 12:23",
+      "reviewer": "mario",
+      "review_note": "wrapped up with CUDA tests on enigma being fixed, additional makefile entries made for test-cuda ops",
+      "git_sha": "7249723",
+      "finished_at": "2026-05-01 12:24"
+    },
+    "T5.6": {
+      "taken_by": "mario",
+      "started_at": "2026-05-01 12:24",
+      "review_entered_at": "2026-05-01 12:24",
+      "review_ended_at": "2026-05-01 12:24",
+      "reviewer": "mario",
+      "review_note": "commited_in_last_task",
+      "git_sha": "7249723",
+      "finished_at": "2026-05-01 12:25"
     },
     "T6.3": {
       "taken_by": "sigma",
