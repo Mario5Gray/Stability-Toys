@@ -170,6 +170,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 from server.controlnet_preprocessing import preprocess_controlnet_attachments
                 from server.asset_store import get_store
                 pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
+                req._controlnet_artifacts = pre_submit_artifacts
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
             ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
         except Exception as e:
@@ -511,6 +512,16 @@ async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut)
             "backend": os.environ.get("BACKEND", ""),
             "sr": did_sr,
         },
+        **(
+            {
+                "controlnet_artifacts": [
+                    artifact.model_dump()
+                    for artifact in getattr(req, "_controlnet_artifacts", [])
+                ]
+            }
+            if getattr(req, "_controlnet_artifacts", None)
+            else {}
+        ),
     })
 
 
@@ -524,6 +535,7 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
         from server.controlnet_preprocessing import preprocess_controlnet_attachments
         from server.asset_store import get_store
         _run_artifacts = preprocess_controlnet_attachments(req, get_store())
+        req._controlnet_artifacts = _run_artifacts
 
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         ensure_controlnet_dispatch_supported(req, supports_controlnet=False)

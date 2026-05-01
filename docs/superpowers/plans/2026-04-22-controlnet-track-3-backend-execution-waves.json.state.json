@@ -1,6 +1,16 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
-  "taken": {},
+  "taken": {
+    "T6.5": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-01 15:04",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "git_sha": "86931f5",
+      "finished_at": ""
+    }
+  },
   "completed": {
     "T1.1": {
       "taken_by": "theta",
@@ -299,6 +309,15 @@
       "git_sha": "75fb746",
       "finished_at": "2026-05-01 14:42"
     },
+    "T6.2": {
+      "taken_by": "theta",
+      "started_at": "2026-05-01 14:43",
+      "review_entered_at": "",
+      "review_ended_at": "",
+      "reviewer": "",
+      "git_sha": "(stop unconditional stub, emit artifacts on HTTP/WS success) is unblocked.",
+      "finished_at": "2026-05-01 14:46"
+    },
     "T6.3": {
       "taken_by": "sigma",
       "started_at": "2026-04-28 22:42",
@@ -308,6 +327,16 @@
       "review_note": "The new test in tests/test_ws_routes.py (line 541) closes the specific supports_controlnet=True coverage gap I flagged for T6.3. It complements the existing false-fallback assertions without bleeding into the later success-path artifact work. Residual risk is low and mostly limited to the still-uncovered HTTP-side True branch, but that is no longer a review concern for this change.",
       "git_sha": "ba6d594",
       "finished_at": "2026-04-29 02:51"
+    },
+    "T6.4": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-01 14:46",
+      "review_entered_at": "2026-05-01 14:53",
+      "review_ended_at": "2026-05-01 15:04",
+      "reviewer": "theta",
+      "review_note": "Summary: No blockers. T6.4 is done. T6.6 (verify run) can be claimed immediately.",
+      "git_sha": "deferred",
+      "finished_at": "2026-05-01 15:04"
     },
     "T7.1": {
       "taken_by": "theta",

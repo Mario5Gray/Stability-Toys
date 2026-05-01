@@ -565,6 +565,7 @@ def generate(req: GenerateRequest):
             from server.controlnet_preprocessing import preprocess_controlnet_attachments
             from server.asset_store import get_store
             emitted_artifacts = preprocess_controlnet_attachments(req, get_store())
+            req._controlnet_artifacts = emitted_artifacts
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -657,6 +658,13 @@ def generate(req: GenerateRequest):
 
     if image_key:
         headers["X-LCM-Image-Key"] = image_key
+
+    controlnet_artifacts = getattr(req, "_controlnet_artifacts", None) or emitted_artifacts
+    if controlnet_artifacts:
+        headers["X-ControlNet-Artifacts"] = json.dumps(
+            [artifact.model_dump() for artifact in controlnet_artifacts],
+            separators=(",", ":"),
+        )
 
     if did_superres:
         headers.update(
