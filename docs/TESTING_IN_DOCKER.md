@@ -12,15 +12,15 @@ The shared test image name is `harbor.lan/dreamlab-test:latest`.
 Use the local/native path by default:
 
 ```bash
-make -f Makefile.test test-build
-make -f Makefile.test test
+make test-build
+make test
 ```
 
 Use the explicit CUDA path only on `linux/amd64` hosts with NVIDIA runtime support:
 
 ```bash
-make -f Makefile.test test-build-cuda
-make -f Makefile.test test-cuda
+make test-build-cuda
+make test-cuda
 ```
 
 On Apple Silicon, the local path is the only meaningful default. `test-cuda` forces `linux/amd64` and is meant for an x86_64 CUDA builder, not for day-to-day local validation on a Mac.
@@ -65,6 +65,46 @@ If unset, the local test path defaults to repo-local directories:
 Do not rely on `FS_HOST_PATH` or `WORKFLOW_HOST_PATH` for Docker tests. Those may point at non-portable runtime mounts and can break local Docker Desktop runs.
 
 ## Useful Commands
+
+The top-level `Makefile` is the canonical entrypoint. It includes [`Makefile.test`](/Users/darkbit1001/workspace/Stability-Toys/Makefile.test) so you no longer need `make -f Makefile.test ...` for normal Docker test flows.
+
+Run the local CPU image build:
+
+```bash
+make test-build
+```
+
+Run the local Docker test suite:
+
+```bash
+make test
+```
+
+Run one local Docker test file:
+
+```bash
+make test TEST=tests/test_cuda_worker_controlnet.py PYTEST_ARGS=-q
+```
+
+Build the explicit CUDA image:
+
+```bash
+make test-build-cuda
+```
+
+Run the explicit CUDA Docker test suite:
+
+```bash
+make test-cuda
+```
+
+Run one explicit CUDA Docker test file:
+
+```bash
+make test-cuda TEST=tests/test_cuda_worker_controlnet.py PYTEST_ARGS=-q
+```
+
+`TEST` defaults to `tests/`. `PYTEST_ARGS` defaults to the full verbose coverage arguments used by the historical suite targets. Override `PYTEST_ARGS` when you want a narrower invocation such as `-q` or `-x -q`.
 
 Build the local CPU image:
 

@@ -3,6 +3,18 @@
 
 .PHONY: help test test-build test-build-cuda test-unit test-fast test-coverage test-watch test-clean test-shell test-cuda check-conda-base
 
+TEST ?= tests/
+DEFAULT_SUITE_PYTEST_ARGS = -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+DEFAULT_DEV_FILE_PYTEST_ARGS = -v
+
+ifeq ($(origin PYTEST_ARGS), undefined)
+SUITE_PYTEST_ARGS := $(DEFAULT_SUITE_PYTEST_ARGS)
+DEV_FILE_PYTEST_ARGS := $(DEFAULT_DEV_FILE_PYTEST_ARGS)
+else
+SUITE_PYTEST_ARGS := $(PYTEST_ARGS)
+DEV_FILE_PYTEST_ARGS := $(PYTEST_ARGS)
+endif
+
 PYTHON ?= python
 EXPECTED_CONDA_PREFIX ?= $(HOME)/miniforge3
 
@@ -20,10 +32,10 @@ test-build-cuda: ## Build the amd64 CUDA test image (CI/x86 builder)
 
 # Run tests
 test: ## Run all tests in Docker
-	docker compose -f docker-compose.test.yml run --rm test
+	docker compose -f docker-compose.test.yml run --rm test python -m pytest $(TEST) $(SUITE_PYTEST_ARGS)
 
 test-cuda: ## Run all tests in the amd64 CUDA test container
-	docker compose -f docker-compose.test.yml run --rm test-cuda
+	docker compose -f docker-compose.test.yml run --rm test-cuda python -m pytest $(TEST) $(SUITE_PYTEST_ARGS)
 
 test-unit: ## Run unit tests only
 	docker compose -f docker-compose.test.yml run --rm test-unit
@@ -32,7 +44,7 @@ test-fast: ## Run fast tests (skip slow tests)
 	docker compose -f docker-compose.test.yml run --rm test-fast
 
 test-coverage: ## Run tests with coverage report
-	docker compose -f docker-compose.test.yml run --rm test
+	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 	@echo ""
 	@echo "Coverage report generated in htmlcov/"
 	@echo "Open htmlcov/index.html to view"
@@ -71,7 +83,7 @@ ci-test: test-build-cuda test-cuda ## Build and run the amd64 CUDA test path
 
 # Development
 dev-test: ## Quick test during development
-	docker compose -f docker-compose.test.yml run --rm test pytest tests/ -x -v
+	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/ -x -v
 
-dev-test-file: ## Run specific test file (usage: make dev-test-file FILE=test_foo.py)
-	docker compose -f docker-compose.test.yml run --rm test pytest tests/$(FILE) -v
+dev-test-file: ## Run specific test file (usage: make dev-test-file FILE=test_foo.py [PYTEST_ARGS='-q'])
+	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/$(FILE) $(DEV_FILE_PYTEST_ARGS)
