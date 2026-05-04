@@ -13,8 +13,8 @@ If you only need a weight-format change (e.g. PyTorch state_dict → MLX safeten
 **This guide covers:**
 
 - The architecture-port + weight-load workflow for converting HF ControlNet checkpoints to MLX-runnable form.
-- The naming / layout convention that aligns with `conf/controlnets.yaml`.
-- Quantization options native to MLX (`mlx.core.quantize`, group-wise int4/int8).
+- The naming / layout convention for MLX-specific artifacts.
+- The current MLX quantization boundary and what it does **not** cover by default.
 - A validation checklist before trusting a converted model.
 
 **This guide does not cover:**
@@ -37,9 +37,9 @@ HF ControlNet repo ──► PyTorch / diffusers ControlNetModel
                   weights.safetensors (MLX-naming)
                        │
                        │  mlx.nn module tree built from a port of ControlNetModel
-                       │  weights loaded via mx.utils.tree_unflatten
+                       │  weights loaded into that exact parameter tree
                        ▼
-                  MLX module instance (in-memory) ──► optional mx.quantize ──► weights.q4.safetensors
+                  MLX module instance (in-memory) ──► optional selective quantization ──► weights.q*.safetensors
 ```
 
 You produce per-id artifacts:
@@ -145,7 +145,7 @@ If you copy the layer code from `mlx-examples/stable_diffusion`, it has already 
 
 ## Stage 2 — Load weights from Hugging Face
 
-Once the MLX module exists, weight loading is mechanical: state_dict from diffusers → key-remap → load into MLX module via `mx.utils.tree_unflatten`.
+Once the MLX module exists, weight loading is mechanical: state_dict from diffusers → key-remap → load into the MLX module's parameter tree.
 
 ```python
 # scripts/convert_controlnet_mlx.py  (illustrative, not yet checked in)
@@ -180,7 +180,10 @@ from your_mlx_port import MLXControlNet  # not real, replace with your module
 cn = MLXControlNet(config=...)            # config matches torch_cn.config
 
 # 4. Load remapped weights into the module.
-cn.update(mlx.utils.tree_unflatten(list(remapped.items())))
+#
+# Prefer load_weights(..., strict=True) for conversion validation. It fails if
+# names or shapes do not match the MLX module exactly.
+cn.load_weights(list(remapped.items()), strict=True)
 mx.eval(cn.parameters())  # force materialization
 
 # 5. Save MLX-naming safetensors.
@@ -191,16 +194,31 @@ The `safetensors` written here are not interchangeable with the original HF file
 
 ---
 
-## Stage 3 — Quantization (optional, recommended for SDXL)
+## Stage 3 — Quantization (optional, but narrower than it first appears)
 
-MLX has built-in group-wise quantization. For SDXL ControlNet (~2.5 GB fp32, ~1.2 GB fp16), int4 grouped quant brings the file under ~400 MB and the runtime memory accordingly.
+MLX does have built-in group-wise quantization, but the stock `mlx.nn.quantize()` path only quantizes modules that implement `to_quantized()`. In current MLX docs, that means `Linear` and `Embedding` by default, not `Conv2d`.
+
+That matters here because ControlNet is conv-heavy. If you run `nn.quantize(cn, ...)` on a typical port, the large convolutional blocks will likely remain unquantized unless you add custom quantized-conv module support yourself.
+
+So treat quantization in three tiers:
+
+1. `Supported today with stock MLX`
+   - linear and embedding quantization
+   - useful, but modest impact on ControlNet's total footprint
+2. `Possible with custom work`
+   - custom quantized `Conv2d` replacements in the MLX port
+   - much larger memory/file-size wins
+3. `Do not assume`
+   - that one call to `nn.quantize()` yields whole-model int4 ControlNet artifacts
+
+Because of that, fp16 or bf16 should be considered the default artifact target for first bring-up. Quantized artifacts are a follow-on optimization after the base port is numerically correct.
 
 ```python
 import mlx.core as mx
 import mlx.nn as nn
 
-# Quantize Linear/Conv layers in place. group_size=64 and bits=4 are the
-# common settings; smaller group_size yields better quality at modest size cost.
+# By default this only quantizes layers that expose to_quantized().
+# In current MLX docs that is typically Linear / Embedding, not Conv2d.
 nn.quantize(cn, group_size=64, bits=4)
 
 # Verify the quantized module produces sane outputs (Stage 5).
@@ -208,13 +226,13 @@ nn.quantize(cn, group_size=64, bits=4)
 mx.save_safetensors("sd15-canny.q4.safetensors", dict(mx.utils.tree_flatten(cn.parameters())))
 ```
 
-For SD1.5 ControlNet (~1.4 GB fp32, ~700 MB fp16), int4 may be unnecessary — fp16 is often the better quality/size trade.
+For SD1.5 ControlNet, fp16 is likely the right first artifact. For SDXL ControlNet, do not promise aggressive whole-model q4 size numbers until the port has explicit Conv2d quantization support and measured results on real hardware.
 
 ---
 
 ## Stage 4 — Calibration (only matters if you go below int4)
 
-MLX's group-wise quantization is data-free: it does not need a calibration set. That is one of the reasons int4 is practical here in a way it isn't on RKNN. Skip Stage 4 unless you experiment with PTQ schemes that *do* need calibration (rare on MLX; not officially supported by `mlx.nn.quantize`).
+MLX's stock group-wise quantization is data-free: it does not need a calibration set. Skip Stage 4 unless you add a custom PTQ path beyond the built-in `mlx.nn.quantize` flow.
 
 ---
 
@@ -222,16 +240,22 @@ MLX's group-wise quantization is data-free: it does not need a calibration set. 
 
 Before shipping a converted file:
 
-1. **State-dict completeness:** after `cn.update(...)`, confirm every parameter the MLX module exposes was populated. A common bug: a renamed PyTorch key gets dropped during remap and the MLX layer silently keeps its random init. Compare key counts:
+1. **Weight-load completeness:** use strict MLX loading first. A common bug is dropping or misnaming a remapped key and silently leaving part of the MLX module randomly initialized. Prefer:
 
    ```python
-   torch_keys = set(sd.keys())
-   mlx_keys = {k for k, _ in mx.utils.tree_flatten(cn.parameters())}
-   print("In torch only:", torch_keys - mlx_keys)
-   print("In mlx only:", mlx_keys - torch_keys)
+   cn.load_weights(list(remapped.items()), strict=True)
    ```
 
-   Both diffs should be empty (after accounting for any deliberate renames).
+   If that passes, names and shapes match the MLX module exactly.
+
+   If you need debugging beyond that, compare the remapped key set against the MLX parameter key set, not the raw PyTorch key set:
+
+   ```python
+   remapped_keys = set(remapped.keys())
+   mlx_keys = {k for k, _ in mx.utils.tree_flatten(cn.parameters())}
+   print("In remapped only:", remapped_keys - mlx_keys)
+   print("In mlx only:", mlx_keys - remapped_keys)
+   ```
 
 2. **Numerical sanity (fp32):** run identical inputs through PyTorch and the MLX port. Compare `mid` and the last few `down_*` outputs:
 
@@ -243,7 +267,7 @@ Before shipping a converted file:
 
    If error is much larger, the most likely culprits are: Conv weight transpose missed in remap, GroupNorm `num_groups` mismatch, attention scale factor (`1/sqrt(d)` vs `1/sqrt(head_dim)`).
 
-3. **Quantized comparison:** repeat the numerical test against the quantized module. Per-output max abs err for int4 typically lands in the 0.1–0.5 range; visually outputs are close.
+3. **Quantized comparison:** if you add quantization, repeat the numerical test against that exact quantized module. Do not assume whole-model q4 parity numbers unless the conv-heavy parts were actually quantized.
 
 4. **End-to-end image:** plumb the MLX ControlNet outputs into the MLX UNet at sample time and render with the same prompt/seed under the CUDA reference. Side-by-side, an int4-quantized SDXL ControlNet should be recognizably the same composition.
 
@@ -255,7 +279,7 @@ Before shipping a converted file:
 
 ## Output layout
 
-Same scheme as the RKNN guide so the V2 MLX provider can drop in alongside:
+Use an MLX-specific artifact layout:
 
 ```
 /models/controlnets/
@@ -270,7 +294,23 @@ Same scheme as the RKNN guide so the V2 MLX provider can drop in alongside:
 
 `transposed_conv2d: true` flag is informational — it pins the layout convention used at conversion time so a future loader can verify it matches the runtime port. The V2 MLX provider will read `metadata.json` to pick the right precision file and to refuse loads where the conversion convention disagrees with the runtime.
 
-`conf/controlnets.yaml` already points `path` at `/models/controlnets/<id>` (directory, not file). The V2 provider should look inside that directory for `<id>.safetensors` (or `<id>.q4.safetensors` if quantized was preferred) plus `metadata.json`. No registry edits required.
+Do **not** rely on the current CUDA-oriented `conf/controlnets.yaml` path contract staying implicit here. The MLX provider should resolve MLX artifacts through backend-specific registry metadata, for example:
+
+```yaml
+models:
+  sd15-canny:
+    control_types: [canny]
+    compatible_with: [sd15]
+    backends:
+      cuda:
+        path: /models/controlnets/sd15-canny
+        format: diffusers
+      mlx:
+        path: /models/apple/mlx/controlnets/sd15-canny
+        format: mlx-controlnet-bundle
+```
+
+That keeps one `model_id` stable while allowing CUDA and MLX to point at different on-disk formats.
 
 ---
 
@@ -280,6 +320,7 @@ Same scheme as the RKNN guide so the V2 MLX provider can drop in alongside:
 - **Attention head shape**: `(B, heads, seq, head_dim)` vs `(B, seq, heads, head_dim)`. Pick one in your port and stick to it.
 - **GroupNorm num_groups**: diffusers' default is `32` for most norms. If you parameterize this on the config object, double-check the config's `norm_num_groups` matches your port's expectation.
 - **`controlnet_cond` range**: must be `[0, 1]` fp32 before the model. Don't pre-multiply by 2 or shift to `[-1, 1]`. Mismatch silently produces washed-out conditioning.
+- **Quantization scope**: `mlx.nn.quantize()` does not magically quantize every conv-heavy diffusion module. Verify which submodules actually changed before claiming q4 artifact sizes or memory numbers.
 - **`mx.eval`**: MLX is lazy. After loading weights, before timing or accuracy checks, call `mx.eval(cn.parameters())` to force materialization. Otherwise your first inference timing will include weight upload.
 - **Unified memory**: there is no host/device copy on Apple Silicon. This is a feature, not a bug, but it means a leaked reference to a large array will show up as "swap pressure" not "GPU OOM" — diagnose with `mx.metal.get_active_memory()` rather than chasing CUDA-style errors.
 - **bf16 vs fp16**: MLX supports both. SDXL is more numerically stable in bf16; SD1.5 is fine in either. Pick one per file and pin it in `metadata.json`.
@@ -291,7 +332,11 @@ Same scheme as the RKNN guide so the V2 MLX provider can drop in alongside:
 - [ml-explore/mlx](https://github.com/ml-explore/mlx) — core array library and `mlx.nn`.
 - [ml-explore/mlx-examples](https://github.com/ml-explore/mlx-examples) — Apple's reference ports, especially `stable_diffusion/`. The single highest-leverage thing you can read before starting this conversion.
 - [huggingface/diffusers — ControlNetModel](https://huggingface.co/docs/diffusers/api/models/controlnet) — canonical PyTorch reference for the I/O contract.
+- [MLX `Conv2d` docs](https://ml-explore.github.io/mlx/build/html/python/nn/_autosummary/mlx.nn.Conv2d.html) — confirms NHWC input and OHWI weight layout.
+- [MLX `quantize` docs](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.nn.quantize.html) — confirms stock quantization behavior and default quantized layer classes.
+- [MLX `Module.load_weights` docs](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.nn.Module.load_weights.html) — preferred strict validation mechanism for converted weights.
 - [docs/superpowers/specs/2026-04-18-controlnet-design.md](superpowers/specs/2026-04-18-controlnet-design.md) — ControlNet design spec; the V2 MLX provider seam is the consumer of the artifacts this guide produces.
+- [docs/superpowers/specs/2026-05-04-controlnet-apple-mlx-design.md](superpowers/specs/2026-05-04-controlnet-apple-mlx-design.md) — Apple backend spec; use its backend-specific registry model instead of implicit path reuse.
 - [conf/controlnets.yaml](../conf/controlnets.yaml) — model id ↔ path registry.
 - [docs/CONTROLNET_RKNN_CONVERSION.md](CONTROLNET_RKNN_CONVERSION.md) — sibling guide for the RKNN target. Same registry, different conversion pipeline.
 
