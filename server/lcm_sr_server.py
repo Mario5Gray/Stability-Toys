@@ -56,8 +56,8 @@ from fastapi.responses import Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel, Field
-from server.controlnet_models import ControlNetAttachment
+from pydantic import BaseModel, Field, PrivateAttr
+from server.controlnet_models import ControlNetAttachment, ControlNetArtifactRef
 
 try:
     from transformers import CLIPTokenizer
@@ -155,6 +155,7 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Optional list of ControlNet attachments; validated against the active mode's controlnet_policy.",
     )
+    _controlnet_artifacts: List[ControlNetArtifactRef] = PrivateAttr(default_factory=list)
 
 # -----------------------------
 # RKNN multi-context configuration

@@ -37,6 +37,12 @@ class ModelRegistryProtocol(Protocol):
     def get_total_vram(self) -> int:
         ...
 
+    def get_used_vram(self) -> int:
+        ...
+
+    def get_allocated_vram(self) -> int:
+        ...
+
 
 class GenerationRuntimeProtocol(Protocol):
     def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:

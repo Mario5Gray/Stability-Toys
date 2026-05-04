@@ -7,6 +7,7 @@ import threading
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
+from types import ModuleType
 from typing import Callable, Literal, Mapping, Optional, Protocol
 
 import numpy as np
@@ -59,6 +60,12 @@ class SuperResServiceProtocol(Protocol):
     def shutdown(self) -> None: ...
 
 
+class CudaSuperResWorkerProtocol(Protocol):
+    def close(self) -> None: ...
+
+    def upscale_bytes(self, image_bytes: bytes, *, magnitude: int, out_format: str, quality: int) -> bytes: ...
+
+
 @dataclass
 class SRJob:
     image_bytes: bytes
@@ -95,8 +102,8 @@ def load_cuda_superres_config(environ: Optional[Mapping[str, str]] = None) -> Cu
 
 def ensure_torchvision_functional_tensor_compat(
     *,
-    import_module: Callable[[str], object] = importlib.import_module,
-    sys_modules: Optional[dict[str, object]] = None,
+    import_module: Callable[[str], ModuleType] = importlib.import_module,
+    sys_modules: Optional[dict[str, ModuleType]] = None,
 ) -> None:
     modules = sys_modules if sys_modules is not None else sys.modules
     try:
@@ -106,8 +113,8 @@ def ensure_torchvision_functional_tensor_compat(
         pass
 
     functional = import_module("torchvision.transforms.functional")
-    shim = type("TorchvisionFunctionalTensorShim", (), {})()
-    shim.rgb_to_grayscale = getattr(functional, "rgb_to_grayscale")
+    shim = ModuleType("torchvision.transforms.functional_tensor")
+    setattr(shim, "rgb_to_grayscale", getattr(functional, "rgb_to_grayscale"))
     modules["torchvision.transforms.functional_tensor"] = shim
 
 
@@ -484,7 +491,7 @@ class CudaSuperResService:
         max_pixels: Optional[int] = None,
         *,
         config: Optional[CudaSuperResConfig] = None,
-        worker_factory: Optional[Callable[[CudaSuperResConfig], object]] = None,
+        worker_factory: Optional[Callable[[CudaSuperResConfig], CudaSuperResWorkerProtocol]] = None,
     ):
         del num_workers, input_size, output_size, max_pixels
         self.config = config or CudaSuperResConfig(
@@ -500,11 +507,11 @@ class CudaSuperResService:
         self.q: "queue.Queue[SRJob]" = queue.Queue(maxsize=int(queue_max))
         self._stop = threading.Event()
         self._worker_lock = threading.Lock()
-        self._worker: Optional[object] = None
+        self._worker: Optional[CudaSuperResWorkerProtocol] = None
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
 
-    def _ensure_worker(self):
+    def _ensure_worker(self) -> CudaSuperResWorkerProtocol:
         with self._worker_lock:
             if self._worker is None:
                 self._worker = self.worker_factory(self.config)

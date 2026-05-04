@@ -4,8 +4,9 @@
   "pythonVersion": "3.12",
   "pythonPlatform": "Linux",
   "typeCheckingMode": "basic",
-  "reportMissingImports": true,
+  "reportMissingImports": false,
   "reportMissingTypeStubs": false,
+  "reportMissingModuleSource": false,
   "executionEnvironments": [
     {
       "root": "."

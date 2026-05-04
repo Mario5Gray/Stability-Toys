@@ -3,17 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 from backends.model_registry import PlaceholderModelRegistry
-from backends.platforms.base import BackendCapabilities
+from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
 
 
 class PlaceholderGenerationRuntime:
     def __init__(self, backend_id: str):
         self._backend_id = backend_id
 
-    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         raise NotImplementedError(f"BACKEND={self._backend_id} generation is not implemented")
 
-    def get_current_mode(self):
+    def get_current_mode(self) -> None:
         return None
 
     def is_model_loaded(self) -> bool:
@@ -41,19 +41,19 @@ class PlaceholderSuperResRuntime:
 
 
 class CPUProvider:
-    backend_id = "cpu"
+    backend_id: str = "cpu"
 
     def capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(False, True, False, False, False)
 
-    def create_worker_factory(self, *args: Any, **kwargs: Any):
+    def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("BACKEND=cpu worker factory is not implemented")
 
-    def create_model_registry(self):
+    def create_model_registry(self) -> ModelRegistryProtocol:
         return PlaceholderModelRegistry(self.backend_id)
 
-    def create_generation_runtime(self, *args: Any, **kwargs: Any):
+    def create_generation_runtime(self, *args: Any, **kwargs: Any) -> GenerationRuntimeProtocol:
         return PlaceholderGenerationRuntime(self.backend_id)
 
-    def create_superres_runtime(self, *args: Any, **kwargs: Any):
+    def create_superres_runtime(self, *args: Any, **kwargs: Any) -> Any:
         return PlaceholderSuperResRuntime(self.backend_id)

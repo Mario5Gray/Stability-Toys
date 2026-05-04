@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, field
 from threading import Lock
 
+from backends.platforms.base import ModelRegistryProtocol
+
 try:
     import torch
 except ImportError:  # pragma: no cover - exercised on non-torch environments
@@ -44,7 +46,7 @@ class PlaceholderModelRegistry:
         vram_bytes: int = 0,
         worker_id: Optional[int] = None,
         loras: Optional[List[str]] = None,
-    ):
+    ) -> None:
         with self._lock:
             self._loaded[name] = {
                 "name": name,
@@ -54,7 +56,7 @@ class PlaceholderModelRegistry:
                 "loras": list(loras or []),
             }
 
-    def unregister_model(self, name: str):
+    def unregister_model(self, name: str) -> None:
         with self._lock:
             self._loaded.pop(name, None)
 
@@ -63,6 +65,12 @@ class PlaceholderModelRegistry:
             return sorted(self._loaded.keys())
 
     def get_total_vram(self) -> int:
+        return 0
+
+    def get_used_vram(self) -> int:
+        return 0
+
+    def get_allocated_vram(self) -> int:
         return 0
 
     def get_vram_stats(self) -> Dict[str, Any]:
@@ -74,7 +82,7 @@ class PlaceholderModelRegistry:
                 "models": list(self._loaded.values()),
             }
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._loaded.clear()
 
@@ -87,7 +95,7 @@ class ModelRegistry:
     Uses actual torch.cuda measurements - no artificial limits.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize model registry."""
         self._loaded: Dict[str, LoadedModel] = {}
         self._lock = Lock()
@@ -117,10 +125,10 @@ class ModelRegistry:
         self,
         name: str,
         model_path: str,
-        vram_bytes: int,
+        vram_bytes: int = 0,
         worker_id: Optional[int] = None,
         loras: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """
         Register a loaded model.
 
@@ -145,7 +153,7 @@ class ModelRegistry:
                 f"{vram_bytes / 1024**3:.2f} GB VRAM"
             )
 
-    def unregister_model(self, name: str):
+    def unregister_model(self, name: str) -> None:
         """
         Unregister a model.
 
@@ -353,7 +361,7 @@ class ModelRegistry:
             "models": models_breakdown,
         }
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all registered models (does not unload, just clears registry)."""
         with self._lock:
             self._loaded.clear()
@@ -365,16 +373,17 @@ class ModelRegistry:
 
 
 # Global registry instance
-_registry: Optional[object] = None
+_registry: Optional[ModelRegistryProtocol] = None
 
 
-def get_model_registry():
+def get_model_registry() -> ModelRegistryProtocol:
     """Get the singleton registry for the active backend."""
     global _registry
     if _registry is None:
         from backends.platform_registry import get_backend_provider
 
         _registry = get_backend_provider().create_model_registry()
+    assert _registry is not None
     return _registry
 
 

@@ -13,6 +13,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+ChatMessage = Dict[str, str]
+
 
 @dataclass
 class ChatConfig:
@@ -43,7 +45,7 @@ class ChatCompletionsClient:
 
     def _request_payload(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[ChatMessage],
         *,
         stream: bool,
         max_tokens: Optional[int],
@@ -69,9 +71,13 @@ class ChatCompletionsClient:
             return "text"
         return type(content).__name__
 
-    def _message_summary(self, messages: List[Dict[str, str]]) -> List[Dict[str, object]]:
+    def _message_summary(self, messages: object) -> List[Dict[str, object]]:
         summary: List[Dict[str, object]] = []
+        if not isinstance(messages, list):
+            return summary
         for message in messages:
+            if not isinstance(message, dict):
+                continue
             content = message.get("content")
             chars = len(content) if isinstance(content, str) else None
             summary.append(
@@ -87,14 +93,16 @@ class ChatCompletionsClient:
         if not logger.isEnabledFor(logging.DEBUG):
             return
 
+        messages = payload.get("messages")
+        message_summary = self._message_summary(messages)
         debug_record: Dict[str, object] = {
             "url": self._url(),
             "model": payload.get("model"),
             "stream": payload.get("stream"),
             "max_tokens": payload.get("max_tokens"),
             "temperature": payload.get("temperature"),
-            "message_count": len(payload.get("messages", [])),
-            "message_summary": self._message_summary(payload.get("messages", [])),
+            "message_count": len(message_summary),
+            "message_summary": message_summary,
         }
         if os.environ.get("DEBUG_FULL_PAYLOAD") == "1":
             debug_record["payload"] = payload

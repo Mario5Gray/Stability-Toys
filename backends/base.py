@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, Tuple, Optional
+from typing import TYPE_CHECKING, Any, Protocol, Tuple, Optional
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
@@ -33,11 +33,11 @@ class GenSpec:
 class PipelineWorker(Protocol):
     worker_id: int
 
-    def run_job(self, spec: GenSpec) -> Tuple[bytes, int]:
+    def run_job(self, job: Any) -> Tuple[bytes, int]:
         """Return (png_bytes, seed_used)."""
         ...
 
-    def run_job_with_latents(self, spec: GenSpec) -> Tuple[bytes, int, bytes]:
+    def run_job_with_latents(self, job: Any) -> Tuple[bytes, int, bytes]:
         """
         Return (png_bytes, seed_used, latents_bytes) where latents_bytes is a raw tensor
         of shape [1,4,8,8] (NCHW) serialized as little-endian float16 bytes.

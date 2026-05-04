@@ -5,19 +5,54 @@ import io
 import json
 import os
 from copy import deepcopy
+from functools import lru_cache
+from importlib import import_module
 from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
 from PIL import Image, PngImagePlugin
-from diffusers.schedulers.scheduling_lcm import LCMScheduler
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import StableDiffusionPipeline
-from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import StableDiffusionXLPipeline
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img import StableDiffusionImg2ImgPipeline
-from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img import StableDiffusionXLImg2ImgPipeline
 
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
+
+
+@lru_cache(maxsize=None)
+def _import_attr(module_path: str, attr: str) -> Any:
+    module = import_module(module_path)
+    return getattr(module, attr)
+
+
+def _lcm_scheduler_cls() -> Any:
+    return _import_attr("diffusers.schedulers.scheduling_lcm", "LCMScheduler")
+
+
+def _sd_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion",
+        "StableDiffusionPipeline",
+    )
+
+
+def _sdxl_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl",
+        "StableDiffusionXLPipeline",
+    )
+
+
+def _sd_img2img_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img",
+        "StableDiffusionImg2ImgPipeline",
+    )
+
+
+def _sdxl_img2img_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img",
+        "StableDiffusionXLImg2ImgPipeline",
+    )
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
@@ -97,7 +132,9 @@ class CudaWorkerBase:
         """
         should_quantize_runtime = self._quantize == "fp8" and self._checkpoint_precision != "fp8"
         if should_quantize_runtime:
-            from optimum.quanto import freeze, quantize, qfloat8
+            freeze = _import_attr("optimum.quanto", "freeze")
+            quantize = _import_attr("optimum.quanto", "quantize")
+            qfloat8 = _import_attr("optimum.quanto", "qfloat8")
             quantize(pipe.unet, weights=qfloat8)
             freeze(pipe.unet)
             if hasattr(pipe, "text_encoder_2"):  # SDXL only (~1.4 GB)
@@ -274,13 +311,13 @@ class CudaWorkerBase:
 
     def _load_controlnet_model(self, binding: Any) -> Any:
         from backends.controlnet_cache import get_controlnet_cache
-        from diffusers import ControlNetModel
 
         cache = get_controlnet_cache()
+        controlnet_model = _import_attr("diffusers", "ControlNetModel")
         return cache.acquire(
             binding.model_id,
             binding.model_path,
-            loader=lambda path: ControlNetModel.from_pretrained(
+            loader=lambda path: controlnet_model.from_pretrained(
                 path,
                 torch_dtype=self.dtype,
                 local_files_only=True,
@@ -320,7 +357,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
 
         if is_diffusers_dir:
             print("loading diffusers")
-            pipe = StableDiffusionPipeline.from_pretrained(
+            pipe = _sd_pipeline_cls().from_pretrained(
                 ckpt_path,
                 torch_dtype=self.dtype,
                 safety_checker=None,
@@ -329,7 +366,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
             format_name = "diffusers"
         else:
             print("loading safetensors")
-            pipe = StableDiffusionPipeline.from_single_file(
+            pipe = _sd_pipeline_cls().from_single_file(
                 ckpt_path,
                 torch_dtype=self.dtype,
                 safety_checker=None,
@@ -339,7 +376,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
 
         scheduler_profile = "lcm" if self._scheduler_profile == "unknown" else self._scheduler_profile
         if scheduler_profile != "native":
-            pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+            pipe.scheduler = _lcm_scheduler_cls().from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
@@ -399,9 +436,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
-        from diffusers import StableDiffusionControlNetPipeline
-
-        return StableDiffusionControlNetPipeline.from_pipe(
+        return _import_attr("diffusers", "StableDiffusionControlNetPipeline").from_pipe(
             self.pipe,
             controlnet=controlnet_obj,
         )
@@ -466,7 +501,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
-                    self._img2img_pipe = StableDiffusionImg2ImgPipeline(**self.pipe.components)
+                    self._img2img_pipe = _sd_img2img_pipeline_cls()(**self.pipe.components)
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
@@ -645,7 +680,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
 
         # Load SDXL pipeline
         if is_diffusers_dir:
-            pipe = StableDiffusionXLPipeline.from_pretrained(
+            pipe = _sdxl_pipeline_cls().from_pretrained(
                 ckpt_path,
                 torch_dtype=self.dtype,
                 use_safetensors=True,
@@ -662,7 +697,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 config_path = self._resolve_sdxl_single_file_config(ckpt_path)
                 if config_path is not None:
                     single_file_kwargs["config"] = config_path
-                pipe = StableDiffusionXLPipeline.from_single_file(
+                pipe = _sdxl_pipeline_cls().from_single_file(
                     ckpt_path,
                     **single_file_kwargs,
                 )
@@ -676,7 +711,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
 
         scheduler_profile = "native" if self._scheduler_profile == "unknown" else self._scheduler_profile
         if scheduler_profile == "lcm":
-            pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+            pipe.scheduler = _lcm_scheduler_cls().from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
 
         self.pipe = pipe
@@ -738,9 +773,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
-        from diffusers import StableDiffusionXLControlNetPipeline
-
-        return StableDiffusionXLControlNetPipeline.from_pipe(
+        return _import_attr("diffusers", "StableDiffusionXLControlNetPipeline").from_pipe(
             self.pipe,
             controlnet=controlnet_obj,
         )
@@ -815,7 +848,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
-                    self._img2img_pipe = StableDiffusionXLImg2ImgPipeline(**self.pipe.components)
+                    self._img2img_pipe = _sdxl_img2img_pipeline_cls()(**self.pipe.components)
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {

@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 
 from backends.platforms.base import (
-    BackendCapabilities,
     BackendProvider,
 )
 
@@ -26,24 +25,27 @@ def get_backend_provider() -> BackendProvider:
     global _provider
     if _provider is None:
         backend = _read_backend()
+        provider: BackendProvider
         if backend == "cuda":
             from backends.platforms.cuda import CUDAProvider
 
-            _provider = CUDAProvider()
+            provider = CUDAProvider()
         elif backend == "rknn":
             from backends.platforms.rknn import RKNNProvider
 
-            _provider = RKNNProvider()
+            provider = RKNNProvider()
         elif backend == "cpu":
             from backends.platforms.cpu import CPUProvider
 
-            _provider = CPUProvider()
+            provider = CPUProvider()
         elif backend == "mlx":
             from backends.platforms.mlx import MLXProvider
 
-            _provider = MLXProvider()
+            provider = MLXProvider()
         else:
             raise RuntimeError(f"Unsupported BACKEND='{backend}'")
+        _provider = provider
+    assert _provider is not None
     return _provider
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backends.platforms.base import BackendCapabilities
+from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
 
 
 def _bool_arg(value: object, default: bool = True) -> bool:
@@ -19,7 +19,7 @@ class RknnGenerationRuntime:
     def __init__(
         self,
         *,
-        paths,
+        paths: Any,
         num_workers: int,
         queue_max: int,
         use_rknn_context_cfgs: bool,
@@ -34,13 +34,13 @@ class RknnGenerationRuntime:
             use_rknn_context_cfgs=use_rknn_context_cfgs,
         )
 
-    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         from backends.worker_pool import DEFAULT_QUEUE_TIMEOUT_S
 
         effective = DEFAULT_QUEUE_TIMEOUT_S if timeout_s is None else timeout_s
         return self._service.submit(req, timeout_s=effective)
 
-    def get_current_mode(self):
+    def get_current_mode(self) -> None:
         return None
 
     def is_model_loaded(self) -> bool:
@@ -54,20 +54,27 @@ class RknnGenerationRuntime:
 
 
 class RKNNProvider:
-    backend_id = "rknn"
+    backend_id: str = "rknn"
 
     def capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(True, False, True, False, False)
 
-    def create_worker_factory(self, *args: Any, **kwargs: Any):
+    def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("RKNN worker-factory wiring lands in a later task")
 
-    def create_model_registry(self):
+    def create_model_registry(self) -> ModelRegistryProtocol:
         from backends.model_registry import PlaceholderModelRegistry
 
         return PlaceholderModelRegistry(self.backend_id)
 
-    def create_generation_runtime(self, *, paths, num_workers: int, queue_max: int, **kwargs: Any):
+    def create_generation_runtime(
+        self,
+        *,
+        paths: Any,
+        num_workers: int,
+        queue_max: int,
+        **kwargs: Any,
+    ) -> GenerationRuntimeProtocol:
         return RknnGenerationRuntime(
             paths=paths,
             num_workers=num_workers,
@@ -75,7 +82,7 @@ class RKNNProvider:
             use_rknn_context_cfgs=_bool_arg(kwargs.get("use_rknn_context_cfgs"), True),
         )
 
-    def create_superres_runtime(self, *, settings: Any, **kwargs: Any):
+    def create_superres_runtime(self, *, settings: Any, **kwargs: Any) -> Any:
         from server.superres_http import initialize_superres_service
 
         return initialize_superres_service(

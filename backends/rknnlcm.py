@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Callable, List, Optional, Union, Tuple
+from typing import Any, Callable, List, Optional, Union, Tuple, cast
 
 import numpy as np
 import torch  # Only used for `torch.from_tensor` in `pipe.scheduler.step()`
@@ -413,7 +413,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
 
         if latents is None:
             if isinstance(generator, np.random.RandomState):
-                latents = generator.randn(*shape).astype(dtype)
+                latents = cast(Any, generator).randn(*shape).astype(dtype)
             elif isinstance(generator, torch.Generator):
                 latents = torch.randn(*shape, generator=generator).numpy().astype(dtype)
             else:

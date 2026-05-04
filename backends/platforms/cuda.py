@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backends.platforms.base import BackendCapabilities
+from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
 
 
 class CudaGenerationRuntime:
@@ -13,7 +13,7 @@ class CudaGenerationRuntime:
             pool = get_worker_pool()
         self._pool = pool
 
-    def submit_generate(self, req: Any, *, timeout_s: float | None = None):
+    def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         from server.asset_store import get_store
         from server.controlnet_execution import (
             active_model_family_from_variant,
@@ -31,6 +31,8 @@ class CudaGenerationRuntime:
                     "CudaGenerationRuntime received a ControlNet request before any mode was loaded"
                 )
             mode = get_mode_config().get_mode(mode_name)
+            if mode.model_path is None:
+                raise RuntimeError(f"Mode '{mode_name}' does not have a resolved model_path")
             family = active_model_family_from_variant(detect_model(mode.model_path).variant.value)
             bindings = resolve_controlnet_bindings(
                 req,
@@ -42,10 +44,10 @@ class CudaGenerationRuntime:
         job = GenerationJob(req=req, controlnet_bindings=bindings)
         return self._pool.submit_job(job, timeout_s=timeout_s)
 
-    def switch_mode(self, mode_name: str, force: bool = False):
+    def switch_mode(self, mode_name: str, force: bool = False) -> Any:
         return self._pool.switch_mode(mode_name, force=force)
 
-    def get_current_mode(self):
+    def get_current_mode(self) -> str | None:
         return self._pool.get_current_mode()
 
     def is_model_loaded(self) -> bool:
@@ -59,25 +61,25 @@ class CudaGenerationRuntime:
 
 
 class CUDAProvider:
-    backend_id = "cuda"
+    backend_id: str = "cuda"
 
     def capabilities(self) -> BackendCapabilities:
         return BackendCapabilities(True, True, True, True, True, True)
 
-    def create_worker_factory(self, *args: Any, **kwargs: Any):
+    def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         from backends.worker_factory import create_cuda_worker
 
         return create_cuda_worker
 
-    def create_model_registry(self):
+    def create_model_registry(self) -> ModelRegistryProtocol:
         from backends.model_registry import ModelRegistry
 
         return ModelRegistry()
 
-    def create_generation_runtime(self, **kwargs: Any):
+    def create_generation_runtime(self, **kwargs: Any) -> GenerationRuntimeProtocol:
         return CudaGenerationRuntime(**kwargs)
 
-    def create_superres_runtime(self, *, settings: Any, **kwargs: Any):
+    def create_superres_runtime(self, *, settings: Any, **kwargs: Any) -> Any:
         from server.superres_http import initialize_superres_service
 
         return initialize_superres_service(

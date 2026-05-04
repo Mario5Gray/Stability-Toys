@@ -26,8 +26,9 @@ from concurrent.futures import Future, CancelledError
 from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
-from backends.model_registry import get_model_registry, ModelRegistry
+from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
+from backends.platforms.base import ModelRegistryProtocol
 from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
@@ -211,7 +212,7 @@ class WorkerPool:
         queue_timeout_s: float = DEFAULT_QUEUE_TIMEOUT_S,
         worker_factory: Optional[WorkerFactory] = None,
         mode_config: Optional[ModeConfigManager] = None,
-        registry: Optional[ModelRegistry] = None,
+        registry: Optional[ModelRegistryProtocol] = None,
     ):
         """
         Initialize worker pool.
@@ -631,11 +632,13 @@ class WorkerPool:
                         job.fut.set_result(result)
 
                 else:
-                    job_record = self._get_job_record(job.job_id) if isinstance(job, GenerationJob) else None
+                    generation_job = job if isinstance(job, GenerationJob) else None
+                    job_record = self._get_job_record(generation_job.job_id) if generation_job is not None else None
                     if job_record is not None and (job_record.cancel_requested or job.fut.cancelled()):
-                        logger.info(f"[WorkerPool] Skipping cancelled generation job: {job.job_id}")
+                        assert generation_job is not None
+                        logger.info(f"[WorkerPool] Skipping cancelled generation job: {generation_job.job_id}")
                         job_record.state = "cancelled"
-                        self._finalize_job_record(job.job_id)
+                        self._finalize_job_record(generation_job.job_id)
                         continue
 
                     if job_record is not None:
@@ -657,14 +660,16 @@ class WorkerPool:
                     result = job.execute(self._worker)
 
                     if job_record is not None and job_record.cancel_requested:
+                        assert generation_job is not None
                         job_record.state = "cancelled"
                         if not job.fut.done():
                             job.fut.set_exception(CancelledError())
-                        self._finalize_job_record(job.job_id)
+                        self._finalize_job_record(generation_job.job_id)
                     elif not job.fut.done():
                         job.fut.set_result(result)
                         if job_record is not None:
-                            self._finalize_job_record(job.job_id)
+                            assert generation_job is not None
+                            self._finalize_job_record(generation_job.job_id)
 
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
@@ -861,7 +866,7 @@ _worker_pool: Optional[WorkerPool] = None
 def get_worker_pool(
     worker_factory: Optional[WorkerFactory] = None,
     mode_config: Optional[ModeConfigManager] = None,
-    registry: Optional[ModelRegistry] = None,
+    registry: Optional[ModelRegistryProtocol] = None,
 ) -> WorkerPool:
     """
     Get global worker pool instance.
