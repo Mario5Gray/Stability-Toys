@@ -374,6 +374,26 @@
       "reviewer": "sigma",
       "finished_at": "2026-04-25 16:23"
     },
+    "T7.3": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-03 21:54",
+      "review_entered_at": "2026-05-03 22:00",
+      "review_ended_at": "2026-05-03 22:00",
+      "reviewer": "mario",
+      "review_note": "Implemented the missing part of T7.3.\n\n  What changed:\n\n  - server/controlnet_registry.py now has validate_controlnet_mode_references(...), which validates\n    each enabled mode’s controlnet_policy against the registry.\n  - server/lcm_sr_server.py startup helper now validates both:\n      - registry load/path validity\n      - mode-referenced model_id existence, control-type support, and family compatibility\n  - tests/test_controlnet_registry.py now covers:\n      - strict startup failure on unknown model_id\n      - strict startup failure on incompatible model_id\n      - lazy mode skipping startup validation and still booting\n\n  Verification:\n\n  - python -m pytest -o addopts=\"-v -ra --showlocals --strict-markers --cov=backends --cov=server\n    --cov-report=term-missing --asyncio-mode=auto\" tests/test_controlnet_registry.py tests/\n    test_controlnet_execution.py -q\n  - Result: 11 passed\n\n  So the missing spec gap for T7.3 is now closed.\n",
+      "git_sha": "0ff111a",
+      "finished_at": "2026-05-03 22:01"
+    },
+    "T7.4": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-03 21:53",
+      "review_entered_at": "2026-05-03 21:53",
+      "review_ended_at": "2026-05-03 21:54",
+      "reviewer": "mario",
+      "review_note": "previously completed in early preceedings",
+      "git_sha": "defererd",
+      "finished_at": "2026-05-03 21:54"
+    },
     "T7.5": {
       "taken_by": "sigma",
       "started_at": "2026-05-03 17:46",
