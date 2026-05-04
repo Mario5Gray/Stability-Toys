@@ -1,13 +1,13 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
   "taken": {
-    "T6.5": {
+    "T7.5": {
       "taken_by": "sigma",
-      "started_at": "2026-05-01 15:04",
+      "started_at": "2026-05-03 17:46",
       "review_entered_at": "",
       "review_ended_at": "",
       "reviewer": "",
-      "git_sha": "86931f5",
+      "git_sha": "eb7bad8",
       "finished_at": ""
     }
   },
@@ -337,6 +337,36 @@
       "review_note": "Summary: No blockers. T6.4 is done. T6.6 (verify run) can be claimed immediately.",
       "git_sha": "deferred",
       "finished_at": "2026-05-01 15:04"
+    },
+    "T6.5": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-01 15:04",
+      "review_entered_at": "2026-05-03 16:16",
+      "review_ended_at": "2026-05-03 16:21",
+      "reviewer": "theta",
+      "review_note": "Scope discipline (process gripe): commit ea2e2d0 (\"adds pre-flight server\") bundles T6.4 (header + WS-frame emission) and T6.5 (persist on req) together. Waveplan tracks them as separate tasks. The commit message also doesn\"t carry the FP issue ID or T6.4/T6.5 markers — violates AGENTS.md continuous-discipline rule 1 (\"every commit is resumable\"). Doesn\"t affect code correctness, but a future cold-start agent reading git log won\"t see what landed in this commit. Recommend a follow-up clarifying FP comment spelling out which task the SHA covers.\nDrift: server/lcm_sr_server.py and server/ws_routes.py STALE in three docs (controlnet-design.md, chat-completions-backend-design.md, chat-connection-decoupling-design.md). The persist line doesn\"t invalidate any prose claim in those — they\"re orthogonal concerns. Refresh provenance after T6.4+T6.5 close out together; defer until T6.6 commit step.",
+      "git_sha": "ea2e2d0",
+      "finished_at": "2026-05-03 17:01"
+    },
+    "T6.6": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-03 17:01",
+      "review_entered_at": "2026-05-03 17:18",
+      "review_ended_at": "2026-05-03 17:36",
+      "reviewer": "theta",
+      "review_note": "Result: 7 passed, 28 deselected in 1.69s. Matches plan line 794 expectation (\"all targeted ControlNet HTTP/WS contract tests pass\").",
+      "git_sha": "ea2e2d0",
+      "finished_at": "2026-05-03 17:36"
+    },
+    "T6.7": {
+      "taken_by": "theta",
+      "started_at": "2026-05-03 17:36",
+      "review_entered_at": "2026-05-03 17:45",
+      "review_ended_at": "2026-05-03 17:46",
+      "reviewer": "mario",
+      "review_note": "ran fp, drift, commit Added revision(s) to STABL-pfpvqfaf: 2f3bb576;chore(controlnet): T6.7 close — drift refresh after T6.4+T6.5 emission slice\nVerify: 7/7 controlnet success-contract tests pass; drift clean for the touched bindings\nFP: revision assigned, closing comment posted",
+      "git_sha": "2f3bb57",
+      "finished_at": "2026-05-03 17:46"
     },
     "T7.1": {
       "taken_by": "theta",
