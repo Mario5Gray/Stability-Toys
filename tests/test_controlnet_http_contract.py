@@ -1,17 +1,20 @@
 # tests/test_controlnet_http_contract.py
 """
-Integration contract tests for ControlNet wiring in lcm_sr_server.py.
+Route contract tests for ControlNet wiring in lcm_sr_server.py.
 
 All external dependencies (mode config, asset store, preprocessor registry,
-worker pool) are mocked explicitly. Tests are deterministic.
+worker pool) are mocked explicitly. Tests call the handler directly so they
+stay focused on the HTTP status/detail contract instead of full app startup.
 
 Run with: pytest tests/test_controlnet_http_contract.py -v
 Skip in unit-only CI: pytest -m "not integration"
 """
+
 import io
-import pytest
 from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
+
+import pytest
+from fastapi import HTTPException
 from PIL import Image as PILImage
 
 from server.controlnet_preprocessors import ControlMapResult
@@ -55,12 +58,12 @@ def _make_mode_with_canny() -> ModeConfig:
 @pytest.mark.integration
 def test_http_generate_501_includes_controlnet_artifacts():
     """
-    POST /generate with a valid ControlNet attachment:
+    /generate with a valid ControlNet attachment:
     - preprocessing runs and emits an artifact
-    - the 501 detail dict includes controlnet_artifacts with correct fields
+    - the raised HTTPException includes controlnet_artifacts with correct fields
     """
     from server.asset_store import AssetStore
-    from server.lcm_sr_server import app
+    from server import lcm_sr_server
 
     store = AssetStore(byte_budget=64 * 1024 * 1024)
     source_ref = store.insert("upload", _make_png())
@@ -84,33 +87,34 @@ def test_http_generate_501_includes_controlnet_artifacts():
     mock_runtime = MagicMock(spec=["switch_mode", "get_current_mode", "submit_generate"])
     mock_runtime.get_current_mode.return_value = "sdxl-cn-test"
 
-    original_runtime = getattr(app.state, "generation_runtime", None)
-    app.state.generation_runtime = mock_runtime
+    original_runtime = getattr(lcm_sr_server.app.state, "generation_runtime", None)
+    lcm_sr_server.app.state.generation_runtime = mock_runtime
     try:
         with (
             patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
             patch("server.asset_store.get_store", return_value=store),
             patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", mock_registry),
         ):
-            client = TestClient(app, raise_server_exceptions=False)
-            resp = client.post("/generate", json={
-                "prompt": "a cat",
-                "controlnets": [{
+            req = lcm_sr_server.GenerateRequest(
+                prompt="a cat",
+                controlnets=[{
                     "attachment_id": "cn_1",
                     "control_type": "canny",
                     "source_asset_ref": source_ref,
                     "preprocess": {"id": "canny", "options": {}},
                 }],
-            })
+            )
+            with pytest.raises(HTTPException) as excinfo:
+                lcm_sr_server.generate(req)
     finally:
         if original_runtime is None:
-            del app.state.generation_runtime
+            del lcm_sr_server.app.state.generation_runtime
         else:
-            app.state.generation_runtime = original_runtime
+            lcm_sr_server.app.state.generation_runtime = original_runtime
 
-    assert resp.status_code == 501
-    body = resp.json()
-    detail = body["detail"]
+    exc = excinfo.value
+    assert exc.status_code == 501
+    detail = exc.detail
     assert isinstance(detail, dict), f"expected dict detail, got: {detail!r}"
     assert "controlnet_artifacts" in detail
     arts = detail["controlnet_artifacts"]
@@ -124,11 +128,11 @@ def test_http_generate_501_includes_controlnet_artifacts():
 @pytest.mark.integration
 def test_http_generate_400_when_controlnet_policy_disabled():
     """
-    POST /generate with controlnets on a mode that has controlnet_policy.enabled=False
-    returns 400, not 501, before preprocessing runs.
+    /generate with controlnets on a mode that has controlnet_policy.enabled=False
+    raises 400, not 501, before preprocessing runs.
     """
     from server.asset_store import AssetStore
-    from server.lcm_sr_server import app
+    from server import lcm_sr_server
 
     store = AssetStore(byte_budget=64 * 1024 * 1024)
     source_ref = store.insert("upload", _make_png())
@@ -149,31 +153,33 @@ def test_http_generate_400_when_controlnet_policy_disabled():
 
     mock_registry = MagicMock()
 
-    original_runtime = getattr(app.state, "generation_runtime", None)
-    app.state.generation_runtime = mock_runtime
+    original_runtime = getattr(lcm_sr_server.app.state, "generation_runtime", None)
+    lcm_sr_server.app.state.generation_runtime = mock_runtime
     try:
         with (
             patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
             patch("server.asset_store.get_store", return_value=store),
             patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", mock_registry),
         ):
-            client = TestClient(app, raise_server_exceptions=False)
-            resp = client.post("/generate", json={
-                "prompt": "a cat",
-                "controlnets": [{
+            req = lcm_sr_server.GenerateRequest(
+                prompt="a cat",
+                controlnets=[{
                     "attachment_id": "cn_1",
                     "control_type": "canny",
                     "source_asset_ref": source_ref,
                     "preprocess": {"id": "canny", "options": {}},
                     "model_id": "sdxl-canny",
                 }],
-            })
+            )
+            with pytest.raises(HTTPException) as excinfo:
+                lcm_sr_server.generate(req)
     finally:
         if original_runtime is None:
-            del app.state.generation_runtime
+            del lcm_sr_server.app.state.generation_runtime
         else:
-            app.state.generation_runtime = original_runtime
+            lcm_sr_server.app.state.generation_runtime = original_runtime
 
-    assert resp.status_code == 400
-    assert "does not enable ControlNet" in resp.json()["detail"]
+    exc = excinfo.value
+    assert exc.status_code == 400
+    assert "does not enable ControlNet" in exc.detail
     mock_registry.get.assert_not_called()

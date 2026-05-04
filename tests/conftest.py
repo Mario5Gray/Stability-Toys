@@ -5,6 +5,7 @@ Shared pytest fixtures and configuration for Dream Lab tests.
 import pytest
 import asyncio
 import inspect
+import importlib.machinery
 import numpy as np
 from PIL import Image
 import io
@@ -16,10 +17,33 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 
+def _ensure_stub_module_spec(name: str) -> None:
+    """Some tests install MagicMock stubs into sys.modules; importlib.find_spec
+    expects __spec__ to be a real ModuleSpec when that happens."""
+    mod = sys.modules.get(name)
+    if mod is None:
+        return
+
+    spec = getattr(mod, "__spec__", None)
+    if isinstance(spec, importlib.machinery.ModuleSpec):
+        return
+
+    mod.__spec__ = importlib.machinery.ModuleSpec(name, loader=None)
+
+
+_ensure_stub_module_spec("torch")
+
+
 @pytest.fixture(scope="session")
 def event_loop_policy():
     """Set event loop policy for async tests."""
     return asyncio.get_event_loop_policy()
+
+
+@pytest.fixture(autouse=True)
+def _normalize_stubbed_modules():
+    _ensure_stub_module_spec("torch")
+    yield
 
 
 @pytest.fixture
