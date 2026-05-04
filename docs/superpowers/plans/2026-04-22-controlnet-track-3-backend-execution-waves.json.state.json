@@ -374,22 +374,6 @@
       "reviewer": "sigma",
       "finished_at": "2026-04-25 16:23"
     },
-    "T7.3": {
-      "taken_by": "sigma",
-      "started_at": "2026-04-25 16:43",
-      "review_entered_at": "",
-      "review_ended_at": "",
-      "reviewer": "",
-      "finished_at": "2026-04-25 16:46"
-    },
-    "T7.4": {
-      "taken_by": "sigma",
-      "started_at": "2026-04-25 01:01",
-      "review_entered_at": "",
-      "review_ended_at": "",
-      "reviewer": "",
-      "finished_at": "2026-04-25 01:01"
-    },
     "T7.5": {
       "taken_by": "sigma",
       "started_at": "2026-05-03 17:46",
