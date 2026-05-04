@@ -1,16 +1,6 @@
 {
   "plan": "2026-04-22-controlnet-track-3-backend-execution-waves.json",
-  "taken": {
-    "T7.5": {
-      "taken_by": "sigma",
-      "started_at": "2026-05-03 17:46",
-      "review_entered_at": "",
-      "review_ended_at": "",
-      "reviewer": "",
-      "git_sha": "eb7bad8",
-      "finished_at": ""
-    }
-  },
+  "taken": {},
   "completed": {
     "T1.1": {
       "taken_by": "theta",
@@ -399,6 +389,16 @@
       "review_ended_at": "",
       "reviewer": "",
       "finished_at": "2026-04-25 01:01"
+    },
+    "T7.5": {
+      "taken_by": "sigma",
+      "started_at": "2026-05-03 17:46",
+      "review_entered_at": "2026-05-03 21:38",
+      "review_ended_at": "2026-05-03 21:39",
+      "reviewer": "mario",
+      "review_note": "T7.5 initially failed for test-harness reasons, not a ControlNet backend regression.\n\n  The main failure was import-time: some CUDA-worker unit tests stub sys.modules[\"torch\"] with a\n  MagicMock, but that stub had no valid __spec__. Later in the same pytest slice, server.lcm_sr_server\n  imports transformers, and transformers calls importlib.util.find_spec(\"torch\"). If torch is already\n  present in sys.modules without a real ModuleSpec, Python raises ValueError: torch.__spec__ is not\n  set. That is why the startup-validation test and the ControlNet success/HTTP contract tests were\n  failing even though the ControlNet code path itself was fine.\n\n  There was also a separate test-shape issue in tests/test_controlnet_http_contract.py: those tests\n  were using TestClient(app) to exercise /generate, which pulled in full app startup/lifespan behavior\n  and made the contract test depend on unrelated runtime initialization. I changed them to call\n  lcm_sr_server.generate() directly and assert the raised HTTPException contract, which keeps the test\n  focused on the Track 3 behavior being verified.\n\n  Fix summary:\n\n  - normalized stubbed torch in tests/conftest.py so any fake torch module gets a valid ModuleSpec\n  - rewrote the HTTP contract tests to call the route handler directly instead of booting the full app\n\n  Result:\n Result:\n\n  - the previously failing ControlNet subset now passes in Docker: 20 passed\n  - ws_routes + worker_pool also passed separately in Docker, so the requested T7 slice is green after\n    the harness fixes.\n",
+      "git_sha": "deferred",
+      "finished_at": "2026-05-03 21:42"
     }
   }
 }
