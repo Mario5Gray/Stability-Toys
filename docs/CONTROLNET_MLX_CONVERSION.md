@@ -2,7 +2,7 @@
 
 This guide walks through producing MLX-compatible ControlNet artifacts for the four target combinations (canny + depth, SD1.5 + SDXL) so they can run natively on Apple Silicon (M1/M2/M3/M4).
 
-The MLX path is fundamentally different from the RKNN path. RKNN converts a serialized graph (PyTorch → ONNX → `.rknn`) and runs it on a fixed-function NPU. MLX is a JIT array library: there is no graph-converter, you re-implement the model in MLX once and then load weights from any compatible source. So "convert ControlNet to MLX" is really "port ControlNet's architecture to `mlx.nn`, then load the Hugging Face weights into the ported module."
+The MLX path is fundamentally different from the RKNN path. RKNN converts a serialized graph (PyTorch → ONNX → `.rknn`) and runs it on a fixed-function NPU. MLX is a lazy-evaluated array library: there is no graph-converter, you re-implement the model in MLX once and then load weights from any compatible source. So "convert ControlNet to MLX" is really "port ControlNet's architecture to `mlx.nn`, then load the Hugging Face weights into the ported module."
 
 If you only need a weight-format change (e.g. PyTorch state_dict → MLX safetensors), that is one script and one short table at the bottom of this doc. If you need a working MLX ControlNet runtime, you also need the architecture port and a glue layer that wires its outputs into the UNet.
 
@@ -79,7 +79,7 @@ pip install \
 
 You also want a working reference path to compare against. The two practical anchors:
 
-- [ml-explore/mlx-examples](https://github.com/ml-explore/mlx-examples) — Apple's own MLX ports, including a Stable Diffusion port. Read its `stable_diffusion/` directory before you write anything yourself; many of the layer porting decisions (Conv weight layout, attention shape, scheduler integration) are already solved there. ControlNet is not currently part of that repo, but the SD UNet port is the analogue you'll mimic.
+- [ml-explore/mlx-examples](https://github.com/ml-explore/mlx-examples) — Apple's own MLX ports, including a Stable Diffusion port. Read its `stable_diffusion/` directory before you write anything yourself; many of the layer porting decisions (Conv weight layout, attention shape, scheduler integration) are already solved there. Verify against the current tree when you read this — if a `controlnet/` directory exists, prefer it as the architecture reference; otherwise the SD UNet port is the closest analogue.
 - [huggingface/diffusers](https://github.com/huggingface/diffusers) — canonical PyTorch `ControlNetModel` reference. Use it as the architecture spec and as the numerical oracle during validation.
 
 ---
@@ -196,14 +196,14 @@ The `safetensors` written here are not interchangeable with the original HF file
 
 ## Stage 3 — Quantization (optional, but narrower than it first appears)
 
-MLX does have built-in group-wise quantization, but the stock `mlx.nn.quantize()` path only quantizes modules that implement `to_quantized()`. In current MLX docs, that means `Linear` and `Embedding` by default, not `Conv2d`.
+MLX does have built-in group-wise quantization, but the stock `mlx.nn.quantize()` path only quantizes modules that implement `to_quantized()`. In current MLX, the default classes that ship with that hook are `mlx.nn.Linear` (swapped for `mlx.nn.QuantizedLinear`) and `mlx.nn.Embedding` (swapped for `mlx.nn.QuantizedEmbedding`). `mlx.nn.Conv2d` does not, at the time of writing.
 
-That matters here because ControlNet is conv-heavy. If you run `nn.quantize(cn, ...)` on a typical port, the large convolutional blocks will likely remain unquantized unless you add custom quantized-conv module support yourself.
+That matters here because ControlNet is conv-heavy. If you run `nn.quantize(cn, ...)` on a typical port, the large convolutional blocks will likely remain unquantized unless you add custom quantized-conv module support yourself. Before you do that, grep MLX for `QuantizedConv2d` — if upstream has shipped one since this guide was written, prefer it over a hand-roll.
 
 So treat quantization in three tiers:
 
 1. `Supported today with stock MLX`
-   - linear and embedding quantization
+   - `Linear` → `QuantizedLinear`, `Embedding` → `QuantizedEmbedding`
    - useful, but modest impact on ControlNet's total footprint
 2. `Possible with custom work`
    - custom quantized `Conv2d` replacements in the MLX port
@@ -310,7 +310,9 @@ models:
         format: mlx-controlnet-bundle
 ```
 
-That keeps one `model_id` stable while allowing CUDA and MLX to point at different on-disk formats.
+`format: mlx-controlnet-bundle` resolves to a directory containing `<id>.safetensors` (fp16 or bf16 weights), an optional quantized variant `<id>.q*.safetensors`, and `metadata.json` with the fields shown above. The MLX loader picks a precision file from that directory based on `metadata.json.mlx_dtype` and `metadata.json.quant`; it does not consume raw HF diffusers checkpoints.
+
+That keeps one `model_id` stable while allowing CUDA and MLX to point at different on-disk formats without ambiguity at load time.
 
 ---
 
@@ -347,7 +349,7 @@ That keeps one `model_id` stable while allowing CUDA and MLX to point at differe
 This guide is a draft. Concrete follow-ups before shipping a working MLX ControlNet:
 
 - Port the SD1.5 and SDXL UNets to MLX. Without those the ControlNet residuals have nothing to feed.
-- Port `ControlNetModel` to MLX. A good first PR isolates this in `backends/mlx_controlnet.py` (or under a new `backends/mlx/` package) so it is independently reviewable from the UNet port.
+- Port `ControlNetModel` to MLX. A good first PR isolates this under a new `backends/mlx/` subpackage (e.g. `backends/mlx/controlnet.py`) so it is independently reviewable from the UNet port and the Apple-backend file plan in the design spec lands in a consistent location.
 - Check in `scripts/convert_controlnet_mlx.py` so the conversion is reproducible from a make target rather than copy-paste.
 - Wire `MLXProvider.create_generation_runtime` so it can actually use the converted artifacts (today it raises `NotImplementedError` per [backends/platforms/mlx.py:17](../backends/platforms/mlx.py#L17)).
 - Verify int4 quality on a real M-series Mac for at least one canny + SD1.5 path; record latency and quality numbers in this doc.
