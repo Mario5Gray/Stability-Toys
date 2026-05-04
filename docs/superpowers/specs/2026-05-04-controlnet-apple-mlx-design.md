@@ -81,20 +81,24 @@ It should report:
 
 - `supports_generation=True`
 - `supports_modes=True`
+- `supports_model_registry_stats=False`
 - `supports_img2img=False`
 - `supports_superres=False`
-- `supports_controlnet=True`
+- `supports_controlnet=False` in Phase 1
+- `supports_controlnet=True` starting at the end of Phase 2
 
 Recommended new modules:
 
-- `backends/apple_runtime.py`
-- `backends/apple_model_registry.py`
-- `backends/apple_controlnet_runtime.py`
+- `backends/apple/runtime.py`
+- `backends/apple/model_registry.py`
+- `backends/apple/controlnet_runtime.py`
 - `backends/apple/pipelines/mlx_pipeline.py`
 - `backends/apple/pipelines/coreml_pipeline.py`
 - `backends/apple/conversion.py`
 
 The provider owns engine selection, model loading, ControlNet binding, and capability reporting. Route code must not branch on Apple-specific details.
+
+`supports_model_registry_stats=False` is intentional. Apple uses unified memory, and this backend must not expose fake CUDA-style VRAM totals or per-model VRAM accounting.
 
 ### 2. Internal engine selector
 
@@ -121,6 +125,15 @@ Rules:
   - otherwise fall back to `mlx`
 
 This keeps the public backend model simple while accurately representing Apple runtime differences.
+
+Compute-unit mapping for the Core ML engine:
+
+| Env token | Apple constant | Hardware intent |
+|---|---|---|
+| `cpu_only` | `MLComputeUnitsCPUOnly` | CPU only |
+| `cpu_and_gpu` | `MLComputeUnitsCPUAndGPU` | CPU + GPU, no ANE |
+| `cpu_and_ne` | `MLComputeUnitsCPUAndNeuralEngine` | CPU + ANE, no GPU |
+| `all` | `MLComputeUnitsAll` | runtime-selected mix of CPU, GPU, and ANE |
 
 ### 3. Runtime flow
 
@@ -154,7 +167,7 @@ modes:
     backend_overrides:
       mlx:
         model_path: /models/apple/mlx/sdxl/sdxl-base-1.0
-        loader_format: diffusers
+        loader_format: mlx-diffusers-port
       coreml:
         unsupported: true
 ```
@@ -168,7 +181,7 @@ modes:
     backend_overrides:
       mlx:
         model_path: /models/apple/mlx/sd15/dreamshaper
-        loader_format: diffusers
+        loader_format: mlx-diffusers-port
       coreml:
         model_path: /models/apple/coreml/sd15/dreamshaper.mlpackage
         loader_format: coreml-package
@@ -183,6 +196,8 @@ Extend `conf/controlnets.yaml` so one logical `model_id` can resolve differently
 ```yaml
 models:
   sdxl-canny:
+    path: /models/controlnets/sdxl-canny
+    format: diffusers
     control_types: [canny]
     compatible_with: [sdxl]
     backends:
@@ -191,9 +206,11 @@ models:
         format: diffusers
       mlx:
         path: /models/apple/mlx/controlnets/sdxl-canny
-        format: diffusers
+        format: mlx-controlnet-bundle
 
   sd15-canny:
+    path: /models/controlnets/sd15-canny
+    format: diffusers
     control_types: [canny]
     compatible_with: [sd15]
     backends:
@@ -202,17 +219,34 @@ models:
         format: diffusers
       mlx:
         path: /models/apple/mlx/controlnets/sd15-canny
-        format: diffusers
+        format: mlx-controlnet-bundle
       coreml:
         path: /models/apple/coreml/controlnets/sd15-canny.mlpackage
         format: coreml-package
 ```
+
+### 3. Registry migration
+
+This registry change is breaking unless the migration is explicit.
+
+Migration plan:
+
+- keep top-level `path` and `format` as the CUDA/default compatibility path during the migration window
+- add optional `backends.<backend_id>` overrides for MLX and Core ML
+- update the loader so:
+  - existing entries without `backends` still work for CUDA exactly as they do today
+  - MLX and Core ML must resolve through their backend-specific override
+  - CUDA may continue to use the top-level path or an explicit `backends.cuda` override
+
+That gives one file shape that supports both old CUDA-only deployments and new multi-backend entries without a flag day. A follow-up can remove the implicit top-level CUDA fallback after the repo and deployments have migrated.
 
 Validation rules:
 
 - every requested attachment must resolve for the active Apple engine
 - `coreml` entries are required only when the selected engine is `coreml`
 - missing `coreml` support must fall back only in `auto`, never in explicit `coreml`
+- `format: diffusers` means a raw Diffusers/Hugging Face-loadable artifact and is valid for CUDA only
+- `format: mlx-controlnet-bundle` means MLX-ported weights and metadata produced by the MLX conversion flow; loading this as raw Diffusers weights must be a hard error
 
 ## MLX Engine Design
 
@@ -257,26 +291,22 @@ class AppleGenerationRuntime:
 
 This runtime should reuse the current queue-and-mode semantics instead of creating a parallel orchestration system.
 
+Implementation note:
+
+- prefer reusing `WorkerPool` with `num_workers=1` in v1
+- do not build a second Apple-only orchestration layer if the existing queue/mode-switch machinery can be reused directly
+
 ### 4. Worker/pipeline shape
 
 Recommended internal objects:
 
 ```python
-@dataclass
-class AppleControlNetBinding:
-    attachment_id: str
-    control_type: str
-    model_id: str
-    resolved_path: str
-    control_image: Any
-    strength: float
-    start_percent: float
-    end_percent: float
-
 class ApplePipeline(Protocol):
     def load_mode(self, mode: Any) -> None: ...
-    def generate(self, req: Any, bindings: list[AppleControlNetBinding]) -> tuple[bytes, int]: ...
+    def generate(self, req: Any, bindings: list[ControlNetBinding]) -> tuple[bytes, int]: ...
 ```
+
+Apple should reuse the shared backend binding contract rather than fork a second Apple-only dataclass. If the MLX path needs richer in-memory payloads than `ControlNetBinding` currently carries, evolve the shared binding type or wrap it internally after resolution instead of creating a parallel public binding shape.
 
 The Apple runtime may use a single-worker model in v1. Concurrency beyond one active generation should be queue-based until memory behavior is understood on real hardware.
 
@@ -311,6 +341,8 @@ Recommended conversion command ownership:
 
 - add repo scripts under `scripts/apple/`
 - conversion is a build-time or operator-time step, never a request-time step
+
+See [docs/CONTROLNET_MLX_CONVERSION.md](/home/hdd/workspace/Stability-Toys/docs/CONTROLNET_MLX_CONVERSION.md) for the MLX-side artifact procedure. That guide produces the MLX bundles this spec expects the Apple backend to consume.
 
 ### 3. Compute units
 
@@ -405,6 +437,11 @@ Rules:
 - `APPLE_ENABLE_COREML_SD15=1` is required before `auto` may select `coreml`
 - `APPLE_ENABLE_SDXL=0` may be used to keep early bring-up focused on SD1.5 only
 
+Capability note:
+
+- `capabilities()` should report the static union this backend is designed to support
+- feature flags such as `APPLE_ENABLE_SDXL=0` narrow request-time resolution and allowed active families, but do not need to mutate the provider's capability shape dynamically
+
 ## File Plan
 
 Expected touched files:
@@ -412,9 +449,13 @@ Expected touched files:
 - `backends/platforms/mlx.py`
 - `backends/platforms/base.py`
 - `backends/platform_registry.py`
+- `backends/apple/runtime.py`
+- `backends/apple/model_registry.py`
+- `backends/apple/controlnet_runtime.py`
+- `backends/apple/pipelines/mlx_pipeline.py`
+- `backends/apple/pipelines/coreml_pipeline.py`
 - `server/controlnet_execution.py`
 - `server/controlnet_registry.py`
-- `backends/model_registry.py` or new Apple-specific registry module
 - `conf/controlnets.yaml`
 - `server/mode_config.py`
 - `modes.yaml.example`
@@ -430,7 +471,7 @@ Expected new tests:
 
 ### Phase 1: Real MLX Provider
 
-- replace placeholder `MLXProvider`
+- replace the placeholder `MLXProvider` in [`backends/platforms/mlx.py`](/home/hdd/workspace/Stability-Toys/backends/platforms/mlx.py:10), which currently raises `NotImplementedError`
 - implement Apple runtime skeleton
 - support mode loading and plain text-to-image generation
 - keep `supports_controlnet=False` until execution is real
@@ -466,6 +507,7 @@ Automated tests must cover:
 - artifact emission on successful HTTP and WS generation
 - fallback behavior in `APPLE_EXECUTION_ENGINE=auto`
 - explicit failure behavior in `APPLE_EXECUTION_ENGINE=coreml`
+- all existing CUDA ControlNet tests continue to pass with the migrated registry schema
 
 Manual validation must cover:
 
@@ -490,6 +532,7 @@ This work is complete when:
 - Apple capability reporting is truthful
 - SDXL uses MLX rather than pretending Core ML support exists
 - ANE support, if enabled, is explicitly modeled as Core ML and not mislabeled as MLX
+- all existing CUDA ControlNet tests still pass after the registry migration
 
 ## Risks
 
@@ -513,3 +556,5 @@ That sequence matches the current repo architecture, matches Apple's published r
 - MLX unified memory guide: https://ml-explore.github.io/mlx/build/html/usage/unified_memory.html
 - Apple Core ML overview: https://developer.apple.com/machine-learning/core-ml/
 - Apple `ml-stable-diffusion` README and ControlNet notes: https://github.com/apple/ml-stable-diffusion
+- MLX conversion guide: [docs/CONTROLNET_MLX_CONVERSION.md](/home/hdd/workspace/Stability-Toys/docs/CONTROLNET_MLX_CONVERSION.md)
+- RKNN conversion guide: [docs/CONTROLNET_RKNN_CONVERSION.md](/home/hdd/workspace/Stability-Toys/docs/CONTROLNET_RKNN_CONVERSION.md)
