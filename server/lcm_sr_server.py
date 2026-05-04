@@ -339,9 +339,13 @@ model_root_path = ModelPaths(root=MODEL_ROOT)
 
 
 def _validate_controlnet_registry_for_startup() -> None:
-    from server.controlnet_registry import get_controlnet_registry
+    from server.controlnet_registry import (
+        get_controlnet_registry,
+        validate_controlnet_mode_references,
+    )
 
-    get_controlnet_registry()
+    registry = get_controlnet_registry()
+    validate_controlnet_mode_references(mode_config=get_mode_config(), registry=registry)
 
 
 @asynccontextmanager

@@ -1,4 +1,10 @@
 import pytest
+from types import SimpleNamespace
+
+from server.mode_config import (
+    ControlNetControlTypePolicy,
+    ControlNetPolicy,
+)
 
 
 def test_registry_loads_local_controlnet_specs(tmp_path):
@@ -59,6 +65,144 @@ def test_strict_registry_validation_runs_at_startup(monkeypatch, tmp_path):
     reset_controlnet_registry()
     with pytest.raises(ValueError, match="does not exist"):
         _validate_controlnet_registry_for_startup()
+
+
+def _mode_config_stub(*modes):
+    by_name = {mode.name: mode for mode in modes}
+
+    class _StubModeConfig:
+        def list_modes(self):
+            return list(by_name)
+
+        def get_mode(self, name):
+            return by_name[name]
+
+    return _StubModeConfig()
+
+
+def _controlnet_mode(*, name: str, checkpoint_variant: str, control_type: str, model_id: str):
+    return SimpleNamespace(
+        name=name,
+        model_path=f"/tmp/{name}.safetensors",
+        checkpoint_variant=checkpoint_variant,
+        controlnet_policy=ControlNetPolicy(
+            enabled=True,
+            max_attachments=1,
+            allow_reuse_emitted_maps=True,
+            allowed_control_types={
+                control_type: ControlNetControlTypePolicy(
+                    default_model_id=model_id,
+                    allowed_model_ids=[model_id],
+                )
+            },
+        ),
+    )
+
+
+def test_strict_registry_validation_rejects_unknown_mode_model_id(monkeypatch, tmp_path):
+    config_path = tmp_path / "controlnets.yaml"
+    model_dir = tmp_path / "models" / "sdxl-canny"
+    model_dir.mkdir(parents=True)
+    config_path.write_text(
+        "models:\n"
+        "  sdxl-canny:\n"
+        f"    path: {model_dir}\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sdxl]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CONTROLNET_REGISTRY_PATH", str(config_path))
+    monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "strict")
+
+    from server.controlnet_registry import reset_controlnet_registry
+    from server import lcm_sr_server
+
+    reset_controlnet_registry()
+    mode_config = _mode_config_stub(
+        _controlnet_mode(
+            name="sdxl-mode",
+            checkpoint_variant="sdxl-base",
+            control_type="canny",
+            model_id="missing-model",
+        )
+    )
+
+    monkeypatch.setattr(lcm_sr_server, "get_mode_config", lambda: mode_config)
+    with pytest.raises(ValueError, match="unknown ControlNet model_id 'missing-model'"):
+        lcm_sr_server._validate_controlnet_registry_for_startup()
+
+
+def test_strict_registry_validation_rejects_incompatible_mode_model_id(monkeypatch, tmp_path):
+    config_path = tmp_path / "controlnets.yaml"
+    model_dir = tmp_path / "models" / "sd15-canny"
+    model_dir.mkdir(parents=True)
+    config_path.write_text(
+        "models:\n"
+        "  sd15-canny:\n"
+        f"    path: {model_dir}\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sd15]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CONTROLNET_REGISTRY_PATH", str(config_path))
+    monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "strict")
+
+    from server.controlnet_registry import reset_controlnet_registry
+    from server import lcm_sr_server
+
+    reset_controlnet_registry()
+    mode_config = _mode_config_stub(
+        _controlnet_mode(
+            name="sdxl-mode",
+            checkpoint_variant="sdxl-base",
+            control_type="canny",
+            model_id="sd15-canny",
+        )
+    )
+
+    monkeypatch.setattr(lcm_sr_server, "get_mode_config", lambda: mode_config)
+    with pytest.raises(ValueError, match="incompatible with mode family 'sdxl'"):
+        lcm_sr_server._validate_controlnet_registry_for_startup()
+
+
+@pytest.mark.asyncio
+async def test_lazy_registry_validation_skips_startup_hook(monkeypatch):
+    monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "lazy")
+
+    from server import lcm_sr_server
+
+    fake_runtime = SimpleNamespace(_pool=None, _service=None, shutdown=lambda: None)
+    fake_provider = SimpleNamespace(
+        backend_id="cpu",
+        create_generation_runtime=lambda **_: fake_runtime,
+        create_superres_runtime=lambda settings: None,
+    )
+    fake_sr_settings = SimpleNamespace(enabled=False)
+    fake_storage_provider = SimpleNamespace(close=lambda: None)
+    fake_task = SimpleNamespace(cancel=lambda: None)
+
+    monkeypatch.setattr(
+        lcm_sr_server,
+        "_validate_controlnet_registry_for_startup",
+        lambda: (_ for _ in ()).throw(AssertionError("startup validation should be skipped")),
+    )
+    monkeypatch.setattr(lcm_sr_server, "get_backend_provider", lambda: fake_provider)
+    monkeypatch.setattr(lcm_sr_server, "load_superres_runtime_settings", lambda env: fake_sr_settings)
+    monkeypatch.setattr(
+        lcm_sr_server.StorageProvider,
+        "make_storage_provider_from_env",
+        staticmethod(lambda: fake_storage_provider),
+    )
+    monkeypatch.setattr(lcm_sr_server, "register_job_hook", lambda: None)
+    monkeypatch.setattr(
+        lcm_sr_server.asyncio,
+        "create_task",
+        lambda coro: (coro.close(), fake_task)[1],
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with lcm_sr_server.lifespan(app):
+        assert app.state.generation_runtime is fake_runtime
 
 
 def test_registry_defaults_to_mode_config_path(monkeypatch, tmp_path):

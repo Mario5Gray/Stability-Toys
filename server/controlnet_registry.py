@@ -75,6 +75,66 @@ def get_controlnet_registry() -> ControlNetRegistry:
     return _registry_singleton
 
 
+def validate_controlnet_mode_references(*, mode_config=None, registry: Optional[ControlNetRegistry] = None) -> None:
+    from server.controlnet_execution import active_model_family_from_variant
+    from server.mode_config import get_mode_config
+    from utils.model_detector import detect_model
+
+    if registry is None:
+        registry = get_controlnet_registry()
+    if mode_config is None:
+        mode_config = get_mode_config()
+
+    for mode_name in mode_config.list_modes():
+        mode = mode_config.get_mode(mode_name)
+        policy = getattr(mode, "controlnet_policy", None)
+        if policy is None or not policy.enabled:
+            continue
+
+        if mode.model_path is None:
+            raise ValueError(f"Mode '{mode.name}' does not have a resolved model_path")
+
+        variant = mode.checkpoint_variant
+        if not variant:
+            variant = detect_model(mode.model_path).variant.value
+
+        try:
+            active_family = active_model_family_from_variant(variant)
+        except ValueError as e:
+            raise ValueError(f"Mode '{mode.name}' has unsupported ControlNet model family '{variant}'") from e
+
+        for control_type, type_policy in policy.allowed_control_types.items():
+            if (
+                type_policy.default_model_id is not None
+                and type_policy.allowed_model_ids
+                and type_policy.default_model_id not in type_policy.allowed_model_ids
+            ):
+                raise ValueError(
+                    f"Mode '{mode.name}' control_type '{control_type}' default_model_id "
+                    f"'{type_policy.default_model_id}' is not present in allowed_model_ids"
+                )
+
+            referenced_model_ids = list(type_policy.allowed_model_ids)
+            if (
+                type_policy.default_model_id is not None
+                and type_policy.default_model_id not in referenced_model_ids
+            ):
+                referenced_model_ids.append(type_policy.default_model_id)
+
+            for model_id in referenced_model_ids:
+                spec = registry.get_required(model_id)
+                if control_type not in spec.control_types:
+                    raise ValueError(
+                        f"Mode '{mode.name}' control_type '{control_type}' references model_id "
+                        f"'{model_id}' which does not support that control_type"
+                    )
+                if active_family not in spec.compatible_with:
+                    raise ValueError(
+                        f"Mode '{mode.name}' control_type '{control_type}' references model_id "
+                        f"'{model_id}' which is incompatible with mode family '{active_family}'"
+                    )
+
+
 def reset_controlnet_registry() -> None:
     global _registry_singleton
     _registry_singleton = None
