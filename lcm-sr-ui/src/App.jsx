@@ -773,7 +773,8 @@ export default function App() {
         addMessage={addMessage}
         setSelectedMsgId={setSelectedMsgId}
         setUploadFile={setUploadFile}
-      >       
+        onInitImageSelect={persistInitImageSelection}
+      >
       <div className="mx-auto max-w-6xl p-4 md:p-6 h-full">
         <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
           {/* Chat Panel */}

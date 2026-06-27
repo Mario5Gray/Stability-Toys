@@ -271,8 +271,9 @@ function coerceMeta(textMap) {
  * @param {(msgOrMsgs:any)=>void} cfg.addMessage
  * @param {(id:string)=>void} cfg.setSelectedMsgId
  * @param {(fileOrNull:any)=>void} [cfg.setUploadFile]
+ * @param {(file:File)=>void|Promise<void>} [cfg.onInitImageSelect] - promotes the dropped file to the active img2img init image
  */
-export function useDropIngest({ addMessage, setSelectedMsgId, setUploadFile }) {
+export function useDropIngest({ addMessage, setSelectedMsgId, setUploadFile, onInitImageSelect }) {
   const ingestFiles = useCallback(
     async (files) => {
       if (!files?.length) return;
@@ -324,9 +325,13 @@ export function useDropIngest({ addMessage, setSelectedMsgId, setUploadFile }) {
 
         // Ensure selected image wins over uploadFile in your inputImage memo
         setUploadFile?.(null);
+
+        // Arm img2img: promote the dropped file to the active init image so a
+        // subsequent prompt edit regenerates from it instead of txt2img.
+        await onInitImageSelect?.(file);
       }
     },
-    [addMessage, setSelectedMsgId, setUploadFile]
+    [addMessage, setSelectedMsgId, setUploadFile, onInitImageSelect]
   );
 
   return { ingestFiles };

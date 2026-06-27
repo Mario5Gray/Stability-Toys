@@ -16,12 +16,14 @@ export function ChatDropzone({
   addMessage,
   setSelectedMsgId,
   setUploadFile,
+  onInitImageSelect,
   children,
 }) {
   const { ingestFiles } = useDropIngest({
     addMessage,
     setSelectedMsgId,
     setUploadFile,
+    onInitImageSelect,
   });
 
   const onDrop = useMemo(
