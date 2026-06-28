@@ -3,7 +3,7 @@
 **FP issue:** STABL-pfpvqfaf
 **Predecessor task:** T5.4 (commits f1e2267 → 1caa628)
 **Reviewer blocker:** posted on STABL-pfpvqfaf 2026-04-29 by theta
-**Status:** open — handed off from agent (sigma) to next agent
+**Status:** LANDED 2026-06-28 — implemented in commit 69005d2 ("swap to ControlNet-capable pipeline when bindings present"), with test fixups in 768ee3d. Verified: 21 passing across tests/test_cuda_worker_controlnet.py + tests/test_cuda_worker_base.py. Reviewer blocker (theta, 2026-04-29) cleared — the runtime gap is closed.
 
 ---
 
