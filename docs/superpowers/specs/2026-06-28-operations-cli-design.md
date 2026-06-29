@@ -225,7 +225,13 @@ precedence decides what is *set*; the server only fills the gaps.
 server's active mode matches before submitting: it issues `POST
 /api/modes/switch` when the resolved mode differs from the server's current
 mode, then submits the job (the WS path finalizes against the server's
-*current* mode, so the switch must precede submit). v2 may add a client-defined
+*current* mode, so the switch must precede submit). The CLI leaves the server
+on the selected mode after the job (no save/restore) — `--mode` deliberately
+mutates the global current mode.
+
+Forward note (out of scope): the clean long-term fix for this global-mode
+leakage is a server `--headless` option that admits only CLI clients and no web
+UI, removing the dual-state surface entirely. v2 may also add a client-defined
 ephemeral "mode split" that does not mutate global server state.
 
 ### 6. MCP future (designed-for, not built)
