@@ -1,0 +1,3 @@
+# Throwaway 3.0 intermediate produced by `make gen` (downspec). The verbatim
+# 3.1 contract lives in openapi.snapshot.json.
+openapi.codegen.json
