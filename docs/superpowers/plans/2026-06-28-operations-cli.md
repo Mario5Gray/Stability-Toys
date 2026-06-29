@@ -58,9 +58,11 @@ Each file has one responsibility. `pkg/stclient` is public (the shared surface);
 
 ## Task 1: Module scaffold + OpenAPI codegen
 
+> **LANDED (a416ba1, reviewed/approved).** The snapshot is FastAPI OpenAPI **3.1.0**, which oapi-codegen v2 cannot consume (it rejects the nullable form `anyOf:[{schema},{type:null}]`). Resolution: keep `openapi.snapshot.json` **verbatim 3.1** (so Task 16's drift guard diffs it against the live 3.1 backend), and add a `cli/go/tools/downspec/` converter that `make gen` runs to emit a throwaway, gitignored 3.0.3 intermediate (`openapi.codegen.json`) that codegen consumes, then deletes. Generated types are correct: `GenerateRequest.Prompt string` (required), `NegativePrompt *string` (nullable). `make gen` pipeline: `downspec snapshot -> codegen -> rm intermediate`.
+
 **Files:**
-- Create: `cli/go/go.mod`, `cli/go/Makefile`, `cli/go/oapi-codegen.yaml`, `cli/go/tools/tools.go`, `cli/go/openapi.snapshot.json`, `cli/go/internal/openapi/doc.go`
-- Test: `cli/go/internal/openapi/openapi_smoke_test.go`
+- Create: `cli/go/go.mod`, `cli/go/Makefile`, `cli/go/oapi-codegen.yaml`, `cli/go/tools/tools.go`, `cli/go/tools/downspec/{downspec.go,downspec_test.go}`, `cli/go/.gitignore`, `cli/go/openapi.snapshot.json`, `cli/go/internal/openapi/doc.go`
+- Test: `cli/go/internal/openapi/openapi_smoke_test.go`, `cli/go/tools/downspec/downspec_test.go`
 
 **Interfaces:**
 - Produces: package `internal/openapi` with generated types (referenced by `stclient/http.go` in Task 3).
@@ -1545,6 +1547,8 @@ git commit -m "feat(cli): st validate-track3 (STABL-vincfflh)"
 
 **Interfaces:**
 - Produces: a gated test (skipped unless `ST_SERVER` is set) that fetches live `/openapi.json` and diffs it against `openapi.snapshot.json`, failing on divergence.
+
+> **Note (per T1 a416ba1):** `openapi.snapshot.json` is verbatim **3.1.0** — the same version the live FastAPI backend serves — so this drift diff is 3.1-vs-3.1 and stays honest. The 3.1→3.0 downspec is a codegen-only concern (`make gen`) and must **not** touch the snapshot. Compare canonicalized JSON (sort keys) to avoid false positives from key ordering / whitespace.
 
 - [ ] **Step 1: Write the gated drift test**
 
