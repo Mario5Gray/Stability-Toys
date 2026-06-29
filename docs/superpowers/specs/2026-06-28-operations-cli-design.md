@@ -44,6 +44,8 @@ operability from the command line before building any new front-end.
 - No installable distribution/packaging in v1 (run from the built binary).
 - No batch generation in v1: one image per invocation. The `out-####` scheme
   and config leave room for batch in v2.
+- No client-defined or ephemeral modes in v1: `st` only *selects* existing
+  server-side modes. Client-side "mode split" is v2.
 
 ## Current State
 
@@ -128,16 +130,19 @@ them.
 `st gen` takes the prompt as a **positional** argument. Flags: `--negative`,
 `--genres <WxH>` (image size; `--size` alias), `--steps`, `--cfg`,
 `--seed <int|random>` (absolute — no relative deltas in v1), `--scheduler`,
-`--sr-level`, `--mode`, `--init-image <file>` + `--denoise` (img2img),
-`--controlnet "model_id=…,image=…,scale=…,start=…,end=…"` (repeatable),
-`--recreate <png>` (load the PNG's baked recipe as defaults; txt2img re-run,
-flags override; does **not** feed the image as an init), `--outfile <path>`
-(override output path; extension optional). Progress streams to stderr; the
-result image (+ ControlNet artifacts) is written to the output dir; a result
-JSON is printed to stdout (`--json` for machine-only output).
+`--sr-level`, `--mode <name>` (server-side mode; see §5), `--init-image
+<path|fileref:ID>` + `--denoise` (img2img — a local path is uploaded via
+`/v1/upload`; a `fileref:ID` reuses an existing server upload), `--controlnet
+"model_id=…,image=…,scale=…,start=…,end=…"` (repeatable), `--recreate <png>`
+(load the PNG's baked recipe as defaults; txt2img re-run, flags override; does
+**not** feed the image as an init), `--outfile <path>` (override output path;
+extension optional). Progress streams to stderr; the result image (+ ControlNet
+artifacts) is written to the output dir; a result JSON is printed to stdout
+(`--json` for machine-only output).
 
-Global flags: `--server` / `$ST_SERVER`, `--config <json>`, `-o/--output-dir`,
-`--json`, `--timeout`.
+The `--init-image` / `--controlnet image=` help text shows both forms: a local
+file path, or `fileref:ID` for an already-uploaded asset (the `fileref:` prefix
+distinguishes a server reference from a path).
 
 Global flags: `--server` / `$ST_SERVER`, `--config <json>`, `-o/--output-dir`,
 `--json`, `--timeout`.
@@ -164,7 +169,7 @@ output/metadata settings; any CLI flag overrides the matching config value:
 {
   "config": {
     "defaults": {
-      "generation": { "cfg": 2.5, "steps": 10, "genres": "512x512", "seed": "random" },
+      "generation": { "mode": "default", "cfg": 2.5, "steps": 10, "genres": "512x512", "seed": "random" },
       "output_format": "png",
       "output_directory": "/home/.../stability_toys",
       "include_meta": true,
@@ -173,6 +178,13 @@ output/metadata settings; any CLI flag overrides the matching config value:
   }
 }
 ```
+
+**Discovery & bootstrap** — the config path resolves as `--config` →
+`$ST_CONFIG` → default `$XDG_CONFIG_HOME/stability-toys/config.json` (fallback
+`~/.config/stability-toys/config.json`). If no config exists at the resolved
+path, `st` writes this template with placeholder values to that path and exits
+non-zero, printing the path and edit directions — it never runs on silent
+defaults.
 
 **Output** — written under `output_directory` (or `-o`) using the default
 filename scheme `out-####.<ext>`, where `####` is the next free cardinal index
@@ -191,7 +203,32 @@ true the CLI writes an additional client-side chunk from `meta`
 **Run artifacts** — per-run capture under the output dir (request + response
 JSON, WS transcript, run log), reused from the client-validator design.
 
-### 5. MCP future (designed-for, not built)
+### 5. Data flow & precedence
+
+Each generation parameter resolves by layering, lowest to highest:
+
+1. **Config defaults** (`defaults.generation`, including `mode`) — the implicit
+   base.
+2. **Init-image / recipe baked params** — when `--init-image <path>` or
+   `--recreate <png>` points at a *local* PNG, its baked `lcm` chunk (prompt,
+   seed, cfg, steps, size, scheduler, …) overrides config. A bare `fileref:ID`
+   supplies init pixels only — no local bytes to parse, so it contributes no
+   param layer.
+3. **Explicit CLI flags** — highest precedence; override everything.
+
+The resolved request is sent to the server, which backfills any still-unset
+fields from the active mode / env (`finalize_mode_generate_request`). Client
+precedence decides what is *set*; the server only fills the gaps.
+
+**Mode** resolves through the same chain (config `mode` < `--mode`). Modes are
+**server-side only in v1**, so "selecting a mode" means the CLI ensures the
+server's active mode matches before submitting: it issues `POST
+/api/modes/switch` when the resolved mode differs from the server's current
+mode, then submits the job (the WS path finalizes against the server's
+*current* mode, so the switch must precede submit). v2 may add a client-defined
+ephemeral "mode split" that does not mutate global server state.
+
+### 6. MCP future (designed-for, not built)
 
 `cmd/st-mcp` will expose each `stclient` operation as an MCP tool via a Go MCP
 SDK. Because `stclient` is independent of CLI concerns, the MCP server is a
