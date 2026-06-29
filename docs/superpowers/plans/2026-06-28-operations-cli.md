@@ -17,6 +17,7 @@
 - **`stclient` is the only place operation logic lives.** `cmd/st` and the future MCP server are thin adapters. No HTTP/WS calls outside `stclient`.
 - **Flags:** Cobra / POSIX double-dash. `st gen` takes the prompt as a positional arg.
 - **TDD:** a failing Go test before each unit. Tests use `httptest`/in-process WS servers — never a live backend (except the gated `validate-track3` smoke + the gated OpenAPI drift test).
+- **Live backend (gated checks only):** the server is remote at `http://enigma.lan:4200` — set `ST_SERVER=http://enigma.lan:4200` for `validate-track3` and the OpenAPI drift test. It is **not** on this host (a local MLX backend is future). The OpenAPI snapshot is pre-captured at repo-root `backend-oai.json`.
 - **Contract:** HTTP types come from `oapi-codegen` over committed `openapi.snapshot.json`. The WS envelope + `job:*` frames are hand-written in `stclient/types.go`.
 - **WS job submit envelope:** `{"type":"job:submit","id":<corr>,"jobType":"generate","params":{<GenerateRequest fields> , "init_image_ref"?:<ref>}}`. Server replies `job:ack {id,jobId}` → optional `job:progress` → `job:complete {jobId, outputs:[{url:"/storage/<key>",key}], meta:{seed,backend,sr}, controlnet_artifacts?}` | `job:error {jobId,error}`. The result image is a **storage URL**, fetched via `GET /storage/{key}`.
 - **`GenerateRequest` fields (verbatim):** `prompt:str`, `negative_prompt:str?`, `mode:str?`, `scheduler_id:str?`, `size:"WxH"`, `num_inference_steps:int 1..50`, `guidance_scale:float 0..20`, `seed:int? 0..2^31-1` (omit = server-random), `superres:bool`, `superres_magnitude:int 1..3`, `denoise_strength:float 0.01..1.0`, `controlnets:[...]?`. `init_image_ref` is a WS-only extra param (not on the model; img2img is WS-only — HTTP `/generate` is txt2img/controlnet only).
@@ -72,9 +73,15 @@ go mod init github.com/darkbit/stability-toys/cli/st
 go get github.com/oapi-codegen/runtime@latest
 ```
 
-- [ ] **Step 2: Capture the OpenAPI snapshot**
+- [ ] **Step 2: Provide the OpenAPI snapshot**
 
-With a server running locally: `curl -s http://localhost:4200/openapi.json -o cli/go/openapi.snapshot.json`. If no server is available, hand-author a minimal `openapi.snapshot.json` containing the `GenerateRequest` schema and the `/api/modes`, `/api/models/status` paths (fields per Global Constraints) — the drift test (Task 16) reconciles it later.
+The OpenAPI document is already captured at repo root as **`backend-oai.json`** (untracked) — OpenAPI 3.1.0, 33 paths, includes the `GenerateRequest` schema and the `/generate`, `/superres`, `/v1/upload`, `/api/modes`, `/api/models/status` paths. Copy it into the module:
+
+```bash
+cp backend-oai.json cli/go/openapi.snapshot.json
+```
+
+The backend is **not** running on this host — it lives at `http://enigma.lan:4200` (a local MLX backend is future). Do **not** curl localhost. Refresh the snapshot later, when the contract changes, with `curl -s http://enigma.lan:4200/openapi.json -o cli/go/openapi.snapshot.json`.
 
 - [ ] **Step 3: Codegen config**
 
