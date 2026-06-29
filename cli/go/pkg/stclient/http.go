@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"sort"
+	"strconv"
 )
 
 // Mode is one server-side mode. The backend keys modes by name in the
@@ -101,4 +104,100 @@ func (c *Client) SwitchMode(ctx context.Context, name string) error {
 		return fmt.Errorf("switch mode %q -> %s", name, resp.Status)
 	}
 	return nil
+}
+
+// multipartFile builds a multipart body with a single "file" part plus the
+// given extra form fields, returning the body and its Content-Type.
+func multipartFile(filename string, data []byte, fields map[string]string) (*bytes.Buffer, string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := fw.Write(data); err != nil {
+		return nil, "", err
+	}
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := mw.Close(); err != nil {
+		return nil, "", err
+	}
+	return &buf, mw.FormDataContentType(), nil
+}
+
+// Upload posts data as a multipart "file" to POST /v1/upload and returns the
+// fileRef the backend assigns (used as init_image_ref for WS img2img).
+func (c *Client) Upload(ctx context.Context, filename string, data []byte) (string, error) {
+	buf, contentType, err := multipartFile(filename, data, nil)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/upload", buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", contentType)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("upload -> %s", resp.Status)
+	}
+	var body struct {
+		FileRef string `json:"fileRef"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	return body.FileRef, nil
+}
+
+// SuperRes posts data to POST /superres with the given magnitude (1..3) and
+// returns the upscaled image bytes. out_format/quality are left to the server
+// defaults (png / 92).
+func (c *Client) SuperRes(ctx context.Context, data []byte, magnitude int) ([]byte, error) {
+	buf, contentType, err := multipartFile("input.png", data, map[string]string{
+		"magnitude": strconv.Itoa(magnitude),
+	})
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/superres", buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("superres -> %s", resp.Status)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+// FetchStorage GETs the result image bytes for a storage key
+// (the key from a job:complete output URL "/storage/<key>").
+func (c *Client) FetchStorage(ctx context.Context, key string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/storage/"+key, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("storage/%s -> %s", key, resp.Status)
+	}
+	return io.ReadAll(resp.Body)
 }
