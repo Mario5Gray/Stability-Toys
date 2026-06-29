@@ -21,7 +21,8 @@ operability from the command line before building any new front-end.
 
 - A single Go CLI binary `st` that can drive the core operational path:
   generation (txt2img / img2img / ControlNet), asset upload, super-resolution,
-  job cancel/priority, and model + mode status/switch.
+  job cancel/priority, and model + mode status/switch — plus local PNG
+  metadata read (`st read`) and recipe re-creation (`gen --recreate`).
 - WS-first for jobs (live progress, cancel, priority; ControlNet artifacts via
   `job:complete`), HTTP for reads and simple synchronous calls.
 - An `stclient` Go package that is the single operation surface, transport- and
@@ -41,6 +42,8 @@ operability from the command line before building any new front-end.
   already-running server. It never starts, stops, or mutates server process
   state outside normal request payloads.
 - No installable distribution/packaging in v1 (run from the built binary).
+- No batch generation in v1: one image per invocation. The `out-####` scheme
+  and config leave room for batch in v2.
 
 ## Current State
 
@@ -106,11 +109,14 @@ response frames (`job:ack|progress|complete|error`) are hand-written.
 
 ### 2. CLI surface (`cmd/st`, Cobra)
 
-Core operational path only:
+Core operational path only. Cobra / POSIX double-dash flags. Generation
+defaults come from the config file's `defaults.generation`; any flag overrides
+them.
 
 | Subcommand | Backend op |
 |---|---|
-| `st generate` | WS `job:submit` (generate); txt2img / `--init-image`+`--denoise` (img2img) / `--controlnet` (repeatable) |
+| `st gen [flags] <prompt>` | WS `job:submit` (generate). txt2img / `--init-image`+`--denoise` (img2img) / `--controlnet` (repeatable) / `--recreate <png>` (reuse a PNG's baked recipe) |
+| `st read <png>` | local only: print the baked `lcm` metadata as JSON (no server call) |
 | `st upload <file>` | `POST /v1/upload` → prints `fileRef` |
 | `st superres <file> --magnitude N` | `POST /superres` |
 | `st cancel <job_id>` | WS `job:cancel` |
@@ -119,12 +125,19 @@ Core operational path only:
 | `st modes list\|switch <name>` | `/api/modes`, `/api/modes/switch` |
 | `st validate-track3` | scripted end-to-end ControlNet checklist |
 
-`st generate` flags: `-p/--prompt`, `--negative`, `--size`, `--steps`,
-`--cfg`, `--seed`, `--scheduler`, `--sr-level`, `--mode`, `--init-image`,
-`--denoise`, `--controlnet "model_id=…,image=…,scale=…,start=…,end=…"`
-(repeatable), `-o/--output <dir>`. Progress streams to stderr; the result PNG
-and artifacts are written to the output dir; a result JSON is printed to stdout
-(`--json` for machine-only output).
+`st gen` takes the prompt as a **positional** argument. Flags: `--negative`,
+`--genres <WxH>` (image size; `--size` alias), `--steps`, `--cfg`,
+`--seed <int|random>` (absolute — no relative deltas in v1), `--scheduler`,
+`--sr-level`, `--mode`, `--init-image <file>` + `--denoise` (img2img),
+`--controlnet "model_id=…,image=…,scale=…,start=…,end=…"` (repeatable),
+`--recreate <png>` (load the PNG's baked recipe as defaults; txt2img re-run,
+flags override; does **not** feed the image as an init), `--outfile <path>`
+(override output path; extension optional). Progress streams to stderr; the
+result image (+ ControlNet artifacts) is written to the output dir; a result
+JSON is printed to stdout (`--json` for machine-only output).
+
+Global flags: `--server` / `$ST_SERVER`, `--config <json>`, `-o/--output-dir`,
+`--json`, `--timeout`.
 
 Global flags: `--server` / `$ST_SERVER`, `--config <json>`, `-o/--output-dir`,
 `--json`, `--timeout`.
@@ -142,12 +155,41 @@ Global flags: `--server` / `$ST_SERVER`, `--config <json>`, `-o/--output-dir`,
   `server/ws_routes.py`.
 - The snapshot is the shared contract anchor for the future Zig front-end too.
 
-### 4. Config & output
+### 4. Config, output, and metadata
 
-JSON config file with flag/env overrides (server URL, defaults, output dir).
-Per-run artifact capture under the output dir: result image(s), request +
-response JSON, WS transcript, and a run log — the capture model is reused from
-the client-validator design.
+**Config file** (`--config`, JSON) — server URL, generation defaults, and
+output/metadata settings; any CLI flag overrides the matching config value:
+
+```json
+{
+  "config": {
+    "defaults": {
+      "generation": { "cfg": 2.5, "steps": 10, "genres": "512x512", "seed": "random" },
+      "output_format": "png",
+      "output_directory": "/home/.../stability_toys",
+      "include_meta": true,
+      "meta": { "producer_name": "...", "include_date": true, "misc": [ { "k": "v" } ] }
+    }
+  }
+}
+```
+
+**Output** — written under `output_directory` (or `-o`) using the default
+filename scheme `out-####.<ext>`, where `####` is the next free cardinal index
+and `<ext>` comes from `output_format`. `--outfile <path>` overrides the name
+(extension optional — appended from `output_format` if absent).
+
+**Metadata** — the server already bakes an `lcm` JSON chunk (prompt, seed,
+size, steps, cfg, negative, scheduler) into every PNG. When `include_meta` is
+true the CLI writes an additional client-side chunk from `meta`
+(`producer_name`, `include_date`, `misc`) on top — no backend change.
+
+**`st read <png>`** parses and prints the baked metadata chunk(s) as JSON.
+**`--recreate <png>`** reads the `lcm` chunk to seed `gen`'s parameters
+(overridable by flags). Both are purely client-side and need no server.
+
+**Run artifacts** — per-run capture under the output dir (request + response
+JSON, WS transcript, run log), reused from the client-validator design.
 
 ### 5. MCP future (designed-for, not built)
 
@@ -208,4 +250,5 @@ subcommands; `cli/zig` TUI; installable packaging.
   `server/upload_routes.py`, `server/model_routes.py`, `server/mode_config.py`
 - ControlNet backend (complete): [controlnet-design](2026-04-18-controlnet-design.md) §6
 - `validate-track3` checklist source: `docs/TESTING_CONTROLNET_TRACK3.md`
+- `st gen` / `read` / `--recreate` interaction style: [generation-cli.md](generation-cli.md)
 - CLI-first principle and core-path scope: this session's brainstorm
