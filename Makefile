@@ -1,5 +1,8 @@
 include Makefile.test
 
+.PHONY: install
+install: install-st install-controlnet-scripts ## Install all production targets
+
 .PHONY: install-st
 install-st: ## Install the st CLI to ~/.local/bin
 	mkdir -p ~/.local/bin
