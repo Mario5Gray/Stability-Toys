@@ -1,6 +1,6 @@
 # st — Usage Guide
 
-> Backend is **remote**. Every example below assumes `--server` or `$ST_SERVER` is set.
+> Backend is **remote**. Set the server URL via `--server`, `$ST_SERVER`, or `server_url` in config (lowest priority).
 > ```bash
 > export ST_SERVER=http://my_server.lan:4200
 > ```
@@ -19,6 +19,7 @@ Edit the template, then re-run. Minimum useful config:
 ```json
 {
   "config": {
+    "server_url": "http://my_server.lan:4200",
     "defaults": {
       "output_directory": "~/images",
       "output_format": "png",
@@ -31,6 +32,8 @@ Edit the template, then re-run. Minimum useful config:
   }
 }
 ```
+
+`server_url` in config is the lowest-priority fallback — `--server` and `$ST_SERVER` override it.
 
 ---
 
@@ -377,7 +380,7 @@ field is sent (existing behaviour preserved).
 
 | Flag | Env | Default | Purpose |
 | --- | --- | --- | --- |
-| `--server` | `$ST_SERVER` | — | Backend base URL |
+| `--server` | `$ST_SERVER` | config `server_url` | Backend base URL |
 | `--config` | `$ST_CONFIG` | XDG default | Config file path |
 | `-o / --output-dir` | — | config value | Output directory |
 | `--json` | — | false | Machine-readable output |
