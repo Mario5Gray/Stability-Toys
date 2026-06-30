@@ -4,6 +4,35 @@ Utility scripts for ControlNet preprocessor image generation.
 
 ---
 
+## Install
+
+Run the scripts directly with `python scripts/<name>.py`, or install them as
+console commands:
+
+```bash
+# installs st-depth-map and st-pose-map onto PATH
+make install-controlnet-scripts            # all extras (depth + pose)
+make install-controlnet-scripts EXTRAS=depth   # depth backends only
+make install-controlnet-scripts EXTRAS=pose    # pose backends only
+
+# or directly with pip
+pip install "./scripts[all]"
+```
+
+After install both forms are equivalent:
+
+```bash
+st-depth-map photo.jpg depth.png            # console script
+python scripts/depth_map.py photo.jpg depth.png   # direct
+```
+
+> On macOS/Apple Silicon, install `torch` via conda **first**
+> (`conda install pytorch -c pytorch`); the extras pull only the non-torch deps.
+
+`make install` installs both the `st` CLI and these scripts in one shot.
+
+---
+
 ## depth_map.py
 
 Generate a grayscale depth map from an image.
@@ -191,3 +220,94 @@ docker run --rm \
   st-controlnet-tools \
   python depth_map.py /images/input.png /images/depth.png --model depth-anything --size large
 ```
+
+---
+
+## Feeding maps to `st gen`
+
+Once you have a depth/pose/canny map, attach it to a generation. The CLI
+offers a one-step shorthand and a manual two-step path.
+
+### One step: `--control-image`
+
+`st gen --control-image <type>:<path>` uploads the map and attaches it in a
+single command:
+
+```bash
+# depth map produced above, applied as a ControlNet
+st gen "A majestic girl holding a crystal orb in each hand" \
+  --seed 69823301 \
+  --control-image depth:./depth.png
+```
+
+The CLI uploads the file, then injects a ControlNet attachment of the form
+`{attachment_id, control_type, map_asset_ref}` into the request. `attachment_id`
+is auto-generated (`ctrl-0`, `ctrl-1`, …).
+
+The flag is **repeatable** — stack multiple control types:
+
+```bash
+st gen "..." \
+  --control-image depth:./depth.png \
+  --control-image canny:./edges.png
+```
+
+### The `<type>:` prefix (bucket / control_type)
+
+The prefix before the colon serves two roles:
+
+| Role | Where it goes | Effect |
+| --- | --- | --- |
+| Upload bucket | `type` form field on `POST /v1/upload` | **Intent label only** — the server currently ignores it for routing |
+| `control_type` | the ControlNet attachment | **Meaningful** — validated against the model's declared `control_types` and the mode policy |
+
+So `depth:` and `canny:` matter because they become the attachment's
+`control_type`, which the server checks against the mode's
+`allowed_control_types` (see `conf/modes.yml`) and the model registry
+(`conf/controlnets.yaml`). A `control_type` the active mode doesn't permit is
+rejected before generation.
+
+> The type prefix is **required** for `--control-image`. Omitting it errors with
+> `missing control_type prefix (use type:<path>, e.g. depth:./map.png)`.
+
+### Conditioning strength: `--control-strength`
+
+Controls how strongly the map steers the result (`0.0`–`2.0`). Applies to every
+`--control-image` attachment in the same command:
+
+```bash
+st gen "..." --control-image depth:./depth.png --control-strength 0.65
+```
+
+- **Unset** → the attachment omits `strength`, so the server applies the mode
+  policy's `default_strength` (typically `1.0`).
+- An explicit `--control-strength 0` is honored as zero (not treated as unset).
+- Higher = the structure of the map dominates; lower = the prompt has more
+  freedom.
+
+`--control-strength` only affects `--control-image` attachments. Raw
+`--controlnet` JSON and `--controlnet-file` entries carry their own `strength`
+field and are left untouched.
+
+### Manual two-step (raw JSON)
+
+For full control over attachment fields, upload and attach separately:
+
+```bash
+# 1. upload, capture the fileref
+ref=$(st upload depth:./depth.png --json | jq -r .fileRef)
+
+# 2. hand-write the attachment and pass it through
+echo '{"attachment_id":"a1","control_type":"depth","map_asset_ref":"'$ref'","strength":0.8}' > cn.json
+st gen "..." --controlnet-file ./cn.json
+```
+
+`--controlnet '<json>'` (repeatable, inline) and config presets
+(`--controlnet @name`) are the other two ways to supply attachments. All three
+merge with `--control-image` entries into a single `controlnets` list.
+
+### Requirements
+
+ControlNet execution runs **only on the CUDA mode-system backend**. A CPU/RKNN
+backend reports `ControlNet provider not yet implemented on this backend`. The
+active mode must also enable ControlNet in its `controlnet_policy` block.
