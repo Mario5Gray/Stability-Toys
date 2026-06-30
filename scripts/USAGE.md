@@ -143,3 +143,51 @@ python scripts/depth_map.py photo.jpg depth.png --device mps
 # Apple Silicon — pose (cpu is effectively the same)
 python scripts/pose_map.py photo.jpg pose.png --device cpu
 ```
+
+---
+
+## Running in Docker
+
+The `controlnet-tools` image stage extends the server image with all script
+dependencies pre-installed. Use it when you want a self-contained environment
+without touching your local Python setup.
+
+### Build
+
+```bash
+docker build --target controlnet-tools -t st-controlnet-tools .
+```
+
+The stage inherits torch (and CUDA if built with `--build-arg BACKEND=cuda`)
+from the server base, then adds `transformers`, `controlnet-aux`, `mediapipe`,
+and `matplotlib`.
+
+### Run interactively
+
+```bash
+# Mount a local folder as /images — read inputs and write outputs there
+docker run --rm -it -v $(pwd)/images:/images st-controlnet-tools
+```
+
+Inside the container the working directory is `/app/scripts`, so the scripts
+are on the path directly:
+
+```bash
+# Depth map
+python depth_map.py /images/input.png /images/depth.png --model depth-anything
+
+# Pose map
+python pose_map.py /images/input.png /images/pose.png
+
+# With CUDA (requires --build-arg BACKEND=cuda at build time)
+python depth_map.py /images/input.png /images/depth.png --device cuda
+```
+
+### One-shot (non-interactive)
+
+```bash
+docker run --rm \
+  -v $(pwd)/images:/images \
+  st-controlnet-tools \
+  python depth_map.py /images/input.png /images/depth.png --model depth-anything --size large
+```
