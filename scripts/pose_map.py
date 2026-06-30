@@ -7,6 +7,10 @@ from pathlib import Path
 
 from PIL import Image
 
+import torch
+if not hasattr(torch, "float8_e8m0fnu"):
+  setattr(torch, "float8_e8m0fnu", torch.float32)
+
 
 def load_image(path: Path, max_res: int | None) -> Image.Image:
     img = Image.open(path).convert("RGB")
@@ -37,7 +41,7 @@ def dwpose(img: Image.Image) -> Image.Image:
     return detector(img)
 
 
-def mediapipe(img: Image.Image, show_keypoints_only: bool) -> Image.Image:
+def mediapipe(img: Image.Image, overlay: bool, show_keypoints_only: bool) -> Image.Image:
     import mediapipe as mp
     import numpy as np
 
@@ -49,7 +53,7 @@ def mediapipe(img: Image.Image, show_keypoints_only: bool) -> Image.Image:
     with mp_pose.Pose(static_image_mode=True, model_complexity=2) as pose:
         results = pose.process(arr)
 
-    canvas = np.zeros_like(arr) if show_keypoints_only else arr.copy()
+    canvas = arr.copy() if overlay else np.zeros_like(arr)
 
     if results.pose_landmarks:
         if show_keypoints_only:
@@ -99,6 +103,11 @@ def main() -> None:
         action="store_true",
         help="Draw raw keypoint dots only, no limb connections (mediapipe only)",
     )
+    parser.add_argument(
+        "--overlay",
+        action="store_true",
+        help="Draw skeleton on the original image instead of a black background (mediapipe only)",
+    )
     args = parser.parse_args()
 
     if not args.source.exists():
@@ -117,7 +126,7 @@ def main() -> None:
     elif args.model == "dwpose":
         result = dwpose(img)
     else:
-        result = mediapipe(img, args.show_keypoints)
+        result = mediapipe(img, args.overlay, args.show_keypoints)
 
     result.save(args.destination)
     print(f"saved    {args.destination}")

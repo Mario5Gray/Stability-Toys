@@ -59,7 +59,7 @@ Generate a skeleton pose map from an image.
 **Install deps**
 ```bash
 pip install controlnet-aux   # openpose + dwpose
-pip install mediapipe        # mediapipe only
+pip install mediapipe==0.10.14. # mediapipe only
 ```
 
 **Parameters**
@@ -73,6 +73,7 @@ pip install mediapipe        # mediapipe only
 | `--device` | `cpu` | `cpu` / `cuda` / `mps` |
 | `--max-res` | none | Cap longest edge in pixels before inference |
 | `--show-keypoints` | off | Draw keypoint dots only, no limb connections (mediapipe only) |
+| `--overlay` | off | Draw skeleton on original image instead of black background (mediapipe only) |
 
 **Examples**
 
@@ -97,7 +98,8 @@ python scripts/pose_map.py photo.jpg pose.png \
   --model mediapipe --show-keypoints
 ```
 
-Output: RGB PNG with colored keypoints and limb connections on a black background.
+Output: RGB PNG with colored keypoints and limb connections on a **black background** — correct for ControlNet conditioning.
+`--overlay` (mediapipe) draws on the original image instead, for visualization only.
 `--show-keypoints` (mediapipe) outputs white dots on black with no connections.
 
 ---

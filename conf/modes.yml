@@ -55,6 +55,23 @@ modes:
       - lcm
     default_scheduler_id: lcm
     chat_delegate: sdxl_advisor
+    controlnet_policy:
+      enabled: true
+      max_attachments: 1
+      allow_reuse_emitted_maps: true
+      allowed_control_types:
+        canny:
+          default_model_id: sd15-canny
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        depth:
+          default_model_id: sd15-depth
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
   lcm-runwayml:
     model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512

@@ -57,9 +57,10 @@ func runValidateTrack3(cmd *cobra.Command, args []string) error {
 	params := stclient.GenParams{
 		"prompt": t3Prompt,
 		"controlnets": []any{map[string]any{
-			"attachment_id": "track3-1",
-			"control_type":  t3ControlType,
-			"map_asset_ref": ref,
+			"attachment_id":   "track3-1",
+			"control_type":    t3ControlType,
+			"source_asset_ref": ref,
+			"preprocess":      map[string]any{"id": t3ControlType},
 		}},
 	}
 	_, res, err := client.Generate(ctx, params, nil, nil)

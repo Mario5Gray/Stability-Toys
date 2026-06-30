@@ -322,9 +322,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -410,9 +411,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -632,9 +634,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -712,9 +715,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -783,9 +787,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -867,9 +872,10 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None):
                 self.req = req
                 self.init_image = init_image
+                self.controlnet_bindings = controlnet_bindings or []
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob

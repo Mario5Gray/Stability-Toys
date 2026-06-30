@@ -161,6 +161,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     req = None
     pre_submit_job_error: Optional[str] = None
     pre_submit_artifacts: list = []
+    controlnet_bindings: list = []
 
     if job_type == "generate" and getattr(state, "use_mode_system", False):
         from backends.worker_pool import GenerationJob
@@ -189,6 +190,22 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 req._controlnet_artifacts = pre_submit_artifacts
             from server.controlnet_constraints import ensure_controlnet_dispatch_supported
             ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
+            if current_mode and getattr(req, "controlnets", None):
+                from server.controlnet_execution import (
+                    active_model_family_from_variant,
+                    resolve_controlnet_bindings,
+                )
+                from server.asset_store import get_store
+                from utils.model_detector import detect_model
+                if mode.model_path is None:
+                    raise RuntimeError(f"Mode '{current_mode}' does not have a resolved model_path")
+                family = active_model_family_from_variant(detect_model(mode.model_path).variant.value)
+                controlnet_bindings = resolve_controlnet_bindings(
+                    req,
+                    mode=mode,
+                    store=get_store(),
+                    active_family=family,
+                )
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
@@ -201,7 +218,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 return
 
         if pre_submit_job_error is None:
-            job = GenerationJob(req=req, init_image=init_image_bytes)
+            job = GenerationJob(req=req, init_image=init_image_bytes, controlnet_bindings=controlnet_bindings)
             try:
                 fut = state.worker_pool.submit_job(job)
             except queue.Full:

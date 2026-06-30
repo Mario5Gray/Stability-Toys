@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate a depth map from an image for use with ControlNet."""
 
 import argparse
@@ -7,6 +6,10 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+
+import torch
+if not hasattr(torch, "float8_e8m0fnu"):
+  setattr(torch, "float8_e8m0fnu", torch.float32)
 
 
 def load_image(path: Path, max_res: int | None) -> Image.Image:
