@@ -47,12 +47,16 @@ def _on_job_update(job_id: str, snapshot: dict) -> None:
     except RuntimeError:
         loop = None
 
+    progress = snapshot.get("progress") or {}
+    delta = _progress_delta(progress)
     msg = {
         "type": "job:progress",
         "jobId": job_id,
         "status": snapshot.get("status"),
         "progress": snapshot.get("progress"),
     }
+    if delta is not None:
+        msg["delta"] = delta
 
     if loop is not None and loop.is_running():
         loop.create_task(hub.broadcast(msg))
@@ -62,6 +66,18 @@ def _on_job_update(job_id: str, snapshot: dict) -> None:
         _loop = getattr(_on_job_update, "_loop", None)
         if _loop is not None:
             _loop.call_soon_threadsafe(asyncio.ensure_future, hub.broadcast(msg))
+
+
+def _progress_delta(progress: dict) -> "str | None":
+    fraction = progress.get("fraction") or 0.0
+    if not fraction:
+        return None
+    pct = int(fraction * 100)
+    nodes_total = progress.get("nodes_total") or 0
+    if nodes_total > 0:
+        nodes_seen = progress.get("nodes_seen") or 0
+        return f"node {nodes_seen}/{nodes_total} ({pct}%)"
+    return f"{pct}%"
 
 
 def register_job_hook() -> None:

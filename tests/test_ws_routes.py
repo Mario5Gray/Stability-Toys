@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from server import ws_routes
-from server.ws_routes import ws_router
+from server.ws_routes import ws_router, _progress_delta
 from server.upload_routes import upload_router
 from server.asset_store import get_store
 from server.controlnet_preprocessors import ControlMapResult, PreprocessorRegistry
@@ -1306,3 +1306,83 @@ class TestUpload:
         from server.upload_routes import resolve_file_ref
         with pytest.raises(KeyError):
             resolve_file_ref("nonexistent")
+
+
+# ---------------------------------------------------------------------------
+# _progress_delta helper + delta field in job:progress frames
+# ---------------------------------------------------------------------------
+
+class TestProgressDelta:
+    def test_zero_fraction_returns_none(self):
+        assert _progress_delta({"fraction": 0.0, "nodes_seen": 0, "nodes_total": 4}) is None
+
+    def test_empty_dict_returns_none(self):
+        assert _progress_delta({}) is None
+
+    def test_fraction_with_nodes(self):
+        delta = _progress_delta({"fraction": 0.5, "nodes_seen": 3, "nodes_total": 6})
+        assert delta == "node 3/6 (50%)"
+
+    def test_fraction_without_nodes_total(self):
+        # nodes_total absent or zero — fall back to percent only
+        delta = _progress_delta({"fraction": 0.75})
+        assert delta == "75%"
+
+    def test_fraction_100_percent(self):
+        delta = _progress_delta({"fraction": 1.0, "nodes_seen": 6, "nodes_total": 6})
+        assert delta == "node 6/6 (100%)"
+
+    def test_delta_in_job_progress_frame(self):
+        """_on_job_update builds a msg dict; verify delta is included when fraction > 0."""
+        import asyncio
+        from unittest.mock import patch, AsyncMock
+
+        broadcast_calls = []
+
+        async def _run():
+            with patch("server.ws_routes.hub") as mock_hub:
+                mock_hub.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+                ws_routes._on_job_update(
+                    "job-delta-test",
+                    {
+                        "status": "running",
+                        "progress": {
+                            "fraction": 0.5,
+                            "nodes_seen": 3,
+                            "nodes_total": 6,
+                            "current_node": "KSampler",
+                            "node_progression": ["KSampler"],
+                        },
+                    },
+                )
+                await asyncio.sleep(0)  # let create_task run
+
+        asyncio.run(_run())
+        assert len(broadcast_calls) == 1
+        msg = broadcast_calls[0]
+        assert msg["type"] == "job:progress"
+        assert msg["delta"] == "node 3/6 (50%)"
+        assert "progress" in msg  # existing field preserved
+
+    def test_no_delta_in_frame_when_fraction_zero(self):
+        """delta key must be absent (not empty string) when fraction is 0."""
+        import asyncio
+        from unittest.mock import patch, AsyncMock
+
+        broadcast_calls = []
+
+        async def _run():
+            with patch("server.ws_routes.hub") as mock_hub:
+                mock_hub.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+                ws_routes._on_job_update(
+                    "job-no-delta-test",
+                    {
+                        "status": "running",
+                        "progress": {"fraction": 0.0, "nodes_seen": 0, "nodes_total": 4},
+                    },
+                )
+                await asyncio.sleep(0)
+
+        asyncio.run(_run())
+        assert len(broadcast_calls) == 1
+        assert "delta" not in broadcast_calls[0]
