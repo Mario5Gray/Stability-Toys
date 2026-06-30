@@ -28,10 +28,11 @@ var (
 	genSR          int
 	genInitImage   string
 	genRecreate    string
-	genControlnets []string
-	genOutfile     string
-	genStream      bool
-	genQuiet       bool
+	genControlnets    []string
+	genControlnetFile string
+	genOutfile        string
+	genStream         bool
+	genQuiet          bool
 )
 
 // genArgs is the resolved set of generation inputs. Pointer fields are nil when
@@ -49,8 +50,9 @@ type genArgs struct {
 	SR          *int
 	InitImage   string
 	Recreate    string
-	Controlnets []string
-	Outfile     string
+	Controlnets    []string
+	ControlnetFile string
+	Outfile        string
 }
 
 func (a genArgs) toFlags() config.Flags {
@@ -88,6 +90,7 @@ func init() {
 	f.StringVar(&genInitImage, "init-image", "", "img2img source: local PNG path or fileref:ID")
 	f.StringVar(&genRecreate, "recreate", "", "local PNG whose lcm params seed this generation (recipe only)")
 	f.StringArrayVar(&genControlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
+	f.StringVar(&genControlnetFile, "controlnet-file", "", "ControlNetAttachment JSON file (merged with --controlnet entries)")
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -99,10 +102,11 @@ func init() {
 func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 	f := cmd.Flags()
 	a := genArgs{
-		InitImage:   genInitImage,
-		Recreate:    genRecreate,
-		Controlnets: genControlnets,
-		Outfile:     genOutfile,
+		InitImage:      genInitImage,
+		Recreate:       genRecreate,
+		Controlnets:    genControlnets,
+		ControlnetFile: genControlnetFile,
+		Outfile:        genOutfile,
 	}
 	if len(args) > 0 {
 		a.Prompt = strings.Join(args, " ")
@@ -185,6 +189,18 @@ func buildGenParams(cfg *config.Config, a genArgs) (stclient.GenParams, error) {
 			cns = append(cns, cn)
 		}
 		p["controlnets"] = cns
+	}
+	if a.ControlnetFile != "" {
+		data, err := os.ReadFile(a.ControlnetFile)
+		if err != nil {
+			return nil, fmt.Errorf("--controlnet-file %q: %w", a.ControlnetFile, err)
+		}
+		var cn map[string]any
+		if err := json.Unmarshal(data, &cn); err != nil {
+			return nil, fmt.Errorf("--controlnet-file %q: invalid JSON: %w", a.ControlnetFile, err)
+		}
+		cns, _ := p["controlnets"].([]any)
+		p["controlnets"] = append(cns, cn)
 	}
 	return stclient.GenParams(p), nil
 }

@@ -102,5 +102,48 @@ func runCmd(t *testing.T, args ...string) string {
 	return sb.String()
 }
 
+func TestBuildGenParamsControlnetFile(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "cn-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"attachment_id":"a2","control_type":"depth","map_asset_ref":"fileref:D1"}`)
+	f.Close()
+
+	args := genArgs{Prompt: "x", ControlnetFile: f.Name()}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, ok := p["controlnets"].([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("controlnets: %+v", p["controlnets"])
+	}
+	entry, _ := list[0].(map[string]any)
+	if entry["control_type"] != "depth" {
+		t.Fatalf("control_type = %v, want depth", entry["control_type"])
+	}
+}
+
+func TestBuildGenParamsControlnetFileMergesWithFlag(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "cn-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"attachment_id":"file-cn","control_type":"depth"}`)
+	f.Close()
+
+	cn := `{"attachment_id":"flag-cn","control_type":"canny"}`
+	args := genArgs{Prompt: "x", Controlnets: []string{cn}, ControlnetFile: f.Name()}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, ok := p["controlnets"].([]any)
+	if !ok || len(list) != 2 {
+		t.Fatalf("expected 2 controlnets, got: %+v", p["controlnets"])
+	}
+}
+
 func strp(s string) *string   { return &s }
 func f64p(f float64) *float64 { return &f }
