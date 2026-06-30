@@ -182,9 +182,16 @@ func multipartFile(filename string, data []byte, fields map[string]string) (*byt
 }
 
 // Upload posts data as a multipart "file" to POST /v1/upload and returns the
-// fileRef the backend assigns (used as init_image_ref for WS img2img).
-func (c *Client) Upload(ctx context.Context, filename string, data []byte) (string, error) {
-	buf, contentType, err := multipartFile(filename, data, nil)
+// fileRef the backend assigns. bucket is an optional intent label (e.g.
+// "image", "canny") sent as a "type" form field; an empty bucket adds no
+// extra field. The backend may use the type field for routing; v1.x treats
+// it as client-side intent only.
+func (c *Client) Upload(ctx context.Context, filename string, data []byte, bucket string) (string, error) {
+	var fields map[string]string
+	if bucket != "" {
+		fields = map[string]string{"type": bucket}
+	}
+	buf, contentType, err := multipartFile(filename, data, fields)
 	if err != nil {
 		return "", err
 	}

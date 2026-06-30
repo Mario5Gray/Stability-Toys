@@ -250,7 +250,7 @@ func runGen(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		ref, err := client.Upload(ctx, filepath.Base(a.InitImage), data)
+		ref, err := client.Upload(ctx, filepath.Base(a.InitImage), data, "")
 		if err != nil {
 			return err
 		}

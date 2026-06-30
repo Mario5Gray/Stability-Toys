@@ -22,13 +22,49 @@ func TestUploadReturnsFileRef(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	ref, err := New(srv.URL).Upload(context.Background(), "x.png", []byte("PNGBYTES"))
+	ref, err := New(srv.URL).Upload(context.Background(), "x.png", []byte("PNGBYTES"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ref != "abc123" {
 		t.Fatalf("got %q", ref)
 	}
+}
+
+func TestUploadSendsBucketFormField(t *testing.T) {
+	var gotType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		gotType = r.FormValue("type")
+		w.Write([]byte(`{"fileRef":"R-abc"}`))
+	}))
+	defer srv.Close()
+
+	ref, err := New(srv.URL).Upload(context.Background(), "map.png", []byte("data"), "canny")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref != "R-abc" {
+		t.Errorf("ref = %q, want R-abc", ref)
+	}
+	if gotType != "canny" {
+		t.Errorf("form type = %q, want canny", gotType)
+	}
+}
+
+func TestUploadNoTypeFieldWhenBucketEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseMultipartForm(1 << 20)
+		if v := r.FormValue("type"); v != "" {
+			t.Errorf("expected no type field when bucket is empty, got %q", v)
+		}
+		w.Write([]byte(`{"fileRef":"R-xyz"}`))
+	}))
+	defer srv.Close()
+
+	New(srv.URL).Upload(context.Background(), "img.png", []byte("data"), "")
 }
 
 func TestSuperResSendsFileAndMagnitudeReturnsImage(t *testing.T) {

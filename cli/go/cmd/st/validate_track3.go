@@ -48,7 +48,7 @@ func runValidateTrack3(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	ref, err := client.Upload(ctx, filepath.Base(t3ControlImage), data)
+	ref, err := client.Upload(ctx, filepath.Base(t3ControlImage), data, "")
 	if err != nil {
 		return fmt.Errorf("upload control map: %w", err)
 	}
