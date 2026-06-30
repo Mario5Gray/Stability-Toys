@@ -104,6 +104,17 @@ func runCmd(t *testing.T, args ...string) string {
 	return sb.String()
 }
 
+// runCmdMayFail is like runCmd but returns the error instead of fataling.
+func runCmdMayFail(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var sb strings.Builder
+	rootCmd.SetOut(&sb)
+	rootCmd.SetErr(&sb)
+	rootCmd.SetArgs(args)
+	err := rootCmd.Execute()
+	return sb.String(), err
+}
+
 func TestBuildGenParamsControlnetFile(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "cn-*.json")
 	if err != nil {
@@ -144,6 +155,51 @@ func TestBuildGenParamsControlnetFileMergesWithFlag(t *testing.T) {
 	list, ok := p["controlnets"].([]any)
 	if !ok || len(list) != 2 {
 		t.Fatalf("expected 2 controlnets, got: %+v", p["controlnets"])
+	}
+	// flag entries are first, file entry is last
+	first, _ := list[0].(map[string]any)
+	if first["attachment_id"] != "flag-cn" {
+		t.Errorf("list[0] should be flag entry (flag-cn), got attachment_id=%v", first["attachment_id"])
+	}
+	second, _ := list[1].(map[string]any)
+	if second["attachment_id"] != "file-cn" {
+		t.Errorf("list[1] should be file entry (file-cn), got attachment_id=%v", second["attachment_id"])
+	}
+}
+
+func TestBuildGenParamsControlnetFileBadPath(t *testing.T) {
+	args := genArgs{Prompt: "x", ControlnetFile: "/nonexistent/path/cn.json"}
+	_, err := buildGenParams(nil, args)
+	if err == nil {
+		t.Fatal("expected error for bad --controlnet-file path, got nil")
+	}
+	if !strings.Contains(err.Error(), "/nonexistent/path/cn.json") {
+		t.Errorf("error should name the bad path, got: %v", err)
+	}
+}
+
+func TestBuildGenParamsControlnetFileInvalidJSON(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "cn-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString("not valid json {{{")
+	f.Close()
+
+	args := genArgs{Prompt: "x", ControlnetFile: f.Name()}
+	_, err = buildGenParams(nil, args)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON in --controlnet-file, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid JSON") {
+		t.Errorf("error should mention 'invalid JSON', got: %v", err)
+	}
+}
+
+func TestBuildObservationCallbacksStreamQuietReturnsBothNil(t *testing.T) {
+	onAck, onProg := buildObservationCallbacks(genCmd, true /* quiet */, true /* stream */)
+	if onAck != nil || onProg != nil {
+		t.Fatal("--stream --quiet: expected both callbacks nil (quiet takes precedence over stream)")
 	}
 }
 
