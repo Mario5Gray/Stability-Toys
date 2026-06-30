@@ -45,7 +45,7 @@
 **Interfaces:**
 - No signature changes. Guard is internal to `Generate`.
 
-- [ ] **Step 1: Write two failing tests** — append to `cli/go/pkg/stclient/ws_test.go`
+- [x] **Step 1: Write two failing tests** — append to `cli/go/pkg/stclient/ws_test.go`
 
 ```go
 func TestGenerateSkipsOnProgressForEmptyDelta(t *testing.T) {
@@ -116,7 +116,7 @@ func TestGeneratePassesDeltaValueToCallback(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to confirm they fail**
+- [x] **Step 2: Run tests to confirm they fail**
 
 ```bash
 cd cli/go && go test ./pkg/stclient/... -run "TestGenerateSkipsOnProgressForEmptyDelta|TestGeneratePassesDeltaValueToCallback" -v
@@ -124,7 +124,7 @@ cd cli/go && go test ./pkg/stclient/... -run "TestGenerateSkipsOnProgressForEmpt
 
 Expected: `TestGenerateSkipsOnProgressForEmptyDelta` FAIL — `expected 1 onProgress call, got 3` (current code fires for all frames including empty delta). `TestGeneratePassesDeltaValueToCallback` PASS — it will pass already since the current code does pass delta through. That's fine; it hardens coverage.
 
-- [ ] **Step 3: Add empty-delta guard in `cli/go/pkg/stclient/ws.go`**
+- [x] **Step 3: Add empty-delta guard in `cli/go/pkg/stclient/ws.go`**
 
 In the `job:progress` case (currently lines 55–58), replace:
 
@@ -144,7 +144,7 @@ with:
 			}
 ```
 
-- [ ] **Step 4: Run tests to confirm both pass**
+- [x] **Step 4: Run tests to confirm both pass**
 
 ```bash
 cd cli/go && go test ./pkg/stclient/... -run "TestGenerateSkipsOnProgressForEmptyDelta|TestGeneratePassesDeltaValueToCallback" -v
@@ -152,7 +152,7 @@ cd cli/go && go test ./pkg/stclient/... -run "TestGenerateSkipsOnProgressForEmpt
 
 Expected: both `PASS`
 
-- [ ] **Step 5: Run full suite**
+- [x] **Step 5: Run full suite**
 
 ```bash
 cd cli/go && go test ./...
@@ -160,7 +160,7 @@ cd cli/go && go test ./...
 
 Expected: all tests pass (no regressions — `TestGenerateCallsOnProgressForAllFrames` sends `"delta": "x"` frames, non-empty, so it is unaffected)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add cli/go/pkg/stclient/ws.go cli/go/pkg/stclient/ws_test.go
@@ -176,7 +176,7 @@ git commit -m "feat(cli): skip onProgress for empty delta; assert delta value in
 
 **Interfaces:** None — documentation only.
 
-- [ ] **Step 1: Update the `--stream` example in `cli/go/USAGE.md`**
+- [x] **Step 1: Update the `--stream` example in `cli/go/USAGE.md`**
 
 Find the `--stream` block (around line 73). Replace:
 
@@ -205,7 +205,7 @@ st gen "an owl" --stream
 
 Note: keys are alphabetical (Go's `json.Marshal` sorts map keys). `delta` before `event`.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add cli/go/USAGE.md
