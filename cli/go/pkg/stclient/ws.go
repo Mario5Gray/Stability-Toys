@@ -53,7 +53,7 @@ func (c *Client) Generate(ctx context.Context, p GenParams, onAck func(jobID str
 				onAck(jobID)
 			}
 		case "job:progress":
-			if onProgress != nil {
+			if onProgress != nil && f.Delta != "" {
 				onProgress(f.Delta)
 			}
 		case "job:error":
