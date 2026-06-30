@@ -30,6 +30,8 @@ var (
 	genRecreate    string
 	genControlnets []string
 	genOutfile     string
+	genStream      bool
+	genQuiet       bool
 )
 
 // genArgs is the resolved set of generation inputs. Pointer fields are nil when
@@ -87,6 +89,8 @@ func init() {
 	f.StringVar(&genRecreate, "recreate", "", "local PNG whose lcm params seed this generation (recipe only)")
 	f.StringArrayVar(&genControlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
+	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
+	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
 	rootCmd.AddCommand(genCmd)
 }
 
@@ -185,6 +189,31 @@ func buildGenParams(cfg *config.Config, a genArgs) (stclient.GenParams, error) {
 	return stclient.GenParams(p), nil
 }
 
+// buildObservationCallbacks returns onAck and onProgress callbacks for
+// Generate based on the active output flags.
+//   - quiet:  both nil (silent)
+//   - stream: NDJSON to stdout — job_id line on ack, progress lines per frame
+//   - default: job_id + progress delta to stderr
+func buildObservationCallbacks(cmd *cobra.Command, quiet, stream bool) (func(string), func(string)) {
+	if quiet {
+		return nil, nil
+	}
+	if stream {
+		onAck := func(id string) {
+			b, _ := json.Marshal(map[string]any{"job_id": id})
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		}
+		onProg := func(delta string) {
+			b, _ := json.Marshal(map[string]any{"event": "progress", "delta": delta})
+			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		}
+		return onAck, onProg
+	}
+	onAck := func(id string) { fmt.Fprintf(cmd.ErrOrStderr(), "job_id=%s\n", id) }
+	onProg := func(delta string) { fmt.Fprint(cmd.ErrOrStderr(), delta) }
+	return onAck, onProg
+}
+
 func runGen(cmd *cobra.Command, args []string) error {
 	cfg, err := requireConfig()
 	if err != nil {
@@ -221,7 +250,12 @@ func runGen(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	_, res, err := client.Generate(ctx, params)
+	if genStream && flagJSON {
+		return fmt.Errorf("--stream and --json are mutually exclusive")
+	}
+	onAck, onProgress := buildObservationCallbacks(cmd, genQuiet, genStream)
+	jobID, res, err := client.Generate(ctx, params, onAck, onProgress)
+	_ = jobID // surfaced to caller via onAck; reserved for future st watch composition
 	if err != nil {
 		return err
 	}
@@ -267,6 +301,21 @@ func clientMeta(cfg *config.Config, res *stclient.Result) string {
 }
 
 func printGenResult(cmd *cobra.Command, path string, res *stclient.Result) error {
+	if genStream {
+		out := map[string]any{
+			"event":       "complete",
+			"output":      path,
+			"seed":        res.Seed,
+			"storage_key": res.StorageKey,
+			"storage_url": res.StorageURL,
+		}
+		b, err := json.Marshal(out)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
 	if flagJSON {
 		out := map[string]any{
 			"output":      path,

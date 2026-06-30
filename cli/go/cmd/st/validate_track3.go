@@ -62,7 +62,7 @@ func runValidateTrack3(cmd *cobra.Command, args []string) error {
 			"map_asset_ref": ref,
 		}},
 	}
-	_, res, err := client.Generate(ctx, params)
+	_, res, err := client.Generate(ctx, params, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate: %w", err)
 	}

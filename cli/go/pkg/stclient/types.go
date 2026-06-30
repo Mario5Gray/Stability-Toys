@@ -45,9 +45,6 @@ type inFrame struct {
 	CNArts  []json.RawMessage `json:"controlnet_artifacts"`
 }
 
-// Progress is a streamed generation update.
-type Progress struct{ Delta string }
-
 // Result is the resolved outcome of a completed generate job.
 type Result struct {
 	StorageKey  string
