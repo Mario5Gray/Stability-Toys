@@ -106,17 +106,38 @@ Output: RGB PNG with colored keypoints and limb connections on a black backgroun
 
 ### Depth
 
-| Model | Speed | Quality | Notes |
-|---|---|---|---|
-| `depth-anything` small | Fast | Good | Best default choice |
-| `depth-anything` large | Slow | Best | Use when detail matters |
-| `midas` | Fast | Good | Older; reliable fallback |
-| `zoe` | Medium | Good | Better metric (real-world scale) depth |
+| Model | Speed | Quality | cpu | cuda | mps | Notes |
+| --- | --- | --- | :---: | :---: | :---: | --- |
+| `depth-anything` small | Fast | Good | ✅ | ✅ | ✅ | Best default choice |
+| `depth-anything` large | Slow | Best | ✅ | ✅ | ✅ | Use when detail matters |
+| `midas` | Fast | Good | ✅ | ✅ | ✅ | Older; reliable fallback |
+| `zoe` | Medium | Good | ✅ | ✅ | ⚠️ | May fall back to CPU for unsupported ops |
 
 ### Pose
 
-| Model | Quality | Notes |
-|---|---|---|
-| `dwpose` | Best | Recommended; more accurate than OpenPose |
-| `openpose` | Good | Classic ControlNet preprocessor; supports face+hands |
-| `mediapipe` | Fine | No model download; fast; 33-keypoint body only |
+| Model | Quality | cpu | cuda | mps | Notes |
+| --- | --- | :---: | :---: | :---: | --- |
+| `dwpose` | Best | ✅ | ✅ | ⚠️ | `controlnet_aux` may ignore device hint; runs CPU in practice |
+| `openpose` | Good | ✅ | ✅ | ⚠️ | Same device caveat as dwpose |
+| `mediapipe` | Fine | ✅ | ✅ | ✅ | Doesn't use PyTorch; MPS irrelevant but fully native on Mac |
+
+### Device notes
+
+**cuda** — NVIDIA GPU. Fastest for all models.
+
+**mps** — Apple Silicon (M1/M2/M3/M4). Requires macOS 12.3+. The default
+`pip install torch` on macOS ships the MPS-capable build — no extra flags needed.
+Gives a real speedup for depth models. Pose models (`dwpose`, `openpose`) via
+`controlnet_aux` don't reliably respect the device hint and typically run on CPU
+regardless.
+
+**cpu** — universal fallback. Use when no GPU is available or a model doesn't
+support the target device.
+
+```bash
+# Apple Silicon — depth (MPS speedup)
+python scripts/depth_map.py photo.jpg depth.png --device mps
+
+# Apple Silicon — pose (cpu is effectively the same)
+python scripts/pose_map.py photo.jpg pose.png --device cpu
+```
