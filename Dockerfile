@@ -30,25 +30,6 @@ RUN yarn install --frozen-lockfile
 COPY ${UI_DIR}/ ./
 
 RUN yarn build
-# ---------- controlnet-tools stage ----------
-# Interactive image for producing depth/pose maps.
-# Build: docker build --target controlnet-tools -t st-controlnet-tools .
-# Run:   docker run --rm -it -v $(pwd)/images:/images st-controlnet-tools
-FROM server AS controlnet-tools
-
-# opencv / controlnet_aux / mediapipe all need these; cuda path already has
-# them but cpu/rknn builds of the server stage may not.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir \
-    "transformers>=4.35" \
-    "controlnet-aux>=0.0.7" \
-    "matplotlib" \
-    "mediapipe==0.10.14"
-
-COPY scripts/ /app/scripts/
 
 # ---------- Python server stage ----------
 FROM python:3.12-slim AS server
@@ -151,7 +132,6 @@ PY
 fi
 EOI
 
-
 # Copy server code 
 COPY conf/ /app/conf/
 COPY server/ /app/server/
@@ -168,6 +148,27 @@ RUN chmod +x /app/start.sh
 RUN mkdir -p /app/logs
 RUN mkdir -p /opt/lcm-sr-server/ui-dist
 COPY --from=ui-build /ui/dist/ /opt/lcm-sr-server/ui-dist/
+
+
+# ---------- controlnet-tools stage ----------
+# Interactive image for producing depth/pose maps.
+# Build: docker build --target controlnet-tools -t st-controlnet-tools .
+# Run:   docker run --rm -it -v $(pwd)/images:/images st-controlnet-tools
+FROM server AS controlnet-tools
+
+# opencv / controlnet_aux / mediapipe all need these; cuda path already has
+# them but cpu/rknn builds of the server stage may not.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    "transformers>=4.35" \
+    "controlnet-aux>=0.0.7" \
+    "matplotlib" \
+    "mediapipe==0.10.14"
+
+COPY scripts/ /app/scripts/
 
 EXPOSE 4200
 
