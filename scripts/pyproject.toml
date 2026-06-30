@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "st-controlnet-helpers"
+version = "0.1.0"
+description = "Depth-map and pose-map preprocessing scripts for Stability-Toys ControlNet workflows"
+requires-python = ">=3.10"
+dependencies = [
+    # torch must be installed first via conda on macOS/Apple Silicon:
+    #   conda install pytorch -c pytorch
+    # On Linux/CUDA, pip torch is fine.
+    "torch>=2.1",
+    "Pillow>=10.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+depth = [
+    "transformers>=4.35",
+    "controlnet-aux>=0.0.7",
+    "matplotlib",           # only needed for --colorize
+]
+pose = [
+    "controlnet-aux>=0.0.7",
+    "mediapipe==0.10.14",
+]
+all = [
+    "st-controlnet-helpers[depth,pose]",
+]
+
+[project.scripts]
+st-depth-map = "depth_map:main"
+st-pose-map  = "pose_map:main"
+
+[tool.setuptools]
+py-modules = ["depth_map", "pose_map"]
