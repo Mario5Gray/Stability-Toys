@@ -12,10 +12,19 @@ import (
 	"strconv"
 )
 
-// Mode is one server-side mode. The backend keys modes by name in the
-// GET /api/modes response; richer per-mode fields are added by later tasks.
+// Mode is one server-side mode, decoded from GET /api/modes.
+// IsDefault is true when the mode matches the top-level default_mode field.
+// ControlNetEnabled is extracted from controlnet_policy.enabled.
 type Mode struct {
-	Name string `json:"name"`
+	Name               string  `json:"name"`
+	IsDefault          bool    `json:"is_default,omitempty"`
+	Model              string  `json:"model"`
+	DefaultSize        string  `json:"default_size"`
+	DefaultSteps       int     `json:"default_steps"`
+	DefaultGuidance    float64 `json:"default_guidance"`
+	DefaultSchedulerID string  `json:"default_scheduler_id,omitempty"`
+	ControlNetEnabled  bool    `json:"controlnet_enabled"`
+	ChatEnabled        bool    `json:"chat_enabled"`
 }
 
 // ModelsStatus is the untyped GET /api/models/status payload (backend, vram,
@@ -39,11 +48,14 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// Modes lists available mode names. The live GET /api/modes returns
-// {"modes": {<name>: {...}}, ...}; names are returned sorted for determinism.
+// Modes returns all server-side modes sorted by name. The live GET /api/modes
+// response keys modes by name with per-mode config; IsDefault marks the
+// top-level default_mode. ControlNetEnabled is extracted from
+// controlnet_policy.enabled.
 func (c *Client) Modes(ctx context.Context) ([]Mode, error) {
 	var body struct {
-		Modes map[string]json.RawMessage `json:"modes"`
+		DefaultMode string                     `json:"default_mode"`
+		Modes       map[string]json.RawMessage `json:"modes"`
 	}
 	if err := c.getJSON(ctx, "/api/modes", &body); err != nil {
 		return nil, err
@@ -53,9 +65,31 @@ func (c *Client) Modes(ctx context.Context) ([]Mode, error) {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	modes := make([]Mode, len(names))
-	for i, name := range names {
-		modes[i] = Mode{Name: name}
+	modes := make([]Mode, 0, len(names))
+	for _, name := range names {
+		var cfg struct {
+			Model              string  `json:"model"`
+			DefaultSize        string  `json:"default_size"`
+			DefaultSteps       int     `json:"default_steps"`
+			DefaultGuidance    float64 `json:"default_guidance"`
+			DefaultSchedulerID string  `json:"default_scheduler_id"`
+			ControlNetPolicy   struct {
+				Enabled bool `json:"enabled"`
+			} `json:"controlnet_policy"`
+			ChatEnabled bool `json:"chat_enabled"`
+		}
+		_ = json.Unmarshal(body.Modes[name], &cfg)
+		modes = append(modes, Mode{
+			Name:               name,
+			IsDefault:          name == body.DefaultMode,
+			Model:              cfg.Model,
+			DefaultSize:        cfg.DefaultSize,
+			DefaultSteps:       cfg.DefaultSteps,
+			DefaultGuidance:    cfg.DefaultGuidance,
+			DefaultSchedulerID: cfg.DefaultSchedulerID,
+			ControlNetEnabled:  cfg.ControlNetPolicy.Enabled,
+			ChatEnabled:        cfg.ChatEnabled,
+		})
 	}
 	return modes, nil
 }
@@ -102,6 +136,24 @@ func (c *Client) SwitchMode(ctx context.Context, name string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("switch mode %q -> %s", name, resp.Status)
+	}
+	return nil
+}
+
+// ReloadModes requests the server to hot-reload modes.yaml from disk via
+// POST /api/modes/reload. The reload is applied after any pending jobs complete.
+func (c *Client) ReloadModes(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/modes/reload", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("modes reload -> %s", resp.Status)
 	}
 	return nil
 }
