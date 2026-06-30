@@ -1,0 +1,379 @@
+# st — Usage Guide
+
+> Backend is **remote**. Every example below assumes `--server` or `$ST_SERVER` is set.
+> ```bash
+> export ST_SERVER=http://my_server.lan:4200
+> ```
+
+## First run — config bootstrap
+
+Config-dependent commands (`gen`) bootstrap a template on first run and exit:
+
+```bash
+st gen "an owl"
+# No config found. Wrote a template to ~/.config/stability-toys/config.json — edit output_directory/meta and re-run.
+```
+
+Edit the template, then re-run. Minimum useful config:
+
+```json
+{
+  "config": {
+    "defaults": {
+      "output_directory": "~/images",
+      "output_format": "png",
+      "generation": {
+        "genres": "512x512",
+        "num_inference_steps": 8,
+        "guidance_scale": 2.5
+      }
+    }
+  }
+}
+```
+
+---
+
+## Image generation
+
+### Basic prompt
+
+```bash
+st gen "a ceramic owl on a shelf, studio lighting"
+# wrote images/out-0001.png (seed 3847291)
+```
+
+Positional args are joined as the prompt. `--prompt` is also accepted.
+
+### Common flags
+
+```bash
+st gen "an owl" \
+  --steps 12 \
+  --cfg 4.0 \
+  --seed 42 \
+  --size 768x768 \
+  --scheduler dpmpp_2m
+```
+
+Flags override config defaults and any baked PNG params (see [Precedence](#precedence)).
+
+### Machine-readable output
+
+```bash
+# JSON (frozen shape — safe for scripts):
+st gen "an owl" --json
+# {
+#   "output": "images/out-0001.png",
+#   "seed": 3847291,
+#   "storage_key": "lcm_image:b1bfdd15-...",
+#   "storage_url": "/storage/lcm_image:b1bfdd15-..."
+# }
+
+# NDJSON stream — one object per line as events arrive:
+st gen "an owl" --stream
+# {"job_id":"J9a3b2c1"}
+# {"event":"progress","delta":"step 1/8..."}
+# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"...","storage_url":"..."}
+
+# Quiet — suppress stderr progress, only write the output line:
+st gen "an owl" --quiet
+# wrote images/out-0001.png (seed 3847291)
+```
+
+By default, `job_id` and progress text are printed to stderr as they arrive.
+`--stream` and `--json` are mutually exclusive. `--quiet` suppresses stderr progress for any output mode.
+
+### Explicit output path
+
+```bash
+st gen "an owl" --outfile owl-final.png
+# Relative paths are joined under output_directory.
+# Absolute paths are used verbatim.
+```
+
+---
+
+## Image-to-image
+
+### Upload a local file, then generate
+
+```bash
+st gen "an owl in watercolor style" --init-image ./sketch.png
+```
+
+`st gen` uploads `sketch.png` to `/v1/upload` automatically, then threads the
+returned fileref into the generation params.
+
+### Reuse an already-uploaded file
+
+```bash
+REF=$(st upload ./sketch.png)    # prints the fileref, e.g. "R9a3b2c1"
+st gen "an owl in watercolor style" --init-image fileref:$REF
+```
+
+The `fileref:` prefix skips the upload step.
+
+---
+
+## Recreating from a previous generation
+
+Any PNG written by `st gen` carries its generation params in a `lcm` tEXt chunk.
+`--recreate` reads those params as the base layer for a new generation:
+
+```bash
+# Re-run with the exact same params:
+st gen --recreate images/out-0001.png
+
+# Override one field while keeping the rest:
+st gen --recreate images/out-0001.png --cfg 6.0
+
+# Inspect the baked params before recreating:
+st read images/out-0001.png
+```
+
+`--recreate` is recipe-only — it never uploads the image or sets `init_image_ref`.
+To use the image *as an init image* and pull its params, combine both flags:
+
+```bash
+st gen --recreate images/out-0001.png --init-image images/out-0001.png
+```
+
+---
+
+## Precedence
+
+Parameters layer from lowest to highest priority:
+
+```
+config defaults
+  └─ baked PNG params (--recreate / local --init-image)
+       └─ explicit CLI flags
+```
+
+A flag that is not passed leaves the lower-layer value in place. A flag explicitly
+set to zero (e.g. `--cfg 0`) still takes precedence over baked params.
+
+---
+
+## ControlNet
+
+Each `--controlnet` value is a JSON object matching the `ControlNetAttachment` schema.
+Repeat the flag for multiple attachments. Three ways to supply an attachment:
+
+### Inline JSON
+
+```bash
+MAP_REF=$(st upload canny:./canny-map.png)
+
+st gen "an owl in a forest" \
+  --controlnet "{\"attachment_id\":\"cn-1\",\"control_type\":\"canny\",\"map_asset_ref\":\"$MAP_REF\"}"
+
+# With strength and extent:
+st gen "an owl" \
+  --controlnet "{
+    \"attachment_id\": \"cn-1\",
+    \"control_type\": \"canny\",
+    \"map_asset_ref\": \"$MAP_REF\",
+    \"strength\": 0.8,
+    \"start_percent\": 0.0,
+    \"end_percent\": 0.6
+  }"
+```
+
+### From a JSON file (`--controlnet-file`)
+
+```bash
+# cn-depth.json:
+# {"attachment_id":"cn-1","control_type":"depth","map_asset_ref":"fileref:D1"}
+
+st gen "an owl" --controlnet-file ./cn-depth.json
+
+# Combine: --controlnet entries come first, file entry appended last:
+st gen "an owl" \
+  --controlnet "{\"attachment_id\":\"cn-2\",\"control_type\":\"canny\",\"map_asset_ref\":\"$MAP_REF\"}" \
+  --controlnet-file ./cn-depth.json
+```
+
+### Config presets (`@name`)
+
+Store frequently-used attachments in `config.json` under `controlnet_presets`:
+
+```json
+{
+  "config": {
+    "defaults": { ... },
+    "controlnet_presets": {
+      "owl-canny": {
+        "attachment_id": "cn-1",
+        "control_type": "canny",
+        "map_asset_ref": "fileref:Rabc123"
+      }
+    }
+  }
+}
+```
+
+Then reference by name:
+
+```bash
+st gen "an owl" --controlnet @owl-canny
+
+# Mix presets and inline:
+st gen "an owl" --controlnet @owl-canny --controlnet "{\"attachment_id\":\"cn-2\",...}"
+```
+
+Unknown preset names return a named error: `--controlnet @foo: preset not found in config`.
+
+Two attachment variants — use exactly one:
+
+| Variant | When to use |
+| --- | --- |
+| `map_asset_ref` | You already have a preprocessed control map |
+| `source_asset_ref` + `preprocess` | Let the server preprocess the source image |
+
+### Validate the ControlNet Track 3 checklist
+
+```bash
+st validate-track3 \
+  --server $ST_SERVER \
+  --control-image ./canny-map.png \
+  --control-type canny \
+  --prompt "a validation render"
+# validate-track3:
+#   [PASS] uploaded control map -> Rabc123
+#   [PASS] generation returned 1 controlnet_artifacts
+# PASS
+```
+
+Non-zero exit if the backend returns no `controlnet_artifacts`.
+
+---
+
+## Model modes
+
+```bash
+# List available modes (shows full config per mode):
+st modes
+# default (default)
+#   model=sdxl-base  size=1024x1024  steps=20  cfg=7.5  controlnet
+# cartoony
+#   model=sdxl-cartoon  size=512x512  steps=8  cfg=2.5
+
+# Switch to a mode:
+st modes switch cartoony
+# switched to cartoony
+
+# Show one mode's config as JSON:
+st modes show cartoony --json
+# {"name":"cartoony","model":"sdxl-cartoon",...}
+
+# Hot-reload modes.yaml on the server (no restart needed):
+st modes reload
+# modes reloaded
+
+# Generate in a specific mode (switches if needed):
+st gen "an owl" --mode cartoony
+
+# Show current backend status (always JSON):
+st models
+```
+
+Mode switches happen only when the resolved mode differs from the live current mode.
+If `CurrentMode` is unreachable, the switch is skipped silently (v1 behaviour).
+
+---
+
+## Super-resolution
+
+```bash
+# Upscale an image (magnitude 1–3; default 2):
+st superres ./out-0001.png -o ./upscaled --magnitude 2
+# wrote upscaled/out-0001.png
+
+# Explicit output path:
+st superres ./out-0001.png --outfile ./final-4x.png
+```
+
+`superres` does not require a config file.
+
+---
+
+## Job control
+
+Cancel and priority commands target jobs by `jobId`. `st gen` prints the job_id
+to stderr on ack (`job_id=J9a3b2c1`), or as NDJSON with `--stream`.
+
+```bash
+# Capture job_id from default stderr output:
+st gen "an owl" 2>&1 | grep job_id
+
+# Or from --stream:
+JID=$(st gen "an owl" --stream | tee /dev/stderr | jq -r 'select(.job_id) | .job_id')
+
+st cancel J9a3b2c1
+# canceled J9a3b2c1
+
+st priority J9a3b2c1 5
+# priority of J9a3b2c1 set to 5
+```
+
+> Note: the backend's `SetPriority` handler is a no-op stub as of this writing.
+> The frame is sent and acked; ordering is not affected.
+
+---
+
+## Reading PNG metadata
+
+```bash
+st read images/out-0001.png
+# {
+#   "prompt": "a ceramic owl on a shelf, studio lighting",
+#   "cfg": 2.5,
+#   "steps": 8,
+#   "seed": 3847291
+# }
+```
+
+Returns the raw `lcm` tEXt chunk as JSON. No server call; works offline.
+
+---
+
+## Upload
+
+```bash
+# Plain upload:
+st upload ./control-map.png
+# Rabc123def
+
+# Declare bucket intent (sent as "type" form field):
+st upload canny:./control-map.png
+# Rabc123def
+
+st upload image:./sketch.png
+# Rdef456ghi
+
+# JSON output includes the bucket:
+st upload canny:./control-map.png --json
+# {
+#   "bucket": "canny",
+#   "fileRef": "Rabc123def"
+# }
+```
+
+The `type:path` prefix is split on the first `:`. Without a prefix, no `type`
+field is sent (existing behaviour preserved).
+
+---
+
+## Global flags
+
+| Flag | Env | Default | Purpose |
+| --- | --- | --- | --- |
+| `--server` | `$ST_SERVER` | — | Backend base URL |
+| `--config` | `$ST_CONFIG` | XDG default | Config file path |
+| `-o / --output-dir` | — | config value | Output directory |
+| `--json` | — | false | Machine-readable output |
+| `--timeout` | — | 120s | Per-request timeout |
+
+Config discovery order: `--config` flag → `$ST_CONFIG` → `$XDG_CONFIG_HOME/stability-toys/config.json` → `~/.config/stability-toys/config.json`.
