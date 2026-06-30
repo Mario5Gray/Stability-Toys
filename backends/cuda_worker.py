@@ -336,21 +336,23 @@ class CudaWorkerBase:
         raise NotImplementedError
 
     def _build_controlnet_kwargs(
-        self, bindings: list[Any], size: tuple[int, int]
-    ) -> tuple[dict[str, Any], list[str]]:
+        self, bindings: list[Any], size: tuple[int, int], loaded_ids: list[str]
+    ) -> dict[str, Any]:
         """Assemble the ControlNet pipeline kwargs from resolved bindings.
 
         Shared across families: the only per-family variance is the control-map
         kwarg name (self._CONTROL_IMAGE_KWARG). Each value is single-or-list to
-        match diffusers' single-vs-multi-ControlNet signature. Returns the kwargs
-        and the loaded model_ids (for post-run cache release).
+        match diffusers' single-vs-multi-ControlNet signature.
+
+        Appends each loaded model_id to the caller's `loaded_ids` *as it pins*,
+        so a mid-loop load failure still leaves the already-pinned models visible
+        to the caller's finally-block cleanup (no cache/VRAM leak on partial load).
         """
         controlnets: list[Any] = []
         images: list[Image.Image] = []
         scales: list[float] = []
         starts: list[float] = []
         ends: list[float] = []
-        loaded_ids: list[str] = []
         for binding in bindings:
             controlnets.append(self._load_controlnet_model(binding))
             loaded_ids.append(binding.model_id)
@@ -358,14 +360,13 @@ class CudaWorkerBase:
             scales.append(binding.strength)
             starts.append(binding.start_percent)
             ends.append(binding.end_percent)
-        kwargs: dict[str, Any] = {
+        return {
             "controlnet": controlnets[0] if len(controlnets) == 1 else controlnets,
             self._CONTROL_IMAGE_KWARG: images[0] if len(images) == 1 else images,
             "controlnet_conditioning_scale": scales[0] if len(scales) == 1 else scales,
             "control_guidance_start": starts[0] if len(starts) == 1 else starts,
             "control_guidance_end": ends[0] if len(ends) == 1 else ends,
         }
-        return kwargs, loaded_ids
 
 
 class DiffusersCudaWorker(CudaWorkerBase):
@@ -518,8 +519,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 )
 
             if bindings:
-                controlnet_kwargs, loaded_ids = self._build_controlnet_kwargs(
-                    bindings, (width, height)
+                controlnet_kwargs = self._build_controlnet_kwargs(
+                    bindings, (width, height), loaded_ids
                 )
 
             if init_image is not None:
@@ -850,8 +851,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 )
 
             if bindings:
-                controlnet_kwargs, loaded_ids = self._build_controlnet_kwargs(
-                    bindings, (width, height)
+                controlnet_kwargs = self._build_controlnet_kwargs(
+                    bindings, (width, height), loaded_ids
                 )
 
             if init_image is not None:

@@ -235,12 +235,18 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
     assert kwargs["control_guidance_end"] == 0.8
 
 
+# A future family (HunyuanDiT) declares its control-map kwarg by overriding the
+# class constant, not the instance — model the real override surface here.
+class _ControlImageKwargWorker(DiffusersCudaWorker):
+    _CONTROL_IMAGE_KWARG = "control_image"
+
+
 def test_control_image_kwarg_follows_worker_constant():
     """The control map must be routed under the kwarg named by the worker's
     _CONTROL_IMAGE_KWARG, so a future family (HunyuanDiT) can declare
-    'control_image' without re-hardcoding the assembly."""
-    worker = _make_worker(DiffusersCudaWorker)
-    worker._CONTROL_IMAGE_KWARG = "control_image"  # simulate a non-SD family
+    'control_image' via a class-level override without re-hardcoding the assembly."""
+    worker = _make_worker(_ControlImageKwargWorker)
+    assert type(worker)._CONTROL_IMAGE_KWARG == "control_image"  # class-level, not instance
     req = _make_req()
     job = SimpleNamespace(
         req=req,
@@ -269,6 +275,40 @@ def test_control_image_kwarg_follows_worker_constant():
     kwargs = cn_pipe.call_args.kwargs
     assert kwargs["control_image"] is resized
     assert "image" not in kwargs
+
+
+def test_partial_controlnet_load_failure_releases_already_pinned_models():
+    """If the Nth ControlNet fails to load, the N-1 already pinned into the cache
+    must still be released by the finally block — otherwise they leak VRAM."""
+    worker = _make_worker(DiffusersCudaWorker)
+    req = _make_req()
+    job = SimpleNamespace(
+        req=req,
+        init_image=None,
+        controlnet_bindings=[
+            _make_binding("canny", 0.4, 0.0, 0.8),   # loads OK
+            _make_binding("depth", 0.9, 0.1, 1.0),   # raises during load
+        ],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    release_cache = MagicMock()
+
+    def fake_load(binding):
+        if binding.model_id == "depth-model":
+            raise RuntimeError("boom loading second controlnet")
+        return f"loaded:{binding.model_id}"
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker._decode_control_image", return_value=MagicMock()), \
+         patch.object(worker, "_load_controlnet_model", side_effect=fake_load), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=release_cache):
+        with pytest.raises(RuntimeError, match="boom"):
+            worker.run_job(job)
+
+    # The first ControlNet was pinned before the second failed — it must be released.
+    release_cache.release.assert_any_call("canny-model")
 
 
 def test_sdxl_worker_passes_controlnet_lists_in_request_order():
