@@ -235,6 +235,42 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
     assert kwargs["control_guidance_end"] == 0.8
 
 
+def test_control_image_kwarg_follows_worker_constant():
+    """The control map must be routed under the kwarg named by the worker's
+    _CONTROL_IMAGE_KWARG, so a future family (HunyuanDiT) can declare
+    'control_image' without re-hardcoding the assembly."""
+    worker = _make_worker(DiffusersCudaWorker)
+    worker._CONTROL_IMAGE_KWARG = "control_image"  # simulate a non-SD family
+    req = _make_req()
+    job = SimpleNamespace(
+        req=req,
+        init_image=None,
+        controlnet_bindings=[_make_binding("canny", 0.4, 0.0, 0.8)],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    opened, resized = _fake_control_image("kwarg")
+    cn_pipe = MagicMock()
+    cn_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.cuda_worker.Image.open", return_value=opened), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(_FakeStableDiffusionControlNetPipeline, "from_pipe", return_value=cn_pipe):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    kwargs = cn_pipe.call_args.kwargs
+    assert kwargs["control_image"] is resized
+    assert "image" not in kwargs
+
+
 def test_sdxl_worker_passes_controlnet_lists_in_request_order():
     worker = _make_worker(DiffusersSDXLCudaWorker)
     req = _make_req()
