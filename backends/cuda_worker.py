@@ -492,7 +492,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     starts.append(binding.start_percent)
                     ends.append(binding.end_percent)
                 controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
-                controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+                controlnet_kwargs["image"] = images[0] if len(images) == 1 else images
                 controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
                 controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
                 controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
@@ -839,7 +839,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     starts.append(binding.start_percent)
                     ends.append(binding.end_percent)
                 controlnet_kwargs["controlnet"] = controlnets[0] if len(controlnets) == 1 else controlnets
-                controlnet_kwargs["control_image"] = images[0] if len(images) == 1 else images
+                controlnet_kwargs["image"] = images[0] if len(images) == 1 else images
                 controlnet_kwargs["controlnet_conditioning_scale"] = scales[0] if len(scales) == 1 else scales
                 controlnet_kwargs["control_guidance_start"] = starts[0] if len(starts) == 1 else starts
                 controlnet_kwargs["control_guidance_end"] = ends[0] if len(ends) == 1 else ends
