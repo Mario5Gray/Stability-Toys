@@ -25,6 +25,7 @@ workflows
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 .env
 .venv
 venv
