@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
+	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
 func TestBuildGenParamsFromArgs(t *testing.T) {
@@ -193,6 +195,69 @@ func TestBuildGenParamsControlnetFileInvalidJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid JSON") {
 		t.Errorf("error should mention 'invalid JSON', got: %v", err)
+	}
+}
+
+// TestGenControlImageUploadsAndAttaches verifies that --control-image depth:./f.png
+// uploads the file then injects a controlnet attachment with map_asset_ref set.
+func TestGenControlImageUploadsAndAttaches(t *testing.T) {
+	imgFile := filepath.Join(t.TempDir(), "ctrl.png")
+	if err := os.WriteFile(imgFile, []byte("FAKEPNG"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var capturedControlnets []any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/upload":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"fileRef":"fileref:CTRLREF"}`))
+		case strings.HasPrefix(r.URL.Path, "/storage/"):
+			w.Write([]byte("PNGBYTES"))
+		default:
+			conn, _ := websocket.Accept(w, r, nil)
+			defer conn.Close(websocket.StatusNormalClosure, "")
+			var sub map[string]any
+			wsjson.Read(r.Context(), conn, &sub)
+			if params, ok := sub["params"].(map[string]any); ok {
+				if cns, ok := params["controlnets"].([]any); ok {
+					capturedControlnets = cns
+				}
+			}
+			wsjson.Write(r.Context(), conn, map[string]any{"type": "job:ack", "id": sub["id"], "jobId": "J1"})
+			wsjson.Write(r.Context(), conn, map[string]any{
+				"type": "job:complete", "jobId": "J1",
+				"outputs": []any{map[string]any{"url": "/storage/K1", "key": "K1"}},
+				"meta":    map[string]any{"seed": 1},
+			})
+		}
+	}))
+	defer srv.Close()
+
+	outDir := t.TempDir()
+	cfgPath := writeTestConfig(t, outDir)
+	runCmd(t, "gen", "--server", srv.URL, "--config", cfgPath, "-o", outDir,
+		"--control-image", "depth:"+imgFile, "an owl")
+
+	if len(capturedControlnets) != 1 {
+		t.Fatalf("expected 1 controlnet attachment, got %d: %v", len(capturedControlnets), capturedControlnets)
+	}
+	entry, _ := capturedControlnets[0].(map[string]any)
+	if entry["control_type"] != "depth" {
+		t.Errorf("control_type = %v, want depth", entry["control_type"])
+	}
+	if entry["map_asset_ref"] != "fileref:CTRLREF" {
+		t.Errorf("map_asset_ref = %v, want fileref:CTRLREF", entry["map_asset_ref"])
+	}
+	if entry["attachment_id"] == "" {
+		t.Error("attachment_id must not be empty")
+	}
+}
+
+func TestControlImageRequiresTypePrefix(t *testing.T) {
+	err := resolveControlImages(context.Background(), nil, []string{"/some/file.png"}, stclient.GenParams{})
+	if err == nil || !strings.Contains(err.Error(), "control_type") {
+		t.Errorf("expected error about missing control_type, got: %v", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,6 +32,7 @@ var (
 	genRecreate    string
 	genControlnets    []string
 	genControlnetFile string
+	genControlImages  []string
 	genOutfile        string
 	genStream         bool
 	genQuiet          bool
@@ -54,6 +56,7 @@ type genArgs struct {
 	Recreate    string
 	Controlnets    []string
 	ControlnetFile string
+	ControlImages  []string
 	Outfile        string
 }
 
@@ -95,6 +98,7 @@ func init() {
 	f.StringVar(&genRecreate, "recreate", "", "local PNG whose lcm params seed this generation (recipe only)")
 	f.StringArrayVar(&genControlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
 	f.StringVar(&genControlnetFile, "controlnet-file", "", "ControlNetAttachment JSON file (merged with --controlnet entries)")
+	f.StringArrayVar(&genControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -110,6 +114,7 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 		Recreate:       genRecreate,
 		Controlnets:    genControlnets,
 		ControlnetFile: genControlnetFile,
+		ControlImages:  genControlImages,
 		Outfile:        genOutfile,
 	}
 	if len(args) > 0 {
@@ -262,6 +267,13 @@ func runGen(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	client := newClient()
 
+	// --control-image type:<path>: upload each file and inject a controlnet attachment.
+	if len(a.ControlImages) > 0 {
+		if err := resolveControlImages(cmd.Context(), client, a.ControlImages, params); err != nil {
+			return err
+		}
+	}
+
 	// Local init-image: upload to get a fileref the backend can resolve.
 	if a.InitImage != "" && !strings.HasPrefix(a.InitImage, "fileref:") {
 		data, err := os.ReadFile(a.InitImage)
@@ -323,6 +335,35 @@ func runGen(cmd *cobra.Command, args []string) error {
 	}
 
 	return printGenResult(cmd, path, res)
+}
+
+// resolveControlImages uploads each --control-image entry and appends the
+// resulting controlnet attachment to params["controlnets"].
+// Each entry must be "type:<path>"; omitting the type prefix is an error
+// because control_type is required by the server.
+func resolveControlImages(ctx context.Context, client *stclient.Client, entries []string, params stclient.GenParams) error {
+	cns, _ := params["controlnets"].([]any)
+	for i, entry := range entries {
+		bucket, filePath := parseUploadArg(entry)
+		if bucket == "" {
+			return fmt.Errorf("--control-image %q: missing control_type prefix (use type:<path>, e.g. depth:./map.png)", entry)
+		}
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("--control-image %q: %w", entry, err)
+		}
+		ref, err := client.Upload(ctx, filepath.Base(filePath), data, bucket)
+		if err != nil {
+			return fmt.Errorf("--control-image %q: upload: %w", entry, err)
+		}
+		cns = append(cns, map[string]any{
+			"attachment_id": fmt.Sprintf("ctrl-%d", i),
+			"control_type":  bucket,
+			"map_asset_ref": ref,
+		})
+	}
+	params["controlnets"] = cns
+	return nil
 }
 
 func clientMeta(cfg *config.Config, res *stclient.Result) string {
