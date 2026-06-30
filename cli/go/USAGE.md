@@ -73,8 +73,11 @@ st gen "an owl" --json
 # NDJSON stream — one object per line as events arrive:
 st gen "an owl" --stream
 # {"job_id":"J9a3b2c1"}
-# {"event":"progress","delta":"step 1/8..."}
-# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"...","storage_url":"..."}
+# {"delta":"node 1/8 (12%)","event":"progress"}
+# {"delta":"node 2/8 (25%)","event":"progress"}
+# {"delta":"node 3/8 (37%)","event":"progress"}
+# ...
+# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"lcm_image:...","storage_url":"/storage/lcm_image:..."}
 
 # Quiet — suppress stderr progress, only write the output line:
 st gen "an owl" --quiet
