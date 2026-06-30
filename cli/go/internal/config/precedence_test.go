@@ -42,5 +42,35 @@ func TestPrecedenceSeedAndSRFlags(t *testing.T) {
 	}
 }
 
+func TestPrecedenceSkipStepFromConfig(t *testing.T) {
+	cfg := &Config{}
+	cfg.Defaults.Generation = Generation{SkipStep: 3}
+
+	got := ResolveParams(cfg, nil, Flags{})
+	if got["skip_step"] != 3 {
+		t.Fatalf("skip_step=%v, want 3", got["skip_step"])
+	}
+}
+
+func TestPrecedenceSkipStepFlagOverridesConfig(t *testing.T) {
+	cfg := &Config{}
+	cfg.Defaults.Generation = Generation{SkipStep: 2}
+
+	got := ResolveParams(cfg, nil, Flags{SkipStep: intp(5)})
+	if got["skip_step"] != 5 {
+		t.Fatalf("skip_step=%v, want 5", got["skip_step"])
+	}
+}
+
+func TestPrecedenceSkipStepZeroOmitted(t *testing.T) {
+	cfg := &Config{}
+	cfg.Defaults.Generation = Generation{SkipStep: 0}
+
+	got := ResolveParams(cfg, nil, Flags{})
+	if _, ok := got["skip_step"]; ok {
+		t.Fatalf("skip_step should be omitted when zero, got %v", got["skip_step"])
+	}
+}
+
 func intp(i int) *int       { return &i }
 func strp(s string) *string { return &s }

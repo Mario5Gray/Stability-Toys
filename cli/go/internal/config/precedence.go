@@ -7,6 +7,7 @@ type Flags struct {
 	Negative  *string
 	Genres    *string
 	Steps     *int
+	SkipStep  *int
 	Cfg       *float64
 	Seed      *string // "random" or integer text
 	Scheduler *string
@@ -30,6 +31,9 @@ func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
 	if g.Steps != 0 {
 		p["num_inference_steps"] = g.Steps
 	}
+	if g.SkipStep != 0 {
+		p["skip_step"] = g.SkipStep
+	}
 	applySeed(p, g.Seed)
 	setStr(p, "mode", g.Mode)
 
@@ -47,6 +51,9 @@ func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
 	}
 	if f.Steps != nil {
 		p["num_inference_steps"] = *f.Steps
+	}
+	if f.SkipStep != nil && *f.SkipStep > 0 {
+		p["skip_step"] = *f.SkipStep
 	}
 	if f.Cfg != nil {
 		p["guidance_scale"] = *f.Cfg

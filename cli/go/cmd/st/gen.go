@@ -21,6 +21,7 @@ var (
 	genNegative    string
 	genSize        string
 	genSteps       int
+	genSkipStep    int
 	genCfg         float64
 	genSeed        string
 	genScheduler   string
@@ -43,6 +44,7 @@ type genArgs struct {
 	Negative    *string
 	Genres      *string
 	Steps       *int
+	SkipStep    *int
 	Cfg         *float64
 	Seed        *string
 	Scheduler   *string
@@ -61,6 +63,7 @@ func (a genArgs) toFlags() config.Flags {
 		Negative:  a.Negative,
 		Genres:    a.Genres,
 		Steps:     a.Steps,
+		SkipStep:  a.SkipStep,
 		Cfg:       a.Cfg,
 		Seed:      a.Seed,
 		Scheduler: a.Scheduler,
@@ -82,6 +85,7 @@ func init() {
 	f.StringVar(&genNegative, "negative", "", "negative prompt")
 	f.StringVar(&genSize, "size", "", "image size, e.g. 512x512")
 	f.IntVar(&genSteps, "steps", 0, "inference steps")
+	f.IntVar(&genSkipStep, "skip-step", 0, "number of timesteps to skip (LCM skip_step)")
 	f.Float64Var(&genCfg, "cfg", 0, "guidance scale")
 	f.StringVar(&genSeed, "seed", "", `seed integer or "random"`)
 	f.StringVar(&genScheduler, "scheduler", "", "scheduler id")
@@ -122,6 +126,9 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 	}
 	if f.Changed("steps") {
 		a.Steps = &genSteps
+	}
+	if f.Changed("skip-step") {
+		a.SkipStep = &genSkipStep
 	}
 	if f.Changed("cfg") {
 		a.Cfg = &genCfg

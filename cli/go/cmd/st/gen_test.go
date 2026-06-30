@@ -234,5 +234,28 @@ func TestBuildGenParamsControlnetPresetMissingErrors(t *testing.T) {
 	}
 }
 
+func TestBuildGenParamsSkipStep(t *testing.T) {
+	args := genArgs{Prompt: "an owl", SkipStep: intp(4)}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p["skip_step"] != 4 {
+		t.Fatalf("skip_step=%v, want 4", p["skip_step"])
+	}
+}
+
+func TestBuildGenParamsSkipStepZeroOmitted(t *testing.T) {
+	args := genArgs{Prompt: "an owl"}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := p["skip_step"]; ok {
+		t.Fatalf("skip_step should be absent when nil, got %v", p["skip_step"])
+	}
+}
+
 func strp(s string) *string   { return &s }
 func f64p(f float64) *float64 { return &f }
+func intp(i int) *int         { return &i }
