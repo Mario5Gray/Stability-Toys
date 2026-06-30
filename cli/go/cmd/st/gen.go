@@ -18,46 +18,48 @@ import (
 
 // gen command flag backing vars (pointer-or-nil resolved via flag.Changed).
 var (
-	genPrompt      string
-	genNegative    string
-	genSize        string
-	genSteps       int
-	genSkipStep    int
-	genCfg         float64
-	genSeed        string
-	genScheduler   string
-	genMode        string
-	genSR          int
-	genInitImage   string
-	genRecreate    string
-	genControlnets    []string
-	genControlnetFile string
-	genControlImages  []string
-	genOutfile        string
-	genStream         bool
-	genQuiet          bool
+	genPrompt          string
+	genNegative        string
+	genSize            string
+	genSteps           int
+	genSkipStep        int
+	genCfg             float64
+	genSeed            string
+	genScheduler       string
+	genMode            string
+	genSR              int
+	genInitImage       string
+	genRecreate        string
+	genControlnets     []string
+	genControlnetFile  string
+	genControlImages   []string
+	genControlStrength float64
+	genOutfile         string
+	genStream          bool
+	genQuiet           bool
 )
 
 // genArgs is the resolved set of generation inputs. Pointer fields are nil when
 // the user left the corresponding flag unset, so config/baked layers show
 // through (see config.ResolveParams).
 type genArgs struct {
-	Prompt      string
-	Negative    *string
-	Genres      *string
-	Steps       *int
-	SkipStep    *int
-	Cfg         *float64
-	Seed        *string
-	Scheduler   *string
-	Mode        *string
-	SR          *int
-	InitImage   string
-	Recreate    string
-	Controlnets    []string
-	ControlnetFile string
-	ControlImages  []string
-	Outfile        string
+	Prompt          string
+	Negative        *string
+	Genres          *string
+	Steps           *int
+	SkipStep        *int
+	Cfg             *float64
+	Seed            *string
+	Scheduler       *string
+	Mode            *string
+	SR              *int
+	InitImage       string
+	Recreate        string
+	Controlnets     []string
+	ControlnetFile  string
+	ControlImages   []string
+	ControlStrength *float64
+	Outfile         string
 }
 
 func (a genArgs) toFlags() config.Flags {
@@ -99,6 +101,7 @@ func init() {
 	f.StringArrayVar(&genControlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
 	f.StringVar(&genControlnetFile, "controlnet-file", "", "ControlNetAttachment JSON file (merged with --controlnet entries)")
 	f.StringArrayVar(&genControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
+	f.Float64Var(&genControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-image attachments (0.0-2.0; unset = mode default)")
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -116,6 +119,9 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 		ControlnetFile: genControlnetFile,
 		ControlImages:  genControlImages,
 		Outfile:        genOutfile,
+	}
+	if f.Changed("control-strength") {
+		a.ControlStrength = &genControlStrength
 	}
 	if len(args) > 0 {
 		a.Prompt = strings.Join(args, " ")
@@ -269,7 +275,7 @@ func runGen(cmd *cobra.Command, args []string) error {
 
 	// --control-image type:<path>: upload each file and inject a controlnet attachment.
 	if len(a.ControlImages) > 0 {
-		if err := resolveControlImages(cmd.Context(), client, a.ControlImages, params); err != nil {
+		if err := resolveControlImages(cmd.Context(), client, a.ControlImages, a.ControlStrength, params); err != nil {
 			return err
 		}
 	}
@@ -341,7 +347,7 @@ func runGen(cmd *cobra.Command, args []string) error {
 // resulting controlnet attachment to params["controlnets"].
 // Each entry must be "type:<path>"; omitting the type prefix is an error
 // because control_type is required by the server.
-func resolveControlImages(ctx context.Context, client *stclient.Client, entries []string, params stclient.GenParams) error {
+func resolveControlImages(ctx context.Context, client *stclient.Client, entries []string, strength *float64, params stclient.GenParams) error {
 	cns, _ := params["controlnets"].([]any)
 	for i, entry := range entries {
 		bucket, filePath := parseUploadArg(entry)
@@ -356,11 +362,17 @@ func resolveControlImages(ctx context.Context, client *stclient.Client, entries 
 		if err != nil {
 			return fmt.Errorf("--control-image %q: upload: %w", entry, err)
 		}
-		cns = append(cns, map[string]any{
+		attachment := map[string]any{
 			"attachment_id": fmt.Sprintf("ctrl-%d", i),
 			"control_type":  bucket,
 			"map_asset_ref": ref,
-		})
+		}
+		// Leave strength unset when the flag wasn't passed so the server applies
+		// the mode policy's default_strength.
+		if strength != nil {
+			attachment["strength"] = *strength
+		}
+		cns = append(cns, attachment)
 	}
 	params["controlnets"] = cns
 	return nil

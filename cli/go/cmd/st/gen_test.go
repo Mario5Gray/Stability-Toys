@@ -255,9 +255,44 @@ func TestGenControlImageUploadsAndAttaches(t *testing.T) {
 }
 
 func TestControlImageRequiresTypePrefix(t *testing.T) {
-	err := resolveControlImages(context.Background(), nil, []string{"/some/file.png"}, stclient.GenParams{})
+	err := resolveControlImages(context.Background(), nil, []string{"/some/file.png"}, nil, stclient.GenParams{})
 	if err == nil || !strings.Contains(err.Error(), "control_type") {
 		t.Errorf("expected error about missing control_type, got: %v", err)
+	}
+}
+
+// TestControlImageAppliesStrength verifies --control-strength sets the strength
+// field on every --control-image attachment; nil leaves it unset (mode default).
+func TestControlImageAppliesStrength(t *testing.T) {
+	imgFile := filepath.Join(t.TempDir(), "ctrl.png")
+	os.WriteFile(imgFile, []byte("FAKEPNG"), 0o644)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"fileRef":"fileref:R"}`))
+	}))
+	defer srv.Close()
+	client := stclient.New(srv.URL)
+
+	strength := 0.65
+	params := stclient.GenParams{}
+	if err := resolveControlImages(context.Background(), client, []string{"depth:" + imgFile}, &strength, params); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := params["controlnets"].([]any)
+	entry, _ := list[0].(map[string]any)
+	if entry["strength"] != 0.65 {
+		t.Errorf("strength = %v, want 0.65", entry["strength"])
+	}
+
+	// nil strength: key must be absent so the server applies the mode default.
+	params2 := stclient.GenParams{}
+	if err := resolveControlImages(context.Background(), client, []string{"depth:" + imgFile}, nil, params2); err != nil {
+		t.Fatal(err)
+	}
+	list2, _ := params2["controlnets"].([]any)
+	entry2, _ := list2[0].(map[string]any)
+	if _, ok := entry2["strength"]; ok {
+		t.Errorf("strength should be absent when flag unset, got %v", entry2["strength"])
 	}
 }
 
