@@ -8,6 +8,8 @@ which is the single op surface shared by this CLI today and an MCP server later.
 > The backend is **remote**. Point `st` at one with `--server` or `$ST_SERVER`
 > (e.g. `http://enigma.lan:4200`). There is no embedded server.
 
+For practical examples — first run, img2img, recreate, ControlNet, job control — see **[USAGE.md](USAGE.md)**.
+
 ## Build, test, generate
 
 This is a standalone Go module (`go 1.26.1`), isolated from the repo's Python/JS

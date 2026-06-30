@@ -711,6 +711,19 @@ See `docs/DYNAMIC_MODEL_LOADING.md` for complete documentation.
 
 ---
 
+## Operations CLI (`st`)
+
+A Go CLI for the backend API lives in [`cli/go/`](cli/go/). Install with:
+
+```bash
+make install-st   # builds and places st in ~/.local/bin
+```
+
+- **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard
+- **Usage guide:** [`cli/go/USAGE.md`](cli/go/USAGE.md) — first run, generation, img2img, ControlNet, job control
+
+---
+
 ## References & Credits
 
 ### Base Models
