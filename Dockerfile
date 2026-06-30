@@ -153,3 +153,27 @@ COPY --from=ui-build /ui/dist/ /opt/lcm-sr-server/ui-dist/
 EXPOSE 4200
 
 CMD ["/bin/bash", "-c", "/app/start.sh"]
+
+# ---------- controlnet-tools stage ----------
+# Interactive image for producing depth/pose maps.
+# Build: docker build --target controlnet-tools -t st-controlnet-tools .
+# Run:   docker run --rm -it -v $(pwd)/images:/images st-controlnet-tools
+FROM server AS controlnet-tools
+
+# opencv / controlnet_aux / mediapipe all need these; cuda path already has
+# them but cpu/rknn builds of the server stage may not.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    "transformers>=4.35" \
+    "controlnet-aux>=0.0.7" \
+    "matplotlib" \
+    "mediapipe==0.10.14"
+
+COPY scripts/ /app/scripts/
+
+WORKDIR /app/scripts
+
+CMD ["/bin/bash"]
