@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,5 +38,42 @@ func TestResolveConfigLoadsExisting(t *testing.T) {
 	}
 	if cfg == nil {
 		t.Fatalf("expected a loaded config, msg=%q", msg)
+	}
+}
+
+func TestResolveServerURLFlagWins(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	writeConfigWithServerURL(t, p, "http://from-config:7860")
+
+	got := resolveServerURL("http://from-flag:7860", p)
+	if got != "http://from-flag:7860" {
+		t.Fatalf("flag should win, got %q", got)
+	}
+}
+
+func TestResolveServerURLFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	writeConfigWithServerURL(t, p, "http://from-config:7860")
+
+	got := resolveServerURL("", p)
+	if got != "http://from-config:7860" {
+		t.Fatalf("config server_url should be used, got %q", got)
+	}
+}
+
+func TestResolveServerURLEmptyWhenConfigMissing(t *testing.T) {
+	got := resolveServerURL("", filepath.Join(t.TempDir(), "nonexistent.json"))
+	if got != "" {
+		t.Fatalf("should return empty when config missing, got %q", got)
+	}
+}
+
+func writeConfigWithServerURL(t *testing.T, path, serverURL string) {
+	t.Helper()
+	body := `{"config":{"server_url":"` + serverURL + `","defaults":{"generation":{"genres":"512x512"},"output_format":"png","output_directory":"/tmp","include_meta":false}}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

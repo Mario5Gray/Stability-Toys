@@ -76,14 +76,32 @@ func requireConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-// newClient builds an stclient pointed at --server/$ST_SERVER, honoring
-// --timeout when set.
+// resolveServerURL returns the server base URL using precedence:
+// explicit serverFlag > config file server_url. Returns empty string
+// when neither is set; callers (stclient.New) handle the empty case.
+func resolveServerURL(serverFlag, configFlag string) string {
+	if serverFlag != "" {
+		return serverFlag
+	}
+	path, err := config.Resolve(configFlag)
+	if err != nil {
+		return ""
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		return ""
+	}
+	return cfg.ServerURL
+}
+
+// newClient builds an stclient pointed at the resolved server URL, honoring
+// --timeout when set. URL precedence: --server/$ST_SERVER > config server_url.
 func newClient() *stclient.Client {
 	var opts []stclient.Option
 	if flagTimeout > 0 {
 		opts = append(opts, stclient.WithHTTPClient(&http.Client{Timeout: flagTimeout}))
 	}
-	return stclient.New(flagServer, opts...)
+	return stclient.New(resolveServerURL(flagServer, flagConfig), opts...)
 }
 
 func main() {

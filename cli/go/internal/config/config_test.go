@@ -30,6 +30,20 @@ func TestBootstrapWritesTemplate(t *testing.T) {
 	}
 }
 
+func TestLoadReadsServerURL(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	os.WriteFile(p, []byte(`{"config":{"server_url":"http://myhost:7860","defaults":{"generation":{"genres":"512x512"},"output_format":"png","output_directory":"/tmp"}}}`), 0o644)
+
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServerURL != "http://myhost:7860" {
+		t.Fatalf("server_url=%q, want http://myhost:7860", cfg.ServerURL)
+	}
+}
+
 // TestResolveDiscoveryOrder pins the --config > $ST_CONFIG > XDG default chain.
 func TestResolveDiscoveryOrder(t *testing.T) {
 	t.Setenv("ST_CONFIG", "/env/config.json")

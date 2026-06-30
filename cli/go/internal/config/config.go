@@ -51,6 +51,7 @@ type ControlnetPreset map[string]any
 
 // Config is the root document (unwrapped from the "config" key on disk).
 type Config struct {
+	ServerURL         string                      `json:"server_url,omitempty"`
 	Defaults          Defaults                    `json:"defaults"`
 	ControlnetPresets map[string]ControlnetPreset `json:"controlnet_presets,omitempty"`
 }
