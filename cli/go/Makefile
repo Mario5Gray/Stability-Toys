@@ -9,5 +9,9 @@ gen:
 build:
 	go build ./...
 
+install:
+	go install ./cmd/st
+
 test:
+	go vet ./...
 	go test ./...
