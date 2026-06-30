@@ -82,10 +82,14 @@ st gen "an owl" --stream
 # Quiet — suppress stderr progress, only write the output line:
 st gen "an owl" --quiet
 # wrote images/out-0001.png (seed 3847291)
+
+# --stream --quiet — emit only the final complete NDJSON line (no ack, no progress lines):
+st gen "an owl" --stream --quiet
+# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"lcm_image:...","storage_url":"/storage/lcm_image:..."}
 ```
 
 By default, `job_id` and progress text are printed to stderr as they arrive.
-`--stream` and `--json` are mutually exclusive. `--quiet` suppresses stderr progress for any output mode.
+`--stream` and `--json` are mutually exclusive. `--quiet` suppresses the `job_id` ack and all `job:progress` lines for any output mode; with `--stream`, only the final `complete` NDJSON line is emitted.
 
 ### Explicit output path
 
