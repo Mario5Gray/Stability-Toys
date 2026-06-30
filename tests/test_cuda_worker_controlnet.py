@@ -173,6 +173,31 @@ def test_load_controlnet_model_uses_process_cache():
     assert callable(kwargs["loader"])
 
 
+def test_load_controlnet_model_loader_moves_to_worker_device():
+    """The cache loader must place the ControlNet on the worker's CUDA device,
+    otherwise from_pipe leaves it on CPU and _execution_device resolves to cpu
+    while the rest of the pipeline is on cuda:0 (device-mismatch at encode_prompt)."""
+    worker = _make_worker(DiffusersCudaWorker)
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+
+    captured = {}
+    cache = MagicMock()
+    cache.acquire.side_effect = lambda model_id, model_path, loader: captured.setdefault("loader", loader)
+
+    fake_model = MagicMock(name="controlnet_model")
+    fake_model.to.return_value = fake_model
+    fake_cls = MagicMock()
+    fake_cls.from_pretrained.return_value = fake_model
+
+    with patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch("backends.cuda_worker._import_attr", return_value=fake_cls):
+        worker._load_controlnet_model(binding)
+
+    result = captured["loader"]("/models/canny")
+    fake_model.to.assert_called_once_with("cuda:0")
+    assert result is fake_model
+
+
 def test_sd15_worker_passes_single_controlnet_kwargs():
     worker = _make_worker(DiffusersCudaWorker)
     req = _make_req()

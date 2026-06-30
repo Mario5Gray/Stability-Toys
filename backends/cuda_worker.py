@@ -317,11 +317,14 @@ class CudaWorkerBase:
         return cache.acquire(
             binding.model_id,
             binding.model_path,
+            # Move to the worker device so from_pipe doesn't leave the ControlNet
+            # on CPU — otherwise the pipeline's _execution_device resolves to cpu
+            # while text_encoder/unet are on cuda:0 (device-mismatch at encode_prompt).
             loader=lambda path: controlnet_model.from_pretrained(
                 path,
                 torch_dtype=self.dtype,
                 local_files_only=True,
-            ),
+            ).to(self.device),
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
