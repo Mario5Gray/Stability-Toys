@@ -10,6 +10,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
+	"github.com/darkbit/stability-toys/cli/st/internal/config"
 )
 
 func TestBuildGenParamsFromArgs(t *testing.T) {
@@ -142,6 +144,37 @@ func TestBuildGenParamsControlnetFileMergesWithFlag(t *testing.T) {
 	list, ok := p["controlnets"].([]any)
 	if !ok || len(list) != 2 {
 		t.Fatalf("expected 2 controlnets, got: %+v", p["controlnets"])
+	}
+}
+
+func TestBuildGenParamsControlnetPreset(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.ControlnetPresets = map[string]config.ControlnetPreset{
+		"owl-canny": {"attachment_id": "cn-1", "control_type": "canny", "map_asset_ref": "fileref:D1"},
+	}
+	args := genArgs{Prompt: "x", Controlnets: []string{"@owl-canny"}}
+	p, err := buildGenParams(cfg, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, ok := p["controlnets"].([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("controlnets: %+v", p["controlnets"])
+	}
+	entry, _ := list[0].(map[string]any)
+	if entry["control_type"] != "canny" {
+		t.Fatalf("control_type = %v, want canny", entry["control_type"])
+	}
+}
+
+func TestBuildGenParamsControlnetPresetMissingErrors(t *testing.T) {
+	args := genArgs{Prompt: "x", Controlnets: []string{"@unknown"}}
+	_, err := buildGenParams(nil, args)
+	if err == nil {
+		t.Fatal("expected error for unknown preset, got nil")
+	}
+	if !strings.Contains(err.Error(), "@unknown") {
+		t.Errorf("error should name the preset, got: %v", err)
 	}
 }
 

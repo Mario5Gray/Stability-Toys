@@ -43,9 +43,15 @@ type Defaults struct {
 	Meta            Meta       `json:"meta"`
 }
 
+// ControlnetPreset is a named ControlNetAttachment stored in config and
+// referenced by --controlnet @name. Values are passed verbatim to the
+// backend as a controlnet attachment object.
+type ControlnetPreset map[string]any
+
 // Config is the root document (unwrapped from the "config" key on disk).
 type Config struct {
-	Defaults Defaults `json:"defaults"`
+	Defaults          Defaults                    `json:"defaults"`
+	ControlnetPresets map[string]ControlnetPreset `json:"controlnet_presets,omitempty"`
 }
 
 // Load reads and unwraps a config file from disk.

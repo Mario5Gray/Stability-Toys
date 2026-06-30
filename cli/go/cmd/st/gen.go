@@ -182,11 +182,22 @@ func buildGenParams(cfg *config.Config, a genArgs) (stclient.GenParams, error) {
 	if len(a.Controlnets) > 0 {
 		cns := make([]any, 0, len(a.Controlnets))
 		for _, raw := range a.Controlnets {
-			var cn map[string]any
-			if err := json.Unmarshal([]byte(raw), &cn); err != nil {
-				return nil, fmt.Errorf("--controlnet %q: %w", raw, err)
+			if presetName, ok := strings.CutPrefix(raw, "@"); ok {
+				var preset config.ControlnetPreset
+				if cfg != nil {
+					preset = cfg.ControlnetPresets[presetName]
+				}
+				if preset == nil {
+					return nil, fmt.Errorf("--controlnet @%s: preset not found in config", presetName)
+				}
+				cns = append(cns, map[string]any(preset))
+			} else {
+				var cn map[string]any
+				if err := json.Unmarshal([]byte(raw), &cn); err != nil {
+					return nil, fmt.Errorf("--controlnet %q: %w", raw, err)
+				}
+				cns = append(cns, cn)
 			}
-			cns = append(cns, cn)
 		}
 		p["controlnets"] = cns
 	}
