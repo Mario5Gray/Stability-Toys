@@ -26,13 +26,17 @@ pose = [
     "controlnet-aux>=0.0.7",
     "mediapipe==0.10.14",
 ]
+canny = [
+    "opencv-python-headless>=4.5",
+]
 all = [
-    "st-controlnet-helpers[depth,pose]",
+    "st-controlnet-helpers[depth,pose,canny]",
 ]
 
 [project.scripts]
 st-depth-map = "depth_map:main"
 st-pose-map  = "pose_map:main"
+st-canny-map = "canny_map:main"
 
 [tool.setuptools]
-py-modules = ["depth_map", "pose_map"]
+py-modules = ["depth_map", "pose_map", "canny_map"]
