@@ -121,19 +121,19 @@ modes:
       allow_reuse_emitted_maps: true
       allowed_control_types:
         canny:
-          default_model_id: sd15-canny
+          default_model_id: sdxl-canny
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
         depth:
-          default_model_id: sd15-depth
+          default_model_id: sdxl-depth
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0    
         pose:
-          default_model_id: sd15-pose
+          default_model_id: sdxl-pose
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
