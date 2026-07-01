@@ -1,6 +1,6 @@
 # Fast Dev Docker Builds Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SKILL: `superpowers:executing-plans` (inline execution only). **Repo override:** `AGENTS.md` forbids subagent-driven development; do **not** use `superpowers:subagent-driven-development` for this plan. Execute each task inline in the current session with TDD red/green/commit per task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make Docker dev builds fast by using the split runtime/platform architecture, fixing broken compose build args and the live-test Dockerfile CMD, and adding a dev compose with volume-mounted source for `uvicorn --reload`.
 
@@ -39,17 +39,27 @@ Append to `tests/test_cuda_packaging_contract.py`:
 
 ```python
 def test_docker_cuda_yml_passes_backend_cuda_build_arg():
-    text = (REPO_ROOT / "docker-cuda.yml").read_text(encoding="utf-8")
+    import yaml
 
-    assert "BACKEND: cuda" in text
-    assert "args:" in text
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-cuda.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    args = svc["build"]["args"]
+
+    assert args.get("BACKEND") == "cuda"
 
 
 def test_docker_rknn_yml_passes_backend_rknn_build_arg():
-    text = (REPO_ROOT / "docker-rknn.yml").read_text(encoding="utf-8")
+    import yaml
 
-    assert "BACKEND: rknn" in text
-    assert "args:" in text
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-rknn.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    args = svc["build"]["args"]
+
+    assert args.get("BACKEND") == "rknn"
 
 
 def test_live_test_dockerfile_uses_qualified_module_path():
@@ -203,9 +213,16 @@ def test_dev_compose_mounts_prebuilt_ui_dist():
 
 
 def test_dev_compose_uses_dev_env_files():
-    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+    import yaml
 
-    assert "env.dev" in text
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    env_files = svc.get("env_file", [])
+
+    assert "env.dev" in env_files
+    assert "env.cuda" in env_files
 
 
 def test_dev_compose_uses_dev_image_tag():
@@ -426,10 +443,6 @@ git commit -m "feat(makefile): add dev, dev-build, dev-down targets for fast dev
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-07-01-fast-dev-docker-builds.md`. Two execution options:
+Plan complete and saved to `docs/superpowers/plans/2026-07-01-fast-dev-docker-builds.md`.
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
-
-**Which approach?**
+**Execution mode:** Inline only (`superpowers:executing-plans`). Subagent-driven development is forbidden by `AGENTS.md` repo policy. Execute each task in the current session with TDD red/green/commit per task, with review checkpoints between tasks.
