@@ -1,7 +1,18 @@
 from pathlib import Path
+import subprocess
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _make_dry_run(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["make", "--dry-run", *args],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _requirements_lines():
@@ -165,3 +176,36 @@ def test_root_dockerfiles_are_marked_as_compatibility_entrypoints():
     assert "docker/runtime/app.Dockerfile" in dockerfile
     assert "# Compatibility entrypoint." in live_test
     assert "docker/runtime/live-test.Dockerfile" in live_test
+
+
+def test_quick_dockerfile_copies_only_python_source_without_reinstalling_deps():
+    quick = (REPO_ROOT / "Dockerfile.quick").read_text(encoding="utf-8")
+
+    # Must FROM an existing base image (no full rebuild)
+    assert "ARG BASE_IMAGE" in quick
+    assert "FROM ${BASE_IMAGE}" in quick
+
+    # Must copy the same Python source dirs as the full Dockerfile
+    for src in ["conf/", "server/", "persistence/", "backends/", "invokers/", "utils/"]:
+        assert f"COPY {src} /app/{src}" in quick
+
+    # Must NOT reinstall deps or rebuild UI
+    assert "pip install" not in quick
+    assert "yarn" not in quick
+    assert "node" not in quick.lower()
+    assert "cuda-keyring" not in quick
+
+
+def test_makefile_quick_build_target_uses_dockerfile_quick():
+    result = _make_dry_run("quick-build")
+
+    assert result.returncode == 0, result.stderr
+    assert "Dockerfile.quick" in result.stdout
+    assert "--build-arg BASE_IMAGE" in result.stdout
+
+
+def test_makefile_quick_build_target_accepts_custom_image_override():
+    result = _make_dry_run("quick-build", "IMAGE=custom:tag")
+
+    assert result.returncode == 0, result.stderr
+    assert "custom:tag" in result.stdout

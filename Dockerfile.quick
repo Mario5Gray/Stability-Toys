@@ -1,0 +1,35 @@
+# Dockerfile.quick — fast incremental build that copies only Python source
+# into an existing image. No deps reinstall, no UI rebuild, no CUDA install.
+#
+# Prerequisite: a base image must already be built (full build or prior quick build).
+#
+# Build (CUDA, default):
+#   docker build -f Dockerfile.quick -t harbor.lan/lcm-sd-ui:latest .
+#
+# Build (RKNN):
+#   docker build -f Dockerfile.quick \
+#     --build-arg BASE_IMAGE=darkbit1001/lcm-sd-ui:latest \
+#     -t darkbit1001/lcm-sd-ui:latest .
+#
+# Or via Makefile:
+#   make quick-build                          # CUDA (harbor.lan/lcm-sd-ui:latest)
+#   make quick-build IMAGE=darkbit1001/lcm-sd-ui:latest  # RKNN
+
+ARG BASE_IMAGE=harbor.lan/lcm-sd-ui:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+# Copy only Python source — no deps, no UI, no CUDA
+COPY conf/ /app/conf/
+COPY server/ /app/server/
+COPY persistence/ /app/persistence/
+COPY backends/ /app/backends/
+COPY invokers/ /app/invokers/
+COPY utils/ /app/utils/
+COPY *.py /app/
+COPY *.sh /app/
+RUN chmod +x /app/start.sh
+
+EXPOSE 4200
+CMD ["/bin/bash", "-c", "/app/start.sh"]
