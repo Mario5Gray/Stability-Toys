@@ -88,6 +88,8 @@ def create_cuda_worker(
         RuntimeError if detection fails
     """
     if model_info is None:
+        if not os.path.exists(model_path):
+            raise RuntimeError(f"Model not found at: {model_path}")
         logger.info(f"[ModelDetection] Detecting model type for: {model_path}")
         try:
             model_info = inspect_model(model_path)

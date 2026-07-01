@@ -88,7 +88,8 @@ class TestCreateCudaWorker:
     """Test CUDA worker creation."""
 
     @patch("backends.worker_factory.detect_model")
-    def test_create_sdxl_worker_passes_detected_capabilities(self, mock_detect):
+    @patch("os.path.exists", return_value=True)
+    def test_create_sdxl_worker_passes_detected_capabilities(self, mock_exists, mock_detect):
         """Detected model capabilities must be forwarded into the SDXL worker."""
         model_info = ModelInfo(
             path="/models/checkpoints/sdxl-base.safetensors",
@@ -146,7 +147,8 @@ class TestCreateCudaWorker:
         assert fake_cuda_worker.DiffusersSDXLCudaWorker.call_args.kwargs["model_info"] is model_info
 
     @patch("backends.worker_factory.detect_model")
-    def test_create_sd15_worker_passes_model_info(self, mock_detect):
+    @patch("os.path.exists", return_value=True)
+    def test_create_sd15_worker_passes_model_info(self, mock_exists, mock_detect):
         """The SD1.5 worker also receives the resolved ModelInfo."""
         model_info = ModelInfo(
             path="/models/checkpoints/sd15.safetensors",
@@ -172,12 +174,49 @@ class TestCreateCudaWorker:
         assert fake_cuda_worker.DiffusersCudaWorker.call_args.kwargs["model_info"] is model_info
 
     @patch("backends.worker_factory.detect_model")
-    def test_create_worker_detection_fails(self, mock_detect):
+    @patch("os.path.exists", return_value=True)
+    def test_create_worker_detection_fails(self, mock_exists, mock_detect):
         """Detection failures still surface as runtime errors."""
         mock_detect.side_effect = RuntimeError("Detection failed")
 
         with pytest.raises(RuntimeError, match="Detection failed"):
             create_cuda_worker(worker_id=1, model_path="/models/broken.safetensors")
+
+    @patch("backends.worker_factory.detect_model")
+    @patch("os.path.exists", return_value=False)
+    def test_create_worker_missing_path_reports_clear_error(self, mock_exists, mock_detect):
+        """A missing path fails with the same clear message as detect_worker_type,
+        before reaching detection, when no pre-resolved model_info is supplied."""
+        with pytest.raises(RuntimeError, match="Model not found at:"):
+            create_cuda_worker(worker_id=1, model_path="/models/missing.safetensors")
+
+        mock_detect.assert_not_called()
+
+    @patch("backends.worker_factory.detect_model")
+    @patch("os.path.exists", return_value=False)
+    def test_create_worker_supplied_model_info_skips_path_check(self, mock_exists, mock_detect):
+        """A pool-resolved model_info already passed detection, so the guard must not
+        re-stat the path (the model may no longer be present as a local file)."""
+        model_info = ModelInfo(
+            path="/models/checkpoints/sdxl-base.safetensors",
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            confidence=0.95,
+        )
+        model_info.scheduler_profile = "native"
+        fake_cuda_worker = types.SimpleNamespace(
+            DiffusersSDXLCudaWorker=Mock(return_value=Mock())
+        )
+
+        with patch.dict(sys.modules, {"backends.cuda_worker": fake_cuda_worker}):
+            create_cuda_worker(
+                worker_id=7,
+                model_path="/models/checkpoints/sdxl-base.safetensors",
+                model_info=model_info,
+            )
+
+        mock_detect.assert_not_called()
+        assert fake_cuda_worker.DiffusersSDXLCudaWorker.called
 
 
 def test_model_info_to_dict_includes_recommended_size():
