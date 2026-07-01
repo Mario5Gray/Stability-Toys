@@ -37,8 +37,8 @@ class WSHub:
             return
         try:
             await ws.send_json(msg)
-        except Exception:
-            logger.warning("Failed to send to %s, removing", client_id)
+        except Exception as e:
+            logger.warning("Failed to send to %s: %s: %s, removing", client_id, type(e).__name__, e)
             await self.disconnect(client_id)
 
     async def broadcast(self, msg: dict) -> None:

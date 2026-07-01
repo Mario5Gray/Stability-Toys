@@ -1318,6 +1318,81 @@ class TestUpload:
 # _progress_delta helper + delta field in job:progress frames
 # ---------------------------------------------------------------------------
 
+class TestBuildStatus:
+    """Tests for _build_status — the system:status message builder.
+
+    These guard against STABL-bcvfwvlp: when another test module stubs `torch`
+    as a MagicMock (leaked via sys.modules across a pytest session), the VRAM
+    detection path produced non-serializable MagicMock values that broke
+    JSON serialization in hub.send, hanging the WS receive_json() caller.
+    """
+
+    def test_status_is_json_serializable_when_torch_is_stubbed_magicmock(self):
+        """_build_status must never emit non-JSON-serializable values, even
+        when torch.cuda.is_available() / mem_get_info() return MagicMocks."""
+        import json
+        from unittest.mock import MagicMock
+        from types import SimpleNamespace
+        from server.ws_routes import _build_status
+
+        fake_torch = MagicMock()
+        # is_available() returns a truthy MagicMock -> enters VRAM branch
+        fake_torch.cuda.is_available.return_value = MagicMock()
+        # mem_get_info() returns a MagicMock whose __getitem__/__floordiv__
+        # produce more MagicMocks (not real ints)
+        fake_torch.cuda.mem_get_info.return_value = MagicMock()
+
+        state = SimpleNamespace(use_mode_system=False, storage=None)
+
+        import sys
+        original = sys.modules.get("torch")
+        sys.modules["torch"] = fake_torch
+        try:
+            status = _build_status(state)
+        finally:
+            if original is not None:
+                sys.modules["torch"] = original
+            else:
+                sys.modules.pop("torch", None)
+
+        # The status must be JSON-serializable — this is what hub.send does
+        serialized = json.dumps(status)
+        assert json.loads(serialized)["type"] == "system:status"
+
+    def test_status_omits_vram_when_mem_values_are_not_ints(self):
+        """If mem_get_info returns non-int values, vram must be omitted
+        rather than emitting a non-serializable placeholder."""
+        import json
+        from unittest.mock import MagicMock
+        from types import SimpleNamespace
+        from server.ws_routes import _build_status
+
+        fake_torch = MagicMock()
+        fake_torch.cuda.is_available.return_value = True
+        # Return a list of strings — not ints — to simulate a broken backend
+        fake_torch.cuda.mem_get_info.return_value = ["bad", "values"]
+
+        state = SimpleNamespace(use_mode_system=False, storage=None)
+
+        import sys
+        original = sys.modules.get("torch")
+        sys.modules["torch"] = fake_torch
+        try:
+            status = _build_status(state)
+        finally:
+            if original is not None:
+                sys.modules["torch"] = original
+            else:
+                sys.modules.pop("torch", None)
+
+        json.dumps(status)  # must not raise
+        assert "vram" not in status
+
+
+# ---------------------------------------------------------------------------
+# Progress delta
+# ---------------------------------------------------------------------------
+
 class TestProgressDelta:
     def test_zero_fraction_returns_none(self):
         assert _progress_delta({"fraction": 0.0, "nodes_seen": 0, "nodes_total": 4}) is None

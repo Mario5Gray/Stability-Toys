@@ -815,7 +815,13 @@ def _build_status(state) -> dict:
         import torch
         if torch.cuda.is_available():
             mem = torch.cuda.mem_get_info()
-            status["vram"] = {"free_mb": mem[0] // (1024 * 1024), "total_mb": mem[1] // (1024 * 1024)}
+            free_mb = mem[0] // (1024 * 1024)
+            total_mb = mem[1] // (1024 * 1024)
+            # Guard against stubbed/non-standard torch backends that return
+            # non-int values (e.g. MagicMock from leaked test stubs) which
+            # would break JSON serialization downstream in hub.send.
+            if isinstance(free_mb, int) and isinstance(total_mb, int):
+                status["vram"] = {"free_mb": free_mb, "total_mb": total_mb}
     except Exception:
         pass
 
