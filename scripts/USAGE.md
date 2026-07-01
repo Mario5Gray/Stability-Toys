@@ -10,10 +10,11 @@ Run the scripts directly with `python scripts/<name>.py`, or install them as
 console commands:
 
 ```bash
-# installs st-depth-map and st-pose-map onto PATH
-make install-controlnet-scripts            # all extras (depth + pose)
+# installs st-depth-map, st-pose-map, and st-canny-map onto PATH
+make install-controlnet-scripts            # all extras (depth + pose + canny)
 make install-controlnet-scripts EXTRAS=depth   # depth backends only
 make install-controlnet-scripts EXTRAS=pose    # pose backends only
+make install-controlnet-scripts EXTRAS=canny   # canny backends only
 
 # or directly with pip
 pip install "./scripts[all]"
@@ -22,8 +23,8 @@ pip install "./scripts[all]"
 After install both forms are equivalent:
 
 ```bash
-st-depth-map photo.jpg depth.png            # console script
-python scripts/depth_map.py photo.jpg depth.png   # direct
+st-canny-map photo.jpg canny.png             # console script
+python scripts/canny_map.py photo.jpg canny.png   # direct
 ```
 
 > On macOS/Apple Silicon, install `torch` via conda **first**
@@ -133,6 +134,47 @@ Output: RGB PNG with colored keypoints and limb connections on a **black backgro
 
 ---
 
+## canny_map.py
+
+Generate an 8-bit grayscale canny edge map from an image.
+
+**Install deps**
+```bash
+pip install opencv-python-headless pillow numpy
+```
+
+**Parameters**
+
+| Argument | Default | Description |
+|---|---|---|
+| `source` | — | Input image path |
+| `destination` | — | Output canny map path |
+| `--low-threshold` | `100` | Low hysteresis threshold |
+| `--high-threshold` | `200` | High hysteresis threshold |
+| `--blur` | `0` | Gaussian blur kernel size; `0` disables blur |
+| `--max-res` | none | Cap longest edge in pixels before processing |
+| `--invert` | off | Flip polarity after edge detection |
+
+**Examples**
+
+```bash
+# Default settings
+python scripts/canny_map.py photo.jpg canny.png
+
+# Softer edges after a light blur
+python scripts/canny_map.py photo.jpg canny.png \
+  --low-threshold 75 --high-threshold 180 --blur 5
+
+# Resize first, then invert
+python scripts/canny_map.py photo.jpg canny.png \
+  --max-res 1024 --invert
+```
+
+Output: grayscale PNG in mode `L` where edge pixels are white and the background
+is black (unless `--invert` is set).
+
+---
+
 ## Model comparison
 
 ### Depth
@@ -238,6 +280,13 @@ single command:
 st gen "A majestic girl holding a crystal orb in each hand" \
   --seed 69823301 \
   --control-image depth:./depth.png
+```
+
+```bash
+# canny edge map produced above, applied as a ControlNet
+python scripts/canny_map.py photo.jpg canny.png
+st gen "city street, cinematic lighting" \
+  --control-image canny:./canny.png
 ```
 
 The CLI uploads the file, then injects a ControlNet attachment of the form
