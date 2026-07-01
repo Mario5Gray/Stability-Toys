@@ -701,7 +701,7 @@ See `docs/DYNAMIC_MODEL_LOADING.md` for complete documentation.
 - [x] Hot-reload configuration
 - [x] Extensible job queue
 - [x] Graceful mode switching
-- [ ] ControlNet support (in progress)
+- [x] ControlNet support (CUDA mode-system; operator wiring in `CONTROLNET.md`)
 - [ ] Multi-model batching
 - [ ] Distributed inference (multiple GPUs/NPUs)
 - [ ] Image-to-image pipelines
@@ -721,6 +721,7 @@ make install-st   # builds and places st in ~/.local/bin
 
 - **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard
 - **Usage guide:** [`cli/go/USAGE.md`](cli/go/USAGE.md) — first run, generation, img2img, ControlNet, job control
+- **Operator guide:** [`CONTROLNET.md`](CONTROLNET.md) — required models, `modes.yml` policy, `controlnets.yaml` registry, supported server-side flows
 
 ---
 
