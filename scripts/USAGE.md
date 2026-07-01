@@ -231,7 +231,7 @@ docker build --target controlnet-tools -t st-controlnet-tools .
 
 The stage inherits torch (and CUDA if built with `--build-arg BACKEND=cuda`)
 from the server base, then adds `transformers`, `controlnet-aux`, `mediapipe`,
-and `matplotlib`.
+`matplotlib`, and `opencv-python-headless`.
 
 ### Run interactively
 
@@ -249,6 +249,9 @@ python depth_map.py /images/input.png /images/depth.png --model depth-anything
 
 # Pose map
 python pose_map.py /images/input.png /images/pose.png
+
+# Canny edge map
+python canny_map.py /images/input.png /images/canny.png
 
 # With CUDA (requires --build-arg BACKEND=cuda at build time)
 python depth_map.py /images/input.png /images/depth.png --device cuda

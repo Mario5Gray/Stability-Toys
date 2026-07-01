@@ -209,3 +209,26 @@ def test_makefile_quick_build_target_accepts_custom_image_override():
 
     assert result.returncode == 0, result.stderr
     assert "custom:tag" in result.stdout
+
+
+def test_controlnet_tools_stage_installs_all_script_extras():
+    """The controlnet-tools Dockerfile stage must install deps for every
+    script extra (depth, pose, canny) so all three scripts work in the image."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    # Isolate the controlnet-tools stage
+    marker = "FROM server AS controlnet-tools"
+    idx = dockerfile.find(marker)
+    assert idx != -1, "expected controlnet-tools stage in root Dockerfile"
+    stage = dockerfile[idx:]
+
+    # depth extra deps
+    assert "transformers" in stage
+    assert "controlnet-aux" in stage
+    assert "matplotlib" in stage
+
+    # pose extra deps
+    assert "mediapipe" in stage
+
+    # canny extra deps
+    assert "opencv-python-headless" in stage
