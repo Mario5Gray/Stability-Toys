@@ -20,6 +20,35 @@ def test_requirements_do_not_own_cuda_torch_or_xformers_packages():
     assert "xformers" not in lines
 
 
+def _requirements_text():
+    return (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+
+def test_transformers_pinned_below_5_to_preserve_diffusers_single_file_clip_loading():
+    """Transformers 5.x flattened CLIPTextModel (removed inner .text_model),
+    breaking diffusers from_single_file CLIP loading. Pin below 5.0."""
+    text = _requirements_text()
+
+    # Find the transformers line (not commented out)
+    transformers_lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+        and not line.lstrip().startswith("#")
+        and "transformers" in line.lower()
+        and "diffusers" not in line.lower()
+    ]
+
+    assert transformers_lines, "expected a 'transformers' requirement in requirements.txt"
+
+    for line in transformers_lines:
+        # Must contain an upper bound that excludes 5.x
+        assert "<5" in line or "<5.0" in line, (
+            f"transformers requirement '{line}' must be pinned <5.0 to avoid "
+            "the CLIPTextModel.text_model AttributeError in diffusers from_single_file"
+        )
+
+
 def test_dockerfile_verifies_torch_and_xformers_after_cuda_install():
     dockerfile = (REPO_ROOT / "docker/platform/python-cuda.Dockerfile").read_text(
         encoding="utf-8"
