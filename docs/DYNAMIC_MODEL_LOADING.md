@@ -43,6 +43,29 @@ modes:
     default_guidance: 1.0
 ```
 
+For capability-aware SDXL single-file checkpoints, use explicit loader fields
+instead of relying on implicit defaults:
+
+```yaml
+  sdxl-fp8:
+    model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
+    loader_format: single_file
+    checkpoint_precision: fp8
+    checkpoint_variant: sdxl-base
+    scheduler_profile: native
+    runtime_quantize: none
+    runtime_offload: model
+    runtime_attention_slicing: true
+    runtime_enable_xformers: true
+    default_size: "512x512"
+```
+
+Meaning:
+
+- `loader_format: single_file` selects the single-file SDXL loader path
+- `checkpoint_precision: fp8` tells runtime not to re-quantize a pre-quantized FP8 checkpoint
+- `scheduler_profile: native` preserves the checkpoint's scheduler; use `lcm` only when you explicitly want an `LCMScheduler` swap
+
 ### 2. Start Server
 
 The server automatically loads the default mode on startup:
