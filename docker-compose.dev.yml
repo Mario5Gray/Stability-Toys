@@ -1,0 +1,66 @@
+# docker-compose.dev.yml — fast CUDA dev builds with volume-mounted source.
+#
+# Prerequisite: base image must exist (built once via full compose build):
+#   docker compose -f docker-cuda.yml build
+#
+# Prerequisite: pre-built UI dist (for serving the frontend):
+#   cd lcm-sr-ui && yarn build
+#
+# Usage:
+#   make dev          # start dev container (uvicorn --reload on source changes)
+#   make dev-build    # rebuild dev image (source-only, seconds)
+#   make dev-down     # stop dev container
+#
+# Reload behavior:
+#   - Python source edits (.py) → auto-reloaded by uvicorn --reload
+#   - modes.yaml edits under ./conf → hot-reloaded by app watchdog watcher
+#   - env/base-image/model-root changes → docker compose -f docker-compose.dev.yml restart
+
+services:
+  lcm-sd:
+    platform: linux/amd64
+    container_name: lcm-sd-dev
+    runtime: nvidia
+    build:
+      context: .
+      dockerfile: docker/runtime/live-test.Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-harbor.lan/lcm-sd-ui:latest}
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: lcm-sd-ui:dev
+    ports:
+      - "4200:4200"
+    volumes:
+      - ${MODELS_HOST_PATH:-./model}:/models:rw,Z
+      - ${FS_HOST_PATH:-./store}:/store:rw,Z
+      - ${WORKFLOW_HOST_PATH:-./workflows}:/workflows:rw,Z
+      - ./conf:/conf:rw,Z
+      - ./server:/app/server:rw,Z
+      - ./backends:/app/backends:rw,Z
+      - ./utils:/app/utils:rw,Z
+      - ./persistence:/app/persistence:rw,Z
+      - ./invokers:/app/invokers:rw,Z
+      - ./lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist:ro,Z
+    env_file:
+      - env.dev
+      - env.cuda
+    restart: unless-stopped
+    networks:
+      - observ-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/docs').read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+networks:
+  observ-net:
+    name: observ-net
+    external: true

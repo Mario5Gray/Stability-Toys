@@ -275,3 +275,62 @@ def test_root_live_test_dockerfile_uses_qualified_module_path():
     assert "server.lcm_sr_server:app" in text
     bare_cmd = '"uvicorn", "lcm_sr_server:app"'
     assert bare_cmd not in text
+
+
+def test_dev_compose_uses_live_test_dockerfile():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    assert "docker/runtime/live-test.Dockerfile" in text
+    # Must NOT use the root Dockerfile (which always runs the UI build stage)
+    assert "dockerfile: ./Dockerfile" not in text
+
+
+def test_dev_compose_mounts_config_at_conf_not_app_conf():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    assert "./conf:/conf" in text
+    assert "./conf:/app/conf" not in text
+
+
+def test_dev_compose_mounts_python_source_volumes():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    for src in ["./server:/app/server", "./backends:/app/backends",
+                "./utils:/app/utils", "./persistence:/app/persistence",
+                "./invokers:/app/invokers"]:
+        assert src in text, f"dev compose must mount {src}"
+
+
+def test_dev_compose_mounts_prebuilt_ui_dist():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    assert "lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist" in text
+    assert ":ro" in text
+
+
+def test_dev_compose_uses_dev_env_files():
+    import yaml
+
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    env_files = svc.get("env_file", [])
+
+    assert "env.dev" in env_files
+    assert "env.cuda" in env_files
+
+
+def test_dev_compose_uses_dev_image_tag():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    assert "lcm-sd-ui:dev" in text
+    # Must NOT use the production tag
+    assert "lcm-sd-ui:latest" not in text.split("image:")[1].split("\n")[0] if "image:" in text else True
+
+
+def test_dev_compose_takes_base_image_build_arg():
+    text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
+
+    assert "BASE_IMAGE" in text
+    assert "harbor.lan/lcm-sd-ui:latest" in text
