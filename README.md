@@ -517,6 +517,24 @@ GIT_SHA=$GIT_SHA docker compose -f docker-compose.live-test.yml up --build
 
 If you use `--profile ui-dev`, Compose forwards the same `GIT_SHA` from the environment automatically, so the Vite dev server and backend stay aligned.
 
+### Quick rebuild (Python source only)
+
+When you only change Python files and want to skip the full CUDA/torch/UI
+rebuild, use the quick-build target. It overlays your Python source onto an
+existing image without reinstalling dependencies or rebuilding the UI:
+
+```bash
+# CUDA (default) — overlays onto harbor.lan/lcm-sd-ui:latest
+make quick-build
+
+# RKNN — overlay onto the RKNN image
+make quick-build IMAGE=darkbit1001/lcm-sd-ui:latest
+```
+
+This produces a thin layer on top of the base image — build time is seconds
+instead of minutes. The full `Dockerfile` is still required when dependencies
+(`requirements.txt`, torch, xformers) or the UI change.
+
 ### Run (GPU)
 
 ```bash
