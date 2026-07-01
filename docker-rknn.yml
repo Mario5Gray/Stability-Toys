@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
       args:
+        BACKEND: rknn
         GIT_SHA: ${GIT_SHA:-dev}
     image: darkbit1001/lcm-sd-ui:latest
 

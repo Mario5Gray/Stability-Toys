@@ -232,3 +232,46 @@ def test_controlnet_tools_stage_installs_all_script_extras():
 
     # canny extra deps
     assert "opencv-python-headless" in stage
+
+
+def test_docker_cuda_yml_passes_backend_cuda_build_arg():
+    import yaml
+
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-cuda.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    args = svc["build"]["args"]
+
+    assert args.get("BACKEND") == "cuda"
+
+
+def test_docker_rknn_yml_passes_backend_rknn_build_arg():
+    import yaml
+
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-rknn.yml").read_text(encoding="utf-8")
+    )
+    svc = compose["services"]["lcm-sd"]
+    args = svc["build"]["args"]
+
+    assert args.get("BACKEND") == "rknn"
+
+
+def test_live_test_dockerfile_uses_qualified_module_path():
+    text = (REPO_ROOT / "docker/runtime/live-test.Dockerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "server.lcm_sr_server:app" in text
+    # The bare module name must not appear — it never worked
+    bare_cmd = '"uvicorn", "lcm_sr_server:app"'
+    assert bare_cmd not in text
+
+
+def test_root_live_test_dockerfile_uses_qualified_module_path():
+    text = (REPO_ROOT / "Dockerfile.live-test").read_text(encoding="utf-8")
+
+    assert "server.lcm_sr_server:app" in text
+    bare_cmd = '"uvicorn", "lcm_sr_server:app"'
+    assert bare_cmd not in text

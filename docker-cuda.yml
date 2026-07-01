@@ -7,6 +7,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
       args:
+        BACKEND: cuda
         GIT_SHA: ${GIT_SHA:-dev}
     image: harbor.lan/lcm-sd-ui:latest
     security_opt:

@@ -27,4 +27,4 @@ RUN mkdir -p /opt/lcm-sr-server/ui-dist
 
 EXPOSE 4200
 
-CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
+CMD ["uvicorn", "server.lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
