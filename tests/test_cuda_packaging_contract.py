@@ -334,3 +334,24 @@ def test_dev_compose_takes_base_image_build_arg():
 
     assert "BASE_IMAGE" in text
     assert "harbor.lan/lcm-sd-ui:latest" in text
+
+
+def test_makefile_dev_target_uses_dev_compose():
+    result = _make_dry_run("dev")
+
+    assert result.returncode == 0, result.stderr
+    assert "docker compose -f docker-compose.dev.yml up" in result.stdout
+
+
+def test_makefile_dev_build_target_uses_dev_compose():
+    result = _make_dry_run("dev-build")
+
+    assert result.returncode == 0, result.stderr
+    assert "docker compose -f docker-compose.dev.yml build" in result.stdout
+
+
+def test_makefile_dev_down_target_uses_dev_compose():
+    result = _make_dry_run("dev-down")
+
+    assert result.returncode == 0, result.stderr
+    assert "docker compose -f docker-compose.dev.yml down" in result.stdout

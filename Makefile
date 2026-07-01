@@ -18,3 +18,15 @@ quick-build: ## Rebuild only Python source into existing image (no deps/UI/CUDA 
 	  --build-arg BASE_IMAGE=$(or $(IMAGE),harbor.lan/lcm-sd-ui:latest) \
 	  -t $(or $(IMAGE),harbor.lan/lcm-sd-ui:latest) \
 	  .
+
+.PHONY: dev
+dev: ## Start dev container (uvicorn --reload on Python source changes)
+	docker compose -f docker-compose.dev.yml up
+
+.PHONY: dev-build
+dev-build: ## Rebuild dev image (source-only overlay, seconds)
+	docker compose -f docker-compose.dev.yml build
+
+.PHONY: dev-down
+dev-down: ## Stop dev container
+	docker compose -f docker-compose.dev.yml down
