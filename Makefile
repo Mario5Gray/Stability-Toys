@@ -9,5 +9,5 @@ install-st: ## Install the st CLI to ~/.local/bin
 	cd cli/go && go build -o ~/.local/bin/st ./cmd/st
 
 .PHONY: install-controlnet-scripts
-install-controlnet-scripts: ## Install st-depth-map and st-pose-map console scripts (use EXTRAS=[depth|pose|all])
+install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|all])
 	pip install "./scripts[$(or $(EXTRAS),all)]"
