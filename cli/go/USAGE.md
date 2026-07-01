@@ -168,6 +168,8 @@ set to zero (e.g. `--cfg 0`) still takes precedence over baked params.
 
 ## ControlNet
 
+Server/operator setup lives in [`../../CONTROLNET.md`](../../CONTROLNET.md): required model families, `conf/modes.yml` policy, `conf/controlnets.yaml` registry, and backend support boundary.
+
 Each `--controlnet` value is a JSON object matching the `ControlNetAttachment` schema.
 Repeat the flag for multiple attachments. Three ways to supply an attachment:
 
