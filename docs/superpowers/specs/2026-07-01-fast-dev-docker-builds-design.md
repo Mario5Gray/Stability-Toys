@@ -131,9 +131,13 @@ means:
 - **Python source edits** (`.py` files in mounted `server/`, `backends/`,
   `utils/`, `persistence/`, `invokers/`) — picked up automatically by
   `--reload`. No restart, no rebuild needed.
-- **Non-code changes** (config files in `conf/`, env vars, model swaps) —
-  require `docker compose -f docker-compose.dev.yml restart` because
-  `--reload` only watches Python source, not config or env.
+- **`modes.yaml` edits** under the mounted `./conf` at `/conf` — hot-reloaded
+  in-process by the app's own watchdog file watcher
+  (`start_config_watcher(MODE_CONFIG_PATH, reload_mode_config)` in
+  `server/lcm_sr_server.py`). No restart needed.
+- **Other changes** (env vars, base-image swaps, model-root changes that live
+  outside the config watcher) — require
+  `docker compose -f docker-compose.dev.yml restart`.
 
 The spec's earlier drafts incorrectly described source edits as requiring a
 restart. That was wrong — `--reload` handles source edits automatically.
@@ -366,8 +370,10 @@ This design is complete when:
   install — source-only overlay onto the pre-built base image)
 - Python source edits (`.py` files) are auto-reloaded by `uvicorn --reload`
   — no restart or rebuild needed
-- Config/env/model changes require `docker compose -f docker-compose.dev.yml
-  restart` (not `--reload`)
+- `modes.yaml` edits under `./conf` are hot-reloaded in-process by the app's
+  watchdog file watcher — no restart needed
+- Other changes (env vars, base-image swaps, model-root changes outside the
+  config watcher) require `docker compose -f docker-compose.dev.yml restart`
 - Mode config is read from the host-mounted `./conf` at `/conf`, matching
   `MODE_CONFIG_PATH=/conf`
 - The live-test Dockerfile CMD uses `server.lcm_sr_server:app` (qualified
