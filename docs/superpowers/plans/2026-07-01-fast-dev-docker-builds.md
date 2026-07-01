@@ -18,6 +18,8 @@
   Purpose: add `BACKEND: rknn` build arg for the same reason.
 - Modify: `docker/runtime/live-test.Dockerfile`
   Purpose: fix broken CMD module path from `lcm_sr_server:app` to `server.lcm_sr_server:app`.
+- Modify: `Dockerfile.live-test`
+  Purpose: fix the same broken CMD module path in the root compatibility entrypoint (used by `docker-compose.live-test.yml`).
 - Create: `docker-compose.dev.yml`
   Purpose: standalone CUDA dev compose using live-test Dockerfile + volume-mounted source.
 - Modify: `Makefile`
@@ -31,6 +33,7 @@
 - Modify: `docker-cuda.yml`
 - Modify: `docker-rknn.yml`
 - Modify: `docker/runtime/live-test.Dockerfile`
+- Modify: `Dockerfile.live-test`
 - Modify: `tests/test_cuda_packaging_contract.py`
 
 - [ ] **Step 1: Write the failing contract tests**
@@ -71,6 +74,14 @@ def test_live_test_dockerfile_uses_qualified_module_path():
     # The bare module name must not appear — it never worked
     bare_cmd = '"uvicorn", "lcm_sr_server:app"'
     assert bare_cmd not in text
+
+
+def test_root_live_test_dockerfile_uses_qualified_module_path():
+    text = (REPO_ROOT / "Dockerfile.live-test").read_text(encoding="utf-8")
+
+    assert "server.lcm_sr_server:app" in text
+    bare_cmd = '"uvicorn", "lcm_sr_server:app"'
+    assert bare_cmd not in text
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -78,10 +89,10 @@ def test_live_test_dockerfile_uses_qualified_module_path():
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_cuda_packaging_contract.py::test_docker_cuda_yml_passes_backend_cuda_build_arg tests/test_cuda_packaging_contract.py::test_docker_rknn_yml_passes_backend_rknn_build_arg tests/test_cuda_packaging_contract.py::test_live_test_dockerfile_uses_qualified_module_path -v --no-cov
+source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_cuda_packaging_contract.py::test_docker_cuda_yml_passes_backend_cuda_build_arg tests/test_cuda_packaging_contract.py::test_docker_rknn_yml_passes_backend_rknn_build_arg tests/test_cuda_packaging_contract.py::test_live_test_dockerfile_uses_qualified_module_path tests/test_cuda_packaging_contract.py::test_root_live_test_dockerfile_uses_qualified_module_path -v --no-cov
 ```
 
-Expected: FAIL because `docker-cuda.yml` and `docker-rknn.yml` don't have `BACKEND` build args, and the live-test Dockerfile uses the bare `lcm_sr_server:app`.
+Expected: FAIL because `docker-cuda.yml` and `docker-rknn.yml` don't have `BACKEND` build args, and both live-test Dockerfiles use the bare `lcm_sr_server:app`.
 
 - [ ] **Step 3: Fix `docker-cuda.yml` — add `BACKEND: cuda` build arg**
 
@@ -143,17 +154,31 @@ to:
 CMD ["uvicorn", "server.lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 6: Fix `Dockerfile.live-test` — fix CMD module path**
+
+In `Dockerfile.live-test`, change the last line from:
+
+```dockerfile
+CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
+```
+
+to:
+
+```dockerfile
+CMD ["uvicorn", "server.lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
+```
+
+- [ ] **Step 7: Run the tests to verify they pass**
 
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_cuda_packaging_contract.py::test_docker_cuda_yml_passes_backend_cuda_build_arg tests/test_cuda_packaging_contract.py::test_docker_rknn_yml_passes_backend_rknn_build_arg tests/test_cuda_packaging_contract.py::test_live_test_dockerfile_uses_qualified_module_path -v --no-cov
+source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_cuda_packaging_contract.py::test_docker_cuda_yml_passes_backend_cuda_build_arg tests/test_cuda_packaging_contract.py::test_docker_rknn_yml_passes_backend_rknn_build_arg tests/test_cuda_packaging_contract.py::test_live_test_dockerfile_uses_qualified_module_path tests/test_cuda_packaging_contract.py::test_root_live_test_dockerfile_uses_qualified_module_path -v --no-cov
 ```
 
 Expected: PASS
 
-- [ ] **Step 7: Run the full packaging contract suite to check for regressions**
+- [ ] **Step 9: Run the full packaging contract suite to check for regressions**
 
 Run:
 
@@ -163,10 +188,10 @@ source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests
 
 Expected: PASS (all existing + new tests)
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add docker-cuda.yml docker-rknn.yml docker/runtime/live-test.Dockerfile tests/test_cuda_packaging_contract.py
+git add docker-cuda.yml docker-rknn.yml docker/runtime/live-test.Dockerfile Dockerfile.live-test tests/test_cuda_packaging_contract.py
 git commit -m "fix(docker): pass BACKEND build arg in compose, fix live-test Dockerfile module path"
 ```
 
@@ -331,7 +356,35 @@ source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Manually verify `modes.yaml` hot-reload (spec acceptance criteria)**
+
+The spec requires that `modes.yaml` edits under the mounted `./conf` at `/conf` are hot-reloaded in-process by the app's watchdog file watcher (`start_config_watcher(MODE_CONFIG_PATH, reload_mode_config)` in `server/lcm_sr_server.py`). Static contract tests cannot verify runtime behavior. This step must be performed manually on a host with Docker + NVIDIA GPU:
+
+1. Ensure the base image exists:
+   ```bash
+   docker compose -f docker-cuda.yml build
+   ```
+
+2. Start the dev container:
+   ```bash
+   make dev
+   ```
+
+3. Wait for the healthcheck to pass (container reports healthy on `:4200/docs`).
+
+4. Edit `conf/modes.yaml` on the host (e.g., change a model parameter or add a comment to trigger the watcher). Save the file.
+
+5. Watch the container logs for the config-watcher reload message:
+   ```bash
+   docker logs -f lcm-sd-dev
+   ```
+   Expected: log output indicating the modes config was reloaded (not a container restart).
+
+6. Confirm the running server picked up the change without a restart (e.g., via an API call that reflects the edited config).
+
+**If you cannot run Docker locally (e.g., no NVIDIA GPU):** Skip this step, but leave a comment in the commit message noting that runtime config-reload verification was deferred and must be performed before merging.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add docker-compose.dev.yml tests/test_cuda_packaging_contract.py
@@ -431,11 +484,13 @@ git commit -m "feat(makefile): add dev, dev-build, dev-down targets for fast dev
 - Spec coverage:
   - fix `docker-cuda.yml` and `docker-rknn.yml` to pass `BACKEND` as a build arg: Task 1
   - fix `docker/runtime/live-test.Dockerfile` startup command: Task 1
+  - fix `Dockerfile.live-test` (root compatibility entrypoint) startup command: Task 1
   - add `docker-compose.dev.yml`: Task 2
   - use `docker/runtime/live-test.Dockerfile` as dev entrypoint: Task 2
   - add `make dev` and `make dev-build` Makefile targets: Task 3
   - add contract tests for all changes: Tasks 1, 2, 3
   - reload semantics (Python auto-reload, modes.yaml watcher, restart for env): documented in compose file comments (Task 2 Step 3)
+  - modes.yaml hot-reload runtime verification (spec acceptance criteria): Task 2 Step 5 (manual)
 - Placeholder scan:
   - No `TODO`, `TBD`, or "similar to previous task" shortcuts remain.
 - Type consistency:
