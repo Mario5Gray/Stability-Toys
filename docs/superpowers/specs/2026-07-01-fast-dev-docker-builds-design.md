@@ -11,11 +11,13 @@ without multi-minute rebuilds, and source-only changes should be near-instant.
 In scope:
 
 - fix `docker-cuda.yml` and `docker-rknn.yml` to pass `BACKEND` as a build arg
+- fix `docker/runtime/live-test.Dockerfile` startup command (broken module
+  path — see "Fix live-test Dockerfile" below)
 - add `docker-compose.dev.yml` for fast CUDA iteration with volume mounts
 - use `docker/runtime/live-test.Dockerfile` as the dev build entrypoint (no UI
   build, no deps install — source-only overlay onto a pre-built base image)
 - add `make dev` and `make dev-build` Makefile targets
-- add contract tests for the compose and Makefile changes
+- add contract tests for the compose, Dockerfile, and Makefile changes
 
 Out of scope:
 
@@ -45,10 +47,11 @@ source. A bind mount can replace the runtime UI files after the container
 starts, but it does not avoid paying the UI build cost during
 `docker compose build`.
 
-`docker/runtime/live-test.Dockerfile` is the answer: it `FROM ${BASE_IMAGE}`,
-copies only Python source (no UI build, no deps install), and is already
-designed for dev. It does not copy `conf/` (the live-test compose mounts it
-as a volume instead).
+`docker/runtime/live-test.Dockerfile` is the right dev entrypoint: it
+`FROM ${BASE_IMAGE}`, copies only Python source (no UI build, no deps
+install), and uses `uvicorn --reload` for automatic source-reload. However,
+its CMD has a broken module path that must be fixed before it can serve as
+the dev entrypoint (see below).
 
 `docker-cuda.yml` and `docker-rknn.yml` reference the root `Dockerfile` but
 do not pass `BACKEND` as a build arg — the operator must pass it manually via
@@ -61,7 +64,7 @@ an existing image — seconds to build, but cannot handle dependency changes.
 `docker-compose.live-test.yml` already demonstrates the volume-mount pattern
 for hot-reload: it mounts `server/`, `backends/`, `utils/`, `persistence/`,
 `invokers/`, and `tests/` as read-only volumes so source changes take effect
-on container restart without any rebuild.
+without any rebuild.
 
 ## Design
 
@@ -95,11 +98,51 @@ build:
     GIT_SHA: ${GIT_SHA:-dev}
 ```
 
+### Fix live-test Dockerfile
+
+The live-test Dockerfile's CMD is broken:
+
+```dockerfile
+# Current (broken):
+CMD ["uvicorn", "lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
+```
+
+The module lives at `server/lcm_sr_server.py` and must be imported as
+`server.lcm_sr_server` (confirmed: `import lcm_sr_server` fails with
+`ModuleNotFoundError`; `import server.lcm_sr_server` succeeds). The
+production launcher (`start.sh`) uses `python -m server.run`, which imports
+`from server.lcm_sr_server import app`.
+
+Fix: change the bare module name to the qualified package path:
+
+```dockerfile
+CMD ["uvicorn", "server.lcm_sr_server:app", "--host", "0.0.0.0", "--port", "4200", "--reload"]
+```
+
+This is a prerequisite defect — the dev compose depends on this Dockerfile
+booting correctly.
+
+### Reload semantics
+
+The live-test Dockerfile uses `uvicorn --reload`, which watches mounted
+Python source files and automatically reloads the server on changes. This
+means:
+
+- **Python source edits** (`.py` files in mounted `server/`, `backends/`,
+  `utils/`, `persistence/`, `invokers/`) — picked up automatically by
+  `--reload`. No restart, no rebuild needed.
+- **Non-code changes** (config files in `conf/`, env vars, model swaps) —
+  require `docker compose -f docker-compose.dev.yml restart` because
+  `--reload` only watches Python source, not config or env.
+
+The spec's earlier drafts incorrectly described source edits as requiring a
+restart. That was wrong — `--reload` handles source edits automatically.
+
 ### Dev compose
 
 Create `docker-compose.dev.yml` — a standalone CUDA dev compose file that
 uses `docker/runtime/live-test.Dockerfile` as the build entrypoint and
-volume-mounts source for hot-reload.
+volume-mounts source for `--reload` hot-reload.
 
 Design decisions:
 
@@ -120,12 +163,13 @@ Design decisions:
   then dev builds pick up the new base. The dev compose itself never
   reinstalls pip deps — it only overlays source.
 - **Volume-mounts Python source** — `server/`, `backends/`, `utils/`,
-  `persistence/`, `invokers/` are mounted read-write so changes take effect
-  on container restart without any rebuild.
+  `persistence/`, `invokers/` are mounted read-write so `uvicorn --reload`
+  picks up `.py` edits automatically without restart or rebuild.
 - **Mounts config at `/conf`, not `/app/conf`** — `env.dev` sets
   `MODE_CONFIG_PATH=/conf` (line 27), and the production compose files mount
   `./conf` at `/conf` (not `/app/conf`). The dev compose follows the same
-  convention so mode edits hot-reload correctly.
+  convention so config is read from the host-mounted directory. Config
+  changes require a container restart (not `--reload`).
 - **Mounts pre-built UI dist** — the operator builds it locally
   (`cd lcm-sr-ui && yarn build`) and the compose file mounts
   `lcm-sr-ui/dist/` read-only at `/opt/lcm-sr-server/ui-dist/`. This replaces
@@ -143,9 +187,13 @@ Design decisions:
 #   cd lcm-sr-ui && yarn build
 #
 # Usage:
-#   make dev          # start dev container (volume-mounted source)
+#   make dev          # start dev container (uvicorn --reload on source changes)
 #   make dev-build    # rebuild dev image (source-only, seconds)
 #   make dev-down     # stop dev container
+#
+# Reload behavior:
+#   - Python source edits (.py) → auto-reloaded by uvicorn --reload
+#   - Config/env/model changes → docker compose -f docker-compose.dev.yml restart
 
 services:
   lcm-sd:
@@ -201,7 +249,7 @@ networks:
 
 ```makefile
 .PHONY: dev
-dev: ## Start dev container with volume-mounted source (hot-reload on restart)
+dev: ## Start dev container (uvicorn --reload on Python source changes)
 	docker compose -f docker-compose.dev.yml up
 
 .PHONY: dev-build
@@ -217,7 +265,7 @@ dev-down: ## Stop dev container
 
 | Speed | Command | When to use | Handles dep changes? | Build time |
 |---|---|---|---|---|
-| Hot-reload | `make dev` | Active dev, source changes | No rebuild — volume mounts | Instant (restart only) |
+| Auto-reload | `make dev` | Active dev, `.py` edits | No rebuild — `--reload` watches mounted source | Instant (auto-reload) |
 | Dev rebuild | `make dev-build && make dev` | Source changed, want clean image | No — source only | Seconds |
 | Quick overlay | `make quick-build` | Source changed, want clean image without compose | No — source only | Seconds |
 | Full prod build | `docker compose -f docker-cuda.yml build` | Deps changed, production build | Yes — full Dockerfile | Minutes |
@@ -234,6 +282,8 @@ Add contract tests to `tests/test_cuda_packaging_contract.py`:
   `docker-cuda.yml` contains `BACKEND: cuda` under `build.args`
 - `test_docker_rknn_yml_passes_backend_rknn_build_arg` — verifies
   `docker-rknn.yml` contains `BACKEND: rknn` under `build.args`
+- `test_live_test_dockerfile_uses_qualified_module_path` — verifies the
+  CMD uses `server.lcm_sr_server:app`, not the bare `lcm_sr_server:app`
 - `test_dev_compose_uses_live_test_dockerfile` — verifies
   `docker-compose.dev.yml` references `docker/runtime/live-test.Dockerfile`,
   not the root `Dockerfile` (so the UI build stage is skipped)
@@ -268,6 +318,8 @@ Modify:
 
 - `docker-cuda.yml` — add `BACKEND: cuda` build arg
 - `docker-rknn.yml` — add `BACKEND: rknn` build arg
+- `docker/runtime/live-test.Dockerfile` — fix CMD module path from
+  `lcm_sr_server:app` to `server.lcm_sr_server:app`
 - `Makefile` — add `dev`, `dev-build`, `dev-down` targets
 - `tests/test_cuda_packaging_contract.py` — add contract tests
 
@@ -297,6 +349,11 @@ Modify:
 - The dev compose is CUDA-only. RKNN dev requires a different platform,
   runtime, and device set. An RKNN dev compose can be added later as a
   separate file.
+- The live-test Dockerfile fix (module path) is a behavior change for
+  `docker-compose.live-test.yml` as well, since it uses the same Dockerfile.
+  The fix is strictly correct — the bare module name never worked — so any
+  existing usage of the live-test compose must have been relying on a
+  different CMD override or was broken.
 
 ## Acceptance
 
@@ -307,7 +364,12 @@ This design is complete when:
 - `make dev` starts a dev container with volume-mounted source in seconds
 - `make dev-build` rebuilds the dev image in seconds (no UI build, no deps
   install — source-only overlay onto the pre-built base image)
-- Source-only changes require no rebuild — just `docker compose restart`
-- Mode config edits hot-reload correctly (config mounted at `/conf`, matching
-  `MODE_CONFIG_PATH=/conf`)
+- Python source edits (`.py` files) are auto-reloaded by `uvicorn --reload`
+  — no restart or rebuild needed
+- Config/env/model changes require `docker compose -f docker-compose.dev.yml
+  restart` (not `--reload`)
+- Mode config is read from the host-mounted `./conf` at `/conf`, matching
+  `MODE_CONFIG_PATH=/conf`
+- The live-test Dockerfile CMD uses `server.lcm_sr_server:app` (qualified
+  module path)
 - All contract tests pass
