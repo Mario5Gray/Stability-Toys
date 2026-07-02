@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-host="enigma"
-repo_path="~/workspace/Stability-Toys"
+host="enigma.lan"
+repo_path="/home/hdd/workspace/Stability-Toys"
 remote_name="origin"
 worktrees_dir=".worktrees"
 branch=""
@@ -64,6 +64,11 @@ if [ "$manual_only" -eq 0 ]; then
 set -euo pipefail
 
 cd "$worktree_path"
+if [ -f .envrc ]; then
+  set -a
+  . ./.envrc
+  set +a
+fi
 $base_build_command
 docker compose -f docker-compose.dev.yml up -d --build
 
