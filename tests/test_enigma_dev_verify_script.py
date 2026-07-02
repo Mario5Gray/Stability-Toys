@@ -71,6 +71,49 @@ def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path
     assert "docker logs --tail 50 lcm-sd-dev" in remote_script
 
 
+def test_verify_unhealthy_container_dumps_local_diagnostics(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert "dump_dev_container_diagnostics()" in remote_script
+    assert "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics" in remote_script
+    assert "[enigma-dev-verify] container state:" in remote_script
+    assert "docker inspect -f 'status={{.State.Status}}" in remote_script
+    assert "[enigma-dev-verify] recent container logs (tail 250):" in remote_script
+    assert "docker logs --tail 250 lcm-sd-dev" in remote_script
+    assert "dump_dev_container_diagnostics" in remote_script.split('if [ "$status" != "healthy" ]; then', 1)[1]
+
+
 def test_verify_manual_step_only_skips_remote_docker_phase(tmp_path):
     log_path = tmp_path / "calls.log"
     helper_log = tmp_path / "helper.log"

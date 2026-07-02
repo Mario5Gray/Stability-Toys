@@ -107,6 +107,14 @@ observe_anchor "MODELS_HOST_PATH" "\${MODELS_HOST_PATH:-./model}"
 observe_anchor "FS_HOST_PATH" "\${FS_HOST_PATH:-./store}"
 observe_anchor "WORKFLOW_HOST_PATH" "\${WORKFLOW_HOST_PATH:-./workflows}"
 
+dump_dev_container_diagnostics() {
+  echo "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics" >&2
+  echo "[enigma-dev-verify] container state:" >&2
+  docker inspect -f 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' lcm-sd-dev >&2 || true
+  echo "[enigma-dev-verify] recent container logs (tail 250):" >&2
+  docker logs --tail 250 lcm-sd-dev >&2 || true
+}
+
 $base_build_command
 docker compose -f docker-compose.dev.yml up -d --build
 
@@ -122,8 +130,7 @@ done
 
 status=\$(docker inspect -f '{{.State.Health.Status}}' lcm-sd-dev 2>/dev/null || true)
 if [ "\$status" != "healthy" ]; then
-  echo "lcm-sd-dev did not become healthy" >&2
-  docker logs --tail 50 lcm-sd-dev >&2 || true
+  dump_dev_container_diagnostics
   exit 1
 fi
 
