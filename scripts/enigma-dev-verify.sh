@@ -108,11 +108,11 @@ observe_anchor "FS_HOST_PATH" "\${FS_HOST_PATH:-./store}"
 observe_anchor "WORKFLOW_HOST_PATH" "\${WORKFLOW_HOST_PATH:-./workflows}"
 
 dump_dev_container_diagnostics() {
-  echo "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics" >&2
-  echo "[enigma-dev-verify] container state:" >&2
-  docker inspect -f 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' lcm-sd-dev >&2 || true
-  echo "[enigma-dev-verify] recent container logs (tail 250):" >&2
-  docker logs --tail 250 lcm-sd-dev >&2 || true
+  echo "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics"
+  echo "[enigma-dev-verify] container state:"
+  docker inspect -f 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' lcm-sd-dev || true
+  echo "[enigma-dev-verify] recent container logs (tail 250):"
+  docker logs --tail 250 lcm-sd-dev || true
 }
 
 $base_build_command
