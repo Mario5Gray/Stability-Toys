@@ -5,7 +5,7 @@ import textwrap
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "enigma-worktree.sh"
+SCRIPT = ROOT / "scripts" / "remote-worktree.sh"
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -362,4 +362,68 @@ def test_full_sync_uses_repo_path_override_and_remote_override(tmp_path):
     assert result.stdout.strip() == "enigma:/srv/stability/.worktrees/gallery-ux-polish"
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert 'git -C "$repo_root" fetch "$remote_name"' in remote_script
-    assert 'worktree_path="$repo_root/.worktrees/$branch"' in remote_script
+    assert 'worktree_path="$repo_root/$worktrees_dir/$branch"' in remote_script
+
+
+def test_full_sync_uses_host_and_worktrees_dir_overrides(tmp_path):
+    log_path = tmp_path / "calls.log"
+    log_path.touch()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf 'gallery-ux-polish\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            printf '/srv/stability/wtrees/gallery-ux-polish\\n'
+            """
+        ),
+    )
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+    }
+
+    result = subprocess.run(
+        [
+            str(SCRIPT),
+            "--host",
+            "gpu-box",
+            "--repo-path",
+            "/srv/stability",
+            "--worktrees-dir",
+            "wtrees",
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "gpu-box:/srv/stability/wtrees/gallery-ux-polish"
+    log = log_path.read_text()
+    assert "ssh gpu-box" in log
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert 'worktree_path="$repo_root/$worktrees_dir/$branch"' in remote_script
