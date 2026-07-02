@@ -146,6 +146,30 @@ Run the explicit CUDA suite:
 docker compose -f docker-compose.test.yml run --rm test-cuda
 ```
 
+## Remote GPU Dev Verification
+
+The bind-mounted dev workflow in [`docker-compose.dev.yml`](../docker-compose.dev.yml) must run from a real repo tree on the Docker host. On a laptop, use the remote helper flow instead of trying to drive the bind mounts directly through Docker context alone.
+
+Prepare or refresh the remote worktree and run the CUDA dev verification:
+
+```bash
+scripts/enigma-dev-verify.sh --branch <branch>
+```
+
+This wrapper:
+
+- pushes the branch to the selected Git remote
+- refreshes a branch worktree on the remote host
+- runs `docker compose -f docker-cuda.yml build`
+- runs `docker compose -f docker-compose.dev.yml up -d --build`
+- waits for `lcm-sd-dev` to report a healthy Docker health status
+- prints recent container logs
+- prints the remaining manual `conf/modes.yaml` watcher check
+
+Pass `--skip-base-build` after the first successful run if the base CUDA image is already present and you only need to re-run the fast dev-compose check.
+
+The final `modes.yaml` edit is intentionally manual in v1. It keeps the remote config mutation explicit and reversible for the operator.
+
 ## Expected Local Warnings
 
 A local smoke run may warn that:
