@@ -23,6 +23,18 @@
 - Modify: `docs/TESTING_IN_DOCKER.md`
   Purpose: operator-facing documentation for the remote GPU verification workflow and its manual final step.
 
+## Execution Prerequisite
+
+Before Task 1, resolve the active FP issue ID for this slice and export it for the commit templates:
+
+```bash
+export FP_ID=STABL-<active-issue-id>
+fp context "$FP_ID"
+git log --oneline -8
+```
+
+All commit messages below assume `FP_ID` is set and include the next step in the message body, per `AGENTS.md`.
+
 ### Task 1: Build the generic remote worktree helper
 
 **Files:**
@@ -51,11 +63,40 @@ Append:
 def test_full_sync_uses_host_and_worktrees_dir_overrides(tmp_path):
     log_path = tmp_path / "calls.log"
     log_path.touch()
-    bin_dir = _make_stub_bin(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "git",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            case "$1" in
+              rev-parse) printf '%s\\n' "$PWD" ;;
+              branch)
+                if [ "$2" = "--show-current" ]; then
+                  printf 'gallery-ux-polish\\n'
+                fi
+                ;;
+              *)
+                printf 'git %s\\n' "$*" >> "{log_path}"
+                ;;
+            esac
+            """
+        ),
+    )
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            printf '/srv/stability/wtrees/gallery-ux-polish\\n'
+            """
+        ),
+    )
     env = os.environ | {
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "TEST_LOG": str(log_path),
-        "TEST_BRANCH": "gallery-ux-polish",
     }
 
     result = subprocess.run(
@@ -80,10 +121,10 @@ def test_full_sync_uses_host_and_worktrees_dir_overrides(tmp_path):
     assert 'worktree_path="$repo_root/$worktrees_dir/$branch"' in remote_script
 ```
 
-Also update the existing override test’s expected path expression from `.worktrees` to keep passing when `--worktrees-dir` is not supplied:
+Also update the existing override test’s remote-script assertion to match the generic implementation:
 
 ```python
-assert 'worktree_path="$repo_root/.worktrees/$branch"' in remote_script
+assert 'worktree_path="$repo_root/$worktrees_dir/$branch"' in remote_script
 ```
 
 - [ ] **Step 2: Run the generic-helper tests to verify they fail**
@@ -169,7 +210,7 @@ remote_path="$(
     REMOTE_NAME="$remote_name" \
     BRANCH="$branch" \
     WORKTREES_DIR="$worktrees_dir" \
-    'bash -s' <<'"'"'EOF'"'"'
+    'bash -s' <<'EOF'
 set -euo pipefail
 
 repo_root="${REPO_ROOT/#\~/$HOME}"
@@ -229,7 +270,7 @@ Expected: PASS
 
 ```bash
 git add scripts/remote-worktree.sh tests/test_enigma_worktree_script.py
-git commit -m "feat(remote): add generic remote worktree sync helper"
+git commit -m "$FP_ID feat(remote): add generic remote worktree sync helper" -m "Next: add repo-specific enigma verifier wrapper."
 ```
 
 ### Task 2: Build the repo-specific `enigma` dev verifier
@@ -258,20 +299,26 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path):
-    log_path = tmp_path / "calls.log"
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-
+def _write_remote_worktree_stub(path: Path, helper_log: Path) -> None:
     _write_executable(
-        bin_dir / "remote-worktree.sh",
+        path,
         textwrap.dedent(
-            """\
+            f"""\
             #!/bin/sh
-            printf 'enigma:/srv/stability/.worktrees/gallery-ux-polish\n'
+            printf 'helper %s\\n' "$*" >> "{helper_log}"
+            printf 'enigma:/srv/stability/.worktrees/gallery-ux-polish\\n'
             """
         ),
     )
+
+
+def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
     _write_executable(
         bin_dir / "ssh",
         textwrap.dedent(
@@ -298,6 +345,8 @@ def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path
     )
 
     assert result.returncode == 0
+    helper_lines = helper_log.read_text().splitlines()
+    assert len(helper_lines) == 1
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert 'cd "/srv/stability/.worktrees/gallery-ux-polish"' in remote_script
     assert 'docker compose -f docker-cuda.yml build' in remote_script
@@ -306,15 +355,14 @@ def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path
     assert "docker logs --tail 50 lcm-sd-dev" in remote_script
 
 
-def test_verify_prints_manual_modes_yaml_handoff(tmp_path):
+def test_verify_manual_step_only_skips_remote_docker_phase(tmp_path):
     log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    log_path.touch()
 
-    _write_executable(
-        bin_dir / "remote-worktree.sh",
-        "#!/bin/sh\nprintf 'enigma:/srv/stability/.worktrees/gallery-ux-polish\\n'\n",
-    )
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
     _write_executable(
         bin_dir / "ssh",
         textwrap.dedent(
@@ -332,7 +380,7 @@ def test_verify_prints_manual_modes_yaml_handoff(tmp_path):
     }
 
     result = subprocess.run(
-        [str(SCRIPT), "--dry-run-manual-step"],
+        [str(SCRIPT), "--manual-step-only"],
         cwd=tmp_path,
         env=env,
         text=True,
@@ -345,6 +393,8 @@ def test_verify_prints_manual_modes_yaml_handoff(tmp_path):
     assert "conf/modes.yaml" in result.stdout
     assert "docker logs -f lcm-sd-dev" in result.stdout
     assert log_path.read_text() == ""
+    helper_lines = helper_log.read_text().splitlines()
+    assert len(helper_lines) == 1
 ```
 
 - [ ] **Step 2: Run the verifier tests to verify they fail**
@@ -371,6 +421,7 @@ remote_name="origin"
 worktrees_dir=".worktrees"
 branch=""
 manual_only=0
+skip_base_build=0
 
 usage() {
   cat <<'EOF'
@@ -382,7 +433,8 @@ Options:
   --remote <name>
   --branch <name>
   --worktrees-dir <path>
-  --dry-run-manual-step
+  --manual-step-only
+  --skip-base-build
   --help
 EOF
 }
@@ -394,7 +446,8 @@ while [ "$#" -gt 0 ]; do
     --remote) remote_name="$2"; shift 2 ;;
     --branch) branch="$2"; shift 2 ;;
     --worktrees-dir) worktrees_dir="$2"; shift 2 ;;
-    --dry-run-manual-step) manual_only=1; shift ;;
+    --manual-step-only) manual_only=1; shift ;;
+    --skip-base-build) skip_base_build=1; shift ;;
     --help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -402,24 +455,17 @@ done
 
 helper_dir="$(cd "$(dirname "$0")" && pwd)"
 remote_worktree_bin="${REMOTE_WORKTREE_BIN:-$helper_dir/remote-worktree.sh}"
-sync_output="$(
-  "$remote_worktree_bin" \
-    --host "$host" \
-    --repo-path "$repo_path" \
-    --remote "$remote_name" \
-    --worktrees-dir "$worktrees_dir"
-)"
-
+sync_args=(
+  --host "$host"
+  --repo-path "$repo_path"
+  --remote "$remote_name"
+  --worktrees-dir "$worktrees_dir"
+)
 if [ -n "$branch" ]; then
-  sync_output="$(
-    "$remote_worktree_bin" \
-      --host "$host" \
-      --repo-path "$repo_path" \
-      --remote "$remote_name" \
-      --branch "$branch" \
-      --worktrees-dir "$worktrees_dir"
-  )"
+  sync_args+=(--branch "$branch")
 fi
+
+sync_output="$("$remote_worktree_bin" "${sync_args[@]}")"
 
 sync_host="${sync_output%%:*}"
 worktree_path="${sync_output#*:}"
@@ -429,7 +475,9 @@ if [ "$manual_only" -eq 0 ]; then
 set -euo pipefail
 
 cd "$worktree_path"
-docker compose -f docker-cuda.yml build
+if [ "$skip_base_build" -eq 0 ]; then
+  docker compose -f docker-cuda.yml build
+fi
 docker compose -f docker-compose.dev.yml up -d --build
 
 attempt=0
@@ -491,7 +539,7 @@ Expected: PASS
 
 ```bash
 git add scripts/enigma-dev-verify.sh tests/test_enigma_dev_verify_script.py
-git commit -m "feat(enigma): add dev compose verification wrapper"
+git commit -m "$FP_ID feat(enigma): add dev compose verification wrapper" -m "Next: document the remote GPU verification workflow."
 ```
 
 ### Task 3: Document the remote GPU verification workflow
@@ -506,7 +554,7 @@ Append this section to `docs/TESTING_IN_DOCKER.md` after the existing Docker tes
 ````md
 ## Remote GPU Dev Verification
 
-The bind-mounted dev workflow in [`docker-compose.dev.yml`](/Users/darkbit1001/workspace/Stability-Toys/docker-compose.dev.yml) must run from a real repo tree on the Docker host. On a laptop, use the remote helper flow instead of trying to drive the bind mounts directly through Docker context alone.
+The bind-mounted dev workflow in [`docker-compose.dev.yml`](../docker-compose.dev.yml) must run from a real repo tree on the Docker host. On a laptop, use the remote helper flow instead of trying to drive the bind mounts directly through Docker context alone.
 
 Prepare or refresh the remote worktree and run the CUDA dev verification:
 
@@ -523,6 +571,8 @@ This wrapper:
 - waits for `lcm-sd-dev` to report a healthy Docker health status
 - prints recent container logs
 - prints the remaining manual `conf/modes.yaml` watcher check
+
+Pass `--skip-base-build` after the first successful run if the base CUDA image is already present and you only need to re-run the fast dev-compose check.
 
 The final `modes.yaml` edit is intentionally manual in v1. It keeps the remote config mutation explicit and reversible for the operator.
 ````
@@ -541,7 +591,7 @@ Expected: the new section is present, accurate, and does not contradict the exis
 
 ```bash
 git add docs/TESTING_IN_DOCKER.md
-git commit -m "docs(docker): document remote GPU dev verification flow"
+git commit -m "$FP_ID docs(docker): document remote GPU dev verification flow" -m "Next: run the final local verification suite."
 ```
 
 ### Task 4: Final verification
