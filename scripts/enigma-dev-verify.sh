@@ -134,7 +134,7 @@ if [ "\$status" != "healthy" ]; then
   exit 1
 fi
 
-docker logs --tail 50 lcm-sd-dev
+docker logs --tail 50 lcm-sd-dev -f
 EOF
 fi
 
