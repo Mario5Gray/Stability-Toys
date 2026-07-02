@@ -111,6 +111,8 @@ def test_verify_unhealthy_container_dumps_local_diagnostics(tmp_path):
     assert "docker inspect -f 'status={{.State.Status}}" in remote_script
     assert "[enigma-dev-verify] recent container logs (tail 250):" in remote_script
     assert "docker logs --tail 250 lcm-sd-dev" in remote_script
+    diagnostic_body = remote_script.split("dump_dev_container_diagnostics() {", 1)[1].split("\n}", 1)[0]
+    assert ">&2" not in diagnostic_body
     assert "dump_dev_container_diagnostics" in remote_script.split('if [ "$status" != "healthy" ]; then', 1)[1]
 
 
