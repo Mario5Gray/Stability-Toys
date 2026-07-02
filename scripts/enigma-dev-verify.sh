@@ -83,11 +83,7 @@ if [ "$manual_only" -eq 0 ]; then
 set -euo pipefail
 
 cd "$worktree_path"
-if [ -f .envrc ]; then
-  set -a
-  . ./.envrc
-  set +a
-fi
+
 $remote_env_block
 observe_anchor() {
   anchor_name="\$1"
@@ -134,7 +130,7 @@ if [ "\$status" != "healthy" ]; then
   exit 1
 fi
 
-docker logs -n 50 -f lcm-sd-dev
+docker logs --tail 50 lcm-sd-dev
 EOF
 fi
 
