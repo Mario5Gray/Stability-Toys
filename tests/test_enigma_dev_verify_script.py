@@ -1,0 +1,149 @@
+from pathlib import Path
+import os
+import subprocess
+import textwrap
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts" / "enigma-dev-verify.sh"
+
+
+def _write_executable(path: Path, content: str) -> None:
+    path.write_text(content)
+    path.chmod(0o755)
+
+
+def _write_remote_worktree_stub(path: Path, helper_log: Path) -> None:
+    _write_executable(
+        path,
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'helper %s\\n' "$*" >> "{helper_log}"
+            printf 'enigma:/srv/stability/.worktrees/gallery-ux-polish\\n'
+            """
+        ),
+    )
+
+
+def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    helper_lines = helper_log.read_text().splitlines()
+    assert len(helper_lines) == 1
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert 'cd "/srv/stability/.worktrees/gallery-ux-polish"' in remote_script
+    assert "docker compose -f docker-cuda.yml build" in remote_script
+    assert "docker compose -f docker-compose.dev.yml up -d --build" in remote_script
+    assert "docker inspect -f '{{.State.Health.Status}}' lcm-sd-dev" in remote_script
+    assert "docker logs --tail 50 lcm-sd-dev" in remote_script
+
+
+def test_verify_manual_step_only_skips_remote_docker_phase(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log_path.touch()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            exit 0
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "--manual-step-only"],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Manual step remaining:" in result.stdout
+    assert "conf/modes.yaml" in result.stdout
+    assert "docker logs -f lcm-sd-dev" in result.stdout
+    assert log_path.read_text() == ""
+    helper_lines = helper_log.read_text().splitlines()
+    assert len(helper_lines) == 1
+
+
+def test_verify_skip_base_build_omits_cuda_base_build(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "--skip-base-build"],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    assert "docker compose -f docker-cuda.yml build" not in remote_script
+    assert "docker compose -f docker-compose.dev.yml up -d --build" in remote_script
