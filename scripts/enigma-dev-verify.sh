@@ -8,6 +8,7 @@ worktrees_dir=".worktrees"
 branch=""
 manual_only=0
 skip_base_build=0
+remote_env_block=""
 
 usage() {
   cat <<'EOF'
@@ -37,6 +38,24 @@ while [ "$#" -gt 0 ]; do
     --help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
+done
+
+add_remote_env_if_set() {
+  local name="$1"
+  local value=""
+  local quoted=""
+
+  if [ -z "${!name+x}" ]; then
+    return
+  fi
+
+  value="${!name}"
+  printf -v quoted '%q' "$value"
+  remote_env_block="${remote_env_block}export ${name}=${quoted}"$'\n'
+}
+
+for compose_env_name in MODELS_HOST_PATH FS_HOST_PATH WORKFLOW_HOST_PATH BASE_IMAGE GIT_SHA; do
+  add_remote_env_if_set "$compose_env_name"
 done
 
 helper_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -69,6 +88,7 @@ if [ -f .envrc ]; then
   . ./.envrc
   set +a
 fi
+$remote_env_block
 $base_build_command
 docker compose -f docker-compose.dev.yml up -d --build
 
