@@ -189,3 +189,50 @@ def test_verify_sources_envrc_before_remote_compose_commands(tmp_path):
     compose_up = "docker compose -f docker-compose.dev.yml up -d --build"
     assert source_envrc in remote_script
     assert remote_script.index(source_envrc) < remote_script.index(compose_up)
+
+
+def test_verify_passes_local_compose_env_to_remote_shell(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+        "MODELS_HOST_PATH": "/media/models",
+        "FS_HOST_PATH": "/media/creative/dreamers",
+        "WORKFLOW_HOST_PATH": "/media/workflows",
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    compose_up = "docker compose -f docker-compose.dev.yml up -d --build"
+    for export_line in [
+        "export MODELS_HOST_PATH=/media/models",
+        "export FS_HOST_PATH=/media/creative/dreamers",
+        "export WORKFLOW_HOST_PATH=/media/workflows",
+    ]:
+        assert export_line in remote_script
+        assert remote_script.index(export_line) < remote_script.index(compose_up)
