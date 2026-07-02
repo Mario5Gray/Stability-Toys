@@ -198,7 +198,7 @@ def test_verify_skip_base_build_omits_cuda_base_build(tmp_path):
     assert "docker compose -f docker-compose.dev.yml up -d --build" in remote_script
 
 
-def test_verify_sources_envrc_before_remote_compose_commands(tmp_path):
+def test_verify_does_not_source_remote_envrc_before_compose_commands(tmp_path):
     log_path = tmp_path / "calls.log"
     helper_log = tmp_path / "helper.log"
     bin_dir = tmp_path / "bin"
@@ -232,10 +232,11 @@ def test_verify_sources_envrc_before_remote_compose_commands(tmp_path):
 
     assert result.returncode == 0
     remote_script = (tmp_path / "remote-script.sh").read_text()
-    source_envrc = 'if [ -f .envrc ]; then'
     compose_up = "docker compose -f docker-compose.dev.yml up -d --build"
-    assert source_envrc in remote_script
-    assert remote_script.index(source_envrc) < remote_script.index(compose_up)
+    assert "if [ -f .envrc ]; then" not in remote_script
+    assert "set -a" not in remote_script
+    assert "$remote_env_block" not in remote_script
+    assert compose_up in remote_script
 
 
 def test_verify_passes_local_compose_env_to_remote_shell(tmp_path):
