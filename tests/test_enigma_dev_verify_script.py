@@ -61,6 +61,8 @@ def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path
     assert result.returncode == 0
     helper_lines = helper_log.read_text().splitlines()
     assert len(helper_lines) == 1
+    assert "--host enigma.lan" in helper_lines[0]
+    assert "--repo-path /home/hdd/workspace/Stability-Toys" in helper_lines[0]
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert 'cd "/srv/stability/.worktrees/gallery-ux-polish"' in remote_script
     assert "docker compose -f docker-cuda.yml build" in remote_script
@@ -147,3 +149,43 @@ def test_verify_skip_base_build_omits_cuda_base_build(tmp_path):
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert "docker compose -f docker-cuda.yml build" not in remote_script
     assert "docker compose -f docker-compose.dev.yml up -d --build" in remote_script
+
+
+def test_verify_sources_envrc_before_remote_compose_commands(tmp_path):
+    log_path = tmp_path / "calls.log"
+    helper_log = tmp_path / "helper.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+
+    _write_remote_worktree_stub(bin_dir / "remote-worktree.sh", helper_log)
+    _write_executable(
+        bin_dir / "ssh",
+        textwrap.dedent(
+            f"""\
+            #!/bin/sh
+            printf 'ssh %s\n' "$*" >> "{log_path}"
+            cat > "{tmp_path}/remote-script.sh"
+            """
+        ),
+    )
+
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REMOTE_WORKTREE_BIN": str(bin_dir / "remote-worktree.sh"),
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    remote_script = (tmp_path / "remote-script.sh").read_text()
+    source_envrc = 'if [ -f .envrc ]; then'
+    compose_up = "docker compose -f docker-compose.dev.yml up -d --build"
+    assert source_envrc in remote_script
+    assert remote_script.index(source_envrc) < remote_script.index(compose_up)
