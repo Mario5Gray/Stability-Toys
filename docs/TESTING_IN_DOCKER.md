@@ -170,6 +170,26 @@ Pass `--skip-base-build` after the first successful run if the base CUDA image i
 
 The final `modes.yaml` edit is intentionally manual in v1. It keeps the remote config mutation explicit and reversible for the operator.
 
+Use two terminals for that final watcher check:
+
+```bash
+# Terminal A
+ssh <host>
+cd <remote-worktree>
+docker logs -f lcm-sd-dev
+```
+
+Leave Terminal A running, then make the reversible config edit separately:
+
+```bash
+# Terminal B
+ssh <host>
+cd <remote-worktree>
+$EDITOR conf/modes.yaml
+```
+
+Confirm Terminal A prints the watcher reload without restarting `lcm-sd-dev`.
+
 ## Expected Local Warnings
 
 A local smoke run may warn that:

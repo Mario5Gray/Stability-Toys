@@ -132,8 +132,11 @@ EOF
 fi
 
 printf 'Manual step remaining:\n'
-printf '1. ssh %s\n' "$sync_host"
-printf '2. cd %s\n' "$worktree_path"
-printf '3. edit conf/modes.yaml and save one reversible change\n'
-printf '4. docker logs -f lcm-sd-dev\n'
-printf '5. confirm the config watcher reloads without restarting the container\n'
+printf '1. Terminal A: ssh %s\n' "$sync_host"
+printf '2. Terminal A: cd %s\n' "$worktree_path"
+printf '3. Terminal A: docker logs -f lcm-sd-dev\n'
+printf '4. Terminal A: leave the log stream running\n'
+printf '5. Terminal B: ssh %s\n' "$sync_host"
+printf '6. Terminal B: cd %s\n' "$worktree_path"
+printf '7. Terminal B: edit conf/modes.yaml and save one reversible change\n'
+printf '8. Terminal A: confirm the config watcher reloads without restarting the container\n'

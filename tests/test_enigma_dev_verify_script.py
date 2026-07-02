@@ -106,8 +106,10 @@ def test_verify_manual_step_only_skips_remote_docker_phase(tmp_path):
 
     assert result.returncode == 0
     assert "Manual step remaining:" in result.stdout
-    assert "conf/modes.yaml" in result.stdout
-    assert "docker logs -f lcm-sd-dev" in result.stdout
+    assert "Terminal A: docker logs -f lcm-sd-dev" in result.stdout
+    assert "leave the log stream running" in result.stdout
+    assert "Terminal B: edit conf/modes.yaml and save one reversible change" in result.stdout
+    assert "Terminal A: confirm the config watcher reloads without restarting the container" in result.stdout
     assert log_path.read_text() == ""
     helper_lines = helper_log.read_text().splitlines()
     assert len(helper_lines) == 1
