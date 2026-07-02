@@ -89,6 +89,24 @@ if [ -f .envrc ]; then
   set +a
 fi
 $remote_env_block
+observe_anchor() {
+  anchor_name="\$1"
+  anchor_path="\$2"
+
+  printf '[enigma-dev-verify] %s=%s\n' "\$anchor_name" "\$anchor_path"
+  if [ -e "\$anchor_path" ]; then
+    printf '[enigma-dev-verify] %s anchor: ' "\$anchor_name"
+    ls -ld "\$anchor_path"
+  else
+    printf '[enigma-dev-verify] %s anchor missing: %s\n' "\$anchor_name" "\$anchor_path"
+  fi
+}
+
+printf '[enigma-dev-verify] worktree=%s\n' "\$PWD"
+observe_anchor "MODELS_HOST_PATH" "\${MODELS_HOST_PATH:-./model}"
+observe_anchor "FS_HOST_PATH" "\${FS_HOST_PATH:-./store}"
+observe_anchor "WORKFLOW_HOST_PATH" "\${WORKFLOW_HOST_PATH:-./workflows}"
+
 $base_build_command
 docker compose -f docker-compose.dev.yml up -d --build
 
