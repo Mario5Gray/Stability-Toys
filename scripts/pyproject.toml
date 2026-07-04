@@ -39,4 +39,4 @@ st-pose-map  = "pose_map:main"
 st-canny-map = "canny_map:main"
 
 [tool.setuptools]
-py-modules = ["depth_map", "pose_map", "canny_map"]
+py-modules = ["depth_map", "pose_map", "canny_map", "cn_metadata"]
