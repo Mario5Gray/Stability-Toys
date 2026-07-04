@@ -98,6 +98,8 @@ class CudaWorkerBase:
 
     def _controlnet_metadata(self, bindings: list[Any]) -> list[dict[str, Any]]:
         """Per-attachment ControlNet provenance for the generation PNG."""
+        # Local import (intentional): keeps this out of module load so backends
+        # does not take an import-time dependency on server (layering inversion).
         from server.controlnet_metadata import read_control_map_metadata
 
         entries: list[dict[str, Any]] = []
