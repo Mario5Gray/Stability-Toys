@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from cn_metadata import build_map_metadata, save_with_metadata
+
 
 def load_image(path: Path, max_res: int | None) -> Image.Image:
     img = Image.open(path).convert("RGB")
@@ -102,7 +104,19 @@ def main() -> None:
         blur=args.blur,
         invert=args.invert,
     )
-    result.save(args.destination)
+    payload = build_map_metadata(
+        tool="canny_map",
+        control_type="canny",
+        source_size=img.size,
+        params={
+            "low_threshold": args.low_threshold,
+            "high_threshold": args.high_threshold,
+            "blur": args.blur,
+            "invert": args.invert,
+            "max_res": args.max_res,
+        },
+    )
+    save_with_metadata(result, args.destination, payload)
     print(f"saved    {args.destination}")
 
 

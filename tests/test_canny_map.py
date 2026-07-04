@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import tomllib
 
 
@@ -18,6 +19,7 @@ def test_pyproject_exposes_canny_install_surface():
     ]
     assert project["scripts"]["st-canny-map"] == "canny_map:main"
     assert "canny_map" in data["tool"]["setuptools"]["py-modules"]
+    assert "cn_metadata" in data["tool"]["setuptools"]["py-modules"]
 
 
 import subprocess
@@ -122,3 +124,22 @@ def test_invalid_blur_values_fail_fast(tmp_path: Path, blur: str):
 
     assert result.returncode != 0
     assert "--blur must be 0 or a positive odd integer" in result.stderr
+
+
+def test_canny_map_embeds_metadata(tmp_path: Path):
+    source = tmp_path / "source.png"
+    dest = tmp_path / "edges.png"
+    _write_fixture(source, size=(96, 64))
+
+    result = _run_script(source, dest, "--low-threshold", "50", "--high-threshold", "150")
+
+    assert result.returncode == 0, result.stderr
+    out = Image.open(dest)
+    meta = json.loads(out.text["controlnet_map"])
+    assert meta["tool"] == "canny_map"
+    assert meta["control_type"] == "canny"
+    assert meta["low_threshold"] == 50
+    assert meta["high_threshold"] == 150
+    assert meta["blur"] == 0
+    assert meta["invert"] is False
+    assert (meta["source_width"], meta["source_height"]) == (96, 64)
