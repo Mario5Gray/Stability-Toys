@@ -44,12 +44,12 @@ V2 and later may add drawing, img2img, more preprocessors, and RKNN support.
 
 ## Current State
 
-- [`server/lcm_sr_server.py`](/Users/darkbit1001/workspace/Stability-Toys/server/lcm_sr_server.py) defines `GenerateRequest` and carries mode-owned generation controls such as `negative_prompt` and `scheduler_id`. As implemented in Track 1, `GenerateRequest` now also carries an optional `controlnets: list[ControlNetAttachment]` field; the rest of this section described the pre-Track-1 baseline.
-- [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) translates frontend generation params into `GenerateRequest` and currently forwards negative prompt, scheduler, size, and img2img source references, but not ControlNet attachments.
-- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py) and [`server/model_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/model_routes.py) already expose the pattern this repo uses for mode-owned policy: parse it in config, serialize it through `/api/modes`, and let the frontend stay dumb.
+- [`server/lcm_sr_server.py`](/Users/darkbit1001/workspace/Stability-Toys/server/lcm_sr_server.py) now carries the shipped Track 1–3 backend contract: `GenerateRequest` includes optional `controlnets`, the request is resolved into `controlnet_bindings` before worker execution, and generation completion surfaces emitted `controlnet_artifacts` when preprocessing produced reusable maps.
+- [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) translates frontend generation params into `GenerateRequest` and forwards ControlNet attachments through the same generation path as prompt, size, scheduler, and img2img source references.
+- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py) and [`server/model_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/model_routes.py) now parse and serialize `controlnet_policy` through `/api/modes`, so the backend remains the source of truth and the frontend learns legal ControlNet choices from mode metadata.
 - [`server/generation_constraints.py`](/Users/darkbit1001/workspace/Stability-Toys/server/generation_constraints.py) already centralizes mode-aware backend enforcement for generation requests, but only for size and existing defaults.
-- [`backends/cuda_worker.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/cuda_worker.py) already has a CUDA worker base that resolves scheduler policy and applies request-specific generation settings. That is the right general layer for ControlNet execution, but not the right place to hide preprocessor state or asset emission.
-- [`server/upload_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/upload_routes.py) only provides ephemeral `fileRef -> bytes` resolution. That is insufficient for reusable derived control maps.
+- [`backends/cuda_worker.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/cuda_worker.py) now owns the shipped CUDA execution seam for ControlNet bindings: ordered model loading, ordered map decoding, request-time conditioning kwargs, and generation PNG metadata emission (`lcm` for base generation metadata, plus `controlnet` when bindings are present). It still does not own policy truth, preprocessing choice, or asset persistence.
+- [`server/upload_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/upload_routes.py) no longer owns the reusable-map lifecycle directly. That responsibility moved into `server/asset_store.py`, which now backs both upload refs and emitted control-map refs.
 - The frontend already uses a mode-aware generation control path through [`lcm-sr-ui/src/hooks/useGenerationParams.js`](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/hooks/useGenerationParams.js), [`lcm-sr-ui/src/utils/generationControls.js`](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/utils/generationControls.js), and [`lcm-sr-ui/src/components/options/OptionsPanel.jsx`](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/components/options/OptionsPanel.jsx) for negative prompt and scheduler selection.
 
 ## Proposed Approach
@@ -327,6 +327,9 @@ Practical note:
 
 - `backends/cuda_worker.py` is still the right place to consume resolved ControlNet bindings during generation
 - it is not the right place to discover user intent or to hide preprocessor outputs
+- when bindings are present, the generated PNG now carries two independent text chunks:
+  - `lcm` for prompt/seed/size/steps/cfg/scheduler metadata
+  - `controlnet` for per-attachment ControlNet generation params plus any embedded `controlnet_map` provenance recovered from the source control-map PNG bytes
 
 ### 7. Backend enforcement
 

@@ -7,6 +7,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from cn_metadata import build_map_metadata, save_with_metadata
+
 import torch
 if not hasattr(torch, "float8_e8m0fnu"):
   setattr(torch, "float8_e8m0fnu", torch.float32)
@@ -128,7 +130,18 @@ def main() -> None:
     else:
         result = mediapipe(img, args.overlay, args.show_keypoints)
 
-    result.save(args.destination)
+    payload = build_map_metadata(
+        tool="pose_map",
+        control_type="pose",
+        source_size=img.size,
+        params={
+            "model": args.model,
+            "parts": sorted(parts),
+            "device": args.device,
+            "max_res": args.max_res,
+        },
+    )
+    save_with_metadata(result, args.destination, payload)
     print(f"saved    {args.destination}")
 
 

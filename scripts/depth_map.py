@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from cn_metadata import build_map_metadata, save_with_metadata
+
 import torch
 if not hasattr(torch, "float8_e8m0fnu"):
   setattr(torch, "float8_e8m0fnu", torch.float32)
@@ -134,7 +136,19 @@ def main() -> None:
     if args.invert:
         depth = invert_image(depth)
 
-    depth.save(args.destination)
+    payload = build_map_metadata(
+        tool="depth_map",
+        control_type="depth",
+        source_size=img.size,
+        params={
+            "model": args.model,
+            "size": args.size,
+            "device": args.device,
+            "invert": args.invert,
+            "max_res": args.max_res,
+        },
+    )
+    save_with_metadata(depth, args.destination, payload)
     print(f"saved    {args.destination}")
 
     if args.colorize:
