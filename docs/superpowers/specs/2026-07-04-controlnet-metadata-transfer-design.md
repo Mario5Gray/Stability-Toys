@@ -55,6 +55,30 @@ New shared helper `scripts/cn_metadata.py`:
 
 Each tool calls `save_with_metadata(...)` in place of `result.save(destination)`.
 
+### Packaging
+
+`scripts/pyproject.toml` ships a **flat module list**, not a package:
+`py-modules = ["depth_map", "pose_map", "canny_map"]`. A new top-level
+`cn_metadata` module must be added to that list, otherwise `pip install
+"./scripts[all]"` and the `st-canny-map` / `st-depth-map` / `st-pose-map`
+entry points fail with `ModuleNotFoundError` at `import cn_metadata`. (Direct
+`python scripts/<tool>.py` runs resolve it via the script's own directory on
+`sys.path`, but the installed surface would not.)
+
+The scripts import it as a top-level module (`import cn_metadata`), matching
+how the flat layout already works.
+
+`tests/test_canny_map.py::test_pyproject_exposes_canny_install_surface`
+asserts the `py-modules` contents and must be updated to include
+`cn_metadata`.
+
+### `--colorize` preview is excluded
+
+`depth_map.py --colorize` writes a second `_color.png` jet-colormap
+**visualization**. That file is a human preview, not a control map fed to
+ControlNet, and is **not** stamped with `controlnet_map`. Only the primary
+grayscale map carries metadata.
+
 ### Chunk key
 
 `controlnet_map` — a single PNG `tEXt` chunk on the control-map image.
@@ -80,6 +104,12 @@ Tool-specific fields:
 
 `max_res` is recorded as given (may be `null`). `source_width`/`source_height`
 reflect the image actually processed (post-`--max-res`).
+
+`device` records the **requested `--device` CLI argument** (provenance = what
+the operator asked for), for depth and pose. Note: `pose_map.py` currently
+accepts `--device` but does not apply it to any of its detectors; the field
+still records the requested value, and the divergence is a pre-existing script
+behavior, not something this work changes.
 
 ## Part 2 — Worker transfers into the generation PNG
 
@@ -161,10 +191,24 @@ canny_map/depth_map/pose_map
 
 ## Testing
 
-- **Script tests** (one per tool): run the tool on a fixture image, reopen the
-  output PNG, assert the `controlnet_map` chunk parses and contains the
-  expected common + tool-specific keys with expected values, including
-  `source_width`/`source_height` reflecting post-`--max-res` size.
+Runtime-model isolation is a hard constraint: `depth_map.py` and `pose_map.py`
+call model-backed code (`depth_anything`/`midas`/`zoe`,
+`openpose`/`dwpose`/`mediapipe`). Tests must not download or run models. Seams:
+
+- **`cn_metadata` unit tests** (no models): call `build_map_metadata(...)` and
+  assert payload shape/values; call `save_with_metadata(pil_image, dest,
+  payload)` on a synthetic in-memory `PIL.Image`, reopen, assert the
+  `controlnet_map` chunk round-trips. This is the primary coverage for the
+  stamping logic and is fully offline.
+- **canny script test**: canny is pure-CPU (`cv2`), so extend the existing
+  `tests/test_canny_map.py` subprocess pattern — run on a fixture image,
+  reopen output, assert the `controlnet_map` chunk contains the expected
+  canny keys and post-`--max-res` `source_width`/`source_height`.
+- **depth / pose script tests**: patch the model-invoking function
+  (`monkeypatch` `depth_map.depth_anything` / `pose_map.dwpose` to return a
+  small dummy `PIL.Image`), then invoke `main()` in-process and assert the
+  saved PNG carries the expected `controlnet_map` payload. No subprocess, no
+  model, no network.
 - **Reader test**: valid chunk → dict; absent chunk → `None`; malformed JSON →
   `None`; non-PNG bytes → `None`.
 - **Worker metadata test**: build bindings with (a) a script-stamped map and
