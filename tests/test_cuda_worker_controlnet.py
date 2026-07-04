@@ -123,6 +123,7 @@ def _make_worker(worker_cls):
 def _make_binding(prefix, strength, start, end):
     return SimpleNamespace(
         attachment_id=f"{prefix}-attachment",
+        control_type=prefix,
         model_id=f"{prefix}-model",
         model_path=f"/models/{prefix}",
         control_image_bytes=f"{prefix}-bytes".encode(),

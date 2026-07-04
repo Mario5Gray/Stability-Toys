@@ -96,6 +96,27 @@ class CudaWorkerBase:
         self._baseline_scheduler_config = None
         self._parse_env()
 
+    def _controlnet_metadata(self, bindings: list[Any]) -> list[dict[str, Any]]:
+        """Per-attachment ControlNet provenance for the generation PNG."""
+        from server.controlnet_metadata import read_control_map_metadata
+
+        entries: list[dict[str, Any]] = []
+        for binding in bindings:
+            entries.append(
+                {
+                    "attachment_id": binding.attachment_id,
+                    "control_type": binding.control_type,
+                    "generation": {
+                        "model_id": binding.model_id,
+                        "strength": binding.strength,
+                        "start_percent": binding.start_percent,
+                        "end_percent": binding.end_percent,
+                    },
+                    "source": read_control_map_metadata(binding.control_image_bytes),
+                }
+            )
+        return entries
+
     def _parse_env(self) -> None:
         """Parse all CUDA_* env vars into instance attributes."""
         self.device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
@@ -573,6 +594,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 "negative_prompt": getattr(req, "negative_prompt", None),
                 "scheduler_id": scheduler_id,
             }))
+            if bindings:
+                pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
             buf = io.BytesIO()
             img.save(buf, format="PNG", pnginfo=pnginfo)
             return buf.getvalue(), seed
@@ -905,6 +928,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 "negative_prompt": getattr(req, "negative_prompt", None),
                 "scheduler_id": scheduler_id,
             }))
+            if bindings:
+                pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
             buf = io.BytesIO()
             img.save(buf, format="PNG", pnginfo=pnginfo)
             return buf.getvalue(), seed
