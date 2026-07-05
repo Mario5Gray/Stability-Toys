@@ -106,6 +106,22 @@ class InMemoryAssetStore:
             entry.last_accessed = time.time()
             return replace(entry, metadata=dict(entry.metadata))
 
+    def pin(self, ref: str) -> None:
+        with self._lock:
+            entry = self._require(ref)
+            if not self._policies[entry.bucket].pinnable:
+                raise ValueError(f"bucket {entry.bucket!r} is not pinnable")
+            entry.pin_count += 1
+
+    def unpin(self, ref: str) -> None:
+        with self._lock:
+            entry = self._require(ref)
+            if not self._policies[entry.bucket].pinnable:
+                raise ValueError(f"bucket {entry.bucket!r} is not pinnable")
+            if entry.pin_count == 0:
+                raise ValueError("pin_count is already 0")
+            entry.pin_count -= 1
+
     def bucket_bytes(self, bucket: str) -> int:
         with self._lock:
             self._policy(bucket)

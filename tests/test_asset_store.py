@@ -93,3 +93,105 @@ def test_write_oversize_asset_raises_and_admits_nothing():
 
 def test_get_store_returns_shared_singleton():
     assert get_store() is get_store()
+
+
+# --- pinning ---
+
+def test_pin_missing_raises_key_error():
+    store = _store()
+    with pytest.raises(KeyError, match="not found"):
+        store.pin("missing")
+
+
+def test_unpin_missing_raises_key_error():
+    store = _store()
+    with pytest.raises(KeyError, match="not found"):
+        store.unpin("missing")
+
+
+def test_unpin_zero_pin_count_raises_value_error():
+    store = _store()
+    ref = store.write("upload", b"hi")
+    with pytest.raises(ValueError, match="already 0"):
+        store.unpin(ref)
+
+
+def test_pin_on_non_pinnable_bucket_raises():
+    store = _store(fixed=BucketPolicy("fixed", byte_budget=MB, ttl_s=None, pinnable=False))
+    ref = store.write("fixed", b"data")
+    with pytest.raises(ValueError, match="not pinnable"):
+        store.pin(ref)
+
+
+def test_unpin_on_non_pinnable_bucket_raises():
+    store = _store(fixed=BucketPolicy("fixed", byte_budget=MB, ttl_s=None, pinnable=False))
+    ref = store.write("fixed", b"data")
+    with pytest.raises(ValueError, match="not pinnable"):
+        store.unpin(ref)
+
+
+# --- per-bucket eviction ---
+
+def test_evicts_lru_within_bucket_when_budget_exceeded():
+    store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
+    ref_a = store.write("b", b"aaaaaaa")  # 7
+    ref_b = store.write("b", b"bbbb")     # 4 -> total 11 > 10, evict a
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"bbbb"
+
+
+def test_eviction_is_isolated_per_bucket():
+    store = _store(
+        a=BucketPolicy("a", byte_budget=10, ttl_s=None),
+        b=BucketPolicy("b", byte_budget=10, ttl_s=None),
+    )
+    a_ref = store.write("a", b"aaaaaaa")  # 7 in bucket a
+    b1 = store.write("b", b"bbbbbbb")     # 7 in bucket b
+    b2 = store.write("b", b"cccc")        # 4 -> bucket b over budget, evicts b1
+    assert store.resolve(a_ref).data == b"aaaaaaa"  # bucket a untouched
+    with pytest.raises(KeyError):
+        store.resolve(b1)
+    assert store.resolve(b2).data == b"cccc"
+
+
+def test_evicts_oldest_unpinned_by_last_accessed():
+    store = _store(b=BucketPolicy("b", byte_budget=15, ttl_s=None))
+    ref_a = store.write("b", b"a" * 6)
+    ref_b = store.write("b", b"b" * 6)
+    store.resolve(ref_b)  # bumps ref_b last_accessed -> ref_a now oldest
+    ref_c = store.write("b", b"c" * 6)  # total 18 > 15, evict ref_a
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"b" * 6
+    assert store.resolve(ref_c).data == b"c" * 6
+
+
+def test_admission_fails_closed_when_pins_exceed_budget():
+    store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
+    ref_a = store.write("b", b"aaaaaaa")  # 7
+    store.pin(ref_a)
+    with pytest.raises(ValueError, match="insufficient evictable capacity"):
+        store.write("b", b"bbbb")  # 7 pinned + 4 = 11 > 10, cannot evict pin
+    # rolled back: only ref_a remains
+    assert store.resolve(ref_a).data == b"aaaaaaa"
+    assert store.bucket_bytes("b") == 7
+
+
+def test_unpin_allows_later_eviction():
+    store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
+    ref_a = store.write("b", b"aaaaaaa")
+    store.pin(ref_a)
+    store.unpin(ref_a)
+    ref_b = store.write("b", b"bbbb")  # a now unpinned -> evicted
+    with pytest.raises(KeyError):
+        store.resolve(ref_a)
+    assert store.resolve(ref_b).data == b"bbbb"
+
+
+def test_bucket_bytes_tracks_admission_and_eviction():
+    store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
+    store.write("b", b"aaaaaaa")   # 7
+    store.write("b", b"bbbb")      # evicts a -> 4
+    assert store.bucket_bytes("b") == 4
+    assert store.total_bytes() == 4
