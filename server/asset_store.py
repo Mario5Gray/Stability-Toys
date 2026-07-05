@@ -1,15 +1,28 @@
+import io
 import time
 import uuid
 from dataclasses import dataclass, field, replace
 from threading import RLock
-from typing import Any
+from typing import Any, Protocol
+
+from PIL import Image
+
+MB = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class BucketPolicy:
+    name: str
+    byte_budget: int
+    ttl_s: float | None
+    pinnable: bool = True
 
 
 @dataclass
 class AssetEntry:
     ref: str
     data: bytes
-    kind: str
+    bucket: str
     created_at: float
     last_accessed: float
     byte_size: int
@@ -17,91 +30,117 @@ class AssetEntry:
     pin_count: int = 0
 
 
-class AssetStore:
-    _ALLOWED_KINDS = {"upload", "control_map"}
+_DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
+    "upload": BucketPolicy("upload", byte_budget=128 * MB, ttl_s=300),
+    "control_map": BucketPolicy("control_map", byte_budget=256 * MB, ttl_s=None),
+    "ref_image": BucketPolicy("ref_image", byte_budget=128 * MB, ttl_s=None),
+}
 
-    def __init__(self, byte_budget: int = 512 * 1024 * 1024) -> None:
+
+class AssetStore(Protocol):
+    def write(self, bucket: str, data: bytes, metadata: dict[str, Any] | None = None) -> str: ...
+    def resolve(self, ref: str) -> AssetEntry: ...
+    def promote(self, ref: str, target_bucket: str) -> str: ...
+    def pin(self, ref: str) -> None: ...
+    def unpin(self, ref: str) -> None: ...
+    def cleanup_expired(self) -> list[str]: ...
+    def bucket_bytes(self, bucket: str) -> int: ...
+    def total_bytes(self) -> int: ...
+    def buckets(self) -> list[str]: ...
+
+
+class InMemoryAssetStore:
+    def __init__(self, buckets: dict[str, BucketPolicy] | None = None) -> None:
+        self._policies: dict[str, BucketPolicy] = (
+            dict(buckets) if buckets is not None else dict(_DEFAULT_BUCKETS)
+        )
         self._entries: dict[str, AssetEntry] = {}
-        self._byte_budget = byte_budget
-        self._total_bytes = 0
+        self._bucket_bytes: dict[str, int] = {name: 0 for name in self._policies}
         self._lock = RLock()
 
-    def insert(self, kind: str, data: bytes, metadata: dict[str, Any] | None = None) -> str:
-        if kind not in self._ALLOWED_KINDS:
-            raise ValueError(f"unknown asset kind {kind!r}")
+    def _policy(self, bucket: str) -> BucketPolicy:
+        policy = self._policies.get(bucket)
+        if policy is None:
+            raise ValueError(f"unknown bucket {bucket!r}")
+        return policy
 
+    def _require(self, ref: str) -> AssetEntry:
+        entry = self._entries.get(ref)
+        if entry is None:
+            raise KeyError(f"asset ref {ref!r} not found or evicted")
+        return entry
+
+    def _remove(self, ref: str) -> None:
+        # Caller holds self._lock.
+        entry = self._entries.pop(ref)
+        self._bucket_bytes[entry.bucket] -= entry.byte_size
+
+    def write(self, bucket: str, data: bytes, metadata: dict[str, Any] | None = None) -> str:
+        policy = self._policy(bucket)
+        byte_size = len(data)
+        if byte_size > policy.byte_budget:
+            raise ValueError(
+                f"asset exceeds bucket budget: {byte_size} > {policy.byte_budget} "
+                f"for bucket {bucket!r}"
+            )
         ref = uuid.uuid4().hex
         now = time.time()
         entry = AssetEntry(
             ref=ref,
             data=data,
-            kind=kind,
+            bucket=bucket,
             created_at=now,
             last_accessed=now,
-            byte_size=len(data),
+            byte_size=byte_size,
             metadata=dict(metadata or {}),
         )
         with self._lock:
             self._entries[ref] = entry
-            self._total_bytes += entry.byte_size
-            self._evict_to_budget()
-        return ref
+            self._bucket_bytes[bucket] += byte_size
+            self._evict_to_budget(bucket, protect=ref)
+            return ref
 
     def resolve(self, ref: str) -> AssetEntry:
         with self._lock:
-            entry = self._entries.get(ref)
-            if entry is None:
-                raise KeyError(f"asset ref {ref!r} not found or evicted")
+            entry = self._require(ref)
             entry.last_accessed = time.time()
             return replace(entry, metadata=dict(entry.metadata))
 
-    def cleanup_expired(self, ttl_s: float = 300.0) -> list[str]:
-        """Evict unpinned upload entries by age since insertion, not last access time."""
-        now = time.time()
+    def bucket_bytes(self, bucket: str) -> int:
         with self._lock:
-            expired = [
-                ref
-                for ref, entry in self._entries.items()
-                if entry.kind == "upload" and entry.pin_count == 0 and (now - entry.created_at) > ttl_s
-            ]
-            for ref in expired:
-                entry = self._entries.pop(ref)
-                self._total_bytes -= entry.byte_size
-            return expired
+            self._policy(bucket)
+            return self._bucket_bytes[bucket]
 
-    def pin(self, ref: str) -> None:
-        with self._lock:
-            entry = self._entries.get(ref)
-            if entry is None:
-                raise KeyError(f"asset ref {ref!r} not found or evicted")
-            entry.pin_count += 1
-
-    def unpin(self, ref: str) -> None:
-        with self._lock:
-            entry = self._entries.get(ref)
-            if entry is None:
-                raise KeyError(f"asset ref {ref!r} not found or evicted")
-            if entry.pin_count == 0:
-                raise ValueError("pin_count is already 0")
-            entry.pin_count -= 1
-
-    @property
     def total_bytes(self) -> int:
         with self._lock:
-            return self._total_bytes
+            return sum(self._bucket_bytes.values())
 
-    def _evict_to_budget(self) -> None:
-        # Caller must hold self._lock.
-        while self._total_bytes > self._byte_budget:
-            candidates = [entry for entry in self._entries.values() if entry.pin_count == 0]
+    def buckets(self) -> list[str]:
+        return list(self._policies)
+
+    def _evict_to_budget(self, bucket: str, protect: str) -> None:
+        # Caller holds self._lock. `protect` is the just-admitted ref, which must
+        # never evict itself; if only pinned entries plus `protect` remain over
+        # budget, admission fails closed and `protect` is rolled back.
+        budget = self._policies[bucket].byte_budget
+        while self._bucket_bytes[bucket] > budget:
+            candidates = [
+                e
+                for e in self._entries.values()
+                if e.bucket == bucket and e.pin_count == 0 and e.ref != protect
+            ]
             if not candidates:
-                break
-            oldest = min(candidates, key=lambda entry: entry.last_accessed)
-            del self._entries[oldest.ref]
-            self._total_bytes -= oldest.byte_size
+                oversize = self._entries[protect].byte_size
+                self._remove(protect)
+                raise ValueError(
+                    f"bucket {bucket!r} has insufficient evictable capacity "
+                    f"for {oversize} bytes"
+                )
+            oldest = min(candidates, key=lambda e: e.last_accessed)
+            self._remove(oldest.ref)
 
 
-_DEFAULT_STORE = AssetStore()
+_DEFAULT_STORE: AssetStore = InMemoryAssetStore()
 
 
 def get_store() -> AssetStore:
