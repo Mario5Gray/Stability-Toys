@@ -178,6 +178,21 @@ def test_admission_fails_closed_when_pins_exceed_budget():
     assert store.bucket_bytes("b") == 7
 
 
+def test_failed_admission_does_not_evict_existing_entries():
+    # budget 10: pinned 7 + unpinned 3 = 10 (at budget). Admitting 4 more is
+    # infeasible (pinned 7 + 4 = 11 > 10) and must fail closed WITHOUT evicting
+    # the pre-existing unpinned 3-byte entry — full roll back to pre-admission state.
+    store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
+    pinned = store.write("b", b"p" * 7)
+    store.pin(pinned)
+    keep = store.write("b", b"kkk")  # 3 -> total 10
+    with pytest.raises(ValueError, match="insufficient evictable capacity"):
+        store.write("b", b"nnnn")  # 4 -> infeasible
+    assert store.resolve(keep).data == b"kkk"       # survived the failed write
+    assert store.resolve(pinned).data == b"p" * 7
+    assert store.bucket_bytes("b") == 10
+
+
 def test_unpin_allows_later_eviction():
     store = _store(b=BucketPolicy("b", byte_budget=10, ttl_s=None))
     ref_a = store.write("b", b"aaaaaaa")

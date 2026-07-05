@@ -178,22 +178,35 @@ class InMemoryAssetStore:
 
     def _evict_to_budget(self, bucket: str, protect: str) -> None:
         # Caller holds self._lock. `protect` is the just-admitted ref, which must
-        # never evict itself; if only pinned entries plus `protect` remain over
-        # budget, admission fails closed and `protect` is rolled back.
+        # never evict itself.
         budget = self._policies[bucket].byte_budget
+        if self._bucket_bytes[bucket] <= budget:
+            return
+
+        # Feasibility first: the new entry fits iff the bucket's pinned bytes plus
+        # the new entry fit the budget, since every unpinned neighbour is evictable.
+        # If it does not fit, fail closed and roll back to the pre-admission state —
+        # evict nothing, remove only `protect`.
+        protect_size = self._entries[protect].byte_size
+        pinned_bytes = sum(
+            e.byte_size
+            for e in self._entries.values()
+            if e.bucket == bucket and e.pin_count > 0
+        )
+        if pinned_bytes + protect_size > budget:
+            self._remove(protect)
+            raise ValueError(
+                f"bucket {bucket!r} has insufficient evictable capacity "
+                f"for {protect_size} bytes"
+            )
+
+        # Feasible: evict LRU unpinned neighbours (never `protect`) until within budget.
         while self._bucket_bytes[bucket] > budget:
             candidates = [
                 e
                 for e in self._entries.values()
                 if e.bucket == bucket and e.pin_count == 0 and e.ref != protect
             ]
-            if not candidates:
-                oversize = self._entries[protect].byte_size
-                self._remove(protect)
-                raise ValueError(
-                    f"bucket {bucket!r} has insufficient evictable capacity "
-                    f"for {oversize} bytes"
-                )
             oldest = min(candidates, key=lambda e: e.last_accessed)
             self._remove(oldest.ref)
 
