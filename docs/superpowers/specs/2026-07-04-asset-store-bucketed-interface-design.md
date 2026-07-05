@@ -77,8 +77,9 @@ _DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
 }
 ```
 
-Adding `canny_map` / `depth_map` / `pose_map` later is a flat registry addition — no
-protocol or code-shape change. They register exactly like the entries above.
+Registering additional buckets later (whatever names future asset classes need) is a flat
+registry addition — no protocol or code-shape change. New buckets register exactly like
+the entries above.
 
 ## Protocol
 
@@ -119,13 +120,18 @@ If a single asset's `byte_size` exceeds the **target bucket's** `byte_budget`,
 the store never admits an entry it must immediately evict, and never churns LRU/eviction
 state on an impossible admission.
 
-### Eviction — per bucket
+### Eviction — per bucket, fail closed under pinned pressure
+
 On admission, `_evict_to_budget(bucket)` runs **within that bucket only**: while the
 bucket's total bytes exceed its budget, evict the oldest unpinned entry (`last_accessed`
-LRU). Pinned entries are never evicted; if only pinned entries remain and the bucket is
-still over budget, eviction stops (the just-admitted entry stays — oversize was already
-rejected above, so a single admission can always fit alongside evictable neighbors or is
-itself pinned by the caller's flow).
+LRU). Pinned entries are never evicted.
+
+If evicting every unpinned entry still leaves the bucket over budget — i.e. pinned
+entries alone exceed the budget — admission **fails closed**: `write` / `promote` raise
+`ValueError("bucket … has insufficient evictable capacity")` and the store rolls back to
+its pre-admission state (the candidate entry is not retained, no LRU state is mutated).
+The store never evicts the entry it just admitted, and never admits an entry it cannot
+keep. Oversize-single-asset (previous section) is the degenerate case of this rule.
 
 ### Pinning — respects `pinnable`
 - `pin(ref)` / `unpin(ref)` on a ref whose bucket has `pinnable=False` raise
@@ -146,9 +152,13 @@ per-bucket LRU.
 (`PIL.Image.open(BytesIO(data))` then `.verify()`), not by trusting `metadata.media_type`.
 Rationale: today's uploads (`upload_routes.py`) store raw bytes with no image metadata, so
 a metadata-only check would be effectively permissive. On decode failure, raise
-`ValueError("asset is not a decodable image")`. On success, the promoted entry's metadata
-records `origin="promoted"`, `source_asset_ref=<ref>`, and the decoded `media_type` /
-`width` / `height`.
+`ValueError("asset is not a decodable image")`.
+
+**Metadata is merged forward, not replaced.** The promoted entry starts as a copy of the
+source entry's metadata (preserving provenance and any bucket-specific annotations), then
+overlays the promotion fields: `origin="promoted"`, `source_asset_ref=<ref>`, and the
+decoded `media_type` / `width` / `height`. Overlay keys win on collision; all other source
+keys survive.
 
 ## Implementation notes (`InMemoryAssetStore`)
 
