@@ -122,6 +122,20 @@ class InMemoryAssetStore:
                 raise ValueError("pin_count is already 0")
             entry.pin_count -= 1
 
+    def cleanup_expired(self) -> list[str]:
+        now = time.time()
+        with self._lock:
+            expired: list[str] = []
+            for ref, entry in self._entries.items():
+                ttl = self._policies[entry.bucket].ttl_s
+                if ttl is None or entry.pin_count > 0:
+                    continue
+                if (now - entry.created_at) > ttl:
+                    expired.append(ref)
+            for ref in expired:
+                self._remove(ref)
+            return expired
+
     def bucket_bytes(self, bucket: str) -> int:
         with self._lock:
             self._policy(bucket)

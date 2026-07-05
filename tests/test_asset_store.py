@@ -195,3 +195,55 @@ def test_bucket_bytes_tracks_admission_and_eviction():
     store.write("b", b"bbbb")      # evicts a -> 4
     assert store.bucket_bytes("b") == 4
     assert store.total_bytes() == 4
+
+
+# --- per-bucket TTL cleanup ---
+
+def test_cleanup_expired_removes_old_upload():
+    store = _store()
+    ref = store.write("upload", b"old")
+    store._entries[ref].created_at = time.time() - 400  # upload ttl = 300
+    removed = store.cleanup_expired()
+    assert ref in removed
+    with pytest.raises(KeyError):
+        store.resolve(ref)
+
+
+def test_cleanup_expired_preserves_ttl_none_bucket():
+    store = _store()
+    ref = store.write("control_map", b"cmap")  # ttl None
+    store._entries[ref].created_at = time.time() - 9999
+    removed = store.cleanup_expired()
+    assert ref not in removed
+    assert store.resolve(ref).data == b"cmap"
+
+
+def test_cleanup_expired_ignores_pinned_entries():
+    store = _store()
+    ref = store.write("upload", b"pinned-old")
+    store.pin(ref)
+    store._entries[ref].created_at = time.time() - 400
+    removed = store.cleanup_expired()
+    assert ref not in removed
+    assert store.resolve(ref).data == b"pinned-old"
+
+
+def test_cleanup_expired_uses_created_at_not_last_accessed():
+    store = _store()
+    ref = store.write("upload", b"old")
+    store.resolve(ref)  # bumps last_accessed only
+    store._entries[ref].created_at = time.time() - 400
+    store._entries[ref].last_accessed = time.time()
+    removed = store.cleanup_expired()
+    assert ref in removed
+
+
+def test_cleanup_expired_reduces_bucket_bytes():
+    store = _store()
+    old = store.write("upload", b"abcd")
+    keep = store.write("upload", b"xyz")
+    store._entries[old].created_at = time.time() - 400
+    removed = store.cleanup_expired()
+    assert removed == [old]
+    assert store.resolve(keep).data == b"xyz"
+    assert store.bucket_bytes("upload") == 3
