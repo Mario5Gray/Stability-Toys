@@ -247,3 +247,61 @@ def test_cleanup_expired_reduces_bucket_bytes():
     assert removed == [old]
     assert store.resolve(keep).data == b"xyz"
     assert store.bucket_bytes("upload") == 3
+
+
+# --- promote ---
+
+def test_promote_copies_into_target_bucket_with_new_ref():
+    store = _store()
+    src = store.write("upload", _png())
+    dst = store.promote(src, "ref_image")
+    assert dst != src
+    assert store.resolve(dst).bucket == "ref_image"
+    assert store.resolve(src).bucket == "upload"  # original untouched
+    assert store.resolve(dst).data == store.resolve(src).data
+
+
+def test_promote_merges_source_metadata_forward():
+    store = _store()
+    src = store.write("upload", _png(), metadata={"provenance": "user-upload", "origin": "ingested"})
+    dst = store.promote(src, "ref_image")
+    meta = store.resolve(dst).metadata
+    assert meta["provenance"] == "user-upload"       # source key preserved
+    assert meta["origin"] == "promoted"              # overlay wins on collision
+    assert meta["source_asset_ref"] == src
+    assert meta["media_type"] == "image/png"
+    assert meta["width"] == 8 and meta["height"] == 8
+
+
+def test_promote_missing_ref_raises_key_error():
+    store = _store()
+    with pytest.raises(KeyError, match="not found"):
+        store.promote("missing", "ref_image")
+
+
+def test_promote_unknown_target_bucket_raises_value_error():
+    store = _store()
+    src = store.write("upload", _png())
+    with pytest.raises(ValueError, match="unknown bucket"):
+        store.promote(src, "nope")
+
+
+def test_promote_non_image_raises_value_error():
+    store = _store()
+    src = store.write("upload", b"this is not an image")
+    with pytest.raises(ValueError, match="not a decodable image"):
+        store.promote(src, "ref_image")
+
+
+def test_promoted_and_source_have_independent_lifetimes():
+    store = _store(
+        upload=BucketPolicy("upload", byte_budget=MB, ttl_s=300),
+        ref_image=BucketPolicy("ref_image", byte_budget=MB, ttl_s=None),
+    )
+    src = store.write("upload", _png())
+    dst = store.promote(src, "ref_image")
+    store._entries[src].created_at = time.time() - 400  # expire the upload
+    store.cleanup_expired()
+    with pytest.raises(KeyError):
+        store.resolve(src)               # source gone
+    assert store.resolve(dst).bucket == "ref_image"  # copy survives

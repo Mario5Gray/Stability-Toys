@@ -136,6 +136,34 @@ class InMemoryAssetStore:
                 self._remove(ref)
             return expired
 
+    def promote(self, ref: str, target_bucket: str) -> str:
+        self._policy(target_bucket)  # validate target bucket up front
+        with self._lock:
+            src = self._require(ref)
+            data = src.data
+            src_meta = dict(src.metadata)
+
+        try:
+            Image.open(io.BytesIO(data)).verify()
+        except Exception as exc:
+            raise ValueError("asset is not a decodable image") from exc
+
+        # verify() leaves the image unusable; reopen to read format/size.
+        img = Image.open(io.BytesIO(data))
+        fmt = img.format or "PNG"
+        media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
+        width, height = img.size
+
+        merged = {
+            **src_meta,
+            "origin": "promoted",
+            "source_asset_ref": ref,
+            "media_type": media_type,
+            "width": width,
+            "height": height,
+        }
+        return self.write(target_bucket, data, metadata=merged)
+
     def bucket_bytes(self, bucket: str) -> int:
         with self._lock:
             self._policy(bucket)
