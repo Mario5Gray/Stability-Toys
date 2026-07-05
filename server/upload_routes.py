@@ -4,7 +4,7 @@ upload_routes.py — Temporary file upload for WS clients.
 POST /v1/upload  →  multipart file  →  {"fileRef": "uuid"}
 
 Backed by the module-level AssetStore (server/asset_store.py).
-Upload entries have kind="upload" and a 5-minute TTL enforced by cleanup_uploads_loop.
+Upload entries live in the "upload" bucket; the bucket policy carries the 5-minute TTL enforced by cleanup_uploads_loop.
 """
 
 import asyncio
@@ -18,8 +18,6 @@ logger = logging.getLogger(__name__)
 
 upload_router = APIRouter()
 
-TTL_S = 300  # 5 minutes
-
 
 @upload_router.post("/v1/upload")
 async def upload_temp_file(file: UploadFile = File(...)):
@@ -27,7 +25,7 @@ async def upload_temp_file(file: UploadFile = File(...)):
     if not data:
         raise HTTPException(400, "Empty upload")
 
-    ref = get_store().insert("upload", data)
+    ref = get_store().write("upload", data)
     logger.info("Upload stored: %s (%d bytes)", ref, len(data))
     return {"fileRef": ref}
 
@@ -41,6 +39,6 @@ async def cleanup_uploads_loop():
     """Background task that purges expired upload entries every 30s."""
     while True:
         await asyncio.sleep(30)
-        expired = get_store().cleanup_expired(ttl_s=TTL_S)
+        expired = get_store().cleanup_expired()
         if expired:
             logger.debug("Cleaned %d expired uploads", len(expired))

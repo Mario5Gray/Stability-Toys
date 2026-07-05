@@ -10,11 +10,11 @@ def _clear_store():
     store = get_store()
     with store._lock:
         store._entries.clear()
-        store._total_bytes = 0
+        store._bucket_bytes = {name: 0 for name in store._policies}
     yield
     with store._lock:
         store._entries.clear()
-        store._total_bytes = 0
+        store._bucket_bytes = {name: 0 for name in store._policies}
 
 
 app = FastAPI()
@@ -60,4 +60,4 @@ def test_upload_stores_as_upload_kind():
     )
     ref = resp.json()["fileRef"]
     entry = get_store().resolve(ref)
-    assert entry.kind == "upload"
+    assert entry.bucket == "upload"

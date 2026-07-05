@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 from pydantic import ConfigDict
 
-from server.asset_store import AssetStore
+from server.asset_store import InMemoryAssetStore
 from server.controlnet_models import ControlNetAttachment, ControlNetPreprocessRequest
 from server.controlnet_preprocessors import ControlMapResult, PreprocessorRegistry
 
@@ -46,8 +46,8 @@ def _req(controlnets):
 def test_preprocess_source_ref_emits_artifact():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    source_ref = store.insert("upload", _solid_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
 
     att = ControlNetAttachment(
         attachment_id="cn_1",
@@ -70,8 +70,8 @@ def test_preprocess_source_ref_emits_artifact():
 def test_preprocess_result_stored_as_control_map():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    source_ref = store.insert("upload", _solid_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -81,7 +81,7 @@ def test_preprocess_result_stored_as_control_map():
     artifacts = preprocess_controlnet_attachments(_req([att]), store, registry=_fake_registry("canny"))
     emitted_ref = artifacts[0].asset_ref
     entry = store.resolve(emitted_ref)
-    assert entry.kind == "control_map"
+    assert entry.bucket == "control_map"
     assert entry.data == b"cmap-output"
     assert entry.metadata["control_type"] == "canny"
     assert entry.metadata["source_asset_ref"] == source_ref
@@ -90,8 +90,8 @@ def test_preprocess_result_stored_as_control_map():
 def test_preprocess_updates_attachment_map_asset_ref():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    source_ref = store.insert("upload", _solid_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -106,8 +106,8 @@ def test_preprocess_updates_attachment_map_asset_ref():
 def test_preprocess_normalizes_attachment_onto_direct_map_path():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    source_ref = store.insert("upload", _solid_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -129,8 +129,8 @@ def test_preprocess_normalizes_attachment_with_validate_assignment_enabled():
     class _StrictAttachment(ControlNetAttachment):
         model_config = ConfigDict(validate_assignment=True)
 
-    store = AssetStore()
-    source_ref = store.insert("upload", _solid_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
     att = _StrictAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -149,8 +149,8 @@ def test_preprocess_normalizes_attachment_with_validate_assignment_enabled():
 def test_map_asset_ref_attachment_is_skipped():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    map_ref = store.insert("control_map", b"existing-map")
+    store = InMemoryAssetStore()
+    map_ref = store.write("control_map", b"existing-map")
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -163,7 +163,7 @@ def test_map_asset_ref_attachment_is_skipped():
 def test_missing_source_ref_raises_value_error():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
+    store = InMemoryAssetStore()
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",
@@ -177,8 +177,8 @@ def test_missing_source_ref_raises_value_error():
 def test_unknown_preprocessor_id_raises():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 
-    store = AssetStore()
-    source_ref = store.insert("upload", b"img")
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", b"img")
     att = ControlNetAttachment(
         attachment_id="cn_1",
         control_type="canny",

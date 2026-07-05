@@ -53,7 +53,7 @@ def preprocess_controlnet_attachments(
             "height": result.height,
             "media_type": result.media_type,
         }
-        new_ref = store.insert("control_map", result.image_bytes, metadata)
+        new_ref = store.write("control_map", result.image_bytes, metadata)
         normalized_attachment = attachment.model_copy(
             update={
                 "map_asset_ref": new_ref,

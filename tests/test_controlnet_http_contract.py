@@ -62,11 +62,11 @@ def test_http_generate_501_includes_controlnet_artifacts():
     - preprocessing runs and emits an artifact
     - the raised HTTPException includes controlnet_artifacts with correct fields
     """
-    from server.asset_store import AssetStore
+    from server.asset_store import InMemoryAssetStore
     from server import lcm_sr_server
 
-    store = AssetStore(byte_budget=64 * 1024 * 1024)
-    source_ref = store.insert("upload", _make_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _make_png())
 
     fake_result = ControlMapResult(
         preprocessor_id="canny",
@@ -131,11 +131,11 @@ def test_http_generate_400_when_controlnet_policy_disabled():
     /generate with controlnets on a mode that has controlnet_policy.enabled=False
     raises 400, not 501, before preprocessing runs.
     """
-    from server.asset_store import AssetStore
+    from server.asset_store import InMemoryAssetStore
     from server import lcm_sr_server
 
-    store = AssetStore(byte_budget=64 * 1024 * 1024)
-    source_ref = store.insert("upload", _make_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _make_png())
 
     disabled_mode = ModeConfig(
         name="sdxl-plain",

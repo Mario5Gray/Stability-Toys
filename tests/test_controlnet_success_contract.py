@@ -80,11 +80,11 @@ def _controlnet_provider() -> SimpleNamespace:
 
 
 def test_http_generate_success_exposes_controlnet_artifacts_header():
-    from server.asset_store import AssetStore
+    from server.asset_store import InMemoryAssetStore
     from server import lcm_sr_server
 
-    store = AssetStore(byte_budget=64 * 1024 * 1024)
-    source_ref = store.insert("upload", _make_png())
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _make_png())
 
     fut = concurrent.futures.Future()
     fut.set_result((b"png-bytes", 1234))

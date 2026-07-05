@@ -54,11 +54,11 @@ def _clear_store():
     store = get_store()
     with store._lock:
         store._entries.clear()
-        store._total_bytes = 0
+        store._bucket_bytes = {name: 0 for name in store._policies}
     yield
     with store._lock:
         store._entries.clear()
-        store._total_bytes = 0
+        store._bucket_bytes = {name: 0 for name in store._policies}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -246,7 +246,7 @@ class TestJobSubmit:
             assert err["jobId"] == ack["jobId"]
 
     def test_generate_job_error_includes_controlnet_artifacts_after_preprocessing(self):
-        source_ref = get_store().insert("upload", _solid_png_bytes())
+        source_ref = get_store().write("upload", _solid_png_bytes())
         fake_registry = _fake_preprocessor_registry("canny")
         captured = {}
 
@@ -289,7 +289,7 @@ class TestJobSubmit:
                     assert err["controlnet_artifacts"][0]["attachment_id"] == "cn_1"
 
         emitted_ref = err["controlnet_artifacts"][0]["asset_ref"]
-        assert get_store().resolve(emitted_ref).kind == "control_map"
+        assert get_store().resolve(emitted_ref).bucket == "control_map"
         assert captured["attachment"].map_asset_ref == emitted_ref
         assert captured["attachment"].source_asset_ref is None
         assert captured["attachment"].preprocess is None
@@ -473,7 +473,7 @@ class TestJobSubmit:
         app.state.worker_pool = pool
         app.state.storage = None
 
-        source_ref = get_store().insert("upload", _solid_png_bytes())
+        source_ref = get_store().write("upload", _solid_png_bytes())
         fake_registry = _fake_preprocessor_registry("canny")
         captured = {}
 
@@ -545,7 +545,7 @@ class TestJobSubmit:
                             assert err["controlnet_artifacts"][0]["attachment_id"] == "cn_1"
 
             emitted_ref = err["controlnet_artifacts"][0]["asset_ref"]
-            assert get_store().resolve(emitted_ref).kind == "control_map"
+            assert get_store().resolve(emitted_ref).bucket == "control_map"
             assert captured["attachment"].map_asset_ref == emitted_ref
             assert captured["attachment"].source_asset_ref is None
             assert captured["attachment"].preprocess is None
