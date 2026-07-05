@@ -72,6 +72,13 @@ modes:
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
+        pose:
+          default_model_id: sd15-openpose
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+
   lcm-runwayml:
     model: diffusers/LCM-runwayml-stable-diffusion-v1-5
     default_size: 512x512
@@ -133,7 +140,7 @@ modes:
           min_strength: 0.0
           max_strength: 2.0    
         pose:
-          default_model_id: sdxl-pose
+          default_model_id: sdxl-openpose
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0

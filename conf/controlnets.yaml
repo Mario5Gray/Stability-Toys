@@ -7,7 +7,7 @@ models:
     path: /models/controlnets/sdxl-depth
     control_types: [depth]
     compatible_with: [sdxl]
-  sdxl-pose:
+  sdxl-openpose:
     path: /models/controlnets/controlnet-openpose-sdxl-1.0-safetensors
     control_types: [pose]
     compatible_with: [sdxl]    
@@ -19,7 +19,7 @@ models:
     path: /models/controlnets/sd15-depth
     control_types: [depth]
     compatible_with: [sd15]
-  sd15-pose:
+  sd15-openpose:
     path: /models/controlnets/control_v11p_sd15_openpose_diffusers
     control_types: [pose]
     compatible_with: [sd15]
