@@ -12,9 +12,15 @@ resolution_sets:
       aspect_ratio: "3:2"
     - size: 768x768
       aspect_ratio: "1:1"
+    - size: 1152x896
+      aspect_ratio: "9:7"
   sdxl:
     - size: 512x512
       aspect_ratio: "1:1"
+    - size: 512x768
+      aspect_ratio: "2:3"
+    - size: 768x512
+      aspect_ratio: "3:2"
     - size: 1024x1024
       aspect_ratio: "1:1"
     - size: 896x1152
