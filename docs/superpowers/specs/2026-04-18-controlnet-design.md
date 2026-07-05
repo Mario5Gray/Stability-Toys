@@ -210,11 +210,15 @@ V1 storage expectations:
 
 V1 backing store (as implemented):
 
-- the in-process ref table now lives in `server/asset_store.py` (`AssetStore`) rather than inline inside `upload_routes.py`; `upload_routes.py` was migrated onto `AssetStore` in [d3dc6507](https://example.invalid/d3dc6507) and no longer carries its own `UPLOADS` dict
-- entries carry a `kind` field (`upload` or `control_map`) and an optional metadata blob (see `Recommended artifact metadata` below); uploads retain their original 5-minute TTL behavior, control maps are pinned for the current generation
+> **Superseded:** the backing store was reshaped into a bucketed, swappable
+> interface. See `docs/superpowers/specs/2026-07-04-asset-store-bucketed-interface-design.md`
+> for the authoritative contract. The notes below reflect the current shape.
+
+- the in-process ref table lives in `server/asset_store.py`: `AssetStore` is now a `Protocol` and `InMemoryAssetStore` is the in-memory implementation. `upload_routes.py` uses the module singleton via `get_store()` and carries no `UPLOADS` dict
+- assets live in flat named **buckets** (`upload`, `control_map`, `ref_image`); the `bucket` field replaces the former `kind` (no alias). Ingest is `write(bucket, data, metadata)` (replacing `insert`); entries carry an optional metadata blob (see `Recommended artifact metadata` below). Uploads retain their 5-minute TTL, now carried by the `upload` bucket policy; control maps are pinned for the current generation
 - lifetime remains process-scoped (lost on server restart); frontend must tolerate stale refs by re-preprocessing
 - no cross-session or cross-user isolation in v1; a follow-up can add per-session scoping when auth lands
-- eviction: LRU capped by total byte budget (configurable, default 512 MB); `control_map` entries referenced by a recent generation are pinned for at least one generation cycle to avoid mid-request eviction
+- eviction: **per-bucket** byte budgets, LRU within each bucket; admission fails closed (oversize assets and pinned-pressure are rejected rather than thrashing). TTL cleanup (`cleanup_expired()`, no argument) walks per-bucket TTL policies. `control_map` entries referenced by a recent generation are pinned for at least one generation cycle to avoid mid-request eviction
 
 This is intentionally smaller than a full gallery asset platform. The only hard requirement in v1 is that derived maps survive long enough to be inspected and reused.
 

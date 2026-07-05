@@ -45,12 +45,12 @@ def configured_controlnet_registry(monkeypatch, tmp_path):
 
 
 def test_resolve_controlnet_bindings_rejects_wrong_family(configured_controlnet_registry):
-    from server.asset_store import AssetStore
+    from server.asset_store import InMemoryAssetStore
     from server.controlnet_models import ControlNetAttachment
     from server.controlnet_execution import resolve_controlnet_bindings
 
-    store = AssetStore()
-    ref = store.insert("control_map", b"png-bytes")
+    store = InMemoryAssetStore()
+    ref = store.write("control_map", b"png-bytes")
     req = type(
         "Req",
         (),
@@ -72,13 +72,13 @@ def test_resolve_controlnet_bindings_rejects_wrong_family(configured_controlnet_
 
 
 def test_resolve_controlnet_bindings_preserves_request_order(configured_controlnet_registry):
-    from server.asset_store import AssetStore
+    from server.asset_store import InMemoryAssetStore
     from server.controlnet_models import ControlNetAttachment
     from server.controlnet_execution import resolve_controlnet_bindings
 
-    store = AssetStore()
-    ref1 = store.insert("control_map", b"first-map")
-    ref2 = store.insert("control_map", b"second-map")
+    store = InMemoryAssetStore()
+    ref1 = store.write("control_map", b"first-map")
+    ref2 = store.write("control_map", b"second-map")
     req = type(
         "Req",
         (),
