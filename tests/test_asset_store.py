@@ -320,3 +320,21 @@ def test_promoted_and_source_have_independent_lifetimes():
     with pytest.raises(KeyError):
         store.resolve(src)               # source gone
     assert store.resolve(dst).bucket == "ref_image"  # copy survives
+
+
+# --- persistence policy fields ---
+
+def test_bucket_policy_persist_defaults():
+    p = BucketPolicy("x", byte_budget=10, ttl_s=None)
+    assert p.persist is False
+    assert p.persistence_ttl_s is None
+
+
+def test_default_buckets_persistence_policy():
+    from server.asset_store import _DEFAULT_BUCKETS
+    assert _DEFAULT_BUCKETS["upload"].persist is False
+    assert _DEFAULT_BUCKETS["upload"].persistence_ttl_s is None
+    assert _DEFAULT_BUCKETS["control_map"].persist is True
+    assert _DEFAULT_BUCKETS["control_map"].persistence_ttl_s == 3600
+    assert _DEFAULT_BUCKETS["ref_image"].persist is True
+    assert _DEFAULT_BUCKETS["ref_image"].persistence_ttl_s is None

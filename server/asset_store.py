@@ -16,6 +16,8 @@ class BucketPolicy:
     byte_budget: int
     ttl_s: float | None
     pinnable: bool = True
+    persist: bool = False
+    persistence_ttl_s: float | None = None
 
 
 @dataclass
@@ -32,8 +34,12 @@ class AssetEntry:
 
 _DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
     "upload": BucketPolicy("upload", byte_budget=128 * MB, ttl_s=300),
-    "control_map": BucketPolicy("control_map", byte_budget=256 * MB, ttl_s=None),
-    "ref_image": BucketPolicy("ref_image", byte_budget=128 * MB, ttl_s=None),
+    "control_map": BucketPolicy(
+        "control_map", byte_budget=256 * MB, ttl_s=None, persist=True, persistence_ttl_s=3600
+    ),
+    "ref_image": BucketPolicy(
+        "ref_image", byte_budget=128 * MB, ttl_s=None, persist=True, persistence_ttl_s=None
+    ),
 }
 
 
