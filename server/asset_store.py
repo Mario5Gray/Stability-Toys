@@ -187,6 +187,26 @@ class InMemoryAssetStore:
     def buckets(self) -> list[str]:
         return list(self._policies)
 
+    def policy(self, bucket: str) -> BucketPolicy:
+        return self._policy(bucket)
+
+    def admit(self, entry: AssetEntry) -> None:
+        policy = self._policy(entry.bucket)
+        if entry.byte_size > policy.byte_budget:
+            raise ValueError(
+                f"asset exceeds bucket budget: {entry.byte_size} > {policy.byte_budget} "
+                f"for bucket {entry.bucket!r}"
+            )
+        with self._lock:
+            self._entries[entry.ref] = entry
+            self._bucket_bytes[entry.bucket] += entry.byte_size
+            self._evict_to_budget(entry.bucket, protect=entry.ref)
+
+    def discard(self, ref: str) -> None:
+        with self._lock:
+            if ref in self._entries:
+                self._remove(ref)
+
     def _evict_to_budget(self, bucket: str, protect: str) -> None:
         # Caller holds self._lock. `protect` is the just-admitted ref, which must
         # never evict itself.
