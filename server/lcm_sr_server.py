@@ -71,6 +71,7 @@ except ImportError:  # pragma: no cover - exercised in lean test environments
 from server.ws_routes import ws_router, register_job_hook, _build_status
 from server.ws_hub import hub
 from server.upload_routes import upload_router, cleanup_uploads_loop
+from server.asset_store import close_store
 
 # lcm_sr_server.py (add near imports)
 from server.compat_endpoints import CompatEndpoints
@@ -348,6 +349,19 @@ def _validate_controlnet_registry_for_startup() -> None:
     validate_controlnet_mode_references(mode_config=get_mode_config(), registry=registry)
 
 
+def _close_providers(app: FastAPI) -> None:
+    """Close both provider lifecycles at shutdown: the /storage/* provider on
+    app.state.storage and the asset-store singleton. Each is best-effort."""
+    try:
+        app.state.storage.close()
+    except Exception as e:
+        logger.error(f"Error closing storage: {e}", exc_info=True)
+    try:
+        close_store()
+    except Exception as e:
+        logger.error(f"Error closing asset store: {e}", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting FastAPI server lifespan...")
@@ -436,10 +450,7 @@ async def lifespan(app: FastAPI):
 
     # shutdown
     logger.info("Starting server shutdown...")
-    try:
-        app.state.storage.close()  # type: ignore[union-attr]
-    except Exception as e:
-        logger.error(f"Error closing storage: {e}", exc_info=True)
+    _close_providers(app)
 
     if getattr(app.state, "use_mode_system", False):
         try:
