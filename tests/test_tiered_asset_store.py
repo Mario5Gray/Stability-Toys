@@ -256,3 +256,25 @@ def test_get_store_returns_tiered_singleton(monkeypatch):
     assert m.get_store() is s
     m.close_store()
     m._DEFAULT_STORE = None  # leave clean for other tests
+
+
+def test_close_store_releases_singleton_for_rebuild(monkeypatch, tmp_path):
+    # Repeated lifespans in one process: after close_store(), get_store() must
+    # rebuild a fresh tier/provider (a closed FS provider's cleanup thread is dead).
+    monkeypatch.setenv("ASSET_STORE_PROVIDER", "FS")
+    monkeypatch.setenv("FS_STORAGE_DIR", str(tmp_path))
+    import server.asset_store as m
+    m._DEFAULT_STORE = None  # start clean
+    first = m.get_store()
+    first_provider = first._provider
+    assert first_provider._cleanup_thread.is_alive()
+    m.close_store()
+    assert not first_provider._cleanup_thread.is_alive()
+    second = m.get_store()
+    try:
+        assert second is not first                      # fresh tier
+        assert second._provider is not first_provider   # fresh provider
+        assert second._provider._cleanup_thread.is_alive()  # TTL cleanup restored
+    finally:
+        m.close_store()
+        m._DEFAULT_STORE = None  # leave clean for other tests

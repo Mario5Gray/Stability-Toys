@@ -260,6 +260,11 @@ def get_store() -> AssetStore:
 
 
 def close_store() -> None:
-    """Release the asset-store singleton's provider (e.g. the FS cleanup thread)."""
+    """Release the asset-store singleton: close its provider (e.g. the FS cleanup
+    thread) and clear the cached instance so the next get_store() rebuilds a fresh
+    tier/provider. Required for repeated startup/shutdown in one process — a closed
+    provider's cleanup thread is dead and must not be reused."""
+    global _DEFAULT_STORE
     if _DEFAULT_STORE is not None:
         _DEFAULT_STORE.close()
+        _DEFAULT_STORE = None
