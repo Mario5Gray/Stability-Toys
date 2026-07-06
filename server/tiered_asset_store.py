@@ -16,7 +16,7 @@ from persistence.storage_provider import (
     InMemoryStorageProvider,
     STORAGE_MAX_ITEMS,
 )
-from server.asset_store import AssetEntry, InMemoryAssetStore
+from server.asset_store import AssetEntry, InMemoryAssetStore, prepare_promotion
 from server.asset_codec import decode, encode
 
 
@@ -76,8 +76,15 @@ class TieredAssetStore:
             pass  # memory tier full/infeasible; still return the resolved value
         return replace(entry, metadata=dict(entry.metadata))
 
-    def promote(self, ref: str, target_bucket: str) -> str:  # completed in Task 7
-        raise NotImplementedError
+    def promote(self, ref: str, target_bucket: str) -> str:
+        self._memory.policy(target_bucket)  # validate target bucket up front
+        entry = self.resolve(ref)           # rehydrates from provider if evicted
+        merged = prepare_promotion(entry.data, entry.metadata, ref)
+        return self.write(target_bucket, entry.data, merged)
+
+    def close(self) -> None:
+        if self._provider is not None:
+            self._provider.close()
 
     def pin(self, ref: str) -> None:
         self._memory.pin(ref)

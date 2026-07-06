@@ -193,3 +193,66 @@ def test_ttl_seam_passes_persistence_ttl():
     store.write("ref_image", _png(), metadata={"media_type": "image/png"})
     assert captured["control_map"] == 3600
     assert captured["ref_image"] is None
+
+
+def test_promote_persists_into_target_bucket():
+    prov = InMemoryStorageProvider()
+    store = TieredAssetStore(_mem(), prov)
+    src = store.write("upload", _png(), metadata={"media_type": "image/png"})
+    dst = store.promote(src, "ref_image")
+    assert dst != src
+    assert prov.get(dst) is not None          # persisted target
+    assert store.resolve(dst).bucket == "ref_image"
+    assert store.resolve(src).bucket == "upload"
+
+
+def test_promote_rehydrates_evicted_source():
+    png = _png()
+    size = len(png)
+    prov = InMemoryStorageProvider()
+    store = TieredAssetStore(
+        _mem(
+            control_map=BucketPolicy("control_map", byte_budget=size + 1, ttl_s=None, persist=True),
+            ref_image=BucketPolicy("ref_image", byte_budget=10 * MB, ttl_s=None, persist=True),
+        ),
+        prov,
+    )
+    src = store.write("control_map", png, metadata={"media_type": "image/png"})
+    store.write("control_map", png, metadata={"media_type": "image/png"})  # evict src from memory
+    dst = store.promote(src, "ref_image")  # resolve rehydrates src, then promotes
+    assert store.resolve(dst).data == png
+
+
+def test_close_closes_provider():
+    closed = {"v": False}
+
+    class ClosProv(StorageProvider):
+        def put(self, *a, **k):
+            raise NotImplementedError
+
+        def get(self, key):
+            return None
+
+        def delete(self, key):
+            return False
+
+        def close(self):
+            closed["v"] = True
+
+    TieredAssetStore(_mem(), ClosProv()).close()
+    assert closed["v"] is True
+
+
+def test_close_none_provider_is_noop():
+    TieredAssetStore(_mem(), None).close()  # no error
+
+
+def test_get_store_returns_tiered_singleton(monkeypatch):
+    monkeypatch.delenv("ASSET_STORE_PROVIDER", raising=False)
+    import server.asset_store as m
+    m._DEFAULT_STORE = None  # reset lazy singleton
+    s = m.get_store()
+    assert isinstance(s, TieredAssetStore)
+    assert m.get_store() is s
+    m.close_store()
+    m._DEFAULT_STORE = None  # leave clean for other tests

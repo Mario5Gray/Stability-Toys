@@ -242,8 +242,24 @@ class InMemoryAssetStore:
             self._remove(oldest.ref)
 
 
-_DEFAULT_STORE: AssetStore = InMemoryAssetStore()
+_DEFAULT_STORE = None  # type: ignore[var-annotated]
 
 
 def get_store() -> AssetStore:
+    global _DEFAULT_STORE
+    if _DEFAULT_STORE is None:
+        # Lazy to avoid an import cycle (tiered_asset_store imports this module).
+        from server.tiered_asset_store import (
+            TieredAssetStore,
+            make_asset_store_provider_from_env,
+        )
+        _DEFAULT_STORE = TieredAssetStore(
+            InMemoryAssetStore(), make_asset_store_provider_from_env()
+        )
     return _DEFAULT_STORE
+
+
+def close_store() -> None:
+    """Release the asset-store singleton's provider (e.g. the FS cleanup thread)."""
+    if _DEFAULT_STORE is not None:
+        _DEFAULT_STORE.close()
