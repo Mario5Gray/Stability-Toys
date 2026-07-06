@@ -20,8 +20,9 @@ The `AssetStore` Protocol and all callers are unchanged.
 | Decision | Choice |
 |---|---|
 | Persist scope (v1) | `ref_image` and `control_map` persist; `upload` never persists. Per-bucket `persist` flag retained (not hardcoded to names). |
-| Persist-failure contract | Strict write-through for all persisted buckets: `put` failure rolls back the memory admission, then raises. |
+| Persist-failure contract | Strict write-through for all persisted buckets: on `put` failure the just-admitted ref is **discarded**, then the write raises. The guarantee is cross-tier consistency for that ref (never a resident-but-unpersisted copy) — **not** restoration of hot entries the admission may have evicted. |
 | Durability | Backend-selected, not a `BucketPolicy` field. Stronger durability = swap the provider. |
+| Provider scope (v1) | Filesystem and in-memory only. **Redis is intentionally out of scope** and is not wired for the asset-store tier (see below). No other infra in this phase. |
 | Codec placement | Own module `server/asset_codec.py`. |
 | Memory↔disk relationship | Memory is a write-through **cache**; budget eviction / memory-TTL expiry removes only the hot copy; `resolve` rehydrates on a memory miss. |
 | TTL ownership | Tier-local: memory `ttl_s` by `cleanup_expired()`; `persistence_ttl_s` by the provider (`expires_at` + provider cleanup). Memory expiry/eviction never deletes the persistent copy. |
@@ -35,13 +36,44 @@ The `AssetStore` Protocol and all callers are unchanged.
   - Extract the promotion image-decode + metadata-merge into a module-level helper reused by both stores.
 - **New `server/asset_codec.py`:** pure `encode`/`decode` between `AssetEntry` and `StorageItem`. No I/O.
 - **New `server/tiered_asset_store.py`:** `TieredAssetStore` implementing the `AssetStore` Protocol.
-- **Modify `get_store()`** (in `server/asset_store.py`) to return a `TieredAssetStore` composing the singleton `InMemoryAssetStore` + `make_storage_provider_from_env()`.
+- **Modify `get_store()`** (in `server/asset_store.py`) to return a `TieredAssetStore` composing the singleton `InMemoryAssetStore` + a provider from a **dedicated asset-store selector** (below), plus a module-level `close_store()` for shutdown.
+
+## Provider selection (dedicated, Redis excluded)
+
+The asset-store tier does **not** reuse `StorageProvider.make_storage_provider_from_env()`.
+That factory is driven by `STORAGE_PROVIDER` (which also selects the separate `/storage/*`
+provider held in `app.state.storage`) and can return `RedisStorageProvider`, whose `put`
+**overwrites `meta["created_at"]` and injects `content_type` into the persisted meta**
+(`persistence/redis_provider.py`) — breaking the codec's `created_at`/metadata round-trip.
+
+Instead, add a dedicated selector read from its own env var, decoupled from the
+`/storage/*` provider:
+
+```python
+def make_asset_store_provider_from_env() -> StorageProvider | None:
+    kind = os.environ.get("ASSET_STORE_PROVIDER", "DISABLED").upper()
+    if kind == "DISABLED":
+        return None
+    if kind == "MEMORY":
+        return InMemoryStorageProvider(max_items=STORAGE_MAX_ITEMS)
+    if kind in ("FILESYSTEM", "FS"):
+        from persistence.filesystem_provider import FilesystemStorageProvider
+        return FilesystemStorageProvider()
+    raise RuntimeError(
+        f"ASSET_STORE_PROVIDER={kind} is out of scope for the asset-store persistence "
+        f"tier (v1 supports DISABLED, MEMORY, FILESYSTEM). Redis and other backends are "
+        f"intentionally excluded."
+    )
+```
+
+Redis is rejected loudly rather than silently mis-persisting. A future phase that wants a
+durable non-filesystem backend adds it here with matching provider-contract fixes.
 
 ## Provider TTL-seam contract
 
 The tier passes `persistence_ttl_s` to the provider as `put(..., ttl_s=...)`:
 
-- `persistence_ttl_s` is a number → `ttl_s = int(persistence_ttl_s)`; the provider sets `expires_at = created_at + ttl_s`. Honored consistently across providers.
+- `persistence_ttl_s` is a number → `ttl_s = int(persistence_ttl_s)`; the provider sets `expires_at = created_at + ttl_s`. Honored consistently across the **v1-supported providers** (filesystem, in-memory).
 - `persistence_ttl_s is None` → `ttl_s=None` is passed, meaning **provider-default retention**, which is backend-defined:
   - `FilesystemStorageProvider`: `default_ttl_s` (`FS_STORAGE_TTL_S`, 7 days default).
   - `InMemoryStorageProvider`: no expiry.
@@ -163,7 +195,10 @@ def decode(item: StorageItem) -> AssetEntry:
 
 `bucket` and `created_at` are carried in `meta` on the way out and stripped back into
 first-class `AssetEntry` fields on the way in, so the persisted `metadata` round-trips to
-exactly the caller-facing metadata. `pin_count` and `last_accessed` are never persisted.
+exactly the caller-facing metadata. This exact round-trip holds for the **v1-supported
+providers** (filesystem, in-memory), which persist `meta` and `created_at` verbatim; it is
+part of why Redis — which rewrites `created_at` and injects `content_type` into `meta` — is
+excluded. `pin_count` and `last_accessed` are never persisted.
 
 ## `TieredAssetStore`
 
@@ -182,8 +217,16 @@ class TieredAssetStore:
 3. If `policy.persist and self._provider is not None`:
    - `enc = encode(self._memory.resolve(ref), policy)`
    - `try: self._provider.put(enc.key, enc.value, content_type=enc.content_type, meta=enc.meta, ttl_s=enc.ttl_s)`
-   - `except Exception: self._memory.discard(ref); raise` — **strict rollback** (Tiered write is not cross-tier atomic under concurrency, but rollback removes exactly this unique ref).
+   - `except Exception: self._memory.discard(ref); raise`
 4. Return `ref`.
+
+**Rollback semantics (precise).** On `put` failure the tier discards **only the
+just-admitted ref**. It does **not** restore hot entries that step 1's admission may have
+evicted under budget pressure — that would require a two-phase admission the design does
+not include. The guarantee is narrower and sufficient: a failed persisted write leaves
+**no resident or persisted copy of its own ref**, so a persisted bucket never holds a ref
+that resolves from memory now but is absent on restart. Callers see the write raise; the
+cache may simply be one-or-more entries lighter (those were legitimately evictable).
 
 **resolve(ref) -> AssetEntry**
 1. `try: return self._memory.resolve(ref)` (memory hit — unchanged snapshot semantics).
@@ -209,15 +252,43 @@ pinning. `cleanup_expired()` stays memory-tier only; the provider self-expires
 
 ```python
 _DEFAULT_MEMORY = InMemoryAssetStore()
-_DEFAULT_STORE: AssetStore = TieredAssetStore(_DEFAULT_MEMORY, make_storage_provider_from_env())
+# Concrete type so close() is available; get_store() still exposes the Protocol.
+_DEFAULT_STORE: TieredAssetStore = TieredAssetStore(
+    _DEFAULT_MEMORY, make_asset_store_provider_from_env()
+)
 
 def get_store() -> AssetStore:
     return _DEFAULT_STORE
+
+def close_store() -> None:
+    """Release the asset-store singleton's provider (e.g. the FS cleanup thread).
+    Safe to call when the provider is None."""
+    _DEFAULT_STORE.close()
 ```
 
-With `STORAGE_PROVIDER=DISABLED` (the default), `make_storage_provider_from_env()` returns
-`None`, so `TieredAssetStore` degrades to memory-only — behaviorally identical to today.
-Existing tests that construct `InMemoryAssetStore` directly remain valid.
+With `ASSET_STORE_PROVIDER` unset/`DISABLED` (the default), the selector returns `None`, so
+`TieredAssetStore` degrades to memory-only — behaviorally identical to today. Existing tests
+that construct `InMemoryAssetStore` directly remain valid.
+
+## Lifecycle
+
+The asset-store singleton owns a provider that may hold OS resources — the
+`FilesystemStorageProvider` starts a background cleanup thread. That thread must be stopped
+at shutdown, and it is **separate** from `app.state.storage` (the `/storage/*` provider the
+FastAPI lifespan already closes at `server/lcm_sr_server.py`). Without an explicit hook the
+asset-store FS thread leaks in app shutdown and in test processes.
+
+- **Server:** in the `lcm_sr_server` lifespan shutdown block, call `close_store()` alongside
+  the existing `app.state.storage.close()`. `close_store()` delegates to
+  `TieredAssetStore.close()`, which closes the provider iff one is present (`ASSET_STORE_PROVIDER`
+  DISABLED → no-op).
+- **Tests:** any test that constructs a `TieredAssetStore` (or `FilesystemStorageProvider`)
+  must close it in teardown (fixture `finally`/`yield` cleanup) so no cleanup thread outlives
+  the test. Tests using `DISABLED`/`MEMORY` providers spawn no thread but should still call
+  `close()` for symmetry.
+
+This keeps persistence lifecycle at the edges (startup selector + shutdown hook), not woven
+into request handling.
 
 ## Error handling & edge cases
 
@@ -235,15 +306,19 @@ rollback path.
 
 - **Codec:** `encode` maps ref→key, data→value, media_type→content_type, bucket+created_at into meta, `persistence_ttl_s`→`ttl_s` (None passthrough). `decode` round-trips metadata exactly, strips bucket/created_at back to fields, resets `pin_count`/`last_accessed`. `decode` on bucketless meta raises.
 - **write persist:** persisted bucket calls `provider.put` with the right `ttl_s`; `upload` never calls `put`; `provider=None` never calls `put`.
-- **strict rollback:** failing provider → `write` raises and `bucket_bytes` returns to pre-write value (ref not resident, not on disk).
+- **rollback (no-eviction case):** failing provider on a bucket with headroom → `write` raises, the new ref is absent from **both** tiers (`resolve` raises `KeyError`), and `bucket_bytes` returns to the pre-write value.
+- **rollback (eviction case):** failing provider on a budget-pressured bucket that evicts an older entry during admission → `write` raises and the new ref is absent from both tiers; the evicted older entry is **not** restored (documents the narrow rollback guarantee — no false "full cache restore" claim).
 - **resolve rehydrate:** evict from memory (budget pressure) → `resolve` returns the entry from the provider with `pin_count=0`, fresh `last_accessed`, preserved `created_at`/metadata; the entry is re-admitted to memory.
 - **rehydrate best-effort:** resolve into a pin-saturated bucket returns the value without raising.
 - **promote persistence:** promote into `ref_image` writes through to the provider; source untouched.
 - **TTL seam:** `control_map` put receives `ttl_s=3600`; `ref_image` put receives `ttl_s=None`.
 - **degradation:** `TieredAssetStore(memory, None)` behaves as the memory store for write/resolve/promote/pin/cleanup.
+- **provider selection:** `ASSET_STORE_PROVIDER=REDIS` (and unknown values) raises `RuntimeError`; `DISABLED`→None; `MEMORY`/`FILESYSTEM` construct the expected provider.
+- **lifecycle:** `close_store()` closes a filesystem-backed tier's provider (cleanup thread stopped); `close()` on a `None`-provider tier is a no-op; no `TieredAssetStore` under test leaves a live cleanup thread.
 
 ## Out of scope (v1)
 
+- **Redis and any non-filesystem/in-memory backend** for the asset-store tier. Redis stays wired for the separate `/storage/*` provider via `STORAGE_PROVIDER`; the asset store uses its own `ASSET_STORE_PROVIDER` selector and rejects Redis. No other infra this phase.
 - `AssetStoreConfig`/`MemoryTierConfig`/`PersistenceTierConfig` object tree.
 - Cross-tier delete API / explicit disk eviction from `AssetStore`.
 - Cross-session or cross-user isolation.
