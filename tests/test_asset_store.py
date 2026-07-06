@@ -338,3 +338,21 @@ def test_default_buckets_persistence_policy():
     assert _DEFAULT_BUCKETS["control_map"].persistence_ttl_s == 3600
     assert _DEFAULT_BUCKETS["ref_image"].persist is True
     assert _DEFAULT_BUCKETS["ref_image"].persistence_ttl_s is None
+
+
+# --- prepare_promotion helper ---
+
+def test_prepare_promotion_merges_and_validates():
+    from server.asset_store import prepare_promotion
+    merged = prepare_promotion(_png(), {"provenance": "u", "origin": "ingested"}, "srcref")
+    assert merged["origin"] == "promoted"        # overlay wins
+    assert merged["source_asset_ref"] == "srcref"
+    assert merged["provenance"] == "u"           # source key preserved
+    assert merged["media_type"] == "image/png"
+    assert merged["width"] == 8 and merged["height"] == 8
+
+
+def test_prepare_promotion_rejects_non_image():
+    from server.asset_store import prepare_promotion
+    with pytest.raises(ValueError, match="not a decodable image"):
+        prepare_promotion(b"not an image", {}, "r")

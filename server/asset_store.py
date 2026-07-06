@@ -43,6 +43,30 @@ _DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
 }
 
 
+def prepare_promotion(data: bytes, source_metadata: dict[str, Any], source_ref: str) -> dict[str, Any]:
+    """Validate `data` decodes as an image, then return source metadata merged forward
+    with promotion fields overlaid. Raises ValueError if `data` is not a decodable image."""
+    try:
+        Image.open(io.BytesIO(data)).verify()
+    except Exception as exc:
+        raise ValueError("asset is not a decodable image") from exc
+
+    # verify() leaves the image unusable; reopen to read format/size.
+    img = Image.open(io.BytesIO(data))
+    fmt = img.format or "PNG"
+    media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
+    width, height = img.size
+
+    return {
+        **source_metadata,
+        "origin": "promoted",
+        "source_asset_ref": source_ref,
+        "media_type": media_type,
+        "width": width,
+        "height": height,
+    }
+
+
 class AssetStore(Protocol):
     def write(self, bucket: str, data: bytes, metadata: dict[str, Any] | None = None) -> str: ...
     def resolve(self, ref: str) -> AssetEntry: ...
@@ -148,26 +172,7 @@ class InMemoryAssetStore:
             src = self._require(ref)
             data = src.data
             src_meta = dict(src.metadata)
-
-        try:
-            Image.open(io.BytesIO(data)).verify()
-        except Exception as exc:
-            raise ValueError("asset is not a decodable image") from exc
-
-        # verify() leaves the image unusable; reopen to read format/size.
-        img = Image.open(io.BytesIO(data))
-        fmt = img.format or "PNG"
-        media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
-        width, height = img.size
-
-        merged = {
-            **src_meta,
-            "origin": "promoted",
-            "source_asset_ref": ref,
-            "media_type": media_type,
-            "width": width,
-            "height": height,
-        }
+        merged = prepare_promotion(data, src_meta, ref)
         return self.write(target_bucket, data, metadata=merged)
 
     def bucket_bytes(self, bucket: str) -> int:
