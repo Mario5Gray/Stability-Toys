@@ -16,6 +16,8 @@ class BucketPolicy:
     byte_budget: int
     ttl_s: float | None
     pinnable: bool = True
+    persist: bool = False
+    persistence_ttl_s: float | None = None
 
 
 @dataclass
@@ -32,9 +34,37 @@ class AssetEntry:
 
 _DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
     "upload": BucketPolicy("upload", byte_budget=128 * MB, ttl_s=300),
-    "control_map": BucketPolicy("control_map", byte_budget=256 * MB, ttl_s=None),
-    "ref_image": BucketPolicy("ref_image", byte_budget=128 * MB, ttl_s=None),
+    "control_map": BucketPolicy(
+        "control_map", byte_budget=256 * MB, ttl_s=None, persist=True, persistence_ttl_s=3600
+    ),
+    "ref_image": BucketPolicy(
+        "ref_image", byte_budget=128 * MB, ttl_s=None, persist=True, persistence_ttl_s=None
+    ),
 }
+
+
+def prepare_promotion(data: bytes, source_metadata: dict[str, Any], source_ref: str) -> dict[str, Any]:
+    """Validate `data` decodes as an image, then return source metadata merged forward
+    with promotion fields overlaid. Raises ValueError if `data` is not a decodable image."""
+    try:
+        Image.open(io.BytesIO(data)).verify()
+    except Exception as exc:
+        raise ValueError("asset is not a decodable image") from exc
+
+    # verify() leaves the image unusable; reopen to read format/size.
+    img = Image.open(io.BytesIO(data))
+    fmt = img.format or "PNG"
+    media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
+    width, height = img.size
+
+    return {
+        **source_metadata,
+        "origin": "promoted",
+        "source_asset_ref": source_ref,
+        "media_type": media_type,
+        "width": width,
+        "height": height,
+    }
 
 
 class AssetStore(Protocol):
@@ -142,26 +172,7 @@ class InMemoryAssetStore:
             src = self._require(ref)
             data = src.data
             src_meta = dict(src.metadata)
-
-        try:
-            Image.open(io.BytesIO(data)).verify()
-        except Exception as exc:
-            raise ValueError("asset is not a decodable image") from exc
-
-        # verify() leaves the image unusable; reopen to read format/size.
-        img = Image.open(io.BytesIO(data))
-        fmt = img.format or "PNG"
-        media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
-        width, height = img.size
-
-        merged = {
-            **src_meta,
-            "origin": "promoted",
-            "source_asset_ref": ref,
-            "media_type": media_type,
-            "width": width,
-            "height": height,
-        }
+        merged = prepare_promotion(data, src_meta, ref)
         return self.write(target_bucket, data, metadata=merged)
 
     def bucket_bytes(self, bucket: str) -> int:
@@ -175,6 +186,26 @@ class InMemoryAssetStore:
 
     def buckets(self) -> list[str]:
         return list(self._policies)
+
+    def policy(self, bucket: str) -> BucketPolicy:
+        return self._policy(bucket)
+
+    def admit(self, entry: AssetEntry) -> None:
+        policy = self._policy(entry.bucket)
+        if entry.byte_size > policy.byte_budget:
+            raise ValueError(
+                f"asset exceeds bucket budget: {entry.byte_size} > {policy.byte_budget} "
+                f"for bucket {entry.bucket!r}"
+            )
+        with self._lock:
+            self._entries[entry.ref] = entry
+            self._bucket_bytes[entry.bucket] += entry.byte_size
+            self._evict_to_budget(entry.bucket, protect=entry.ref)
+
+    def discard(self, ref: str) -> None:
+        with self._lock:
+            if ref in self._entries:
+                self._remove(ref)
 
     def _evict_to_budget(self, bucket: str, protect: str) -> None:
         # Caller holds self._lock. `protect` is the just-admitted ref, which must
@@ -211,8 +242,29 @@ class InMemoryAssetStore:
             self._remove(oldest.ref)
 
 
-_DEFAULT_STORE: AssetStore = InMemoryAssetStore()
+_DEFAULT_STORE = None  # type: ignore[var-annotated]
 
 
 def get_store() -> AssetStore:
+    global _DEFAULT_STORE
+    if _DEFAULT_STORE is None:
+        # Lazy to avoid an import cycle (tiered_asset_store imports this module).
+        from server.tiered_asset_store import (
+            TieredAssetStore,
+            make_asset_store_provider_from_env,
+        )
+        _DEFAULT_STORE = TieredAssetStore(
+            InMemoryAssetStore(), make_asset_store_provider_from_env()
+        )
     return _DEFAULT_STORE
+
+
+def close_store() -> None:
+    """Release the asset-store singleton: close its provider (e.g. the FS cleanup
+    thread) and clear the cached instance so the next get_store() rebuilds a fresh
+    tier/provider. Required for repeated startup/shutdown in one process — a closed
+    provider's cleanup thread is dead and must not be reused."""
+    global _DEFAULT_STORE
+    if _DEFAULT_STORE is not None:
+        _DEFAULT_STORE.close()
+        _DEFAULT_STORE = None

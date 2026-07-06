@@ -52,13 +52,13 @@ client = _client_cm.__enter__()
 @pytest.fixture(autouse=True)
 def _clear_store():
     store = get_store()
-    with store._lock:
-        store._entries.clear()
-        store._bucket_bytes = {name: 0 for name in store._policies}
+    with store._memory._lock:
+        store._memory._entries.clear()
+        store._memory._bucket_bytes = {name: 0 for name in store._memory._policies}
     yield
-    with store._lock:
-        store._entries.clear()
-        store._bucket_bytes = {name: 0 for name in store._policies}
+    with store._memory._lock:
+        store._memory._entries.clear()
+        store._memory._bucket_bytes = {name: 0 for name in store._memory._policies}
 
 
 @pytest.fixture(scope="module", autouse=True)

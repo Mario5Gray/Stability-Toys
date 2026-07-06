@@ -320,3 +320,90 @@ def test_promoted_and_source_have_independent_lifetimes():
     with pytest.raises(KeyError):
         store.resolve(src)               # source gone
     assert store.resolve(dst).bucket == "ref_image"  # copy survives
+
+
+# --- persistence policy fields ---
+
+def test_bucket_policy_persist_defaults():
+    p = BucketPolicy("x", byte_budget=10, ttl_s=None)
+    assert p.persist is False
+    assert p.persistence_ttl_s is None
+
+
+def test_default_buckets_persistence_policy():
+    from server.asset_store import _DEFAULT_BUCKETS
+    assert _DEFAULT_BUCKETS["upload"].persist is False
+    assert _DEFAULT_BUCKETS["upload"].persistence_ttl_s is None
+    assert _DEFAULT_BUCKETS["control_map"].persist is True
+    assert _DEFAULT_BUCKETS["control_map"].persistence_ttl_s == 3600
+    assert _DEFAULT_BUCKETS["ref_image"].persist is True
+    assert _DEFAULT_BUCKETS["ref_image"].persistence_ttl_s is None
+
+
+# --- prepare_promotion helper ---
+
+def test_prepare_promotion_merges_and_validates():
+    from server.asset_store import prepare_promotion
+    merged = prepare_promotion(_png(), {"provenance": "u", "origin": "ingested"}, "srcref")
+    assert merged["origin"] == "promoted"        # overlay wins
+    assert merged["source_asset_ref"] == "srcref"
+    assert merged["provenance"] == "u"           # source key preserved
+    assert merged["media_type"] == "image/png"
+    assert merged["width"] == 8 and merged["height"] == 8
+
+
+def test_prepare_promotion_rejects_non_image():
+    from server.asset_store import prepare_promotion
+    with pytest.raises(ValueError, match="not a decodable image"):
+        prepare_promotion(b"not an image", {}, "r")
+
+
+# --- tier-facing extensions ---
+
+def test_policy_accessor():
+    store = _store()
+    assert store.policy("upload").name == "upload"
+    with pytest.raises(ValueError, match="unknown bucket"):
+        store.policy("nope")
+
+
+def test_admit_inserts_entry_under_its_ref():
+    store = _store()
+    entry = AssetEntry(
+        ref="fixed123", data=b"abc", bucket="ref_image",
+        created_at=1.0, last_accessed=1.0, byte_size=3, metadata={"k": "v"},
+    )
+    store.admit(entry)
+    got = store.resolve("fixed123")
+    assert got.data == b"abc" and got.bucket == "ref_image" and got.metadata["k"] == "v"
+    assert store.bucket_bytes("ref_image") == 3
+
+
+def test_admit_oversize_raises_and_admits_nothing():
+    store = _store(b=BucketPolicy("b", byte_budget=4, ttl_s=None))
+    big = AssetEntry(
+        ref="x", data=b"aaaaa", bucket="b",
+        created_at=1.0, last_accessed=1.0, byte_size=5, metadata={},
+    )
+    with pytest.raises(ValueError, match="exceeds bucket budget"):
+        store.admit(big)
+    assert store.bucket_bytes("b") == 0
+
+
+def test_admit_unknown_bucket_raises():
+    store = _store()
+    entry = AssetEntry(
+        ref="r", data=b"x", bucket="nope",
+        created_at=1.0, last_accessed=1.0, byte_size=1, metadata={},
+    )
+    with pytest.raises(ValueError, match="unknown bucket"):
+        store.admit(entry)
+
+
+def test_discard_removes_present_and_ignores_absent():
+    store = _store()
+    ref = store.write("upload", b"hi")
+    store.discard(ref)
+    with pytest.raises(KeyError):
+        store.resolve(ref)
+    store.discard("absent-ref")  # no error
