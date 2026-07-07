@@ -29,29 +29,38 @@ Today `ReadLCM` hardcodes the `lcm` keyword and both parses chunks and hard-erro
 absent in a single function. `BakedParams` (used by `st gen --recreate`) depends on that
 error-on-absent behavior and must be unaffected.
 
-Extract the non-erroring lookup into a shared helper, and build all three keywords on
-top of it — one PNG chunk walk, not three:
+To make "one PNG chunk walk, not three" actually true for `runRead` (which needs all
+three keywords from the same file), parsing is split from lookup: a `Chunks` value
+parses the PNG once, and each `Find*` method queries the already-parsed result — no
+re-walk per keyword.
 
 ```go
-// findJSONChunk returns the JSON-decoded payload of the tEXt chunk with the given
-// keyword, and whether it was present. Absence is not an error (ok=false, err=nil);
-// a present-but-malformed chunk is (ok=true, err=<json error>).
-func findJSONChunk(pngBytes []byte, keyword string) (map[string]any, bool, error)
+// Chunks is a PNG parsed once so its tEXt chunks can be queried by keyword without
+// re-walking the file for each lookup.
+type Chunks struct{ chunks []chunk }
 
-// controlnet is a list, not a dict — its own function, not squeezed into
-// findJSONChunk's map[string]any return type.
-func findJSONListChunk(pngBytes []byte, keyword string) ([]any, bool, error)
+// Parse walks pngBytes once into a queryable Chunks value.
+func Parse(pngBytes []byte) (Chunks, error)
 
-func FindLCM(pngBytes []byte) (map[string]any, bool, error)             // new, wraps findJSONChunk
-func FindControlNetMap(pngBytes []byte) (map[string]any, bool, error)   // new, wraps findJSONChunk
-func FindControlNet(pngBytes []byte) ([]any, bool, error)               // new, wraps findJSONListChunk
+// text returns the raw tEXt payload for keyword, or ok=false if absent. Absence is
+// not an error; a present-but-malformed chunk's JSON error surfaces from the
+// Find* method that decodes it.
+func (c Chunks) text(keyword string) ([]byte, bool)
+
+func (c Chunks) FindLCM() (map[string]any, bool, error)            // new
+func (c Chunks) FindControlNetMap() (map[string]any, bool, error)  // new
+func (c Chunks) FindControlNet() ([]any, bool, error)              // new — list, not dict
 
 func ReadLCM(pngBytes []byte) (map[string]any, error) // UNCHANGED signature/behavior;
-                                                        // reimplemented on top of FindLCM
+                                                        // reimplemented as Parse + FindLCM
 ```
 
+`runRead` calls `pngmeta.Parse(data)` once, then all three `Find*` methods against the
+same `Chunks` value — genuinely one walk.
+
 `ReadLCM` keeps its exact current contract (`fmt.Errorf("no lcm tEXt chunk")` when
-absent), so `BakedParams` and `st gen --recreate` are untouched by this refactor.
+absent), reimplemented internally as `Parse` + `FindLCM`, so `BakedParams` and
+`st gen --recreate` are untouched by this refactor.
 
 ### `st read` — detect three chunks, one top-level key per chunk found
 
@@ -60,18 +69,21 @@ func runRead(cmd *cobra.Command, args []string) error {
     data, err := os.ReadFile(args[0])
     if err != nil { return err }
 
+    chunks, err := pngmeta.Parse(data)
+    if err != nil { return err }
+
     out := map[string]any{}
-    if v, ok, err := pngmeta.FindLCM(data); err != nil {
+    if v, ok, err := chunks.FindLCM(); err != nil {
         return err
     } else if ok {
         out["lcm"] = v
     }
-    if v, ok, err := pngmeta.FindControlNet(data); err != nil {
+    if v, ok, err := chunks.FindControlNet(); err != nil {
         return err
     } else if ok {
         out["controlnet"] = v
     }
-    if v, ok, err := pngmeta.FindControlNetMap(data); err != nil {
+    if v, ok, err := chunks.FindControlNetMap(); err != nil {
         return err
     } else if ok {
         out["controlnet_map"] = v
@@ -124,11 +136,17 @@ st read ./control_map.png            # standalone control-map file
 
 - `cli/go/README.md`: update the one-line `st read` description to mention all three
   chunks.
-- `cli/go/USAGE.md`: update the example output block (currently shows flat `lcm` JSON)
-  to the wrapped shape.
+- `cli/go/USAGE.md`, "Reading PNG metadata" section:
+  - update the example output block (currently shows flat `lcm` JSON) to the wrapped
+    shape
+  - update the prose line "Returns the raw `lcm` tEXt chunk as JSON. No server call;
+    works offline." — it currently describes only the old flat-`lcm` behavior and must
+    be revised to cover all three chunks (the "no server call; works offline" part
+    stays true and unchanged).
 
 ### Testing
 
+CLI-level (`cli/go/cmd/st/read_test.go`):
 - `TestReadPrintsLCM` (existing): tighten to assert the `"lcm"` wrapper key present,
   not just substring match on `prompt`/`owl`.
 - New: PNG with only `controlnet_map` → output wrapped under `controlnet_map`.
@@ -138,6 +156,16 @@ st read ./control_map.png            # standalone control-map file
   dropped).
 - `TestRecreateSeedsParams` (existing, `--recreate`): must stay green unmodified,
   confirming `ReadLCM`/`BakedParams` behavior is unaffected by the refactor.
+
+Package-level (`cli/go/internal/pngmeta/pngmeta_test.go`), exercising the refactored
+seam directly — both must stay green unmodified since `ReadLCM`'s contract doesn't
+change:
+- `TestWriteThenReadLCM` (existing): `ReadLCM` round-trip via `Parse`+`FindLCM`.
+- `TestBakedParamsMapsToRequestFields` (existing): `BakedParams` → `ReadLCM`, unaffected.
+- New: `Parse` + `FindControlNet` on a chunk with a JSON list payload.
+- New: `Parse` + `FindControlNetMap` on a chunk with a JSON dict payload.
+- New: a single `Parse` call whose `Chunks` value answers all three `Find*` lookups
+  correctly on a PNG carrying `lcm` + `controlnet` together (the co-occurring case).
 
 ## Out of scope
 
