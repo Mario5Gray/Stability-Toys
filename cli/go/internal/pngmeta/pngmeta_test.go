@@ -81,6 +81,78 @@ func TestReadLCMErrorsWhenAbsent(t *testing.T) {
 	}
 }
 
+func TestFindControlNetMapDict(t *testing.T) {
+	pngBytes := makePNGWithText(t, "controlnet_map",
+		`{"tool":"canny_map","control_type":"canny","source_width":8,"source_height":8}`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok, err := chunks.FindControlNetMap()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected FindControlNetMap ok=true")
+	}
+	if m["tool"] != "canny_map" || m["control_type"] != "canny" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestFindControlNetList(t *testing.T) {
+	pngBytes := makePNGWithText(t, "controlnet",
+		`[{"attachment_id":"cn_1","control_type":"canny"}]`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, ok, err := chunks.FindControlNet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected FindControlNet ok=true")
+	}
+	if len(list) != 1 {
+		t.Fatalf("got %+v", list)
+	}
+	entry, ok := list[0].(map[string]any)
+	if !ok || entry["attachment_id"] != "cn_1" {
+		t.Fatalf("got %+v", list[0])
+	}
+}
+
+func TestFindControlNetAbsentIsNotError(t *testing.T) {
+	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl"}`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := chunks.FindControlNet()
+	if err != nil {
+		t.Fatalf("absence must not be an error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected FindControlNet ok=false when controlnet chunk absent")
+	}
+}
+
+func TestFindControlNetMapMalformedJSONErrors(t *testing.T) {
+	pngBytes := makePNGWithText(t, "controlnet_map", `not json`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := chunks.FindControlNetMap()
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	if !ok {
+		t.Fatal("malformed-but-present chunk should report ok=true alongside the error")
+	}
+}
+
 func TestBakedParamsMapsToRequestFields(t *testing.T) {
 	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl","cfg":2.5,"steps":10,"unrelated":"drop"}`)
 	out, err := BakedParams(pngBytes)

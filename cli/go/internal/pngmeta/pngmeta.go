@@ -113,6 +113,35 @@ func (c Chunks) FindLCM() (map[string]any, bool, error) {
 	return m, true, nil
 }
 
+// FindControlNetMap returns the controlnet_map chunk's decoded payload (a flat
+// dict), if present. Written onto standalone control-map PNGs by scripts/cn_metadata.py.
+func (c Chunks) FindControlNetMap() (map[string]any, bool, error) {
+	text, ok := c.text("controlnet_map")
+	if !ok {
+		return nil, false, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(text, &m); err != nil {
+		return nil, true, fmt.Errorf("controlnet_map chunk not JSON: %w", err)
+	}
+	return m, true, nil
+}
+
+// FindControlNet returns the controlnet chunk's decoded payload (a list of
+// per-attachment provenance entries), if present. Written onto generation-output
+// PNGs alongside lcm whenever the generation used a ControlNet binding.
+func (c Chunks) FindControlNet() ([]any, bool, error) {
+	text, ok := c.text("controlnet")
+	if !ok {
+		return nil, false, nil
+	}
+	var list []any
+	if err := json.Unmarshal(text, &list); err != nil {
+		return nil, true, fmt.Errorf("controlnet chunk not JSON: %w", err)
+	}
+	return list, true, nil
+}
+
 // WriteText inserts a tEXt chunk (keyword\x00text) immediately before IEND.
 func WriteText(pngBytes []byte, keyword, text string) ([]byte, error) {
 	chunks, err := parseChunks(pngBytes)
