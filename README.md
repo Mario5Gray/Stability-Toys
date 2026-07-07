@@ -215,6 +215,14 @@ SR_MAX_PIXELS=24000000
 CUDA_SR_MODEL=/models/sr/RealESRGAN_x4plus.pth
 CUDA_SR_TILE=0            # 0 disables tiling; raise on lower-VRAM GPUs
 CUDA_SR_FP16=1            # 1 uses fp16 when supported; 0 keeps fp32
+
+# Asset store persistence (optional) — control-map and reusable ref-image assets
+ASSET_STORE_PROVIDER=DISABLED  # DISABLED (default, memory-only) | MEMORY | FILESYSTEM
+                               # Redis is intentionally out of scope for this tier.
+                               # Independent of STORAGE_PROVIDER, which drives /storage/*.
+FS_STORAGE_DIR=/data/image-cache       # FILESYSTEM only: on-disk location
+FS_STORAGE_TTL_S=604800                # FILESYSTEM only: default retention (7 days)
+FS_STORAGE_CLEANUP_INTERVAL_S=3600     # FILESYSTEM only: expired-entry sweep interval
 ```
 
 ### Super-Resolution CLI
@@ -740,6 +748,10 @@ make install-st   # builds and places st in ~/.local/bin
 - **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard
 - **Usage guide:** [`cli/go/USAGE.md`](cli/go/USAGE.md) — first run, generation, img2img, ControlNet, job control
 - **Operator guide:** [`CONTROLNET.md`](CONTROLNET.md) — required models, `modes.yml` policy, `controlnets.yaml` registry, supported server-side flows
+
+`st read <image.png>` prints all embedded PNG metadata offline — generation params
+(`lcm`), per-attachment ControlNet provenance (`controlnet`), and standalone
+control-map provenance (`controlnet_map`) — one JSON key per chunk found.
 
 ---
 
