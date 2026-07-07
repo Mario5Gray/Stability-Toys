@@ -41,6 +41,46 @@ func TestWriteTextKeepsValidPNG(t *testing.T) {
 
 // TestBakedParamsMapsToRequestFields pins the lcm->GenerateRequest renaming used
 // by precedence layer 2 (cfg->guidance_scale, steps->num_inference_steps).
+func TestParseThenFindLCM(t *testing.T) {
+	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl","seed":42}`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, ok, err := chunks.FindLCM()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected FindLCM ok=true")
+	}
+	if m["prompt"] != "owl" {
+		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestFindLCMAbsentIsNotError(t *testing.T) {
+	pngBytes := makePNGWithText(t, "other", `{"x":1}`)
+	chunks, err := Parse(pngBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := chunks.FindLCM()
+	if err != nil {
+		t.Fatalf("absence must not be an error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected FindLCM ok=false when lcm chunk absent")
+	}
+}
+
+func TestReadLCMErrorsWhenAbsent(t *testing.T) {
+	pngBytes := makePNGWithText(t, "other", `{"x":1}`)
+	if _, err := ReadLCM(pngBytes); err == nil {
+		t.Fatal("expected error when lcm chunk absent")
+	}
+}
+
 func TestBakedParamsMapsToRequestFields(t *testing.T) {
 	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl","cfg":2.5,"steps":10,"unrelated":"drop"}`)
 	out, err := BakedParams(pngBytes)
