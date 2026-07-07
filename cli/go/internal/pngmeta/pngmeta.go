@@ -65,6 +65,83 @@ func encodeChunk(c chunk) []byte {
 	return out
 }
 
+// Chunks is a PNG parsed once so its tEXt chunks can be queried by keyword
+// without re-walking the file for each lookup.
+type Chunks struct {
+	chunks []chunk
+}
+
+// Parse walks pngBytes once into a queryable Chunks value.
+func Parse(pngBytes []byte) (Chunks, error) {
+	cs, err := parseChunks(pngBytes)
+	if err != nil {
+		return Chunks{}, err
+	}
+	return Chunks{chunks: cs}, nil
+}
+
+// text returns the raw tEXt payload for keyword, or ok=false if absent. Absence
+// is not an error; a malformed-JSON chunk's error surfaces from the decoding
+// Find* method instead.
+func (c Chunks) text(keyword string) ([]byte, bool) {
+	for _, ch := range c.chunks {
+		if ch.typ != "tEXt" {
+			continue
+		}
+		i := bytes.IndexByte(ch.data, 0x00)
+		if i < 0 {
+			continue
+		}
+		if string(ch.data[:i]) != keyword {
+			continue
+		}
+		return ch.data[i+1:], true
+	}
+	return nil, false
+}
+
+// FindLCM returns the lcm chunk's decoded payload, if present.
+func (c Chunks) FindLCM() (map[string]any, bool, error) {
+	text, ok := c.text("lcm")
+	if !ok {
+		return nil, false, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(text, &m); err != nil {
+		return nil, true, fmt.Errorf("lcm chunk not JSON: %w", err)
+	}
+	return m, true, nil
+}
+
+// FindControlNetMap returns the controlnet_map chunk's decoded payload (a flat
+// dict), if present. Written onto standalone control-map PNGs by scripts/cn_metadata.py.
+func (c Chunks) FindControlNetMap() (map[string]any, bool, error) {
+	text, ok := c.text("controlnet_map")
+	if !ok {
+		return nil, false, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(text, &m); err != nil {
+		return nil, true, fmt.Errorf("controlnet_map chunk not JSON: %w", err)
+	}
+	return m, true, nil
+}
+
+// FindControlNet returns the controlnet chunk's decoded payload (a list of
+// per-attachment provenance entries), if present. Written onto generation-output
+// PNGs alongside lcm whenever the generation used a ControlNet binding.
+func (c Chunks) FindControlNet() ([]any, bool, error) {
+	text, ok := c.text("controlnet")
+	if !ok {
+		return nil, false, nil
+	}
+	var list []any
+	if err := json.Unmarshal(text, &list); err != nil {
+		return nil, true, fmt.Errorf("controlnet chunk not JSON: %w", err)
+	}
+	return list, true, nil
+}
+
 // WriteText inserts a tEXt chunk (keyword\x00text) immediately before IEND.
 func WriteText(pngBytes []byte, keyword, text string) ([]byte, error) {
 	chunks, err := parseChunks(pngBytes)
@@ -88,28 +165,18 @@ func WriteText(pngBytes []byte, keyword, text string) ([]byte, error) {
 
 // ReadLCM finds the `lcm` tEXt chunk and unmarshals its JSON text into a map.
 func ReadLCM(pngBytes []byte) (map[string]any, error) {
-	chunks, err := parseChunks(pngBytes)
+	chunks, err := Parse(pngBytes)
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range chunks {
-		if c.typ != "tEXt" {
-			continue
-		}
-		i := bytes.IndexByte(c.data, 0x00)
-		if i < 0 {
-			continue
-		}
-		if string(c.data[:i]) != "lcm" {
-			continue
-		}
-		var m map[string]any
-		if err := json.Unmarshal(c.data[i+1:], &m); err != nil {
-			return nil, fmt.Errorf("lcm chunk not JSON: %w", err)
-		}
-		return m, nil
+	m, ok, err := chunks.FindLCM()
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("no lcm tEXt chunk")
+	if !ok {
+		return nil, fmt.Errorf("no lcm tEXt chunk")
+	}
+	return m, nil
 }
 
 // BakedParams maps the lcm metadata keys onto GenerateRequest field names so the

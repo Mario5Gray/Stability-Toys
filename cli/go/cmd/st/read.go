@@ -12,7 +12,7 @@ import (
 
 var readCmd = &cobra.Command{
 	Use:   "read <image.png>",
-	Short: "Print the lcm generation metadata embedded in a PNG",
+	Short: "Print embedded PNG metadata (lcm, controlnet, controlnet_map)",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runRead,
 }
@@ -26,11 +26,34 @@ func runRead(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := pngmeta.ReadLCM(data)
+
+	chunks, err := pngmeta.Parse(data)
 	if err != nil {
 		return err
 	}
-	b, err := json.MarshalIndent(m, "", "  ")
+
+	out := map[string]any{}
+	if v, ok, err := chunks.FindLCM(); err != nil {
+		return err
+	} else if ok {
+		out["lcm"] = v
+	}
+	if v, ok, err := chunks.FindControlNet(); err != nil {
+		return err
+	} else if ok {
+		out["controlnet"] = v
+	}
+	if v, ok, err := chunks.FindControlNetMap(); err != nil {
+		return err
+	} else if ok {
+		out["controlnet_map"] = v
+	}
+
+	if len(out) == 0 {
+		return fmt.Errorf("no known metadata chunk (lcm, controlnet, controlnet_map) found in %s", args[0])
+	}
+
+	b, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return err
 	}

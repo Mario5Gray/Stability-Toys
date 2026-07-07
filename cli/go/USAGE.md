@@ -340,14 +340,31 @@ st priority J9a3b2c1 5
 ```bash
 st read images/out-0001.png
 # {
-#   "prompt": "a ceramic owl on a shelf, studio lighting",
-#   "cfg": 2.5,
-#   "steps": 8,
-#   "seed": 3847291
+#   "lcm": {
+#     "prompt": "a ceramic owl on a shelf, studio lighting",
+#     "cfg": 2.5,
+#     "steps": 8,
+#     "seed": 3847291
+#   }
 # }
+
+st read images/out-with-controlnet.png
+# {
+#   "lcm": { "prompt": "...", "seed": 42 },
+#   "controlnet": [
+#     { "attachment_id": "cn_1", "control_type": "canny", "generation": {...}, "source": {...} }
+#   ]
+# }
+
+st read control_maps/canny.png
+# { "controlnet_map": { "tool": "canny_map", "control_type": "canny", "source_width": 1024, "source_height": 1024 } }
 ```
 
-Returns the raw `lcm` tEXt chunk as JSON. No server call; works offline.
+Detects whichever of the three known PNG tEXt chunks are present — `lcm` (generation
+params), `controlnet` (per-attachment ControlNet provenance, present alongside `lcm`
+whenever the generation used ControlNet), and `controlnet_map` (provenance on a
+standalone control-map file) — and prints one JSON key per chunk found. No server
+call; works offline.
 
 ---
 

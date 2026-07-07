@@ -30,7 +30,7 @@ thin wrappers.
 | Command | Purpose |
 | --- | --- |
 | `st gen [prompt]` | Generate an image (WS); resolves config < baked PNG < flags |
-| `st read <png>` | Print the `lcm` generation metadata embedded in a PNG |
+| `st read <png>` | Print embedded PNG metadata (`lcm`, `controlnet`, `controlnet_map`) |
 | `st upload <file>` | Upload a file, print its fileref |
 | `st superres <file>` | Upscale via the backend super-resolution endpoint |
 | `st cancel <jobId>` | Cancel a running job |
