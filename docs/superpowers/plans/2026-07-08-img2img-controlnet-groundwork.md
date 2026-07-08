@@ -114,7 +114,9 @@ Expected: PASS — all tests including the four new ones.
 
 - [ ] **Step 5: Write the failing WS integration test**
 
-Append to the `TestJobSubmit` class in `tests/test_ws_routes.py` (mirror `test_generate_mode_system_rejects_invalid_size_before_submit` at line 613, but the rejection here fires before mode lookup, so no `get_mode_config` patch is needed):
+Append to the `TestJobSubmit` class in `tests/test_ws_routes.py` (mirror `test_generate_mode_system_rejects_invalid_size_before_submit` at line 613, but the rejection here fires before mode lookup, so no `get_mode_config` patch is needed).
+
+**Note on `init_image_ref`:** `handle_job_submit` resolves `params.get("init_image_ref")` via `resolve_file_ref` *unconditionally*, after the guard's try/except block and before the `job:ack` frame is even sent — regardless of whether the guard already set `pre_submit_job_error`. A ref that isn't actually in the upload store raises `KeyError` there, and the handler sends a bare `_error()` frame and returns *without ever sending `job:ack`*, which would break this test's `ack = ws.receive_json(); assert ack["type"] == "job:ack"` expectation. Use a real ref from the store (`get_store()`/`_solid_png_bytes()` are already imported/defined in this test file, e.g. at line 25 and line 70) rather than a literal placeholder string:
 
 ```python
     def test_generate_mode_system_rejects_combined_img2img_controlnet_before_preprocessing(self):
@@ -123,6 +125,8 @@ Append to the `TestJobSubmit` class in `tests/test_ws_routes.py` (mirror `test_g
         pool.get_current_mode.return_value = "SDXL"
         app.state.worker_pool = pool
         app.state.storage = None
+
+        init_ref = get_store().write("upload", _solid_png_bytes())
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
@@ -149,7 +153,7 @@ Append to the `TestJobSubmit` class in `tests/test_ws_routes.py` (mirror `test_g
                         "jobType": "generate",
                         "params": {
                             "prompt": "a cat",
-                            "init_image_ref": "abc123",
+                            "init_image_ref": init_ref,
                             "controlnets": [
                                 {"attachment_id": "cn_1", "control_type": "canny", "map_asset_ref": "ref1"}
                             ],

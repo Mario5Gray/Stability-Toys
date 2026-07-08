@@ -762,6 +762,14 @@ fail-fast guard is passed and preprocessing runs, not that a job completes:
             )
         )
 
+        # handle_job_submit resolves params["init_image_ref"] via resolve_file_ref
+        # unconditionally, before job:ack is sent — an unknown ref raises KeyError
+        # and short-circuits into a bare `_error()` frame with no job:ack at all,
+        # which would break this test's ack-then-job:error expectation below. Use a
+        # real ref from the upload store (get_store()/_solid_png_bytes() are already
+        # imported/defined in this test file).
+        init_ref = get_store().write("upload", _solid_png_bytes())
+
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
         class _FakeGenerateRequest:
@@ -817,7 +825,7 @@ fail-fast guard is passed and preprocessing runs, not that a job completes:
                             "params": {
                                 "prompt": "a cat",
                                 "size": "1024x1024",
-                                "init_image_ref": "abc123",
+                                "init_image_ref": init_ref,
                                 "controlnets": [
                                     {"attachment_id": "cn_1", "control_type": "canny", "map_asset_ref": "ref1"}
                                 ],
