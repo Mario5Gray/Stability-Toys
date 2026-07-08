@@ -39,8 +39,9 @@
 - Test: `tests/test_ws_routes.py`
 
 **Interfaces:**
-- Produces: `reject_combined_img2img_controlnet(*, has_init_image: bool, controlnets: Any) -> None` in `server/controlnet_constraints.py` — raises `ValueError` iff both are truthy.
+- Produces: `reject_combined_img2img_controlnet(*, has_init_image: bool, controlnets: Any, supports_combined: bool = False) -> None` in `server/controlnet_constraints.py` — raises `ValueError` iff both `has_init_image` and `controlnets` are truthy AND `supports_combined` is `False`.
 - Consumes: nothing new. Called from `server/ws_routes.py` `handle_job_submit`, using raw `params.get("init_image_ref")` (WS-only field, never reaches `GenerateRequest`) and the already-built `req.controlnets`.
+- **Seam for Group B:** no backend supports combined execution yet, so this task's call site passes `supports_combined=False` explicitly (hardcoded, with a comment). `docs/superpowers/plans/2026-07-08-img2img-controlnet-pipeline-wiring.md` Task 4 replaces that hardcoded `False` with a live capability check once CUDA execution exists — this guard would otherwise reject combined requests forever, even after Group B ships execution and flips `supports_img2img_and_controlnet=True` on the CUDA provider.
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -53,7 +54,7 @@ from server.controlnet_constraints import enforce_controlnet_policy, reject_comb
 (replace the existing single-name import line with this two-name import), then append:
 
 ```python
-def test_reject_combined_img2img_controlnet_raises_when_both_present():
+def test_reject_combined_img2img_controlnet_raises_when_both_present_and_unsupported():
     with pytest.raises(ValueError, match="img2img"):
         reject_combined_img2img_controlnet(has_init_image=True, controlnets=[object()])
 
@@ -65,6 +66,15 @@ def test_reject_combined_img2img_controlnet_allows_img2img_alone():
 
 def test_reject_combined_img2img_controlnet_allows_controlnet_alone():
     reject_combined_img2img_controlnet(has_init_image=False, controlnets=[object()])
+
+
+def test_reject_combined_img2img_controlnet_allows_both_when_supported():
+    # Documents the seam Group B's pipeline-wiring plan (Task 4) wires live: once a
+    # backend reports supports_img2img_and_controlnet=True, this guard must not
+    # block the combination it names.
+    reject_combined_img2img_controlnet(
+        has_init_image=True, controlnets=[object()], supports_combined=True
+    )
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -77,25 +87,30 @@ Expected: FAIL — `ImportError: cannot import name 'reject_combined_img2img_con
 Append to `server/controlnet_constraints.py`:
 
 ```python
-def reject_combined_img2img_controlnet(*, has_init_image: bool, controlnets: Any) -> None:
-    """Fail fast when a request carries both an init image and ControlNet attachments.
+def reject_combined_img2img_controlnet(
+    *, has_init_image: bool, controlnets: Any, supports_combined: bool = False
+) -> None:
+    """Fail fast when a request carries both an init image and ControlNet attachments
+    and the active backend does not support executing that combination.
 
-    img2img + ControlNet in the same request is not implemented yet (see
+    img2img + ControlNet in the same request has no CUDA execution yet (see
     docs/superpowers/plans/2026-07-08-img2img-controlnet-pipeline-wiring.md). Callers
-    must invoke this before any ControlNet preprocessing or worker dispatch so the
-    combination is rejected before assets get written or a job is queued.
+    must invoke this before any ControlNet preprocessing or worker dispatch so an
+    unsupported combination is rejected before assets get written or a job is queued.
+    `supports_combined` defaults to False (today, always — no caller passes a live
+    capability check until the pipeline-wiring plan's Task 4 wires one in).
     """
-    if has_init_image and controlnets:
+    if has_init_image and controlnets and not supports_combined:
         raise ValueError(
             "img2img (init_image) combined with ControlNet attachments in the same "
-            "request is not supported"
+            "request is not supported on the active backend"
         )
 ```
 
 - [ ] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_controlnet_constraints.py -v`
-Expected: PASS — all tests including the three new ones.
+Expected: PASS — all tests including the four new ones.
 
 - [ ] **Step 5: Write the failing WS integration test**
 
@@ -185,6 +200,12 @@ Replace with:
             reject_combined_img2img_controlnet(
                 has_init_image=bool(params.get("init_image_ref")),
                 controlnets=req.controlnets,
+                # No backend supports combined execution yet. Group B
+                # (docs/superpowers/plans/2026-07-08-img2img-controlnet-pipeline-wiring.md
+                # Task 4) replaces this hardcoded False with a live capability check
+                # once CUDA execution exists — until then this guard must stay
+                # unconditional or it would silently let unsupported requests through.
+                supports_combined=False,
             )
             if current_mode:
                 mode = get_mode_config().get_mode(current_mode)
@@ -640,4 +661,6 @@ git commit -m "docs(controlnet): state non-CUDA execution of combined img2img+co
 
 **Placeholder scan:** no TBD/TODO; every doc task shows the exact markdown to write, every code task shows exact diffs and exact test code.
 
-**Type consistency:** `reject_combined_img2img_controlnet(*, has_init_image: bool, controlnets: Any) -> None` (Task 1) and `BackendCapabilities.supports_img2img_and_controlnet: bool = False` (Task 2) are each defined once and used only at their own call sites in this plan — Group B (separate plan) is the next consumer of the capability flag (flips it to `True` on the CUDA provider once execution lands) and of the two design decisions in Task 3/4's doc.
+**Type consistency:** `reject_combined_img2img_controlnet(*, has_init_image: bool, controlnets: Any, supports_combined: bool = False) -> None` (Task 1) and `BackendCapabilities.supports_img2img_and_controlnet: bool = False` (Task 2) are each defined once and used only at their own call sites in this plan — Group B (separate plan) is the next consumer of the capability flag (flips it to `True` on the CUDA provider once execution lands) and of the two design decisions in Task 3/4's doc.
+
+**Review note (human, 2026-07-08):** this plan's fail-fast guard is unconditional by design at this point in the sequence — nothing supports combined execution yet, so `supports_combined=False` is correct today. It is Group B's responsibility (pipeline-wiring plan, Task 4) to make the guard capability-gated once CUDA execution ships; that dependency is now explicit in Task 1's Interfaces section and in the `supports_combined` parameter/comment added to the WS call site above.
