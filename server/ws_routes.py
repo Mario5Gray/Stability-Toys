@@ -173,6 +173,15 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 and _supports_controlnet(getattr(state, "backend_provider", None))
             )
             req = _build_generate_request(params)
+            from server.controlnet_constraints import reject_combined_img2img_controlnet
+            reject_combined_img2img_controlnet(
+                has_init_image=bool(params.get("init_image_ref")),
+                controlnets=req.controlnets,
+                # No backend supports combined execution yet. Group B replaces
+                # this hardcoded False with a live capability check once CUDA
+                # execution exists.
+                supports_combined=False,
+            )
             if current_mode:
                 mode = get_mode_config().get_mode(current_mode)
                 finalize_mode_generate_request(
