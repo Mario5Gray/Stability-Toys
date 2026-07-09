@@ -502,15 +502,13 @@ def test_sd15_combined_img2img_controlnet_keeps_init_image_and_control_map_disti
 
 
 def test_sd15_combined_path_normalizes_vae_dtype_before_execution():
-    """_normalize_img2img_modules() exists specifically to fix shared-VAE dtype
-    drift left over from a prior img2img run before the next img2img encode
-    (see backends/cuda_worker.py:230 docstring and
-    test_cuda_worker_capabilities.py::test_sdxl_img2img_normalizes_vae_dtype_before_execution).
-    The combined path reuses self.pipe's components via from_pipe exactly like the
-    plain img2img path reuses them via _img2img_pipe, so it needs the same fix-up
-    or a prior run's VAE upcast breaks the next combined request's encode."""
+    """The combined SD1.5 pipeline encodes the init image at prompt_embeds.dtype,
+    which diffusers derives from text_encoder.dtype when present. The worker must
+    align the shared VAE to that encode dtype, not blindly to self.dtype, or the
+    combined path hits the float-vs-half crash seen in ./error."""
     worker = _make_worker(DiffusersCudaWorker)
     worker.pipe.vae = MagicMock()
+    worker.pipe.text_encoder = SimpleNamespace(dtype="fp32_sentinel")
     req = _make_req()
     req.denoise_strength = 0.6
     binding = _make_binding("canny", 0.4, 0.0, 0.8)
@@ -539,7 +537,7 @@ def test_sd15_combined_path_normalizes_vae_dtype_before_execution():
 
         worker.run_job(job)
 
-    worker.pipe.vae.to.assert_called_once_with(worker.device, dtype=worker.dtype)
+    worker.pipe.vae.to.assert_called_once_with(worker.device, dtype="fp32_sentinel")
 
 
 def test_sd15_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():

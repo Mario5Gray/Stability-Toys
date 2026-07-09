@@ -232,13 +232,22 @@ class CudaWorkerBase:
         Re-align shared img2img modules to the worker runtime dtype/device.
 
         Diffusers can upcast shared modules such as the VAE during prior runs.
-        The next img2img encode then fails if the input tensor remains fp16
-        while module bias tensors stayed fp32. Keep the correction narrow to
-        the img2img path to avoid a broader VRAM penalty.
+        The next img2img encode fails if the init-image tensor dtype no longer
+        matches the shared VAE bias dtype. Diffusers derives that encode dtype
+        from the pipeline prompt path (text encoder or UNet fallback), so align
+        the VAE to the same dtype here instead of assuming self.dtype.
         """
         vae = getattr(getattr(self, "pipe", None), "vae", None)
+        target_dtype = self.dtype
+        pipe = getattr(self, "pipe", None)
+        for attr in ("text_encoder_2", "text_encoder", "unet"):
+            module = getattr(pipe, attr, None)
+            candidate_dtype = getattr(module, "dtype", None)
+            if candidate_dtype is not None and not callable(candidate_dtype):
+                target_dtype = candidate_dtype
+                break
         if vae is not None and hasattr(vae, "to"):
-            vae.to(self.device, dtype=self.dtype)
+            vae.to(self.device, dtype=target_dtype)
         if self._img2img_pipe is not None and vae is not None:
             self._img2img_pipe.vae = vae
 
