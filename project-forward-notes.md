@@ -7,16 +7,60 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ## Active work
 
-### st CLI v1.x point release — in-progress
-**FP:** STABL-kczspmud | **Plan:** `docs/superpowers/plans/2026-06-29-st-cli-point-release.md`
-**Brainstorm:** `fp://brainstorm?id=npbuwxinmqbghprneuxjiqybhhtmaawc`
+No track is currently in flight. The next likely pickup point is the **st CLI v2
+brainstorm** (`STABL-kczspmud`, in-progress, one subtask done) — see "v2 brainstorm"
+below.
 
-Six tasks, three independent tracks:
-- **E** (Tasks 1–2): `st modes switch/show/reload` subcommands + `stclient.ReloadModes()`
-- **A** (Task 3): `Generate()` callback refactor + `--stream` + `--quiet`
-- **C** (Tasks 4–6): `--controlnet-file`, upload bucket, config presets
+---
 
-Context document for implementers: `.superpowers/sdd/project-context.md`
+## Recently landed
+
+### AssetStore bucketed interface — merged (PR #3)
+
+**FP:** STABL-hvkybzlg | **Spec:** `docs/superpowers/specs/2026-07-04-asset-store-bucketed-interface-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-05-asset-store-bucketed-interface.md`
+
+`AssetStore` reshaped into a Protocol + `InMemoryAssetStore` implementation: flat
+named buckets (`upload`, `control_map`, `ref_image`), per-bucket byte budgets with
+fail-closed admission (rolls back cleanly under pin pressure — no silent deletion of
+unrelated assets), and `promote(ref, target_bucket)` (copy semantics, new ref,
+image-decode validated, metadata merged forward). `kind` → `bucket`, `insert` →
+`write`, no compatibility aliases.
+
+### Tiered AssetStore persistence — merged (PR #4)
+
+**FP:** STABL-slsbyhga | **Spec:** `docs/superpowers/specs/2026-07-05-tiered-asset-store-persistence-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-05-tiered-asset-store-persistence.md`
+
+`TieredAssetStore` composes the bucketed store (hot cache) with an optional
+`StorageProvider` (durable tier) via a pure `server/asset_codec.py` seam. Strict
+write-through (provider failure discards the just-admitted ref and raises — no
+half-persisted state); `resolve` rehydrates from the provider on a memory miss.
+Provider selection is a **dedicated** `ASSET_STORE_PROVIDER` env var, decoupled from
+the existing `STORAGE_PROVIDER` (which drives the separate `/storage/*` endpoint) —
+**Redis is intentionally out of scope** for this tier; only `DISABLED` (default),
+`MEMORY`, and `FILESYSTEM` are supported. Lifecycle (the filesystem provider's cleanup
+thread) is closed at the server's lifespan shutdown via `close_store()`.
+
+### st read: ControlNet metadata — merged (PR #5)
+
+**FP:** STABL-teiotvmc | **Spec:** `docs/superpowers/specs/2026-07-06-st-read-controlnet-metadata-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-06-st-read-controlnet-metadata.md`
+
+`st read <image.png>` now detects all three PNG tEXt chunks the backend writes —
+`lcm` (generation params), `controlnet` (per-attachment ControlNet provenance, stamped
+alongside `lcm` whenever a generation used ControlNet), and `controlnet_map`
+(provenance on standalone control-map files) — via a single `pngmeta.Parse` walk, and
+prints one JSON key per chunk found. Output is now always wrapped by chunk keyword
+(breaking change from the old flat `lcm`-only shape, by design — no back-compat shim).
+
+### st CLI v1.x point release — done
+**FP:** STABL-csqqcjmo (previously mis-cited here as STABL-kczspmud, which is actually
+the unrelated, still-open v2 brainstorm below)
+
+All six planned tasks landed: `st modes switch/show/reload` + `stclient.ReloadModes()`,
+the `Generate()` callback refactor (`--stream`/`--quiet`), `--controlnet-file`, the
+upload bucket argument, and ControlNet config presets.
 
 ---
 
@@ -65,6 +109,7 @@ within this work.
 | `st modes set-default` | No `POST /api/modes/default` endpoint in backend |
 | `--dry-run` | Deferred — scope (params only vs WS mock) not decided |
 | `st doctor` | Deferred post-point-release |
+| Non-CUDA img2img+ControlNet execution | Compounds onto the existing non-CUDA ControlNet deferral; explicit non-goal even after CUDA combined path (`STABL-ztaxgbhv`) ships |
 
 ---
 

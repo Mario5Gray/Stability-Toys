@@ -359,3 +359,22 @@ func TestBuildGenParamsSkipStepZeroOmitted(t *testing.T) {
 func strp(s string) *string   { return &s }
 func f64p(f float64) *float64 { return &f }
 func intp(i int) *int         { return &i }
+
+// TestBuildGenParamsCombinedInitImageAndControlnet pins that st gen can already
+// build a request carrying both init_image_ref and controlnets — the CLI has never
+// needed a change for the combined case; only the server rejected it (STABL-ztaxgbhv).
+func TestBuildGenParamsCombinedInitImageAndControlnet(t *testing.T) {
+	cn := `{"attachment_id":"a1","control_type":"canny","map_asset_ref":"fileref:M1"}`
+	args := genArgs{Prompt: "an owl", InitImage: "fileref:R1", Controlnets: []string{cn}}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p["init_image_ref"] != "R1" {
+		t.Fatalf("init_image_ref not threaded: %+v", p)
+	}
+	list, ok := p["controlnets"].([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("controlnets not threaded: %+v", p["controlnets"])
+	}
+}

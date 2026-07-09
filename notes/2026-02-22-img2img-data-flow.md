@@ -94,6 +94,15 @@ img2img results are **not cached** (unlike txt2img). The cache key is based on
 image content. Caching img2img results would risk serving stale results for a different init
 image with the same params.
 
+**Combined img2img + ControlNet runs (STABL-dghgcuzy):** the same rule extends
+unchanged. ControlNet attachments add another content dimension (`map_asset_ref`/
+`source_asset_ref` bytes) that is likewise excluded from the existing cache key, so
+combined-path results stay uncached for the same reason plain img2img results do.
+This is a decision, not an oversight: no new result-cache key, no image hashing, no
+schema change. The separate ControlNet *model* cache (`backends/controlnet_cache.py`,
+keyed by `model_id`/`model_path`) is unaffected — it caches loaded model weights, not
+generation results, and needs no change for the combined path.
+
 ---
 
 ## Out of Scope (not implemented here)

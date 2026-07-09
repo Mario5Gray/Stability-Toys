@@ -1,5 +1,15 @@
 # ControlNet Design
 
+> **Status update (2026-07-08, STABL-ztaxgbhv):** the img2img items this spec
+> deferred to V2 have landed at the worker layer. Combined img2img + ControlNet
+> execution now exists for both SD1.5 and SDXL on CUDA (`backends/cuda_worker.py`),
+> governed by `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`.
+> "Text-to-image only" statements below describe the v1 scope as designed in
+> April 2026, not the current state of the code. The operator-facing support
+> boundary in `CONTROLNET.md` is being updated separately under the same
+> STABL-ztaxgbhv track (STABL-dxaheihz and follow-ups) as the remaining
+> request-path wiring lands.
+
 ## Summary
 
 This design adds ControlNet as a first-class generation control for the existing mode-based generation stack. The v1 target is CUDA plus Diffusers only, with a provider seam that allows RKNN to add platform support later without changing the request or UI contract.
@@ -22,6 +32,7 @@ V1 supports:
 - emitted reusable control-map assets returned to the frontend
 
 V2 and later may add drawing, img2img, more preprocessors, and RKNN support.
+(Of these, img2img + ControlNet has since landed — see the status update above.)
 
 ## Goals
 
@@ -535,7 +546,7 @@ Each track gets its own FP parent issue under STABL-jhpayntq's pattern (parent p
 ### V2
 
 - drawing and sketch input
-- img2img integration
+- img2img integration (landed 2026-07-08 under STABL-ztaxgbhv — see status update at top)
 - more preprocessors such as pose, normal, and segmentation
 - richer persistence and gallery workflows for control assets
 - RKNN ControlNet provider

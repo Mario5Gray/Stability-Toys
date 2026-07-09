@@ -66,6 +66,36 @@ def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:
     return image
 
 
+def _native_aspect_ratio(data: bytes) -> float:
+    width, height = Image.open(io.BytesIO(data)).size
+    return width / height
+
+
+def _validate_control_image_aspect_ratio(
+    init_image_bytes: bytes, bindings: list[Any], *, tolerance: float = 0.02
+) -> None:
+    """Reject a combined img2img+ControlNet request when a control map's native
+    aspect ratio diverges from the init image's native aspect ratio by more than
+    `tolerance`.
+
+    Both images get force-resized to the request size regardless of this check
+    (see _decode_control_image and the img2img resize in run_job) — this isn't a
+    dimension-mismatch check, it's a content-alignment check: a control map with a
+    different native aspect ratio than the init image gets stretched differently
+    once both are force-resized, so ControlNet's spatial conditioning (e.g. canny
+    edges) no longer lines up with the init image's content.
+    """
+    init_ratio = _native_aspect_ratio(init_image_bytes)
+    for binding in bindings:
+        control_ratio = _native_aspect_ratio(binding.control_image_bytes)
+        if abs(control_ratio - init_ratio) / init_ratio > tolerance:
+            raise ValueError(
+                f"controlnet attachment '{binding.attachment_id}' aspect ratio "
+                f"{control_ratio:.2f} diverges from init image aspect ratio "
+                f"{init_ratio:.2f} by more than {tolerance:.0%}"
+            )
+
+
 class CudaWorkerBase:
     """Shared base for CUDA diffusers workers.
 
@@ -359,13 +389,25 @@ class CudaWorkerBase:
         raise NotImplementedError
 
     def _build_controlnet_kwargs(
-        self, bindings: list[Any], size: tuple[int, int], loaded_ids: list[str]
+        self,
+        bindings: list[Any],
+        size: tuple[int, int],
+        loaded_ids: list[str],
+        image_kwarg: str | None = None,
     ) -> dict[str, Any]:
         """Assemble the ControlNet pipeline kwargs from resolved bindings.
 
         Shared across families: the only per-family variance is the control-map
-        kwarg name (self._CONTROL_IMAGE_KWARG). Each value is single-or-list to
-        match diffusers' single-vs-multi-ControlNet signature.
+        kwarg name (self._CONTROL_IMAGE_KWARG, or the `image_kwarg` override below).
+        Each value is single-or-list to match diffusers' single-vs-multi-ControlNet
+        signature.
+
+        `image_kwarg` overrides `self._CONTROL_IMAGE_KWARG` for the control-map dict
+        key. The combined img2img+ControlNet path passes `image_kwarg="control_image"`
+        because the combined pipeline's `image=` kwarg is the init image, not the
+        control map — reusing `_CONTROL_IMAGE_KWARG` unchanged there would silently
+        overwrite the init image with the control map (or vice versa, depending on
+        kwarg merge order).
 
         Appends each loaded model_id to the caller's `loaded_ids` *as it pins*,
         so a mid-loop load failure still leaves the already-pinned models visible
@@ -383,9 +425,10 @@ class CudaWorkerBase:
             scales.append(binding.strength)
             starts.append(binding.start_percent)
             ends.append(binding.end_percent)
+        key = image_kwarg if image_kwarg is not None else self._CONTROL_IMAGE_KWARG
         return {
             "controlnet": controlnets[0] if len(controlnets) == 1 else controlnets,
-            self._CONTROL_IMAGE_KWARG: images[0] if len(images) == 1 else images,
+            key: images[0] if len(images) == 1 else images,
             "controlnet_conditioning_scale": scales[0] if len(scales) == 1 else scales,
             "control_guidance_start": starts[0] if len(starts) == 1 else starts,
             "control_guidance_end": ends[0] if len(ends) == 1 else ends,
@@ -537,16 +580,34 @@ class DiffusersCudaWorker(CudaWorkerBase):
         out = None
         try:
             if init_image is not None and bindings:
-                raise NotImplementedError(
-                    "ControlNet bindings on the img2img path are not supported in v1."
-                )
-
-            if bindings:
+                _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
-                    bindings, (width, height), loaded_ids
+                    bindings, (width, height), loaded_ids, image_kwarg="control_image"
                 )
-
-            if init_image is not None:
+                controlnet_obj = controlnet_kwargs.pop("controlnet")
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+                combined_pipe = _import_attr(
+                    "diffusers", "StableDiffusionControlNetImg2ImgPipeline"
+                ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                # Combined path shares self.pipe's components via from_pipe exactly
+                # like the plain img2img path shares them via _img2img_pipe — needs
+                # the same VAE dtype/device fix-up, or a prior run's upcast breaks
+                # this encode the same way it would on the plain img2img path.
+                self._normalize_img2img_modules()
+                denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "image": init_pil,
+                    "strength": denoise_strength,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
+                with torch.inference_mode():
+                    out = combined_pipe(**pipe_kwargs)
+            elif init_image is not None:
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
@@ -561,11 +622,14 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     "num_inference_steps": int(req.num_inference_steps),
                     "guidance_scale": float(req.guidance_scale),
                     "generator": gen,
-                    **controlnet_kwargs,
                 }
                 with torch.inference_mode():
                     out = self._img2img_pipe(**pipe_kwargs)
             else:
+                if bindings:
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids
+                    )
                 pipe_kwargs = {
                     "prompt": req.prompt,
                     "negative_prompt": getattr(req, "negative_prompt", None),
@@ -871,16 +935,34 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         out = None
         try:
             if init_image is not None and bindings:
-                raise NotImplementedError(
-                    "ControlNet bindings on the img2img path are not supported in v1."
-                )
-
-            if bindings:
+                _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
-                    bindings, (width, height), loaded_ids
+                    bindings, (width, height), loaded_ids, image_kwarg="control_image"
                 )
-
-            if init_image is not None:
+                controlnet_obj = controlnet_kwargs.pop("controlnet")
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+                combined_pipe = _import_attr(
+                    "diffusers", "StableDiffusionXLControlNetImg2ImgPipeline"
+                ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                # Combined path shares self.pipe's components via from_pipe exactly
+                # like the plain img2img path shares them via _img2img_pipe — needs
+                # the same VAE dtype/device fix-up, or a prior run's upcast breaks
+                # this encode the same way it would on the plain img2img path.
+                self._normalize_img2img_modules()
+                denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "image": init_pil,
+                    "strength": denoise_strength,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
+                with torch.inference_mode():
+                    out = combined_pipe(**pipe_kwargs)
+            elif init_image is not None:
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
@@ -895,11 +977,14 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     "num_inference_steps": int(req.num_inference_steps),
                     "guidance_scale": float(req.guidance_scale),
                     "generator": gen,
-                    **controlnet_kwargs,
                 }
                 with torch.inference_mode():
                     out = self._img2img_pipe(**pipe_kwargs)
             else:
+                if bindings:
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids
+                    )
                 pipe_kwargs = {
                     "prompt": req.prompt,
                     "negative_prompt": getattr(req, "negative_prompt", None),

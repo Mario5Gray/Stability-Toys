@@ -244,6 +244,33 @@ Two attachment variants — use exactly one:
 | `map_asset_ref` | You already have a preprocessed control map |
 | `source_asset_ref` + `preprocess` | Let the server preprocess the source image |
 
+### Combined with img2img
+
+`--init-image` and `--controlnet`/`--controlnet-file` can be given together — the
+request carries both `init_image_ref` and `controlnets`:
+
+```bash
+st gen "an owl in watercolor style" \
+  --init-image ./sketch.png \
+  --controlnet "{\"attachment_id\":\"cn-1\",\"control_type\":\"canny\",\"map_asset_ref\":\"$MAP_REF\"}"
+```
+
+Backend support is capability-gated: the combination executes when the backend
+reports `supports_img2img_and_controlnet` (CUDA, both SD1.5 and SDXL). On a
+backend without that capability the server rejects the request fail-fast with a
+`job:error` naming "img2img", before any preprocessing runs — it never silently
+drops one half of the request.
+
+Two combined-path rules to know:
+
+- The control map's aspect ratio must match the init image's within 2%, or the
+  job fails naming the offending `attachment_id` (both images are force-resized
+  to the request size; mismatched ratios would misalign the conditioning).
+- `denoise_strength` and per-attachment `start_percent`/`end_percent` compose
+  without renormalization — at very low denoise strength a narrow
+  `start_percent`/`end_percent` window can result in effectively no ControlNet
+  influence. Expected behavior, not a bug.
+
 ### Validate the ControlNet Track 3 checklist
 
 ```bash

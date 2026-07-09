@@ -125,6 +125,9 @@ def test_http_generate_success_exposes_controlnet_artifacts_header():
     assert resp.headers["X-ControlNet-Artifacts"]
 
 
+# No combined-path (init_image + controlnets) variant needed: this frame is built
+# from req._controlnet_artifacts alone (see server/ws_routes.py _finish_generate),
+# which never reads job.init_image — img2img presence cannot affect this assertion.
 def test_ws_job_complete_includes_controlnet_artifacts():
     import server.ws_routes as ws_routes
     from server import lcm_sr_server

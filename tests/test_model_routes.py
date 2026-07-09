@@ -137,6 +137,69 @@ async def test_models_status_uses_provider_capabilities_and_registry_stats():
     }
 
 
+async def test_models_status_reports_supports_img2img_and_controlnet_when_true():
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
+
+    registry = Mock()
+    registry.get_vram_stats.return_value = {
+        "backend": "cuda",
+        "device": "cuda:0",
+        "models_loaded": 1,
+    }
+
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True,
+        supports_modes=True,
+        supports_superres=True,
+        supports_model_registry_stats=True,
+        supports_img2img=True,
+        supports_img2img_and_controlnet=True,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["capabilities"]["supports_img2img_and_controlnet"] is True
+
+
+async def test_models_status_defaults_supports_img2img_and_controlnet_false_when_capability_omitted():
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
+
+    registry = Mock()
+    registry.get_vram_stats.return_value = {
+        "backend": "cpu",
+        "device": "CPU placeholder",
+        "models_loaded": 0,
+    }
+
+    provider = Mock()
+    provider.backend_id = "cpu"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=False,
+        supports_modes=True,
+        supports_superres=False,
+        supports_model_registry_stats=False,
+        supports_img2img=False,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["capabilities"]["supports_img2img_and_controlnet"] is False
+
+
 async def test_list_modes_includes_generation_control_policy_fields_and_resolution_sets():
     config = Mock()
     config.to_dict.return_value = {

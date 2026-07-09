@@ -1,7 +1,10 @@
 import pytest
 
 from server.controlnet_models import ControlNetAttachment, ControlNetPreprocessRequest
-from server.controlnet_constraints import enforce_controlnet_policy
+from server.controlnet_constraints import (
+    enforce_controlnet_policy,
+    reject_combined_img2img_controlnet,
+)
 from server.mode_config import (
     ControlNetControlTypePolicy,
     ControlNetPolicy,
@@ -225,3 +228,25 @@ def test_dispatch_stub_noop_when_no_controlnets():
     ensure_controlnet_dispatch_supported(r, supports_controlnet=False)
     r.controlnets = [object()]
     ensure_controlnet_dispatch_supported(r, supports_controlnet=True)
+
+
+def test_reject_combined_img2img_controlnet_raises_when_both_present_and_unsupported():
+    with pytest.raises(ValueError, match="img2img"):
+        reject_combined_img2img_controlnet(has_init_image=True, controlnets=[object()])
+
+
+def test_reject_combined_img2img_controlnet_allows_img2img_alone():
+    reject_combined_img2img_controlnet(has_init_image=True, controlnets=None)
+    reject_combined_img2img_controlnet(has_init_image=True, controlnets=[])
+
+
+def test_reject_combined_img2img_controlnet_allows_controlnet_alone():
+    reject_combined_img2img_controlnet(has_init_image=False, controlnets=[object()])
+
+
+def test_reject_combined_img2img_controlnet_allows_both_when_supported():
+    reject_combined_img2img_controlnet(
+        has_init_image=True,
+        controlnets=[object()],
+        supports_combined=True,
+    )

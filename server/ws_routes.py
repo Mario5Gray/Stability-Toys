@@ -115,6 +115,16 @@ def _supports_controlnet(provider: Any) -> bool:
     return getattr(capabilities, "supports_controlnet", False) is True
 
 
+def _supports_img2img_and_controlnet(provider: Any) -> bool:
+    if provider is None:
+        return False
+    try:
+        capabilities = provider.capabilities()
+    except Exception:
+        return False
+    return getattr(capabilities, "supports_img2img_and_controlnet", False) is True
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -173,6 +183,14 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 and _supports_controlnet(getattr(state, "backend_provider", None))
             )
             req = _build_generate_request(params)
+            from server.controlnet_constraints import reject_combined_img2img_controlnet
+            reject_combined_img2img_controlnet(
+                has_init_image=bool(params.get("init_image_ref")),
+                controlnets=req.controlnets,
+                supports_combined=_supports_img2img_and_controlnet(
+                    getattr(state, "backend_provider", None)
+                ),
+            )
             if current_mode:
                 mode = get_mode_config().get_mode(current_mode)
                 finalize_mode_generate_request(
