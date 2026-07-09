@@ -24,14 +24,18 @@ Current v1 boundary:
 - direct reusable control-map path supported via `map_asset_ref`
 - preprocess path supported via `source_asset_ref + preprocess`
 - multiple attachments supported, request order preserved
+- img2img + ControlNet in same request, WS/CLI only, CUDA backend (SD1.5 and SDXL;
+  shipped under `STABL-ztaxgbhv`) — capability-gated on
+  `supports_img2img_and_controlnet`; non-capable backends reject fail-fast before
+  preprocessing. Control-map aspect ratio must match the init image within 2%.
 
 Not supported in v1:
 
 - CPU backend ControlNet execution
 - RKNN backend ControlNet execution
 - MLX backend ControlNet execution
-- img2img + ControlNet in same request (CUDA-only support in progress, `STABL-ztaxgbhv`;
-  non-CUDA execution of this combination is an explicit non-goal, not a future v1.x item)
+- img2img + ControlNet on non-CUDA backends (explicit non-goal, not a future v1.x item)
+- img2img + ControlNet over HTTP `/generate` (WS/CLI only; HTTP has no `init_image_ref`)
 - server-side preprocessor families beyond `canny` and `depth`
 
 Important runtime rule:
@@ -393,14 +397,15 @@ Full validation checklist: [`docs/TESTING_CONTROLNET_TRACK3.md`](docs/TESTING_CO
 Shipped-now operator objective:
 
 - stable CUDA ControlNet operation with explicit mode policy and explicit registry wiring
+- combined img2img + ControlNet on CUDA over WS/CLI (`STABL-ztaxgbhv`), governed by
+  `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`
 
 Still-open or intentionally deferred as built-in/default surfaces:
 
 - non-CUDA backends
-- img2img + ControlNet (CUDA-only combined-path work is tracked under `STABL-ztaxgbhv`;
-  RKNN/MLX/CPU execution of the combined path remains out of scope even once the
-  CUDA combined path lands — it compounds onto the existing non-CUDA ControlNet
-  deferral above, not a separate gap)
+- img2img + ControlNet on RKNN/MLX/CPU (explicit non-goal — compounds onto the
+  existing non-CUDA ControlNet deferral above, not a separate gap) and over HTTP
+  `/generate` (would need a separate API decision to add `init_image_ref` there)
 - more built-in server preprocessors like pose / normal / segmentation
 - richer model-registry metadata beyond ControlNet-specific fields
 - MLX runtime wiring; see [`docs/CONTROLNET_MLX_CONVERSION.md`](docs/CONTROLNET_MLX_CONVERSION.md)

@@ -15,6 +15,31 @@ below.
 
 ## Recently landed
 
+### Combined img2img + ControlNet — merged (PR #6)
+
+**FP:** STABL-ztaxgbhv (parent, 10 children) | **Spec:** `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`
+**Plans:** `docs/superpowers/plans/2026-07-08-img2img-controlnet-{groundwork,pipeline-wiring,followups}.md`
+
+img2img + ControlNet in one request now executes end-to-end on CUDA (SD1.5 and
+SDXL), WS/CLI only. Both workers run
+`StableDiffusion(XL)ControlNetImg2ImgPipeline.from_pipe(self.pipe, ...)` — zero
+extra base-model VRAM — with `image=` (init) and `control_image=` (map) kept
+distinct via an `image_kwarg` override on `_build_controlnet_kwargs`, shared-VAE
+dtype normalization, and a 2%-tolerance aspect-ratio gate that rejects naming the
+offending `attachment_id`. Requests are capability-gated: the WS guard
+(`reject_combined_img2img_controlnet`) reads
+`BackendCapabilities.supports_img2img_and_controlnet` (also surfaced in
+`GET /models/status`) and rejects fail-fast **before preprocessing** on non-capable
+backends. Design decisions: `denoise_strength` × `start/end_percent` pass through
+without renormalization (low strength + narrow window can yield no visible
+conditioning — documented caveat, not a bug); combined results stay uncached.
+HTTP `/generate` intentionally cannot express img2img (no `init_image_ref`) —
+adding it would be a separate API decision. Known pre-existing issue surfaced
+during this track (reproduced on unmodified main, candidate FP issue): running
+`test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py` in one
+pytest session fails 3-4 tests from cross-file `sys.modules`/`lru_cache`
+diffusers-stub pollution; each file is green in isolation.
+
 ### AssetStore bucketed interface — merged (PR #3)
 
 **FP:** STABL-hvkybzlg | **Spec:** `docs/superpowers/specs/2026-07-04-asset-store-bucketed-interface-design.md`
