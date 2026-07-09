@@ -29,7 +29,8 @@ Not supported in v1:
 - CPU backend ControlNet execution
 - RKNN backend ControlNet execution
 - MLX backend ControlNet execution
-- img2img + ControlNet in same request
+- img2img + ControlNet in same request (CUDA-only support in progress, `STABL-ztaxgbhv`;
+  non-CUDA execution of this combination is an explicit non-goal, not a future v1.x item)
 - preprocessor families beyond `canny` and `depth`
 
 Important runtime rule:
@@ -375,7 +376,10 @@ Shipped-now operator objective:
 Still-open or intentionally deferred as built-in/default surfaces:
 
 - non-CUDA backends
-- img2img + ControlNet
+- img2img + ControlNet (CUDA-only combined-path work is tracked under `STABL-ztaxgbhv`;
+  RKNN/MLX/CPU execution of the combined path remains out of scope even once the
+  CUDA combined path lands — it compounds onto the existing non-CUDA ControlNet
+  deferral above, not a separate gap)
 - more built-in server preprocessors like pose / normal / segmentation
 - richer model-registry metadata beyond ControlNet-specific fields
 - MLX runtime wiring; see [`docs/CONTROLNET_MLX_CONVERSION.md`](docs/CONTROLNET_MLX_CONVERSION.md)

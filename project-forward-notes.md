@@ -109,6 +109,7 @@ within this work.
 | `st modes set-default` | No `POST /api/modes/default` endpoint in backend |
 | `--dry-run` | Deferred — scope (params only vs WS mock) not decided |
 | `st doctor` | Deferred post-point-release |
+| Non-CUDA img2img+ControlNet execution | Compounds onto the existing non-CUDA ControlNet deferral; explicit non-goal even after CUDA combined path (`STABL-ztaxgbhv`) ships |
 
 ---
 
