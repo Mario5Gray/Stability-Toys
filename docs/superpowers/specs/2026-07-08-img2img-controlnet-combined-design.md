@@ -49,5 +49,32 @@ ControlNet-invisible results. Group B does not need special-case code for this.
 
 ## Decision 2: control-map vs init-image size reconciliation
 
-See the sizing-reconciliation section appended by the follow-up task (`STABL-bwkjcbwc`)
-below.
+Today, both consumers independently force-resize to the request's `(width, height)`
+regardless of source: `_decode_control_image` resizes each control map
+(`backends/cuda_worker.py:62-66`), and the img2img branch resizes the init image
+the same way (`backends/cuda_worker.py:551` SD1.5, `:885` SDXL). So there is no
+dimension *mismatch* possible post-resize — both always land on the request size.
+The real risk is **content misalignment**: if a control map's native aspect ratio
+differs from the init image's native aspect ratio, forcing both to the same target
+size stretches one or both non-uniformly, so ControlNet's spatial conditioning
+(e.g. canny edges) no longer lines up with the init image's content.
+
+**Decision:** reject the combined request when a binding's native aspect ratio
+diverges from the init image's native aspect ratio by more than 2% (relative
+difference of `width/height`). Validation:
+
+- Runs in `backends/cuda_worker.py`, in the combined-path branch of `run_job`, before
+  either image is opened for resizing (Group B implements this — see
+  `docs/superpowers/plans/2026-07-08-img2img-controlnet-pipeline-wiring.md`).
+- Reads native dimensions via `PIL.Image.open(...).size` on the raw bytes (no
+  decode-then-resize needed just to compare ratios).
+- Tolerance: `abs(control_ratio - init_ratio) / init_ratio > 0.02` triggers rejection.
+- On mismatch: raise `ValueError` naming the offending `attachment_id` and both
+  ratios, e.g. `"controlnet attachment 'cn_1' aspect ratio 1.78 diverges from init "
+  "image aspect ratio 1.33 by more than 2%"` — caught by the same worker error path
+  that already surfaces other `run_job` exceptions as `job:error`.
+- Within tolerance: both images are resized independently to `(width, height)`
+  exactly as today — no new cross-scaling or letterboxing logic. This keeps the
+  fix a validation gate, not a new image-processing pipeline.
+- Applies per-binding when a request has multiple ControlNet attachments; the first
+  binding whose ratio diverges from the init image's ratio fails the request.
