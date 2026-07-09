@@ -755,3 +755,34 @@ def test_sdxl_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
             worker.run_job(job)
 
     from_pipe.assert_not_called()
+
+
+def test_normalize_img2img_modules_skips_noop_cast_when_already_aligned():
+    """Steady-state guard: when the shared VAE already matches the target
+    device/dtype, normalize must not call vae.to() at all — diffusers logs a
+    scary 'Casting directly with to()' warning on every .to(), and keeping
+    steady-state logs quiet preserves that warning's diagnostic value for
+    real casts (the STABL-crdsypux poisoning signature)."""
+    worker = _make_worker(DiffusersCudaWorker)
+    worker.pipe.text_encoder = SimpleNamespace(dtype="fp16_sentinel")
+    vae = MagicMock()
+    vae.dtype = "fp16_sentinel"
+    vae.device = "cuda:0"
+    worker.pipe.vae = vae
+
+    worker._normalize_img2img_modules()
+
+    vae.to.assert_not_called()
+
+
+def test_normalize_img2img_modules_still_casts_on_dtype_drift():
+    worker = _make_worker(DiffusersCudaWorker)
+    worker.pipe.text_encoder = SimpleNamespace(dtype="fp16_sentinel")
+    vae = MagicMock()
+    vae.dtype = "fp32_sentinel"  # drifted
+    vae.device = "cuda:0"
+    worker.pipe.vae = vae
+
+    worker._normalize_img2img_modules()
+
+    vae.to.assert_called_once_with("cuda:0", dtype="fp16_sentinel")

@@ -247,7 +247,17 @@ class CudaWorkerBase:
                 target_dtype = candidate_dtype
                 break
         if vae is not None and hasattr(vae, "to"):
-            vae.to(self.device, dtype=target_dtype)
+            # Skip the no-op cast when already aligned: diffusers logs a
+            # "Casting directly with to()" warning on every ModelMixin.to()
+            # call, and keeping steady-state logs quiet preserves that
+            # warning's diagnostic value for real casts (a burst of them was
+            # the from_pipe poisoning signature in STABL-crdsypux).
+            already_aligned = (
+                getattr(vae, "dtype", None) == target_dtype
+                and str(getattr(vae, "device", None)) == str(self.device)
+            )
+            if not already_aligned:
+                vae.to(self.device, dtype=target_dtype)
         if self._img2img_pipe is not None and vae is not None:
             self._img2img_pipe.vae = vae
 
