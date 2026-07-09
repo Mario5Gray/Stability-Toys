@@ -1,11 +1,14 @@
 # ControlNet Design
 
 > **Status update (2026-07-08, STABL-ztaxgbhv):** the img2img items this spec
-> deferred to V2 have landed. Combined img2img + ControlNet execution now exists
-> for both SD1.5 and SDXL on CUDA (`backends/cuda_worker.py`), governed by
-> `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`.
+> deferred to V2 have landed at the worker layer. Combined img2img + ControlNet
+> execution now exists for both SD1.5 and SDXL on CUDA (`backends/cuda_worker.py`),
+> governed by `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`.
 > "Text-to-image only" statements below describe the v1 scope as designed in
-> April 2026, not the current support boundary — see `CONTROLNET.md` for that.
+> April 2026, not the current state of the code. The operator-facing support
+> boundary in `CONTROLNET.md` is being updated separately under the same
+> STABL-ztaxgbhv track (STABL-dxaheihz and follow-ups) as the remaining
+> request-path wiring lands.
 
 ## Summary
 
