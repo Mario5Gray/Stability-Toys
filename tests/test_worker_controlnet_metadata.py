@@ -65,11 +65,18 @@ class _FakeStableDiffusionXLControlNetPipeline(_FakePipelineBase):
         return cls()
 
 
+class _FakeStableDiffusionControlNetImg2ImgPipeline(_FakePipelineBase):
+    @classmethod
+    def from_pipe(cls, pipe, controlnet):
+        return cls()
+
+
 sys.modules["diffusers.schedulers.scheduling_lcm"].LCMScheduler = MagicMock()
 sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion"].StableDiffusionPipeline = _FakeStableDiffusionPipeline
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl"].StableDiffusionXLPipeline = _FakeStableDiffusionXLPipeline
 sys.modules["diffusers"].StableDiffusionControlNetPipeline = _FakeStableDiffusionControlNetPipeline
 sys.modules["diffusers"].StableDiffusionXLControlNetPipeline = _FakeStableDiffusionXLControlNetPipeline
+sys.modules["diffusers"].StableDiffusionControlNetImg2ImgPipeline = _FakeStableDiffusionControlNetImg2ImgPipeline
 sys.modules["diffusers"].ControlNetModel = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
@@ -235,3 +242,40 @@ def test_run_job_skips_controlnet_chunk_without_bindings():
     add_text_calls = mock_pnginfo.return_value.add_text.call_args_list
     assert len(add_text_calls) == 1
     assert add_text_calls[0].args[0] == "lcm"
+
+
+def test_run_job_writes_controlnet_chunk_on_combined_img2img_path(tmp_path: Path):
+    """Combined-path variant of the chunk test above: the pnginfo.add_text
+    stamping sits after the img2img/txt2img branch split in run_job, so it must
+    fire identically when an init image rides along with the bindings. Unlike the
+    txt2img variant, _decode_control_image is left unmocked — real 8x8 PNGs flow
+    through the aspect-ratio validator and resize path end-to-end."""
+    worker = _make_worker()
+    req = _make_req()
+    req.denoise_strength = 0.6
+    control_png = _stamped_png(tmp_path)
+    job = SimpleNamespace(
+        req=req,
+        init_image=_bare_png(),
+        controlnet_bindings=[_binding("cn-1", "canny", "sdxl-canny", control_png, 0.8)],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo") as mock_pnginfo, \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    add_text_calls = mock_pnginfo.return_value.add_text.call_args_list
+    assert add_text_calls[0].args[0] == "lcm"
+    assert add_text_calls[1].args[0] == "controlnet"
+    payload = json.loads(add_text_calls[1].args[1])
+    assert payload[0]["attachment_id"] == "cn-1"
+    assert payload[0]["source"]["tool"] == "canny_map"
