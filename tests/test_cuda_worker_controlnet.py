@@ -6,11 +6,13 @@ request-shaping contract for ControlNet bindings. Task T5.1 expects these to
 fail until the worker threads binding data into pipeline kwargs.
 """
 
+import io
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from PIL import Image as PILImage
 
 
 _STUBS = [
@@ -76,6 +78,12 @@ class _FakeStableDiffusionXLControlNetPipeline(_FakePipelineBase):
         return cls()
 
 
+class _FakeStableDiffusionControlNetImg2ImgPipeline(_FakePipelineBase):
+    @classmethod
+    def from_pipe(cls, pipe, controlnet):
+        return cls()
+
+
 sys.modules["diffusers.schedulers.scheduling_lcm"].LCMScheduler = MagicMock()
 sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion"].StableDiffusionPipeline = _FakeStableDiffusionPipeline
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl"].StableDiffusionXLPipeline = _FakeStableDiffusionXLPipeline
@@ -83,6 +91,7 @@ sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img"].StableDiffusionXLImg2ImgPipeline = _FakeStableDiffusionXLImg2ImgPipeline
 sys.modules["diffusers"].StableDiffusionControlNetPipeline = _FakeStableDiffusionControlNetPipeline
 sys.modules["diffusers"].StableDiffusionXLControlNetPipeline = _FakeStableDiffusionXLControlNetPipeline
+sys.modules["diffusers"].StableDiffusionControlNetImg2ImgPipeline = _FakeStableDiffusionControlNetImg2ImgPipeline
 sys.modules["diffusers"].ControlNetModel = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
@@ -146,6 +155,12 @@ def _fake_cache():
     cache = MagicMock()
     cache.acquire.side_effect = lambda model_id, model_path, loader: f"loaded:{model_id}"
     return cache
+
+
+def _make_png_bytes(width, height):
+    buf = io.BytesIO()
+    PILImage.new("RGB", (width, height), color=(10, 20, 30)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def test_decode_control_image_converts_rgb_and_resizes():
@@ -278,6 +293,60 @@ def test_control_image_kwarg_follows_worker_constant():
     assert "image" not in kwargs
 
 
+def test_build_controlnet_kwargs_image_kwarg_override_routes_to_control_image():
+    """The combined img2img+ControlNet path needs the control map under
+    control_image (image= is the init image there), not under
+    _CONTROL_IMAGE_KWARG unchanged — the image_kwarg override is the seam."""
+    worker = _make_worker(DiffusersCudaWorker)
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    cache = _fake_cache()
+    opened, resized = _fake_control_image("override")
+
+    with patch("backends.cuda_worker.Image.open", return_value=opened), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache):
+        kwargs = worker._build_controlnet_kwargs(
+            [binding], (512, 512), [], image_kwarg="control_image"
+        )
+
+    assert kwargs["control_image"] is resized
+    assert "image" not in kwargs
+
+
+def test_build_controlnet_kwargs_without_override_uses_class_constant():
+    worker = _make_worker(DiffusersCudaWorker)
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    cache = _fake_cache()
+    opened, resized = _fake_control_image("default")
+
+    with patch("backends.cuda_worker.Image.open", return_value=opened), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache):
+        kwargs = worker._build_controlnet_kwargs([binding], (512, 512), [])
+
+    assert kwargs["image"] is resized
+    assert "control_image" not in kwargs
+
+
+def test_validate_control_image_aspect_ratio_passes_within_tolerance():
+    from backends.cuda_worker import _validate_control_image_aspect_ratio
+
+    init_bytes = _make_png_bytes(1024, 768)  # ratio 1.333
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(1000, 750)  # ratio 1.333
+
+    _validate_control_image_aspect_ratio(init_bytes, [binding])  # must not raise
+
+
+def test_validate_control_image_aspect_ratio_rejects_beyond_tolerance():
+    from backends.cuda_worker import _validate_control_image_aspect_ratio
+
+    init_bytes = _make_png_bytes(1024, 768)  # ratio 1.333
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)  # ratio 1.0
+
+    with pytest.raises(ValueError, match="canny-attachment"):
+        _validate_control_image_aspect_ratio(init_bytes, [binding])
+
+
 def test_partial_controlnet_load_failure_releases_already_pinned_models():
     """If the Nth ControlNet fails to load, the N-1 already pinned into the cache
     must still be released by the finally block — otherwise they leak VRAM."""
@@ -380,13 +449,60 @@ def test_sd15_worker_without_bindings_calls_base_pipeline_directly():
     assert "image" not in kwargs
 
 
-def test_sd15_worker_rejects_controlnet_on_img2img_path():
+def test_sd15_combined_img2img_controlnet_keeps_init_image_and_control_map_distinct():
+    """Regression guard for the image/control_image kwarg collision: the combined
+    pipeline's image= is the init image and control_image= is the control map —
+    a naive **controlnet_kwargs merge would silently let one overwrite the other."""
     worker = _make_worker(DiffusersCudaWorker)
     req = _make_req()
+    req.denoise_strength = 0.6
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)
     job = SimpleNamespace(
         req=req,
-        init_image=b"init-bytes",
-        controlnet_bindings=[_make_binding("canny", 0.4, 0.0, 0.8)],
+        init_image=_make_png_bytes(512, 512),
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    combined_pipe = MagicMock()
+    combined_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(
+             _FakeStableDiffusionControlNetImg2ImgPipeline, "from_pipe", return_value=combined_pipe
+         ) as from_pipe:
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        _, seed = worker.run_job(job)
+
+    assert seed == 123
+    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model")
+    assert worker.pipe.calls == []  # base txt2img pipe must not be invoked
+    kwargs = combined_pipe.call_args.kwargs
+    assert "controlnet" not in kwargs
+    assert kwargs["image"] is not kwargs["control_image"]
+    assert kwargs["strength"] == 0.6
+    assert kwargs["controlnet_conditioning_scale"] == 0.4
+    assert kwargs["control_guidance_start"] == 0.0
+    assert kwargs["control_guidance_end"] == 0.8
+
+
+def test_sd15_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
+    worker = _make_worker(DiffusersCudaWorker)
+    req = _make_req()
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)  # ratio 1.0
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(1024, 768),  # ratio 1.333, diverges > 2%
+        controlnet_bindings=[binding],
     )
     fake_generator = MagicMock()
     fake_generator.manual_seed.return_value = fake_generator
@@ -395,9 +511,13 @@ def test_sd15_worker_rejects_controlnet_on_img2img_path():
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
          patch("backends.cuda_worker.torch.cuda.empty_cache"), \
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
-         patch("backends.cuda_worker.Image.open"):
+         patch.object(
+             _FakeStableDiffusionControlNetImg2ImgPipeline, "from_pipe"
+         ) as from_pipe:
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(ValueError, match="canny-attachment"):
             worker.run_job(job)
+
+    from_pipe.assert_not_called()
