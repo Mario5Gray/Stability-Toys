@@ -20,6 +20,7 @@ Current v1 boundary:
 - mode system required
 - HTTP `/generate` and WebSocket `job:submit` support ControlNet
 - built-in preprocessors: `canny`, `depth`
+- configured direct-map control types: `canny`, `depth`, `pose`
 - direct reusable control-map path supported via `map_asset_ref`
 - preprocess path supported via `source_asset_ref + preprocess`
 - multiple attachments supported, request order preserved
@@ -31,7 +32,7 @@ Not supported in v1:
 - MLX backend ControlNet execution
 - img2img + ControlNet in same request (CUDA-only support in progress, `STABL-ztaxgbhv`;
   non-CUDA execution of this combination is an explicit non-goal, not a future v1.x item)
-- preprocessor families beyond `canny` and `depth`
+- server-side preprocessor families beyond `canny` and `depth`
 
 Important runtime rule:
 
@@ -44,6 +45,7 @@ Shipped in repo now:
 
 - `canny`
 - `depth`
+- `pose`
 
 How server decides what is legal:
 
@@ -58,14 +60,15 @@ So effective allowed set for one mode is:
 
 Not shipped by default in repo config:
 
-- `pose`
 - `normal`
 - `segmentation`
 
 Important nuance:
 
 - `control_type` is not hardcoded to closed enum in request model
-- repo default config and built-in server preprocessors only ship `canny` and `depth`
+- repo default mode/registry config ships `canny`, `depth`, and `pose`
+- built-in server preprocessors only ship `canny` and `depth`
+- `pose` maps can be generated with `scripts/pose_map.py` / `st-pose-map` and submitted via `map_asset_ref`
 - additional types can be wired if operator adds matching mode policy and registry entries
 - preprocess-driven use also needs matching server preprocessor registration
 
@@ -86,22 +89,28 @@ Example shipped registry ids:
 
 - `sdxl-canny`
 - `sdxl-depth`
+- `sdxl-openpose`
 - `sd15-canny`
 - `sd15-depth`
+- `sd15-openpose`
 
 Typical source models:
 
 - `diffusers/controlnet-canny-sdxl-1.0`
 - `diffusers/controlnet-depth-sdxl-1.0`
+- `diffusers/controlnet-openpose-sdxl-1.0`
 - `lllyasviel/sd-controlnet-canny`
 - `lllyasviel/sd-controlnet-depth` or `lllyasviel/control_v11f1p_sd15_depth`
+- `lllyasviel/control_v11p_sd15_openpose`
 
 Preprocessor requirements:
 
 - `canny`: OpenCV only, no extra model checkpoint
 - `depth`: Hugging Face depth-estimation pipeline, default model `LiheYoung/depth-anything-small-hf`
+- `pose`: offline helper only in v1 (`st-pose-map`); no built-in server-side pose preprocessor
 
 If operator enables `allow_preprocess: true` for `depth`, host must be able to download or already have that depth model available.
+If operator uses `pose`, generate the map first and submit it via `map_asset_ref`.
 
 ## Model Layout
 
@@ -117,8 +126,10 @@ ControlNet registry paths can live anywhere local, but practical convention is:
   controlnets/
     sdxl-canny/
     sdxl-depth/
+    controlnet-openpose-sdxl-1.0-safetensors/
     sd15-canny/
     sd15-depth/
+    control_v11p_sd15_openpose_diffusers/
 ```
 
 Each `conf/controlnets.yaml` entry points at local resolved path for one ControlNet model.
@@ -127,7 +138,7 @@ Each `conf/controlnets.yaml` entry points at local resolved path for one Control
 
 `conf/controlnets.yaml` is global ControlNet registry. It maps `model_id` to local path and compatibility metadata.
 
-Minimum shape:
+Example shipped shape:
 
 ```yaml
 models:
@@ -141,6 +152,11 @@ models:
     control_types: [depth]
     compatible_with: [sdxl]
 
+  sdxl-openpose:
+    path: /models/controlnets/controlnet-openpose-sdxl-1.0-safetensors
+    control_types: [pose]
+    compatible_with: [sdxl]
+
   sd15-canny:
     path: /models/controlnets/sd15-canny
     control_types: [canny]
@@ -149,6 +165,11 @@ models:
   sd15-depth:
     path: /models/controlnets/sd15-depth
     control_types: [depth]
+    compatible_with: [sd15]
+
+  sd15-openpose:
+    path: /models/controlnets/control_v11p_sd15_openpose_diffusers
+    control_types: [pose]
     compatible_with: [sd15]
 ```
 
@@ -353,13 +374,13 @@ Full validation checklist: [`docs/TESTING_CONTROLNET_TRACK3.md`](docs/TESTING_CO
 ### SDXL-only host
 
 - install SDXL base checkpoint or diffusers pipeline
-- install `sdxl-canny` and `sdxl-depth`
+- install `sdxl-canny`, `sdxl-depth`, and `sdxl-openpose`
 - only reference `sdxl-*` ControlNet model ids in mode policies
 
 ### SD1.5-only host
 
 - install SD1.5 base model
-- install `sd15-canny` and `sd15-depth`
+- install `sd15-canny`, `sd15-depth`, and `sd15-openpose`
 - set mode `checkpoint_variant` or detected family so server recognizes `sd15`
 
 ### Mixed host
