@@ -757,6 +757,121 @@ class TestJobSubmit:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
+    def test_generate_mode_system_proceeds_past_combined_guard_when_backend_capability_set(self):
+        """Once the backend reports supports_img2img_and_controlnet=True, a combined
+        init_image + controlnets request must reach ControlNet preprocessing instead
+        of being rejected by reject_combined_img2img_controlnet."""
+        from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "SDXL"
+        app.state.worker_pool = pool
+        app.state.storage = None
+        app.state.backend_provider = SimpleNamespace(
+            capabilities=lambda: SimpleNamespace(
+                supports_controlnet=True, supports_img2img_and_controlnet=True
+            )
+        )
+
+        init_ref = get_store().write("upload", _solid_png_bytes())
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    if key == "controlnets" and value is not None:
+                        value = [
+                            SimpleNamespace(
+                                attachment_id=item["attachment_id"],
+                                control_type=item["control_type"],
+                                source_asset_ref=item.get("source_asset_ref"),
+                                map_asset_ref=item.get("map_asset_ref"),
+                                preprocess=item.get("preprocess"),
+                                model_id=item.get("model_id"),
+                                strength=item.get("strength"),
+                            )
+                            for item in value
+                        ]
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        controlnet_policy = ControlNetPolicy(
+            enabled=True,
+            max_attachments=1,
+            allow_reuse_emitted_maps=True,
+            allowed_control_types={
+                "canny": ControlNetControlTypePolicy(
+                    default_model_id="sdxl-canny",
+                    allowed_model_ids=["sdxl-canny"],
+                    allow_preprocess=False,
+                    default_strength=0.8,
+                    min_strength=0.0,
+                    max_strength=2.0,
+                )
+            },
+        )
+
+        try:
+            with patch("server.ws_routes.get_mode_config") as get_mode_config:
+                get_mode_config.return_value = SimpleNamespace(
+                    get_mode=lambda name: SimpleNamespace(
+                        name=name,
+                        default_size="1024x1024",
+                        default_steps=4,
+                        default_guidance=1.0,
+                        resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                        controlnet_policy=controlnet_policy,
+                        model_path=None,
+                    )
+                )
+                with patch("server.controlnet_preprocessing.preprocess_controlnet_attachments") as preprocess_mock:
+                    preprocess_mock.return_value = []
+                    with client.websocket_connect("/v1/ws") as ws:
+                        ws.receive_json()
+                        ws.send_json({
+                            "type": "job:submit",
+                            "id": "t-combined-proceeds",
+                            "jobType": "generate",
+                            "params": {
+                                "prompt": "a cat",
+                                "size": "1024x1024",
+                                "init_image_ref": init_ref,
+                                "controlnets": [
+                                    {
+                                        "attachment_id": "cn_1",
+                                        "control_type": "canny",
+                                        "map_asset_ref": "ref1",
+                                    }
+                                ],
+                            },
+                        })
+
+                        ack = ws.receive_json()
+                        assert ack["type"] == "job:ack"
+
+                        err = ws.receive_json()
+                        assert err["type"] == "job:error"
+                        assert "img2img" not in err["error"]
+
+                    preprocess_mock.assert_called_once()
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+            app.state.backend_provider = None
+
     def test_generate_mode_system_mode_lookup_failure_reports_ack_then_job_error(self):
         app.state.use_mode_system = True
         pool = MagicMock()

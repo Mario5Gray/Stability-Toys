@@ -115,6 +115,16 @@ def _supports_controlnet(provider: Any) -> bool:
     return getattr(capabilities, "supports_controlnet", False) is True
 
 
+def _supports_img2img_and_controlnet(provider: Any) -> bool:
+    if provider is None:
+        return False
+    try:
+        capabilities = provider.capabilities()
+    except Exception:
+        return False
+    return getattr(capabilities, "supports_img2img_and_controlnet", False) is True
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
@@ -177,10 +187,9 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             reject_combined_img2img_controlnet(
                 has_init_image=bool(params.get("init_image_ref")),
                 controlnets=req.controlnets,
-                # No backend supports combined execution yet. Group B replaces
-                # this hardcoded False with a live capability check once CUDA
-                # execution exists.
-                supports_combined=False,
+                supports_combined=_supports_img2img_and_controlnet(
+                    getattr(state, "backend_provider", None)
+                ),
             )
             if current_mode:
                 mode = get_mode_config().get_mode(current_mode)
