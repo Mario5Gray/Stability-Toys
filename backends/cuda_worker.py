@@ -589,6 +589,11 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 combined_pipe = _import_attr(
                     "diffusers", "StableDiffusionControlNetImg2ImgPipeline"
                 ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                # Combined path shares self.pipe's components via from_pipe exactly
+                # like the plain img2img path shares them via _img2img_pipe — needs
+                # the same VAE dtype/device fix-up, or a prior run's upcast breaks
+                # this encode the same way it would on the plain img2img path.
+                self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
                     "prompt": req.prompt,

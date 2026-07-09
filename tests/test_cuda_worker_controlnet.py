@@ -494,6 +494,47 @@ def test_sd15_combined_img2img_controlnet_keeps_init_image_and_control_map_disti
     assert kwargs["control_guidance_end"] == 0.8
 
 
+def test_sd15_combined_path_normalizes_vae_dtype_before_execution():
+    """_normalize_img2img_modules() exists specifically to fix shared-VAE dtype
+    drift left over from a prior img2img run before the next img2img encode
+    (see backends/cuda_worker.py:230 docstring and
+    test_cuda_worker_capabilities.py::test_sdxl_img2img_normalizes_vae_dtype_before_execution).
+    The combined path reuses self.pipe's components via from_pipe exactly like the
+    plain img2img path reuses them via _img2img_pipe, so it needs the same fix-up
+    or a prior run's VAE upcast breaks the next combined request's encode."""
+    worker = _make_worker(DiffusersCudaWorker)
+    worker.pipe.vae = MagicMock()
+    req = _make_req()
+    req.denoise_strength = 0.6
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(512, 512),
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    combined_pipe = MagicMock()
+    combined_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(
+             _FakeStableDiffusionControlNetImg2ImgPipeline, "from_pipe", return_value=combined_pipe
+         ):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    worker.pipe.vae.to.assert_called_once_with(worker.device, dtype=worker.dtype)
+
+
 def test_sd15_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
     worker = _make_worker(DiffusersCudaWorker)
     req = _make_req()
