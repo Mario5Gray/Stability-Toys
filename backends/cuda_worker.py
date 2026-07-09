@@ -555,6 +555,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         return _import_attr("diffusers", "StableDiffusionControlNetPipeline").from_pipe(
             self.pipe,
             controlnet=controlnet_obj,
+            torch_dtype=None,
         )
 
     # ---------------------------
@@ -597,7 +598,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 combined_pipe = _import_attr(
                     "diffusers", "StableDiffusionControlNetImg2ImgPipeline"
-                ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                ).from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)
                 # Combined path shares self.pipe's components via from_pipe exactly
                 # like the plain img2img path shares them via _img2img_pipe — needs
                 # the same VAE dtype/device fix-up, or a prior run's upcast breaks
@@ -900,6 +901,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         return _import_attr("diffusers", "StableDiffusionXLControlNetPipeline").from_pipe(
             self.pipe,
             controlnet=controlnet_obj,
+            torch_dtype=None,
         )
 
     # ---------------------------
@@ -952,7 +954,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 combined_pipe = _import_attr(
                     "diffusers", "StableDiffusionXLControlNetImg2ImgPipeline"
-                ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                ).from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)
                 # Combined path shares self.pipe's components via from_pipe exactly
                 # like the plain img2img path shares them via _img2img_pipe — needs
                 # the same VAE dtype/device fix-up, or a prior run's upcast breaks

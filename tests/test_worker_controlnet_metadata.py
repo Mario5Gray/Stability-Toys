@@ -10,6 +10,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+_MISSING = object()
+
 _STUBS = [
     "numpy",
     "diffusers",
@@ -55,19 +57,22 @@ class _FakeStableDiffusionXLPipeline(_FakePipelineBase):
 
 class _FakeStableDiffusionControlNetPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
 class _FakeStableDiffusionXLControlNetPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
 class _FakeStableDiffusionControlNetImg2ImgPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 

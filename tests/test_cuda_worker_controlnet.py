@@ -15,6 +15,9 @@ import pytest
 from PIL import Image as PILImage
 
 
+_MISSING = object()
+
+
 _STUBS = [
     "numpy",
     "diffusers",
@@ -68,25 +71,29 @@ class _FakeStableDiffusionXLImg2ImgPipeline(_FakePipelineBase):
 
 class _FakeStableDiffusionControlNetPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
 class _FakeStableDiffusionXLControlNetPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
 class _FakeStableDiffusionControlNetImg2ImgPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
 class _FakeStableDiffusionXLControlNetImg2ImgPipeline(_FakePipelineBase):
     @classmethod
-    def from_pipe(cls, pipe, controlnet):
+    def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+        assert torch_dtype is None
         return cls()
 
 
@@ -235,6 +242,8 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
     opened, resized = _fake_control_image("single")
     cn_pipe = MagicMock()
     cn_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+    fake_pipe_cls = MagicMock()
+    fake_pipe_cls.from_pipe.return_value = cn_pipe
 
     with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
@@ -242,13 +251,15 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
          patch("backends.cuda_worker.Image.open", return_value=opened), \
          patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
-         patch.object(_FakeStableDiffusionControlNetPipeline, "from_pipe", return_value=cn_pipe) as from_pipe:
+         patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
         worker.run_job(job)
 
-    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model")
+    fake_pipe_cls.from_pipe.assert_called_once_with(
+        worker.pipe, controlnet="loaded:canny-model", torch_dtype=None
+    )
     assert worker.pipe.calls == []
     kwargs = cn_pipe.call_args.kwargs
     assert "controlnet" not in kwargs
@@ -282,6 +293,8 @@ def test_control_image_kwarg_follows_worker_constant():
     opened, resized = _fake_control_image("kwarg")
     cn_pipe = MagicMock()
     cn_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+    fake_pipe_cls = MagicMock()
+    fake_pipe_cls.from_pipe.return_value = cn_pipe
 
     with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
@@ -289,12 +302,15 @@ def test_control_image_kwarg_follows_worker_constant():
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
          patch("backends.cuda_worker.Image.open", return_value=opened), \
          patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
-         patch.object(_FakeStableDiffusionControlNetPipeline, "from_pipe", return_value=cn_pipe):
+         patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
         worker.run_job(job)
 
+    fake_pipe_cls.from_pipe.assert_called_once_with(
+        worker.pipe, controlnet="loaded:canny-model", torch_dtype=None
+    )
     kwargs = cn_pipe.call_args.kwargs
     assert kwargs["control_image"] is resized
     assert "image" not in kwargs
@@ -406,6 +422,8 @@ def test_sdxl_worker_passes_controlnet_lists_in_request_order():
     opened_b, resized_b = _fake_control_image("second")
     cn_pipe = MagicMock()
     cn_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+    fake_pipe_cls = MagicMock()
+    fake_pipe_cls.from_pipe.return_value = cn_pipe
 
     with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
@@ -413,15 +431,16 @@ def test_sdxl_worker_passes_controlnet_lists_in_request_order():
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
          patch("backends.cuda_worker.Image.open", side_effect=[opened_a, opened_b]), \
          patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
-         patch.object(_FakeStableDiffusionXLControlNetPipeline, "from_pipe", return_value=cn_pipe) as from_pipe:
+         patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
         worker.run_job(job)
 
-    from_pipe.assert_called_once_with(
+    fake_pipe_cls.from_pipe.assert_called_once_with(
         worker.pipe,
         controlnet=["loaded:canny-model", "loaded:depth-model"],
+        torch_dtype=None,
     )
     assert worker.pipe.calls == []
     kwargs = cn_pipe.call_args.kwargs
@@ -475,22 +494,24 @@ def test_sd15_combined_img2img_controlnet_keeps_init_image_and_control_map_disti
     cache = _fake_cache()
     combined_pipe = MagicMock()
     combined_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+    fake_pipe_cls = MagicMock()
+    fake_pipe_cls.from_pipe.return_value = combined_pipe
 
     with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
          patch("backends.cuda_worker.torch.cuda.empty_cache"), \
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
          patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
-         patch.object(
-             _FakeStableDiffusionControlNetImg2ImgPipeline, "from_pipe", return_value=combined_pipe
-         ) as from_pipe:
+         patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
         _, seed = worker.run_job(job)
 
     assert seed == 123
-    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model")
+    fake_pipe_cls.from_pipe.assert_called_once_with(
+        worker.pipe, controlnet="loaded:canny-model", torch_dtype=None
+    )
     assert worker.pipe.calls == []  # base txt2img pipe must not be invoked
     kwargs = combined_pipe.call_args.kwargs
     assert "controlnet" not in kwargs
@@ -538,6 +559,60 @@ def test_sd15_combined_path_normalizes_vae_dtype_before_execution():
         worker.run_job(job)
 
     worker.pipe.vae.to.assert_called_once_with(worker.device, dtype="fp32_sentinel")
+
+
+def test_sd15_combined_path_preserves_shared_module_dtypes_across_from_pipe():
+    """from_pipe shares module objects with self.pipe. The worker must pass an
+    explicit torch_dtype that avoids the diffusers float32 default, or the
+    combined path permanently upcasts the shared text encoder / UNet / VAE."""
+    worker = _make_worker(DiffusersCudaWorker)
+    worker.pipe.text_encoder = SimpleNamespace(dtype="fp16_sentinel")
+    worker.pipe.unet = SimpleNamespace(dtype="fp16_sentinel")
+    worker.pipe.vae = MagicMock(dtype="fp16_sentinel")
+    req = _make_req()
+    req.denoise_strength = 0.6
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(512, 512),
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+
+    class _MutatingCombinedPipe(_FakePipelineBase):
+        @classmethod
+        def from_pipe(cls, pipe, controlnet, *, torch_dtype=_MISSING):
+            if torch_dtype is _MISSING:
+                pipe.text_encoder.dtype = "fp32_sentinel"
+                pipe.unet.dtype = "fp32_sentinel"
+                pipe.vae.dtype = "fp32_sentinel"
+            elif torch_dtype is not None:
+                pipe.text_encoder.dtype = torch_dtype
+                pipe.unet.dtype = torch_dtype
+                pipe.vae.dtype = torch_dtype
+            return cls()
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(
+             _FakeStableDiffusionControlNetImg2ImgPipeline,
+             "from_pipe",
+             side_effect=_MutatingCombinedPipe.from_pipe,
+         ):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    assert worker.pipe.text_encoder.dtype == "fp16_sentinel"
+    assert worker.pipe.unet.dtype == "fp16_sentinel"
+    assert worker.pipe.vae.dtype == "fp16_sentinel"
 
 
 def test_sd15_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
@@ -603,7 +678,7 @@ def test_sdxl_combined_img2img_controlnet_keeps_init_image_and_control_map_disti
         _, seed = worker.run_job(job)
 
     assert seed == 123
-    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model")
+    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model", torch_dtype=None)
     assert worker.pipe.calls == []  # base txt2img pipe must not be invoked
     kwargs = combined_pipe.call_args.kwargs
     assert "controlnet" not in kwargs
