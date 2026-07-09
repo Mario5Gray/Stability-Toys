@@ -64,7 +64,7 @@ class CUDAProvider:
     backend_id: str = "cuda"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(True, True, True, True, True, True)
+        return BackendCapabilities(True, True, True, True, True, True, True)
 
     def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         from backends.worker_factory import create_cuda_worker

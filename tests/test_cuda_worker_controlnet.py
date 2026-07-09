@@ -84,6 +84,12 @@ class _FakeStableDiffusionControlNetImg2ImgPipeline(_FakePipelineBase):
         return cls()
 
 
+class _FakeStableDiffusionXLControlNetImg2ImgPipeline(_FakePipelineBase):
+    @classmethod
+    def from_pipe(cls, pipe, controlnet):
+        return cls()
+
+
 sys.modules["diffusers.schedulers.scheduling_lcm"].LCMScheduler = MagicMock()
 sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion"].StableDiffusionPipeline = _FakeStableDiffusionPipeline
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl"].StableDiffusionXLPipeline = _FakeStableDiffusionXLPipeline
@@ -92,6 +98,7 @@ sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_x
 sys.modules["diffusers"].StableDiffusionControlNetPipeline = _FakeStableDiffusionControlNetPipeline
 sys.modules["diffusers"].StableDiffusionXLControlNetPipeline = _FakeStableDiffusionXLControlNetPipeline
 sys.modules["diffusers"].StableDiffusionControlNetImg2ImgPipeline = _FakeStableDiffusionControlNetImg2ImgPipeline
+sys.modules["diffusers"].StableDiffusionXLControlNetImg2ImgPipeline = _FakeStableDiffusionXLControlNetImg2ImgPipeline
 sys.modules["diffusers"].ControlNetModel = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
@@ -554,6 +561,119 @@ def test_sd15_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
          patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
          patch.object(
              _FakeStableDiffusionControlNetImg2ImgPipeline, "from_pipe"
+         ) as from_pipe:
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        with pytest.raises(ValueError, match="canny-attachment"):
+            worker.run_job(job)
+
+    from_pipe.assert_not_called()
+
+
+def test_sdxl_combined_img2img_controlnet_keeps_init_image_and_control_map_distinct():
+    """SDXL mirror of the SD1.5 kwarg-collision regression guard: image= is the
+    init image, control_image= is the control map."""
+    worker = _make_worker(DiffusersSDXLCudaWorker)
+    req = _make_req()
+    req.size = "1024x1024"
+    req.denoise_strength = 0.6
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(1024, 1024)
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(1024, 1024),
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    combined_pipe = MagicMock()
+    combined_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(
+             _FakeStableDiffusionXLControlNetImg2ImgPipeline, "from_pipe", return_value=combined_pipe
+         ) as from_pipe:
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        _, seed = worker.run_job(job)
+
+    assert seed == 123
+    from_pipe.assert_called_once_with(worker.pipe, controlnet="loaded:canny-model")
+    assert worker.pipe.calls == []  # base txt2img pipe must not be invoked
+    kwargs = combined_pipe.call_args.kwargs
+    assert "controlnet" not in kwargs
+    assert kwargs["image"] is not kwargs["control_image"]
+    assert kwargs["strength"] == 0.6
+    assert kwargs["controlnet_conditioning_scale"] == 0.4
+    assert kwargs["control_guidance_start"] == 0.0
+    assert kwargs["control_guidance_end"] == 0.8
+
+
+def test_sdxl_combined_path_normalizes_vae_dtype_before_execution():
+    """SDXL mirror of the SD1.5 shared-VAE dtype fix-up: from_pipe shares
+    self.pipe's components, so the combined path needs _normalize_img2img_modules()
+    just like the plain img2img path (review blocker on STABL-vgbxamoz)."""
+    worker = _make_worker(DiffusersSDXLCudaWorker)
+    worker.pipe.vae = MagicMock()
+    req = _make_req()
+    req.size = "1024x1024"
+    req.denoise_strength = 0.6
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(1024, 1024)
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(1024, 1024),
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    combined_pipe = MagicMock()
+    combined_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch.object(
+             _FakeStableDiffusionXLControlNetImg2ImgPipeline, "from_pipe", return_value=combined_pipe
+         ):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    worker.pipe.vae.to.assert_called_once_with(worker.device, dtype=worker.dtype)
+
+
+def test_sdxl_combined_path_rejects_mismatched_aspect_ratio_before_dispatch():
+    worker = _make_worker(DiffusersSDXLCudaWorker)
+    req = _make_req()
+    req.size = "1024x1024"
+    binding = _make_binding("canny", 0.4, 0.0, 0.8)
+    binding.control_image_bytes = _make_png_bytes(512, 512)  # ratio 1.0
+    job = SimpleNamespace(
+        req=req,
+        init_image=_make_png_bytes(1024, 768),  # ratio 1.333, diverges > 2%
+        controlnet_bindings=[binding],
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch.object(
+             _FakeStableDiffusionXLControlNetImg2ImgPipeline, "from_pipe"
          ) as from_pipe:
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None

@@ -935,16 +935,34 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         out = None
         try:
             if init_image is not None and bindings:
-                raise NotImplementedError(
-                    "ControlNet bindings on the img2img path are not supported in v1."
-                )
-
-            if bindings:
+                _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
-                    bindings, (width, height), loaded_ids
+                    bindings, (width, height), loaded_ids, image_kwarg="control_image"
                 )
-
-            if init_image is not None:
+                controlnet_obj = controlnet_kwargs.pop("controlnet")
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
+                combined_pipe = _import_attr(
+                    "diffusers", "StableDiffusionXLControlNetImg2ImgPipeline"
+                ).from_pipe(self.pipe, controlnet=controlnet_obj)
+                # Combined path shares self.pipe's components via from_pipe exactly
+                # like the plain img2img path shares them via _img2img_pipe — needs
+                # the same VAE dtype/device fix-up, or a prior run's upcast breaks
+                # this encode the same way it would on the plain img2img path.
+                self._normalize_img2img_modules()
+                denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
+                pipe_kwargs = {
+                    "prompt": req.prompt,
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "image": init_pil,
+                    "strength": denoise_strength,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                    **controlnet_kwargs,
+                }
+                with torch.inference_mode():
+                    out = combined_pipe(**pipe_kwargs)
+            elif init_image is not None:
                 # img2img path: reuse loaded weights at zero extra VRAM cost
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
                 if self._img2img_pipe is None:
@@ -959,11 +977,14 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     "num_inference_steps": int(req.num_inference_steps),
                     "guidance_scale": float(req.guidance_scale),
                     "generator": gen,
-                    **controlnet_kwargs,
                 }
                 with torch.inference_mode():
                     out = self._img2img_pipe(**pipe_kwargs)
             else:
+                if bindings:
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids
+                    )
                 pipe_kwargs = {
                     "prompt": req.prompt,
                     "negative_prompt": getattr(req, "negative_prompt", None),

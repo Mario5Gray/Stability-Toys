@@ -142,3 +142,10 @@ def test_mlx_generation_runtime_raises_clear_error():
 
     with pytest.raises(NotImplementedError, match="BACKEND=mlx generation is not implemented"):
         runtime.submit_generate({"prompt": "owl"})
+
+
+def test_cuda_provider_reports_supports_img2img_and_controlnet():
+    from backends.platforms.cuda import CUDAProvider
+
+    caps = CUDAProvider().capabilities()
+    assert caps.supports_img2img_and_controlnet is True
