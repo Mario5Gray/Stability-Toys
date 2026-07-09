@@ -12,6 +12,7 @@ class BackendCapabilities:
     supports_model_registry_stats: bool
     supports_img2img: bool
     supports_controlnet: bool = False
+    supports_img2img_and_controlnet: bool = False
 
 
 class ModelRegistryProtocol(Protocol):

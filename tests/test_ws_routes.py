@@ -693,6 +693,70 @@ class TestJobSubmit:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
+    def test_generate_mode_system_rejects_combined_img2img_controlnet_before_preprocessing(self):
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "SDXL"
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        init_ref = get_store().write("upload", _solid_png_bytes())
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        try:
+            with patch("server.controlnet_preprocessing.preprocess_controlnet_attachments") as preprocess_mock:
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-combined-reject",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "init_image_ref": init_ref,
+                            "controlnets": [
+                                {
+                                    "attachment_id": "cn_1",
+                                    "control_type": "canny",
+                                    "map_asset_ref": "ref1",
+                                }
+                            ],
+                        },
+                    })
+
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    assert ack["id"] == "t-combined-reject"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert "img2img" in err["error"]
+
+                pool.submit_job.assert_not_called()
+                preprocess_mock.assert_not_called()
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+
     def test_generate_mode_system_mode_lookup_failure_reports_ack_then_job_error(self):
         app.state.use_mode_system = True
         pool = MagicMock()

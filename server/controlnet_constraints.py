@@ -1,6 +1,22 @@
 from typing import Any
 
 
+def reject_combined_img2img_controlnet(
+    *, has_init_image: bool, controlnets: Any, supports_combined: bool = False
+) -> None:
+    """Fail fast when a request carries both an init image and ControlNet attachments.
+
+    Combined img2img + ControlNet execution is not wired yet. Callers must invoke
+    this before preprocessing or worker dispatch so unsupported requests fail
+    before assets are written or work is queued.
+    """
+    if has_init_image and controlnets and not supports_combined:
+        raise ValueError(
+            "img2img (init_image) combined with ControlNet attachments in the same "
+            "request is not supported on the active backend"
+        )
+
+
 def enforce_controlnet_policy(req: Any, mode: Any) -> None:
     attachments = getattr(req, "controlnets", None)
     if not attachments:
