@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import CancelledError
 
 import pytest
@@ -164,6 +165,21 @@ def test_native_fallback_is_lazy_and_handles_primary_failure():
     )
 
     assert native.calls == 0
+    assert invocation.result() is artifact
+    assert native.calls == 1
+
+
+def test_native_fallback_handles_asyncio_cancellation_without_outer_cancel():
+    artifact = DelegatedConditioning(prompt="cat", negative_prompt=None)
+    native = RecordingNativeService(artifact)
+    invocation = NativeFallbackInvocation(
+        primary=CompletedInvocation.failure(asyncio.CancelledError()),
+        native_service=native,
+        request=ConditioningRequest("cat", None),
+        context=_context(),
+        service_name="async-adapter",
+    )
+
     assert invocation.result() is artifact
     assert native.calls == 1
 

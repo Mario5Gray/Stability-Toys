@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Protocol
@@ -104,7 +105,7 @@ class NativeFallbackInvocation:
 
         try:
             return self.primary.result(timeout)
-        except Exception as error:
+        except (Exception, asyncio.CancelledError) as error:
             if self._cancelled:
                 raise
             logger.warning(
