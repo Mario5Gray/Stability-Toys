@@ -21,6 +21,12 @@ from .invocation import (
     NativeFallbackInvocation,
     TransformingInvocation,
 )
+from .native import NativeConditioningService
+from .registry import (
+    ConditioningChain,
+    ConditioningRegistry,
+    build_conditioning_chain,
+)
 
 __all__ = [
     "CompletedInvocation",
@@ -30,6 +36,8 @@ __all__ = [
     "ConditioningFallbackConfig",
     "ConditioningFilter",
     "ConditioningInvocation",
+    "ConditioningChain",
+    "ConditioningRegistry",
     "ConditioningRequest",
     "ConditioningService",
     "ConditioningServiceRequirements",
@@ -39,5 +47,7 @@ __all__ = [
     "ModelContext",
     "ModelContextDescriptor",
     "NativeFallbackInvocation",
+    "NativeConditioningService",
     "TransformingInvocation",
+    "build_conditioning_chain",
 ]
