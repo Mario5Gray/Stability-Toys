@@ -66,7 +66,7 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> Dockerfile.tes
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/base.py sig:98c6bc7634d9a617
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/__init__.py sig:caaf823743b1dccc
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/artifacts.py sig:f517b8b032db0545
-docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/compel_service.py sig:73a51e9029673d25
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/compel_service.py sig:66ae4a3e9b2d84d3
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/contracts.py sig:18c8853d559e823f
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/invocation.py sig:a4fa9b843266ecf1
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/native.py sig:109eecdc334ced8b
