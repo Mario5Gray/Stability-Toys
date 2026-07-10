@@ -53,7 +53,13 @@ from backends.conditioning.artifacts import (  # noqa: E402
     ConditioningCompatibility,
     MaterializedConditioning,
 )
+from backends.conditioning.contracts import (  # noqa: E402
+    ConditioningConfig,
+    ConditioningRequest,
+)
+from backends.conditioning.invocation import CompletedInvocation  # noqa: E402
 from backends.cuda_worker import CudaWorkerBase, DiffusersSDXLCudaWorker  # noqa: E402
+from backends.cuda_worker import DiffusersCudaWorker  # noqa: E402
 
 _BASE_ENV = {
     "CUDA_DEVICE": "cuda:0",
@@ -134,6 +140,25 @@ def _make_sdxl_worker_with_fake_pipe(dtype=None, worker_cls=DiffusersSDXLCudaWor
     return worker
 
 
+def _make_sd15_worker_with_fake_pipe(dtype=None):
+    dtype = dtype or cuda_worker_module.torch.float16
+    worker = DiffusersCudaWorker.__new__(DiffusersCudaWorker)
+    worker.device = "cuda:0"
+    worker.dtype = dtype
+    worker._img2img_pipe = None
+    worker.pipe = SimpleNamespace(
+        tokenizer=SimpleNamespace(model_max_length=77),
+        text_encoder=_fake_module(
+            name="local/sd15-text-encoder",
+            hidden_size=768,
+            dtype=dtype,
+        ),
+        unet=SimpleNamespace(dtype=dtype),
+        vae=SimpleNamespace(dtype=dtype),
+    )
+    return worker
+
+
 def _materialized_sdxl(worker, *, dtype=None, slots=None, compatibility=None):
     torch_mod = cuda_worker_module.torch
     dtype = dtype or torch_mod.float16
@@ -147,6 +172,16 @@ def _materialized_sdxl(worker, *, dtype=None, slots=None, compatibility=None):
         worker.pipe
     ).compatibility
     return MaterializedConditioning(slots=slots, compatibility=compatibility)
+
+
+class _ReturningConditioningChain:
+    def __init__(self, artifact):
+        self.artifact = artifact
+        self.requests = []
+
+    def invoke(self, request, context):
+        self.requests.append((request, context))
+        return CompletedInvocation.success(self.artifact)
 
 
 class TestCapabilityAwareMemoryOpts:
@@ -579,3 +614,160 @@ class TestSdxlConditioningContextAndAcceptance:
             worker._accept_conditioning_artifact(target_pipe, artifact_factory(worker))
 
         target_pipe.assert_not_called()
+
+
+class TestCudaConditioningConfiguration:
+    def test_configure_conditioning_builds_native_chain_from_live_pipe(self):
+        worker = _make_sd15_worker_with_fake_pipe()
+
+        worker.configure_conditioning(ConditioningConfig())
+
+        artifact = worker._conditioning_chain.invoke(
+            ConditioningRequest("cat", None),
+            worker._conditioning_context,
+        ).result()
+        assert artifact.prompt == "cat"
+        assert worker._conditioning_context.descriptor.model_family == "sd15"
+        assert worker._conditioning_context.local_encoder_bundle.text_encoders() == (
+            worker.pipe.text_encoder,
+        )
+
+    def test_configure_conditioning_compel_builds_local_encoder_context(self, monkeypatch):
+        worker = _make_sdxl_worker_with_fake_pipe()
+        probes = []
+
+        def fake_load_compel():
+            probes.append("probe")
+            return object, object
+
+        monkeypatch.setattr(
+            "backends.conditioning.compel_service._load_compel",
+            fake_load_compel,
+        )
+
+        worker.configure_conditioning(ConditioningConfig(service="compel"))
+
+        assert probes == ["probe"]
+        assert worker._conditioning_context.descriptor.model_family == "sdxl"
+        assert worker._conditioning_context.local_encoder_bundle.text_encoders() == (
+            worker.pipe.text_encoder,
+            worker.pipe.text_encoder_2,
+        )
+
+
+class TestCudaLatentConditioning:
+    @pytest.mark.parametrize(
+        ("worker_cls", "family", "slot_width"),
+        [
+            (DiffusersCudaWorker, "sd15", 768),
+            (DiffusersSDXLCudaWorker, "sdxl", 2048),
+        ],
+    )
+    def test_materialized_conditioning_reaches_run_job_with_latents(
+        self,
+        worker_cls,
+        family,
+        slot_width,
+    ):
+        torch_mod = cuda_worker_module.torch
+        worker = worker_cls.__new__(worker_cls)
+        worker.device = "cuda:0"
+        worker.dtype = torch_mod.float16
+        worker.worker_id = 0
+        worker._apply_style = Mock()
+        worker._apply_request_scheduler = Mock(return_value="euler")
+        worker.pipe = MagicMock()
+        latents = torch_mod.zeros((1, 4, 8, 8), dtype=torch_mod.float16)
+        decoded = torch_mod.zeros((1, 3, 8, 8), dtype=torch_mod.float32)
+        worker.pipe.return_value = SimpleNamespace(images=latents)
+        worker.pipe.vae.config.scaling_factor = 1.0
+        worker.pipe.vae.decode.return_value = SimpleNamespace(sample=decoded)
+        slots = {
+            "prompt_embeds": torch_mod.zeros((1, 77, slot_width), dtype=torch_mod.float16),
+            "negative_prompt_embeds": torch_mod.zeros((1, 77, slot_width), dtype=torch_mod.float16),
+        }
+        if family == "sdxl":
+            slots.update(
+                {
+                    "pooled_prompt_embeds": torch_mod.zeros((1, 1280), dtype=torch_mod.float16),
+                    "negative_pooled_prompt_embeds": torch_mod.zeros((1, 1280), dtype=torch_mod.float16),
+                }
+            )
+        artifact = SimpleNamespace(slots=slots)
+        chain = _ReturningConditioningChain(artifact)
+        context = object()
+        worker._conditioning_chain = chain
+        worker._conditioning_context = context
+        worker._accept_conditioning_artifact = Mock(return_value=slots)
+        req = SimpleNamespace(
+            prompt="a castle",
+            negative_prompt="blurry",
+            size="512x512",
+            num_inference_steps=8,
+            guidance_scale=3.0,
+            seed=123,
+            style_lora=None,
+        )
+        job = SimpleNamespace(req=req)
+        fake_generator = MagicMock()
+        fake_generator.manual_seed.return_value = fake_generator
+
+        with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+             patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+             patch("backends.cuda_worker.torch.cuda.empty_cache"):
+            mock_inference.return_value.__enter__.return_value = None
+            mock_inference.return_value.__exit__.return_value = None
+
+            worker.run_job_with_latents(job)
+
+        assert chain.requests[0][0].prompt == "a castle"
+        assert chain.requests[0][0].negative_prompt == "blurry"
+        assert chain.requests[0][1] is context
+        worker._accept_conditioning_artifact.assert_called_once_with(worker.pipe, artifact)
+        kwargs = worker.pipe.call_args.kwargs
+        assert "prompt" not in kwargs
+        assert "negative_prompt" not in kwargs
+        assert kwargs["prompt_embeds"] is slots["prompt_embeds"]
+        assert kwargs["negative_prompt_embeds"] is slots["negative_prompt_embeds"]
+        if family == "sdxl":
+            assert kwargs["pooled_prompt_embeds"] is slots["pooled_prompt_embeds"]
+            assert (
+                kwargs["negative_pooled_prompt_embeds"]
+                is slots["negative_pooled_prompt_embeds"]
+            )
+
+    def test_acceptance_failure_does_not_reenter_conditioning_chain(self):
+        worker = DiffusersCudaWorker.__new__(DiffusersCudaWorker)
+        worker.device = "cuda:0"
+        worker.dtype = cuda_worker_module.torch.float16
+        worker.worker_id = 0
+        worker._apply_style = Mock()
+        worker._apply_request_scheduler = Mock(return_value="euler")
+        worker.pipe = MagicMock()
+        artifact = SimpleNamespace(slots={})
+        chain = _ReturningConditioningChain(artifact)
+        worker._conditioning_chain = chain
+        worker._conditioning_context = object()
+        worker._accept_conditioning_artifact = Mock(
+            side_effect=ValueError("conditioning dtype does not match live pipeline")
+        )
+        req = SimpleNamespace(
+            prompt="a castle",
+            negative_prompt="blurry",
+            size="512x512",
+            num_inference_steps=8,
+            guidance_scale=3.0,
+            seed=123,
+            style_lora=None,
+        )
+        job = SimpleNamespace(req=req, init_image=None, controlnet_bindings=[])
+        fake_generator = MagicMock()
+        fake_generator.manual_seed.return_value = fake_generator
+
+        with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+             patch("backends.cuda_worker.torch.cuda.empty_cache"):
+            with pytest.raises(ValueError, match="dtype"):
+                worker.run_job(job)
+
+        assert len(chain.requests) == 1
+        worker.pipe.assert_not_called()

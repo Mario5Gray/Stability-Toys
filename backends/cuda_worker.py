@@ -20,6 +20,8 @@ from backends.conditioning.artifacts import (
     MaterializedConditioning,
 )
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
+from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
+from backends.conditioning.registry import build_conditioning_chain
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
@@ -160,6 +162,46 @@ class CudaWorkerBase:
         self._baseline_scheduler_class = None
         self._baseline_scheduler_config = None
         self._parse_env()
+        self._set_native_conditioning_defaults()
+
+    def _set_native_conditioning_defaults(self) -> None:
+        context = ModelContext(
+            descriptor=ModelContextDescriptor(
+                model_family=self._conditioning_model_family,
+                tokenizer_max_length=0,
+                encoder_identities=(),
+                hidden_dimensions=(),
+                pooled_required=self._conditioning_model_family == "sdxl",
+                encode_dtype_name=_dtype_name(getattr(self, "dtype", "unknown")),
+                device=str(getattr(self, "device", "")),
+            ),
+            local_encoder_bundle=None,
+        )
+        self._conditioning_context = context
+        self._conditioning_chain = build_conditioning_chain(ConditioningConfig(), context)
+
+    def _ensure_conditioning_configured(self) -> None:
+        if not hasattr(self, "_conditioning_chain") or not hasattr(
+            self, "_conditioning_context"
+        ):
+            self._set_native_conditioning_defaults()
+
+    def configure_conditioning(self, config: ConditioningConfig) -> None:
+        context = self._build_conditioning_context()
+        chain = build_conditioning_chain(config, context)
+        self._conditioning_context = context
+        self._conditioning_chain = chain
+
+    def _conditioning_artifact_for_request(self, req: Any) -> Any:
+        self._ensure_conditioning_configured()
+        request = ConditioningRequest(
+            prompt=req.prompt,
+            negative_prompt=getattr(req, "negative_prompt", None),
+        )
+        return self._conditioning_chain.invoke(
+            request,
+            self._conditioning_context,
+        ).result()
 
     def _controlnet_metadata(self, bindings: list[Any]) -> list[dict[str, Any]]:
         """Per-attachment ControlNet provenance for the generation PNG."""
@@ -798,7 +840,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
         controlnet_kwargs: dict[str, Any] = {}
 
         out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
         try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None and bindings:
                 _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
@@ -816,8 +861,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        combined_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -835,8 +882,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        self._img2img_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -851,8 +900,6 @@ class DiffusersCudaWorker(CudaWorkerBase):
                         bindings, (width, height), loaded_ids
                     )
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
                     "width": width,
                     "height": height,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -864,8 +911,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 controlnet_obj = pipe_kwargs.pop("controlnet", None)
                 if controlnet_obj is not None:
                     pipe = self._build_controlnet_pipe(controlnet_obj)
+                conditioning_kwargs = self._accept_conditioning_artifact(
+                    pipe,
+                    conditioning_artifact,
+                )
                 with torch.inference_mode():
-                    out = pipe(**pipe_kwargs)
+                    out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -887,6 +938,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
             return buf.getvalue(), seed
         finally:
             out = None  # release on OOM/exception; no-op on success
+            conditioning_artifact = None
+            pipe_kwargs = None
             self._apply_style(None, 0)
             # Release ControlNet cache pins
             if loaded_ids:
@@ -930,18 +983,25 @@ class DiffusersCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                negative_prompt=getattr(req, "negative_prompt", None),
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-                output_type="latent",
-                return_dict=True,
-            )
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            pipe_kwargs = {
+                **self._accept_conditioning_artifact(self.pipe, conditioning_artifact),
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "generator": gen,
+                "output_type": "latent",
+                "return_dict": True,
+            }
+            with torch.inference_mode():
+                out = self.pipe(**pipe_kwargs)
+        finally:
+            conditioning_artifact = None
+            pipe_kwargs = None
 
         self._apply_style(None, 0)
 
@@ -1155,7 +1215,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         controlnet_kwargs: dict[str, Any] = {}
 
         out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
         try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None and bindings:
                 _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
@@ -1173,8 +1236,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        combined_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -1192,8 +1257,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        self._img2img_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -1208,8 +1275,6 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                         bindings, (width, height), loaded_ids
                     )
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
                     "width": width,
                     "height": height,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -1221,8 +1286,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 controlnet_obj = pipe_kwargs.pop("controlnet", None)
                 if controlnet_obj is not None:
                     pipe = self._build_controlnet_pipe(controlnet_obj)
+                conditioning_kwargs = self._accept_conditioning_artifact(
+                    pipe,
+                    conditioning_artifact,
+                )
                 with torch.inference_mode():
-                    out = pipe(**pipe_kwargs)
+                    out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -1244,6 +1313,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             return buf.getvalue(), seed
         finally:
             out = None  # release on OOM/exception; no-op on success
+            conditioning_artifact = None
+            pipe_kwargs = None
             self._apply_style(None, 0)
             # Release ControlNet cache pins
             if loaded_ids:
@@ -1290,18 +1361,25 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                negative_prompt=getattr(req, "negative_prompt", None),
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-                output_type="latent",
-                return_dict=True,
-            )
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            pipe_kwargs = {
+                **self._accept_conditioning_artifact(self.pipe, conditioning_artifact),
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "generator": gen,
+                "output_type": "latent",
+                "return_dict": True,
+            }
+            with torch.inference_mode():
+                out = self.pipe(**pipe_kwargs)
+        finally:
+            conditioning_artifact = None
+            pipe_kwargs = None
 
         self._apply_style(None, 0)
 
