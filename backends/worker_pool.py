@@ -326,6 +326,16 @@ class WorkerPool:
                 model_path=mode.model_path,
                 model_info=model_info,
             )
+            configure_conditioning = getattr(
+                self._worker, "configure_conditioning", None
+            )
+            if callable(configure_conditioning):
+                configure_conditioning(mode.conditioning)
+            elif mode.conditioning.requires_configurable_worker():
+                raise RuntimeError(
+                    f"mode '{mode_name}' configures conditioning but worker "
+                    f"{type(self._worker).__name__} does not support conditioning"
+                )
         except Exception as e:
             logger.error(
                 f"[WorkerPool] Failed to load mode '{mode_name}': {e}",

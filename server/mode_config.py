@@ -14,6 +14,11 @@ from dataclasses import dataclass, field
 
 import yaml
 
+from backends.conditioning.contracts import (
+    ConditioningConfig,
+    ConditioningFallbackConfig,
+)
+
 MODE_CONFIG_PATH = os.environ.get("MODE_CONFIG_PATH", "conf")
 
 logger = logging.getLogger(__name__)
@@ -114,6 +119,7 @@ class ModeConfig:
     chat_delegate: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     controlnet_policy: ControlNetPolicy = field(default_factory=ControlNetPolicy)
+    conditioning: ConditioningConfig = field(default_factory=ConditioningConfig)
 
     # Resolved absolute paths (set after loading)
     model_path: Optional[str] = None
@@ -312,6 +318,9 @@ class ModeConfigManager:
                 chat_delegate=chat_delegate,
                 metadata=mode_data.get("metadata", {}),
                 controlnet_policy=self._parse_controlnet_policy(mode_name, mode_data.get("controlnet_policy")),
+                conditioning=self._parse_conditioning_config(
+                    mode_name, mode_data.get("conditioning")
+                ),
             )
 
             # Resolve absolute paths
@@ -383,6 +392,90 @@ class ModeConfigManager:
         "default_model_id", "allowed_model_ids", "allow_preprocess",
         "default_strength", "min_strength", "max_strength",
     }
+
+    _ALLOWED_CONDITIONING_KEYS = {"service", "filters", "fallback"}
+    _ALLOWED_CONDITIONING_FALLBACK_KEYS = {
+        "native_when_unconfigured",
+        "native_on_failure",
+    }
+
+    def _parse_conditioning_config(
+        self,
+        mode_name: str,
+        raw: Any,
+    ) -> ConditioningConfig:
+        if raw is None:
+            return ConditioningConfig()
+        if not isinstance(raw, dict):
+            raise ValueError(f"Mode '{mode_name}' conditioning must be a mapping")
+
+        unknown = set(raw) - self._ALLOWED_CONDITIONING_KEYS
+        if unknown:
+            raise ValueError(
+                f"Mode '{mode_name}' has unknown conditioning keys: {sorted(unknown)}"
+            )
+
+        service_raw = raw.get("service")
+        if service_raw is not None and not isinstance(service_raw, str):
+            raise ValueError(f"Mode '{mode_name}' conditioning.service must be a string")
+        service = service_raw.strip() if service_raw is not None else None
+        if not service:
+            service = None
+
+        filters_raw = raw.get("filters", [])
+        if not isinstance(filters_raw, list) or not all(
+            isinstance(name, str) for name in filters_raw
+        ):
+            raise ValueError(
+                f"Mode '{mode_name}' conditioning.filters must be a list of strings"
+            )
+
+        fallback_raw = raw.get("fallback", {})
+        if not isinstance(fallback_raw, dict):
+            raise ValueError(f"Mode '{mode_name}' conditioning.fallback must be a mapping")
+        unknown_fallback = (
+            set(fallback_raw) - self._ALLOWED_CONDITIONING_FALLBACK_KEYS
+        )
+        if unknown_fallback:
+            raise ValueError(
+                f"Mode '{mode_name}' has unknown conditioning fallback keys: "
+                f"{sorted(unknown_fallback)}"
+            )
+
+        for key in self._ALLOWED_CONDITIONING_FALLBACK_KEYS:
+            if key in fallback_raw and not isinstance(fallback_raw[key], bool):
+                raise ValueError(
+                    f"Mode '{mode_name}' conditioning.fallback.{key} must be boolean"
+                )
+
+        fallback = ConditioningFallbackConfig(
+            native_when_unconfigured=fallback_raw.get(
+                "native_when_unconfigured", True
+            ),
+            native_on_failure=fallback_raw.get("native_on_failure", False),
+        )
+        if service is None and not fallback.native_when_unconfigured:
+            raise ValueError(
+                f"Mode '{mode_name}' conditioning requires a service when "
+                "native_when_unconfigured is false"
+            )
+
+        return ConditioningConfig(
+            service=service,
+            filters=tuple(filters_raw),
+            fallback=fallback,
+        )
+
+    @staticmethod
+    def _conditioning_to_dict(config: ConditioningConfig) -> Dict[str, Any]:
+        return {
+            "service": config.service,
+            "filters": list(config.filters),
+            "fallback": {
+                "native_when_unconfigured": config.fallback.native_when_unconfigured,
+                "native_on_failure": config.fallback.native_on_failure,
+            },
+        }
 
     def _parse_controlnet_policy(self, mode_name: str, raw: Any) -> ControlNetPolicy:
         if raw is None:
@@ -570,6 +663,11 @@ class ModeConfigManager:
                 mode_entry["default_scheduler_id"] = mode_data.get("default_scheduler_id")
             if chat_delegate is not None:
                 mode_entry["chat_delegate"] = chat_delegate
+            conditioning = self._parse_conditioning_config(
+                mode_name, mode_data.get("conditioning")
+            )
+            if conditioning != ConditioningConfig():
+                mode_entry["conditioning"] = self._conditioning_to_dict(conditioning)
             loras = mode_data.get("loras", [])
             if loras:
                 mode_entry["loras"] = [
@@ -764,6 +862,7 @@ class ModeConfigManager:
                     "default_scheduler_id": mode.default_scheduler_id,
                     "chat_delegate": mode.chat_delegate,
                     "metadata": mode.metadata,
+                    "conditioning": self._conditioning_to_dict(mode.conditioning),
                     "controlnet_policy": {
                         "enabled": mode.controlnet_policy.enabled,
                         "max_attachments": mode.controlnet_policy.max_attachments,

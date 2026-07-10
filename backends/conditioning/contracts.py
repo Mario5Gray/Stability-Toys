@@ -55,7 +55,7 @@ class ConditioningConfig:
     )
 
     def requires_configurable_worker(self) -> bool:
-        return bool(self.service or self.filters)
+        return bool((self.service and self.service != "native") or self.filters)
 
 
 class ConditioningService(Protocol):
