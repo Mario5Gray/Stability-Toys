@@ -179,6 +179,19 @@ def test_sdxl_materializes_pooled_pair(compel_spy, sdxl_context):
     )
 
 
+@pytest.mark.parametrize("family", ["sd15", "sdxl"])
+def test_compel_runs_on_model_context_device(family, context_for_family, compel_spy):
+    context = context_for_family(family)
+
+    (
+        CompelConditioningService()
+        .invoke(ConditioningRequest("cat", "bad"), context)
+        .result()
+    )
+
+    assert compel_spy.instances[0].kwargs["device"] == context.descriptor.device
+
+
 def test_service_uses_live_bundle_dtype_not_snapshot_descriptor(sd15_context, compel_spy):
     del compel_spy
     stale_context = replace(

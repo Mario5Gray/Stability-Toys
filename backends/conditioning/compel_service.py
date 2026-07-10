@@ -66,11 +66,14 @@ class CompelConditioningService:
                 Compel,
                 ReturnedEmbeddingsType,
                 bundle,
+                descriptor.device,
                 prompt,
                 negative_prompt,
             )
         else:
-            slots = self._materialize_sd15(Compel, bundle, prompt, negative_prompt)
+            slots = self._materialize_sd15(
+                Compel, bundle, descriptor.device, prompt, negative_prompt
+            )
 
         live_dtype = bundle.live_dtype()
         normalized_slots = {
@@ -91,6 +94,7 @@ class CompelConditioningService:
         self,
         Compel,
         bundle,
+        device: str,
         prompt: str,
         negative_prompt: str,
     ) -> dict[str, object]:
@@ -99,6 +103,7 @@ class CompelConditioningService:
         compel = Compel(
             tokenizer=tokenizers[0],
             text_encoder=text_encoders[0],
+            device=device,
             truncate_long_prompts=False,
         )
         prompt_embeds = compel(prompt)
@@ -116,6 +121,7 @@ class CompelConditioningService:
         Compel,
         ReturnedEmbeddingsType,
         bundle,
+        device: str,
         prompt: str,
         negative_prompt: str,
     ) -> dict[str, object]:
@@ -126,6 +132,7 @@ class CompelConditioningService:
                 ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED
             ),
             requires_pooled=[False, True],
+            device=device,
             truncate_long_prompts=False,
         )
         prompt_embeds, pooled_prompt_embeds = compel(prompt)
