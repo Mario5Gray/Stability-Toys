@@ -151,6 +151,7 @@ def build_conditioning_chain(
 
 
 def _create_compel_service() -> ConditioningService:
-    from .compel_service import CompelConditioningService
+    from .compel_service import CompelConditioningService, _load_compel
 
+    _load_compel()
     return CompelConditioningService()

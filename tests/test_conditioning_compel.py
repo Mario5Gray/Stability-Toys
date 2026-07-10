@@ -234,6 +234,25 @@ def test_missing_compel_dependency_reports_clear_error(monkeypatch, sd15_context
         CompelConditioningService().invoke(ConditioningRequest("cat", None), sd15_context).result()
 
 
+def test_missing_compel_dependency_fails_chain_composition(monkeypatch, sd15_context):
+    import_calls = 0
+
+    def fail_import():
+        nonlocal import_calls
+        import_calls += 1
+        raise RuntimeError(
+            "Compel is not installed; install requirements-conditioning.txt "
+            "or select the native conditioning service"
+        )
+
+    monkeypatch.setattr("backends.conditioning.compel_service._load_compel", fail_import)
+
+    with pytest.raises(RuntimeError, match="Compel is not installed"):
+        build_conditioning_chain(ConditioningConfig(service="compel"), sd15_context)
+
+    assert import_calls == 1
+
+
 def test_builtin_registry_selects_compel_lazily(compel_spy, sd15_context):
     registry = ConditioningRegistry.with_builtins()
     chain = build_conditioning_chain(ConditioningConfig(service="compel"), sd15_context, registry)
