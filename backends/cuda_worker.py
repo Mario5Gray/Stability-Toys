@@ -149,6 +149,7 @@ class CudaWorkerBase:
     # StableDiffusion(XL)ControlNetPipeline takes it as `image`; a transformer
     # family like HunyuanDiTControlNetPipeline overrides this to `control_image`.
     _CONTROL_IMAGE_KWARG: str = "image"
+    _conditioning_model_family: str = "sd15"
 
     def __init__(self, worker_id: int, model_info: Any | None = None) -> None:
         self.worker_id = worker_id
@@ -269,13 +270,8 @@ class CudaWorkerBase:
                 return candidate_dtype
         return self.dtype
 
-    def _conditioning_model_family(self) -> str:
-        if self.__class__.__name__ == "DiffusersSDXLCudaWorker":
-            return "sdxl"
-        return "sd15"
-
     def _conditioning_components(self, pipe: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
-        family = self._conditioning_model_family()
+        family = self._conditioning_model_family
         if family == "sdxl":
             tokenizers = (getattr(pipe, "tokenizer", None), getattr(pipe, "tokenizer_2", None))
             encoders = (getattr(pipe, "text_encoder", None), getattr(pipe, "text_encoder_2", None))
@@ -311,7 +307,7 @@ class CudaWorkerBase:
         return int(hidden_size)
 
     def _pooled_projection_dimension(self, pipe: Any) -> int | None:
-        if self._conditioning_model_family() != "sdxl":
+        if self._conditioning_model_family != "sdxl":
             return None
         config = getattr(getattr(pipe, "text_encoder_2", None), "config", None)
         projection_dim = getattr(config, "projection_dim", None)
@@ -322,7 +318,7 @@ class CudaWorkerBase:
         return int(projection_dim)
 
     def _describe_conditioning_consumer(self, pipe: Any) -> _ConditioningConsumerDescription:
-        family = self._conditioning_model_family()
+        family = self._conditioning_model_family
         _tokenizers, encoders = self._conditioning_components(pipe)
         roles = ("text_encoder", "text_encoder_2") if family == "sdxl" else ("text_encoder",)
         hidden_dimensions = tuple(
@@ -347,7 +343,7 @@ class CudaWorkerBase:
 
     def _build_conditioning_context(self) -> ModelContext:
         pipe = self.pipe
-        family = self._conditioning_model_family()
+        family = self._conditioning_model_family
         tokenizers, encoders = self._conditioning_components(pipe)
         consumer = self._describe_conditioning_consumer(pipe)
         max_length = getattr(tokenizers[0], "model_max_length", None)
@@ -1003,6 +999,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
       - Latent space: 128x128 (vs 64x64 for SD1.5)
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
+    _conditioning_model_family: str = "sdxl"
 
     def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
         super().__init__(worker_id, model_info=model_info)

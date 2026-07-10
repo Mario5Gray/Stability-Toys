@@ -108,9 +108,9 @@ def _fake_module(*, name, hidden_size, dtype, projection_dim=None):
     )
 
 
-def _make_sdxl_worker_with_fake_pipe(dtype=None):
+def _make_sdxl_worker_with_fake_pipe(dtype=None, worker_cls=DiffusersSDXLCudaWorker):
     dtype = dtype or cuda_worker_module.torch.float16
-    worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
+    worker = worker_cls.__new__(worker_cls)
     worker.device = "cuda:0"
     worker.dtype = dtype
     worker._img2img_pipe = None
@@ -436,6 +436,23 @@ class TestNegativePromptForwarding:
 
 
 class TestSdxlConditioningContextAndAcceptance:
+    def test_sdxl_conditioning_model_context_survives_worker_subclassing(self):
+        class CustomSdxlWorker(DiffusersSDXLCudaWorker):
+            pass
+
+        worker = _make_sdxl_worker_with_fake_pipe(worker_cls=CustomSdxlWorker)
+
+        context = worker._build_conditioning_context()
+
+        assert context.descriptor.model_family == "sdxl"
+        assert context.descriptor.hidden_dimensions == (768, 1280)
+        assert context.descriptor.pooled_required is True
+        assert context.local_encoder_bundle is not None
+        assert context.local_encoder_bundle.text_encoders() == (
+            worker.pipe.text_encoder,
+            worker.pipe.text_encoder_2,
+        )
+
     def test_sdxl_conditioning_model_context_describes_both_encoders_and_pooled_output(self):
         worker = _make_sdxl_worker_with_fake_pipe(dtype=cuda_worker_module.torch.float16)
 
