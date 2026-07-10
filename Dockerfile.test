@@ -78,6 +78,7 @@ COPY docker-cuda.yml /app/docker-cuda.yml
 COPY docker-rknn.yml /app/docker-rknn.yml
 COPY docker-compose.live-test.yml /app/docker-compose.live-test.yml
 COPY Dockerfile /app/Dockerfile
+COPY Dockerfile.test /app/Dockerfile.test
 COPY Dockerfile.live-test /app/Dockerfile.live-test
 COPY Makefile /app/Makefile
 COPY Makefile.test /app/Makefile.test
@@ -110,7 +111,7 @@ COPY tests/ /app/tests/
 COPY *.py /app/
 COPY *.sh /app/
 
-RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh /app/scripts/enigma-worktree.sh && \
+RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh /app/scripts/remote-worktree.sh && \
     mkdir -p /app/logs /conf /store /workflows
 
 CMD ["pytest", "tests/", "-v", "-m", "not slow"]

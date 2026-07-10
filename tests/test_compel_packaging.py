@@ -37,3 +37,13 @@ def test_images_install_compel_without_declared_notebook_dependencies():
             text,
         )
         assert "version('compel') == '2.3.1'" in text
+
+
+def test_test_image_chmod_targets_exist_in_build_context():
+    text = (ROOT / "Dockerfile.test").read_text()
+    chmod_line = next(
+        line for line in text.splitlines() if line.strip().startswith("RUN chmod +x")
+    )
+
+    for target in re.findall(r"/app/(\S+)", chmod_line):
+        assert (ROOT / target).exists(), target
