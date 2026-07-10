@@ -70,6 +70,7 @@ RUN set -eux; \
 RUN pip install --no-cache-dir --upgrade pip
 
 COPY requirements.txt /app/requirements.txt
+COPY requirements-conditioning.txt /app/requirements-conditioning.txt
 COPY requirements-test.txt /app/requirements-test.txt
 COPY conf/ /app/conf/
 COPY docker/ /app/docker/
@@ -96,6 +97,8 @@ RUN if [ "${BACKEND}" = "cuda" ]; then \
         pip install --no-cache-dir torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 xformers==0.0.34 --index-url https://download.pytorch.org/whl/cu128; \
         python -c "import torch, xformers; from xformers import _cpp_lib; from xformers.ops import memory_efficient_attention; assert torch.__version__.startswith('2.10.0'), torch.__version__; assert (torch.version.cuda or '').startswith('12.8'), torch.version.cuda; assert memory_efficient_attention is not None; load_error = getattr(_cpp_lib, '_cpp_library_load_exception', None); assert load_error is None, f'xformers extension failed to load: {load_error}'; print(f'Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={xformers.__version__}')"; \
     fi
+RUN pip install --no-cache-dir --no-deps -r /app/requirements-conditioning.txt && \
+    python -c "from importlib.metadata import version; import compel; assert version('compel') == '2.3.1'"
 
 COPY server/ /app/server/
 COPY persistence/ /app/persistence/
