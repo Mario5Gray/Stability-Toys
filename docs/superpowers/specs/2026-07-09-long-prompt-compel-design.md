@@ -1,7 +1,7 @@
 # Pluggable Prompt Conditioning and Compel Long-Prompt Support - Design
 
 **Date:** 2026-07-09
-**Status:** Ready for review
+**Status:** Approved
 **FP:** STABL-hvalobvn
 **Brainstorm:** `fp://brainstorm?id=mqedifitfpnehpxsuqacxopetpnmonzk`
 
@@ -334,7 +334,7 @@ local encoder bundle. It returns `MaterializedConditioning`.
 For SD1.5 it materializes:
 
 - chunked `prompt_embeds`;
-- chunked `negative_prompt_embeds` padded to compatible sequence length.
+- chunked `negative_prompt_embeds`.
 
 For SDXL it materializes:
 
@@ -342,8 +342,15 @@ For SDXL it materializes:
 - `pooled_prompt_embeds` and `negative_pooled_prompt_embeds` using Compel's SDXL
   pooled-output behavior.
 
-The service normalizes all returned tensors to the descriptor's encode dtype before
-constructing the artifact. The consumer independently rechecks dtype against live
+For both families, `negative_prompt=None` is encoded as an empty string so every
+materialized artifact contains the required negative slots. Prompt and
+negative-prompt embeddings are padded to the same sequence length after chunking,
+including SDXL when their chunk counts differ.
+
+The service normalizes returned tensors to the local encoder bundle's live encoder
+dtype and stamps that actual dtype into `ConditioningCompatibility.dtype_name`.
+The chain-construction descriptor remains snapshot context only. The consumer
+independently rechecks the stamped and tensor dtypes against live target-pipeline
 modules.
 
 Compel weighting syntax is accepted when the Compel service is selected. Operator
@@ -365,10 +372,12 @@ Every branch calls this method immediately before pipeline invocation:
 
 | Family | Branch | Target pipeline |
 |---|---|---|
-| SD1.5 | txt2img | base or ControlNet pipeline |
+| SD1.5 | txt2img | base pipeline |
+| SD1.5 | txt2img + ControlNet | ControlNet pipeline |
 | SD1.5 | img2img | shared img2img pipeline |
 | SD1.5 | img2img + ControlNet | combined pipeline |
-| SDXL | txt2img | base or ControlNet pipeline |
+| SDXL | txt2img | base pipeline |
+| SDXL | txt2img + ControlNet | ControlNet pipeline |
 | SDXL | img2img | shared img2img pipeline |
 | SDXL | img2img + ControlNet | combined pipeline |
 
@@ -418,11 +427,20 @@ not been cancelled.
 
 ## Packaging and Build Surface
 
-`compel==2.3.1` becomes a pinned backend dependency in the Python dependency
-manifest used by the production and CUDA test images. Version 2.3.1 contains the
-SDXL 77/78-token boundary fix and declares Transformers 4.x compatibility, matching
-this repository's `transformers>=4.30.0,<5.0` range. Compel 2.4.0 is excluded
-because it requires Transformers 5.
+`compel==2.3.1` becomes a pinned backend dependency in a dedicated conditioning
+requirements file used by the production and CUDA test images. Version 2.3.1
+contains the SDXL 77/78-token boundary fix and declares Transformers 4.x
+compatibility, matching this repository's `transformers>=4.30.0,<5.0` range.
+Compel 2.4.0 is excluded because it requires Transformers 5.
+
+Compel 2.3.1 also declares `notebook>=6.5.7` as a runtime dependency even though
+generation does not require Jupyter. The images must therefore install the
+dedicated Compel pin with `--no-deps` after the ordinary runtime requirements,
+explicitly add Compel's actual missing leaf requirement `pyparsing~=3.0`, and
+import-check Compel. This deliberately excludes `notebook` from production while
+keeping Torch, Diffusers, Transformers, and pyparsing under repository authority.
+`requirements-test.txt` must align its Transformers range to
+`transformers>=4.30.0,<5.0` as part of the same dependency change.
 
 The production `Dockerfile` and `Dockerfile.test` must both install and import-check
 the selected Compel version. Local/native CPU tests must continue to collect without
@@ -456,13 +474,16 @@ documents its dependency consumption.
   pooled mismatch, and dtype mismatch fail before pipeline invocation.
 - Compatibility failure never invokes native even when `native_on_failure=true`.
 - Invocation failure does invoke native when the toggle is enabled and logs it.
-- A regression test mutates live encoder dtype after context snapshot and proves the
-  consumer rejects the stale materialized artifact.
+- A regression test mutates live encoder dtype after artifact materialization but
+  before consumption and proves the consumer rejects the now-stale artifact.
 
 ### Compel tests
 
 - A prompt longer than 77 tokens produces a sequence longer than one CLIP window.
 - Negative prompts receive the same chunking behavior.
+- `negative_prompt=None` materializes the empty-string negative slots.
+- Prompt and negative embeddings are padded to equal sequence length for both SD1.5
+  and SDXL.
 - Short unweighted prompts are numerically equivalent or near-equivalent to direct
   pipeline encoding on controlled stub encoders.
 - SD1.5 outputs use live encoder dtype and expected hidden width.
@@ -471,7 +492,7 @@ documents its dependency consumption.
 
 ### Worker branch tests
 
-Both delegated and materialized artifacts are exercised across all six CUDA rows in
+Both delegated and materialized artifacts are exercised across all eight CUDA rows in
 the branch table. Existing ControlNet, img2img, metadata, scheduler, and dtype tests
 must remain green. The combined-path tests must continue proving preprocessing and
 aspect-ratio validation behavior.
