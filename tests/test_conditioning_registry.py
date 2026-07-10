@@ -208,6 +208,32 @@ def test_required_local_bundle_allows_composition_when_present():
     )
 
 
+def test_wrapper_services_delegate_requirements_for_filters():
+    class InspectingFilter:
+        def apply(self, request, model_context, next_service):
+            assert next_service.requirements == ConditioningServiceRequirements(
+                local_encoder_bundle=True
+            )
+            return next_service.invoke(request, model_context)
+
+    registry = ConditioningRegistry.with_builtins()
+    registry.register_service("needs-local", NeedsLocalService)
+    registry.register_filter("inspect", InspectingFilter)
+    chain = build_conditioning_chain(
+        ConditioningConfig(
+            service="needs-local",
+            filters=("inspect",),
+            fallback=ConditioningFallbackConfig(native_on_failure=True),
+        ),
+        context(local_bundle=object()),
+        registry,
+    )
+
+    assert chain.invoke(ConditioningRequest("cat", None), context()).result() == (
+        DelegatedConditioning("local", None)
+    )
+
+
 def test_native_fallback_handles_service_failure_and_logs(caplog):
     registry = ConditioningRegistry.with_builtins()
     registry.register_service("broken", BrokenService)

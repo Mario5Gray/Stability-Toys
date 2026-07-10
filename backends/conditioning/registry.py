@@ -30,6 +30,7 @@ class ConditioningRegistry:
     def with_builtins(cls) -> "ConditioningRegistry":
         registry = cls()
         registry.register_service("native", NativeConditioningService)
+        registry.register_service("compel", _create_compel_service)
         return registry
 
     def register_service(self, name: str, factory: ServiceFactory) -> None:
@@ -75,6 +76,10 @@ class _FallbackConditioningService:
     native_service: ConditioningService
     service_name: str
 
+    @property
+    def requirements(self):
+        return self.primary.requirements
+
     def invoke(
         self,
         request: ConditioningRequest,
@@ -97,6 +102,10 @@ class _FallbackConditioningService:
 class _FilteredConditioningService:
     conditioning_filter: ConditioningFilter
     next_service: ConditioningService
+
+    @property
+    def requirements(self):
+        return self.next_service.requirements
 
     def invoke(
         self,
@@ -139,3 +148,9 @@ def build_conditioning_chain(
         )
 
     return ConditioningChain(service)
+
+
+def _create_compel_service() -> ConditioningService:
+    from .compel_service import CompelConditioningService
+
+    return CompelConditioningService()

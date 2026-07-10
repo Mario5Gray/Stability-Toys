@@ -28,8 +28,18 @@ from .registry import (
     build_conditioning_chain,
 )
 
+
+def __getattr__(name: str):
+    if name == "CompelConditioningService":
+        from .compel_service import CompelConditioningService
+
+        return CompelConditioningService
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "CompletedInvocation",
+    "CompelConditioningService",
     "ConditioningArtifact",
     "ConditioningCompatibility",
     "ConditioningConfig",
