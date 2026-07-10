@@ -137,8 +137,12 @@ class CompelConditioningService:
         )
         prompt_embeds, pooled_prompt_embeds = compel(prompt)
         negative_prompt_embeds, negative_pooled_prompt_embeds = compel(negative_prompt)
+        empty_prompt_embeds = negative_prompt_embeds
+        if negative_prompt:
+            empty_prompt_embeds, _ = compel("")
         prompt_embeds, negative_prompt_embeds = compel.pad_conditioning_tensors_to_same_length(
-            [prompt_embeds, negative_prompt_embeds]
+            [prompt_embeds, negative_prompt_embeds],
+            precomputed_padding=empty_prompt_embeds,
         )
         return {
             "prompt_embeds": prompt_embeds,

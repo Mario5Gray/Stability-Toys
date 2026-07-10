@@ -47,6 +47,7 @@ class CompelSpy:
     def __init__(self):
         self.instances = []
         self.prompts = []
+        self.pad_calls = []
         self.return_lengths = (77, 77)
         self.hidden_width = 768
         self.pooled_width = 1280
@@ -69,7 +70,21 @@ class CompelSpy:
                     return embeds, pooled
                 return torch.full((1, length, spy.hidden_width), index + 1.0)
 
-            def pad_conditioning_tensors_to_same_length(self, tensors):
+            def pad_conditioning_tensors_to_same_length(
+                self, tensors, precomputed_padding=None
+            ):
+                spy.pad_calls.append(
+                    {
+                        "is_sdxl": isinstance(self.kwargs["tokenizer"], list),
+                        "precomputed_padding": precomputed_padding,
+                    }
+                )
+                if (
+                    isinstance(self.kwargs["tokenizer"], list)
+                    and precomputed_padding is None
+                    and not all(tensor.shape == tensors[0].shape for tensor in tensors)
+                ):
+                    raise AttributeError("'EmbeddingsProviderMulti' object has no attribute 'empty_z'")
                 max_length = max(tensor.shape[1] for tensor in tensors)
                 padded = []
                 for tensor in tensors:
