@@ -18,7 +18,7 @@
 - Modify: `tests/test_scheduler_registry.py`
 - Modify: `backends/scheduler_registry.py`
 
-- [ ] **Step 1: Check drift bindings before editing**
+- [x] **Step 1: Check drift bindings before editing**
 
 Run:
 
@@ -29,7 +29,7 @@ drift refs tests/test_scheduler_registry.py
 
 Expected: any bound docs are listed for review before code changes; no files are modified.
 
-- [ ] **Step 2: Replace the string-registry fixture and add failing behavior tests**
+- [x] **Step 2: Replace the string-registry fixture and add failing behavior tests**
 
 Update `tests/test_scheduler_registry.py` so the fake scheduler accepts kwargs, the old `SCHEDULER_IMPORTS.clear()/update()` fixture is replaced with `monkeypatch` against structured `SCHEDULER_SPECS`, and the new IDs and isolation behavior are asserted:
 
@@ -116,7 +116,7 @@ def test_build_scheduler_unknown_id_raises():
         scheduler_registry.build_scheduler("not-a-scheduler", {})
 ```
 
-- [ ] **Step 3: Run the registry tests to verify RED**
+- [x] **Step 3: Run the registry tests to verify RED**
 
 Run:
 
@@ -127,7 +127,7 @@ python -m pytest tests/test_scheduler_registry.py -q
 
 Expected: FAIL because `SchedulerSpec` and `SCHEDULER_SPECS` do not exist and the Karras IDs are not listed.
 
-- [ ] **Step 4: Implement the structured registry and kwargs construction seam**
+- [x] **Step 4: Implement the structured registry and kwargs construction seam**
 
 Replace the registry representation and resolver/build functions in `backends/scheduler_registry.py` with:
 
@@ -201,7 +201,7 @@ def build_scheduler(scheduler_id: str, config: Any) -> Any:
 
 Retain the module docstring, `from __future__ import annotations`, `import importlib`, and `from copy import deepcopy` already present. The `dpmpp_sde_karras` entry intentionally uses the existing singlestep class mapping.
 
-- [ ] **Step 5: Run the registry tests to verify GREEN**
+- [x] **Step 5: Run the registry tests to verify GREEN**
 
 Run:
 
@@ -211,7 +211,7 @@ python -m pytest tests/test_scheduler_registry.py -q
 
 Expected: `4 passed`.
 
-- [ ] **Step 6: Commit the registry checkpoint**
+- [x] **Step 6: Commit the registry checkpoint**
 
 ```bash
 git add backends/scheduler_registry.py tests/test_scheduler_registry.py
