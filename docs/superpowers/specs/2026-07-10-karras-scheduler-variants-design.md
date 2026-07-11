@@ -86,6 +86,11 @@ Why a dataclass instead of a `(class_path, extra_kwargs)` tuple:
 `list_scheduler_ids()` remains a sorted list of mapping keys. Unknown-ID error
 behavior stays unchanged apart from listing the expanded key set.
 
+`get_scheduler_class()` remains the class-only resolver: it looks up the
+`SchedulerSpec`, imports `spec.class_path`, and returns the scheduler class.
+`build_scheduler()` remains responsible for applying `spec.extra_kwargs` during
+construction.
+
 ### Scheduler construction uses spec-local kwargs
 
 `build_scheduler(scheduler_id, config)` keeps the current deep-copy behavior for
@@ -115,6 +120,10 @@ Add two new registry entries:
 
 The existing `dpmpp_2m` and `dpmpp_sde` entries keep empty kwargs and therefore
 preserve current behavior.
+
+The `dpmpp_sde_karras` class mapping deliberately inherits the existing
+`dpmpp_sde` choice of `DPMSolverSinglestepScheduler`. This slice does not
+re-evaluate that mapping against Diffusers' separate `DPMSolverSDEScheduler`.
 
 No aliasing layer is needed. These are first-class canonical IDs and should
 appear anywhere the system lists or validates scheduler IDs.
@@ -150,6 +159,8 @@ PNG metadata without adding any new metadata fields.
 
 Extend `tests/test_scheduler_registry.py` to cover:
 
+- migrate the existing fixture that clears and restores `SCHEDULER_IMPORTS` so
+  it instead installs structured entries in `SCHEDULER_SPECS`
 - structured registry entries resolve correctly
 - `build_scheduler()` forwards `extra_kwargs` into `from_config()`
 - the config argument is still deep-copied before construction
@@ -174,13 +185,13 @@ Karras ID survives the full worker selection path:
 The existing rejection test already covers the negative allowlist case; it does
 not need Karras-specific duplication.
 
-### Config-policy tests
+### Shared mode policy coverage
 
-Update the config-facing tests that assert shared mode policy snapshots so the
-`SDXL` allowlist includes the two new IDs. The current likely touch points are
-`tests/test_mode_config.py`, `tests/test_model_routes.py`, and
-`tests/test_worker_pool.py`, where the shared-mode scheduler IDs are asserted
-explicitly.
+The repository currently has no test that snapshots or loads the shared
+`conf/modes.yml` scheduler allowlists. Adding that broader config-coverage seam
+is out of scope for this slice. The mode-policy change is verified directly by
+reviewing the `SDXL` entry in `conf/modes.yml`; synthetic allowlist fixtures in
+other tests do not need updates.
 
 ### Metadata proof
 
