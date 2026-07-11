@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from PIL import Image as PILImage
 
+from backends.conditioning.invocation import CompletedInvocation
+
 
 _MISSING = object()
 
@@ -141,6 +143,41 @@ def _make_worker(worker_cls):
     worker._apply_style = Mock()
     worker._apply_request_scheduler = Mock(return_value="euler")
     return worker
+
+
+class _ReturningConditioningChain:
+    def __init__(self, artifact):
+        self.artifact = artifact
+        self.requests = []
+
+    def invoke(self, request, context):
+        self.requests.append((request, context))
+        return CompletedInvocation.success(self.artifact)
+
+
+def _materialized_artifact(family):
+    slots = {
+        "prompt_embeds": object(),
+        "negative_prompt_embeds": object(),
+    }
+    if family == "sdxl":
+        slots.update(
+            {
+                "pooled_prompt_embeds": object(),
+                "negative_pooled_prompt_embeds": object(),
+            }
+        )
+    return SimpleNamespace(slots=slots)
+
+
+def _install_materialized_conditioning(worker, family):
+    artifact = _materialized_artifact(family)
+    chain = _ReturningConditioningChain(artifact)
+    context = object()
+    worker._conditioning_chain = chain
+    worker._conditioning_context = context
+    worker._accept_conditioning_artifact = Mock(return_value=artifact.slots)
+    return artifact, chain, context
 
 
 def _make_binding(prefix, strength, start, end):
@@ -473,6 +510,87 @@ def test_sd15_worker_without_bindings_calls_base_pipeline_directly():
     kwargs = worker.pipe.calls[0]
     assert "controlnet" not in kwargs
     assert "image" not in kwargs
+
+
+@pytest.mark.parametrize(
+    ("worker_cls", "family", "branch"),
+    [
+        (DiffusersCudaWorker, "sd15", "txt2img"),
+        (DiffusersCudaWorker, "sd15", "txt2img_controlnet"),
+        (DiffusersCudaWorker, "sd15", "img2img"),
+        (DiffusersCudaWorker, "sd15", "img2img_controlnet"),
+        (DiffusersSDXLCudaWorker, "sdxl", "txt2img"),
+        (DiffusersSDXLCudaWorker, "sdxl", "txt2img_controlnet"),
+        (DiffusersSDXLCudaWorker, "sdxl", "img2img"),
+        (DiffusersSDXLCudaWorker, "sdxl", "img2img_controlnet"),
+    ],
+)
+def test_materialized_conditioning_reaches_every_cuda_run_job_target(
+    worker_cls,
+    family,
+    branch,
+):
+    worker = _make_worker(worker_cls)
+    artifact, chain, context = _install_materialized_conditioning(worker, family)
+    req = _make_req()
+    if family == "sdxl":
+        req.size = "1024x1024"
+    req.denoise_strength = 0.6
+    bindings = []
+    init_image = None
+    target_pipe = worker.pipe
+    controlnet_pipe = MagicMock()
+    controlnet_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+    img2img_pipe = MagicMock()
+    img2img_pipe.return_value = SimpleNamespace(images=[MagicMock()])
+
+    if "controlnet" in branch:
+        binding = _make_binding("canny", 0.4, 0.0, 0.8)
+        binding.control_image_bytes = _make_png_bytes(1024, 1024)
+        bindings = [binding]
+    if "img2img" in branch:
+        init_image = _make_png_bytes(1024, 1024)
+        target_pipe = img2img_pipe
+        worker._img2img_pipe = img2img_pipe
+    if branch == "txt2img_controlnet":
+        target_pipe = controlnet_pipe
+        worker._build_controlnet_pipe = Mock(return_value=controlnet_pipe)
+    if branch == "img2img_controlnet":
+        target_pipe = controlnet_pipe
+
+    job = SimpleNamespace(req=req, init_image=init_image, controlnet_bindings=bindings)
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    cache = _fake_cache()
+    fake_pipe_cls = MagicMock()
+    fake_pipe_cls.from_pipe.return_value = controlnet_pipe
+
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
+        mock_inference.return_value.__enter__.return_value = None
+        mock_inference.return_value.__exit__.return_value = None
+
+        worker.run_job(job)
+
+    assert chain.requests[0][0].prompt == "an owl"
+    assert chain.requests[0][0].negative_prompt == "blurry"
+    assert chain.requests[0][1] is context
+    worker._accept_conditioning_artifact.assert_called_once_with(target_pipe, artifact)
+    kwargs = target_pipe.call_args.kwargs if hasattr(target_pipe, "call_args") else target_pipe.calls[0]
+    assert "prompt" not in kwargs
+    assert "negative_prompt" not in kwargs
+    assert kwargs["prompt_embeds"] is artifact.slots["prompt_embeds"]
+    assert kwargs["negative_prompt_embeds"] is artifact.slots["negative_prompt_embeds"]
+    if family == "sdxl":
+        assert kwargs["pooled_prompt_embeds"] is artifact.slots["pooled_prompt_embeds"]
+        assert (
+            kwargs["negative_pooled_prompt_embeds"]
+            is artifact.slots["negative_pooled_prompt_embeds"]
+        )
 
 
 def test_sd15_combined_img2img_controlnet_keeps_init_image_and_control_map_distinct():

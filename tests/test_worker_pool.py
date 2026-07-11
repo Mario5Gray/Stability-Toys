@@ -14,6 +14,8 @@ import threading
 import sys
 from types import SimpleNamespace
 
+from backends.conditioning.contracts import ConditioningConfig
+
 # Mock dependencies just long enough to import the module under test,
 # then restore sys.modules immediately so other test files aren't poisoned.
 _MOCKED_MODULES = ['torch', 'torch.cuda', 'diffusers']
@@ -70,6 +72,7 @@ def mock_mode_config():
     mode_sdxl.allowed_scheduler_ids = ["euler", "dpmpp_2m"]
     mode_sdxl.default_scheduler_id = "euler"
     mode_sdxl.metadata = {"single_file_config": "configs/sdxl-base"}
+    mode_sdxl.conditioning = ConditioningConfig()
 
     mode_sd15 = Mock()
     mode_sd15.name = "sd15-fast"
@@ -94,6 +97,7 @@ def mock_mode_config():
     mode_sd15.allowed_scheduler_ids = None
     mode_sd15.default_scheduler_id = None
     mode_sd15.metadata = {}
+    mode_sd15.conditioning = ConditioningConfig()
 
     config.get_mode.side_effect = lambda name: {
         "sdxl-general": mode_sdxl,
@@ -124,6 +128,7 @@ def mock_worker_factory():
     """Mock worker factory."""
     worker = Mock()
     worker.run_job = Mock(return_value="test_result")
+    worker.configure_conditioning = None
 
     factory = Mock()
     factory.return_value = worker
@@ -642,6 +647,102 @@ class TestModeSwitching:
 
 class TestWorkerLifecycle:
     """Test worker lifecycle management."""
+
+    def test_load_mode_configures_conditioning_before_registration_and_thread(
+        self,
+        mock_mode_config,
+        mock_registry,
+    ):
+        events = []
+
+        class ConfigurableWorker:
+            worker_id = 0
+
+            def configure_conditioning(self, config):
+                events.append(("configure", config.service))
+
+            def run_job(self, job):
+                del job
+                return b"png", 1
+
+        mode = mock_mode_config.get_mode("sdxl-general")
+        mode.conditioning = ConditioningConfig(service="compel")
+        mock_registry.register_model.side_effect = lambda **kwargs: events.append(
+            ("register", kwargs["name"])
+        )
+
+        with patch.object(
+            WorkerPool,
+            "_start_worker_thread",
+            autospec=True,
+            side_effect=lambda pool: events.append(("thread", pool._current_mode)),
+        ), patch.object(WorkerPool, "_start_watchdog_thread", return_value=None):
+            pool = WorkerPool(
+                worker_factory=Mock(return_value=ConfigurableWorker()),
+                mode_config=mock_mode_config,
+                registry=mock_registry,
+            )
+
+        assert events == [
+            ("configure", "compel"),
+            ("register", "sdxl-general"),
+            ("thread", "sdxl-general"),
+        ]
+        pool.shutdown()
+
+    def test_non_native_config_rejects_worker_without_conditioning_capability(
+        self,
+        mock_mode_config,
+        mock_registry,
+        caplog,
+    ):
+        class IncompatibleWorker:
+            worker_id = 0
+
+            def run_job(self, job):
+                del job
+                return b"png", 1
+
+        mode = mock_mode_config.get_mode("sdxl-general")
+        mode.conditioning = ConditioningConfig(service="compel")
+        factory = Mock(return_value=IncompatibleWorker())
+
+        pool = WorkerPool(
+            worker_factory=factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        assert pool._worker is None
+        assert pool._current_mode is None
+        assert "does not support conditioning" in caplog.text
+        with pytest.raises(RuntimeError, match="does not support conditioning"):
+            pool._load_mode("sdxl-general")
+        pool.shutdown()
+
+    def test_explicit_native_config_accepts_worker_without_conditioning_capability(
+        self,
+        mock_mode_config,
+        mock_registry,
+    ):
+        class IncompatibleWorker:
+            worker_id = 0
+
+            def run_job(self, job):
+                del job
+                return b"png", 1
+
+        mode = mock_mode_config.get_mode("sdxl-general")
+        mode.conditioning = ConditioningConfig(service="native")
+        pool = WorkerPool(
+            worker_factory=Mock(return_value=IncompatibleWorker()),
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+        )
+
+        assert pool._worker is not None
+        assert pool._current_mode == "sdxl-general"
+        pool.shutdown()
 
     def test_load_mode_creates_worker(self, mock_mode_config, mock_registry, mock_worker_factory):
         """Test that loading a mode creates a worker."""

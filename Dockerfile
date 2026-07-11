@@ -95,6 +95,7 @@ RUN set -eu; \
 # Install python deps
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt /app/requirements.txt
+COPY requirements-conditioning.txt /app/requirements-conditioning.txt
 
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
@@ -131,6 +132,11 @@ print(f"Verified torch={torch.__version__} cuda={torch.version.cuda} xformers={x
 PY
 fi
 EOI
+
+RUN if [ "$BACKEND" = "cuda" ]; then \
+      pip install --no-cache-dir --no-deps -r /app/requirements-conditioning.txt; \
+      python -c "from importlib.metadata import version; import compel; assert version('compel') == '2.3.1'"; \
+    fi
 
 # Copy server code 
 COPY conf/ /app/conf/

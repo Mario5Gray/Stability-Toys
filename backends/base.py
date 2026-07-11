@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Tuple, Optional
 if TYPE_CHECKING:
     from concurrent.futures import Future
     from server.lcm_sr_server import GenerateRequest
+    from backends.conditioning.contracts import ConditioningConfig
 
 @dataclass
 class Job:
@@ -43,6 +44,12 @@ class PipelineWorker(Protocol):
         of shape [1,4,8,8] (NCHW) serialized as little-endian float16 bytes.
         """
         ...
+
+
+class ConditioningConfigurableWorker(Protocol):
+    def configure_conditioning(self, config: "ConditioningConfig") -> None: ...
+
+
 @dataclass(frozen=True)
 class ModelPaths:
     root: str

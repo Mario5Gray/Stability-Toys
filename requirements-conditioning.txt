@@ -1,0 +1,3 @@
+# Installed with --no-deps after base dependencies to exclude Compel's unrelated
+# notebook>=6.5.7 dependency from runtime images.
+compel==2.3.1

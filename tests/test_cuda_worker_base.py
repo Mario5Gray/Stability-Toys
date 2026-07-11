@@ -11,7 +11,11 @@ file is needed.  They guard against:
 import os
 import sys
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
+
+import torch
+
+sys.modules.setdefault("torch", torch)
 
 # ---------------------------------------------------------------------------
 # Stub out diffusers and project deps before importing cuda_worker.
@@ -50,8 +54,16 @@ sys.modules["diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2
 sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img"].StableDiffusionXLImg2ImgPipeline = MagicMock
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 
-import pytest
-from backends.cuda_worker import CudaWorkerBase  # noqa: E402 — stubs must be set first
+import pytest  # noqa: E402
+from backends.conditioning.artifacts import (  # noqa: E402 — stubs must be set first
+    ConditioningCompatibility,
+    DelegatedConditioning,
+    MaterializedConditioning,
+)
+from backends.cuda_worker import (  # noqa: E402 — stubs must be set first
+    CudaWorkerBase,
+    DiffusersCudaWorker,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -82,6 +94,62 @@ def _make_pipe():
     del pipe.text_encoder_2   # absent = SD1.5 path; MagicMock del makes hasattr False
     pipe.to.return_value = pipe
     return pipe
+
+
+def _fake_config(*, name, hidden_size, projection_dim=None):
+    config = SimpleNamespace(_name_or_path=name, hidden_size=hidden_size)
+    if projection_dim is not None:
+        config.projection_dim = projection_dim
+    return config
+
+
+def _fake_module(*, name, hidden_size, dtype, projection_dim=None):
+    return SimpleNamespace(
+        dtype=dtype,
+        config=_fake_config(
+            name=name,
+            hidden_size=hidden_size,
+            projection_dim=projection_dim,
+        ),
+    )
+
+
+def _make_sd15_worker_with_fake_pipe(dtype=None):
+    dtype = dtype or cuda_worker_torch().float16
+    worker = DiffusersCudaWorker.__new__(DiffusersCudaWorker)
+    worker.device = "cuda:0"
+    worker.dtype = dtype
+    worker._img2img_pipe = None
+    worker.pipe = SimpleNamespace(
+        tokenizer=SimpleNamespace(model_max_length=77),
+        text_encoder=_fake_module(
+            name="local/sd15-text-encoder",
+            hidden_size=768,
+            dtype=dtype,
+        ),
+        unet=SimpleNamespace(dtype=dtype),
+        vae=SimpleNamespace(dtype=dtype),
+    )
+    return worker
+
+
+def cuda_worker_torch():
+    from backends import cuda_worker as cuda_worker_module
+
+    return cuda_worker_module.torch
+
+
+def _materialized_sd15(worker, *, dtype=None, slots=None, compatibility=None):
+    torch_mod = cuda_worker_torch()
+    dtype = dtype or torch_mod.float16
+    slots = slots or {
+        "prompt_embeds": torch_mod.zeros((1, 77, 768), dtype=dtype),
+        "negative_prompt_embeds": torch_mod.zeros((1, 77, 768), dtype=dtype),
+    }
+    compatibility = compatibility or worker._describe_conditioning_consumer(
+        worker.pipe
+    ).compatibility
+    return MaterializedConditioning(slots=slots, compatibility=compatibility)
 
 
 # ---------------------------------------------------------------------------
@@ -200,3 +268,151 @@ class TestRuntimePolicyOverrides:
         pipe.enable_attention_slicing.assert_called_once_with(1)
         pipe.enable_xformers_memory_efficient_attention.assert_called_once()
         pipe.to.assert_not_called()
+
+
+class TestConditioningContextAndAcceptance:
+    def test_sd15_conditioning_model_context_exposes_plain_descriptor_and_local_bundle(self):
+        torch_mod = cuda_worker_torch()
+        worker = _make_sd15_worker_with_fake_pipe(dtype=torch_mod.float16)
+
+        context = worker._build_conditioning_context()
+
+        assert context.descriptor.model_family == "sd15"
+        assert context.descriptor.tokenizer_max_length == 77
+        assert context.descriptor.hidden_dimensions == (768,)
+        assert context.descriptor.pooled_required is False
+        assert context.descriptor.encode_dtype_name == "float16"
+        assert context.descriptor.device == "cuda:0"
+        assert context.descriptor.encoder_identities == ("local/sd15-text-encoder",)
+        assert context.local_encoder_bundle is not None
+        assert context.local_encoder_bundle.tokenizers() == (worker.pipe.tokenizer,)
+        assert context.local_encoder_bundle.text_encoders() == (worker.pipe.text_encoder,)
+        assert context.local_encoder_bundle.live_dtype() == torch_mod.float16
+        assert worker.pipe not in context.__dict__.values()
+
+    def test_accept_conditioning_delegated_returns_only_prompt_kwargs(self):
+        worker = _make_sd15_worker_with_fake_pipe()
+
+        kwargs = worker._accept_conditioning_artifact(
+            worker.pipe,
+            DelegatedConditioning("cat", None),
+        )
+
+        assert kwargs == {"prompt": "cat", "negative_prompt": None}
+
+    def test_accept_conditioning_materialized_sd15_returns_exact_pipeline_kwargs(self):
+        worker = _make_sd15_worker_with_fake_pipe()
+        artifact = _materialized_sd15(worker)
+
+        kwargs = worker._accept_conditioning_artifact(worker.pipe, artifact)
+
+        assert kwargs == artifact.slots
+
+    def test_accept_conditioning_materialized_rechecks_live_dtype_after_artifact_creation(self):
+        torch_mod = cuda_worker_torch()
+        worker = _make_sd15_worker_with_fake_pipe(dtype=torch_mod.float16)
+        artifact = _materialized_sd15(worker, dtype=torch_mod.float16)
+        worker.pipe.text_encoder.dtype = torch_mod.float32
+
+        with pytest.raises(ValueError, match="dtype"):
+            worker._accept_conditioning_artifact(worker.pipe, artifact)
+
+    @pytest.mark.parametrize(
+        ("artifact_factory", "match"),
+        [
+            (lambda worker: object(), "unknown conditioning artifact"),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    slots={
+                        "prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 768), dtype=cuda_worker_torch().float16
+                        )
+                    },
+                ),
+                "slots",
+            ),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    compatibility=ConditioningCompatibility(
+                        model_family="sdxl",
+                        encoder_identities=("local/sd15-text-encoder",),
+                        hidden_dimensions=(768,),
+                        pooled_required=False,
+                        dtype_name="float16",
+                    ),
+                ),
+                "compatibility",
+            ),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    compatibility=ConditioningCompatibility(
+                        model_family="sd15",
+                        encoder_identities=("other-encoder",),
+                        hidden_dimensions=(768,),
+                        pooled_required=False,
+                        dtype_name="float16",
+                    ),
+                ),
+                "compatibility",
+            ),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    slots={
+                        "prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 1024), dtype=cuda_worker_torch().float16
+                        ),
+                        "negative_prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 1024), dtype=cuda_worker_torch().float16
+                        ),
+                    },
+                ),
+                "hidden",
+            ),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    slots={
+                        "prompt_embeds": object(),
+                        "negative_prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 768), dtype=cuda_worker_torch().float16
+                        ),
+                    },
+                ),
+                "tensor",
+            ),
+            (
+                lambda worker: _materialized_sd15(
+                    worker,
+                    slots={
+                        "prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 768), dtype=cuda_worker_torch().float32
+                        ),
+                        "negative_prompt_embeds": cuda_worker_torch().zeros(
+                            (1, 77, 768), dtype=cuda_worker_torch().float32
+                        ),
+                    },
+                ),
+                "dtype",
+            ),
+        ],
+    )
+    def test_accept_conditioning_materialized_sd15_rejects_invalid_artifacts_fail_closed(
+        self,
+        artifact_factory,
+        match,
+    ):
+        worker = _make_sd15_worker_with_fake_pipe()
+        target_pipe = Mock()
+        target_pipe.tokenizer = worker.pipe.tokenizer
+        target_pipe.text_encoder = worker.pipe.text_encoder
+        target_pipe.unet = worker.pipe.unet
+        target_pipe.vae = worker.pipe.vae
+
+        with pytest.raises(ValueError, match=match):
+            worker._accept_conditioning_artifact(target_pipe, artifact_factory(worker))
+
+        target_pipe.assert_not_called()

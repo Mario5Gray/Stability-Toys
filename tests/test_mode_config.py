@@ -1,8 +1,131 @@
 """
 Tests for ModeConfigManager capability field parsing and serialization.
 """
+import textwrap
+
 import pytest
 import yaml
+
+
+def write_single_mode_config(tmp_path, mode_extra=""):
+    extra = textwrap.indent(textwrap.dedent(mode_extra).strip(), "    ")
+    extra = f"\n{extra}" if extra else ""
+    (tmp_path / "modes.yml").write_text(
+        f"""
+model_root: /models
+lora_root: /models/loras
+default_mode: test
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  test:
+    model: checkpoints/test.safetensors
+    default_size: 512x512{extra}
+""".strip()
+    )
+
+
+def test_mode_config_parses_and_serializes_conditioning_chain(tmp_path):
+    write_single_mode_config(
+        tmp_path,
+        """
+        conditioning:
+          service: compel
+          filters: [trace, cache]
+          fallback:
+            native_when_unconfigured: true
+            native_on_failure: false
+        """,
+    )
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    mode = manager.get_mode("test")
+
+    assert mode.conditioning.service == "compel"
+    assert mode.conditioning.filters == ("trace", "cache")
+    assert mode.conditioning.fallback.native_when_unconfigured is True
+    assert mode.conditioning.fallback.native_on_failure is False
+    assert manager.to_dict()["modes"]["test"]["conditioning"] == {
+        "service": "compel",
+        "filters": ["trace", "cache"],
+        "fallback": {
+            "native_when_unconfigured": True,
+            "native_on_failure": False,
+        },
+    }
+
+
+def test_mode_config_conditioning_defaults_to_native(tmp_path):
+    write_single_mode_config(tmp_path)
+    from server.mode_config import ModeConfigManager
+
+    conditioning = ModeConfigManager(str(tmp_path)).get_mode("test").conditioning
+
+    assert conditioning.service is None
+    assert conditioning.filters == ()
+    assert conditioning.fallback.native_when_unconfigured is True
+    assert conditioning.fallback.native_on_failure is False
+
+
+@pytest.mark.parametrize(
+    "mode_extra",
+    [
+        "conditioning:\n  unknown: true",
+        "conditioning:\n  fallback:\n    unknown: true",
+    "conditioning: compel",
+        "conditioning:\n  filters: trace",
+        "conditioning:\n  filters: [trace, 3]",
+        "conditioning:\n  fallback: native",
+        'conditioning:\n  fallback:\n    native_on_failure: "yes"',
+    ],
+)
+def test_mode_config_rejects_malformed_conditioning(tmp_path, mode_extra):
+    write_single_mode_config(tmp_path, mode_extra)
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match="conditioning"):
+        ModeConfigManager(str(tmp_path))
+
+
+def test_mode_config_rejects_empty_service_when_native_default_disabled(tmp_path):
+    write_single_mode_config(
+        tmp_path,
+        """
+        conditioning:
+          service: ""
+          fallback:
+            native_when_unconfigured: false
+        """,
+    )
+    from server.mode_config import ModeConfigManager
+
+    with pytest.raises(ValueError, match="requires a service"):
+        ModeConfigManager(str(tmp_path))
+
+
+def test_save_config_preserves_conditioning_round_trip(tmp_path):
+    write_single_mode_config(
+        tmp_path,
+        """
+        conditioning:
+          service: compel
+          filters: [trace]
+          fallback:
+            native_on_failure: true
+        """,
+    )
+    from server.mode_config import ModeConfigManager
+
+    manager = ModeConfigManager(str(tmp_path))
+    manager.save_config(manager.to_dict())
+    conditioning = manager.get_mode("test").conditioning
+
+    assert conditioning.service == "compel"
+    assert conditioning.filters == ("trace",)
+    assert conditioning.fallback.native_on_failure is True
 
 
 def test_mode_config_parses_loader_capability_overrides(tmp_path):

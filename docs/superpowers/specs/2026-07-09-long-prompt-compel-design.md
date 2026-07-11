@@ -345,7 +345,10 @@ For SDXL it materializes:
 For both families, `negative_prompt=None` is encoded as an empty string so every
 materialized artifact contains the required negative slots. Prompt and
 negative-prompt embeddings are padded to the same sequence length after chunking,
-including SDXL when their chunk counts differ.
+including SDXL when their chunk counts differ. With Compel 2.3.1, SDXL uses
+Compel's multi-provider path, whose padding helper does not expose `empty_z`; the
+service must pass an explicit empty-string prompt embedding as `precomputed_padding`
+for SDXL padding instead of relying on Compel to derive it internally.
 
 The service normalizes returned tensors to the local encoder bundle's live encoder
 dtype and stamps that actual dtype into `ConditioningCompatibility.dtype_name`.
@@ -484,6 +487,8 @@ documents its dependency consumption.
 - `negative_prompt=None` materializes the empty-string negative slots.
 - Prompt and negative embeddings are padded to equal sequence length for both SD1.5
   and SDXL.
+- SDXL unequal-length padding passes explicit precomputed empty-string padding so
+  Compel's multi-provider path does not require `empty_z`.
 - Short unweighted prompts are numerically equivalent or near-equivalent to direct
   pipeline encoding on controlled stub encoders.
 - SD1.5 outputs use live encoder dtype and expected hidden width.

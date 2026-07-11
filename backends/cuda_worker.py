@@ -5,6 +5,7 @@ import io
 import json
 import os
 from copy import deepcopy
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib import import_module
 from typing import Any, Optional, Tuple
@@ -13,6 +14,14 @@ import numpy as np
 import torch
 from PIL import Image, PngImagePlugin
 
+from backends.conditioning.artifacts import (
+    ConditioningCompatibility,
+    DelegatedConditioning,
+    MaterializedConditioning,
+)
+from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
+from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
+from backends.conditioning.registry import build_conditioning_chain
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
@@ -96,6 +105,33 @@ def _validate_control_image_aspect_ratio(
             )
 
 
+def _dtype_name(dtype: Any) -> str:
+    return str(dtype).removeprefix("torch.")
+
+
+@dataclass(frozen=True)
+class _CudaEncoderBundle:
+    _tokenizers: tuple[object, ...]
+    _text_encoders: tuple[object, ...]
+    _live_dtype: Any
+
+    def tokenizers(self) -> tuple[object, ...]:
+        return self._tokenizers
+
+    def text_encoders(self) -> tuple[object, ...]:
+        return self._text_encoders
+
+    def live_dtype(self) -> object:
+        return self._live_dtype()
+
+
+@dataclass(frozen=True)
+class _ConditioningConsumerDescription:
+    model_family: str
+    compatibility: ConditioningCompatibility
+    pooled_projection_dimension: int | None
+
+
 class CudaWorkerBase:
     """Shared base for CUDA diffusers workers.
 
@@ -115,6 +151,7 @@ class CudaWorkerBase:
     # StableDiffusion(XL)ControlNetPipeline takes it as `image`; a transformer
     # family like HunyuanDiTControlNetPipeline overrides this to `control_image`.
     _CONTROL_IMAGE_KWARG: str = "image"
+    _conditioning_model_family: str = "sd15"
 
     def __init__(self, worker_id: int, model_info: Any | None = None) -> None:
         self.worker_id = worker_id
@@ -125,6 +162,46 @@ class CudaWorkerBase:
         self._baseline_scheduler_class = None
         self._baseline_scheduler_config = None
         self._parse_env()
+        self._set_native_conditioning_defaults()
+
+    def _set_native_conditioning_defaults(self) -> None:
+        context = ModelContext(
+            descriptor=ModelContextDescriptor(
+                model_family=self._conditioning_model_family,
+                tokenizer_max_length=0,
+                encoder_identities=(),
+                hidden_dimensions=(),
+                pooled_required=self._conditioning_model_family == "sdxl",
+                encode_dtype_name=_dtype_name(getattr(self, "dtype", "unknown")),
+                device=str(getattr(self, "device", "")),
+            ),
+            local_encoder_bundle=None,
+        )
+        self._conditioning_context = context
+        self._conditioning_chain = build_conditioning_chain(ConditioningConfig(), context)
+
+    def _ensure_conditioning_configured(self) -> None:
+        if not hasattr(self, "_conditioning_chain") or not hasattr(
+            self, "_conditioning_context"
+        ):
+            self._set_native_conditioning_defaults()
+
+    def configure_conditioning(self, config: ConditioningConfig) -> None:
+        context = self._build_conditioning_context()
+        chain = build_conditioning_chain(config, context)
+        self._conditioning_context = context
+        self._conditioning_chain = chain
+
+    def _conditioning_artifact_for_request(self, req: Any) -> Any:
+        self._ensure_conditioning_configured()
+        request = ConditioningRequest(
+            prompt=req.prompt,
+            negative_prompt=getattr(req, "negative_prompt", None),
+        )
+        return self._conditioning_chain.invoke(
+            request,
+            self._conditioning_context,
+        ).result()
 
     def _controlnet_metadata(self, bindings: list[Any]) -> list[dict[str, Any]]:
         """Per-attachment ControlNet provenance for the generation PNG."""
@@ -227,6 +304,177 @@ class CudaWorkerBase:
                 return 0
         return 0
 
+    def _pipeline_encode_dtype(self, pipe: Any) -> Any:
+        for attr in ("text_encoder_2", "text_encoder", "unet"):
+            module = getattr(pipe, attr, None)
+            candidate_dtype = getattr(module, "dtype", None)
+            if candidate_dtype is not None and not callable(candidate_dtype):
+                return candidate_dtype
+        return self.dtype
+
+    def _conditioning_components(self, pipe: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
+        family = self._conditioning_model_family
+        if family == "sdxl":
+            tokenizers = (getattr(pipe, "tokenizer", None), getattr(pipe, "tokenizer_2", None))
+            encoders = (getattr(pipe, "text_encoder", None), getattr(pipe, "text_encoder_2", None))
+        else:
+            tokenizers = (getattr(pipe, "tokenizer", None),)
+            encoders = (getattr(pipe, "text_encoder", None),)
+
+        missing = [
+            name
+            for name, value in (
+                ("tokenizer", tokenizers[0] if tokenizers else None),
+                ("text_encoder", encoders[0] if encoders else None),
+                ("tokenizer_2", tokenizers[1] if len(tokenizers) > 1 else True),
+                ("text_encoder_2", encoders[1] if len(encoders) > 1 else True),
+            )
+            if value is None
+        ]
+        if missing:
+            raise ValueError(f"conditioning pipeline missing components: {', '.join(missing)}")
+        return tokenizers, encoders
+
+    def _encoder_identity(self, role: str, encoder: Any) -> str:
+        config = getattr(encoder, "config", None)
+        name = getattr(config, "_name_or_path", None)
+        if name:
+            return str(name)
+        return f"{role}:{type(encoder).__name__}"
+
+    def _encoder_hidden_size(self, role: str, encoder: Any) -> int:
+        hidden_size = getattr(getattr(encoder, "config", None), "hidden_size", None)
+        if hidden_size is None:
+            raise ValueError(f"conditioning {role} missing hidden_size")
+        return int(hidden_size)
+
+    def _pooled_projection_dimension(self, pipe: Any) -> int | None:
+        if self._conditioning_model_family != "sdxl":
+            return None
+        config = getattr(getattr(pipe, "text_encoder_2", None), "config", None)
+        projection_dim = getattr(config, "projection_dim", None)
+        if projection_dim is None:
+            projection_dim = getattr(config, "hidden_size", None)
+        if projection_dim is None:
+            raise ValueError("conditioning text_encoder_2 missing projection_dim")
+        return int(projection_dim)
+
+    def _describe_conditioning_consumer(self, pipe: Any) -> _ConditioningConsumerDescription:
+        family = self._conditioning_model_family
+        _tokenizers, encoders = self._conditioning_components(pipe)
+        roles = ("text_encoder", "text_encoder_2") if family == "sdxl" else ("text_encoder",)
+        hidden_dimensions = tuple(
+            self._encoder_hidden_size(role, encoder)
+            for role, encoder in zip(roles, encoders, strict=True)
+        )
+        compatibility = ConditioningCompatibility(
+            model_family=family,
+            encoder_identities=tuple(
+                self._encoder_identity(role, encoder)
+                for role, encoder in zip(roles, encoders, strict=True)
+            ),
+            hidden_dimensions=hidden_dimensions,
+            pooled_required=family == "sdxl",
+            dtype_name=_dtype_name(self._pipeline_encode_dtype(pipe)),
+        )
+        return _ConditioningConsumerDescription(
+            model_family=family,
+            compatibility=compatibility,
+            pooled_projection_dimension=self._pooled_projection_dimension(pipe),
+        )
+
+    def _build_conditioning_context(self) -> ModelContext:
+        pipe = self.pipe
+        family = self._conditioning_model_family
+        tokenizers, encoders = self._conditioning_components(pipe)
+        consumer = self._describe_conditioning_consumer(pipe)
+        max_length = getattr(tokenizers[0], "model_max_length", None)
+        if max_length is None:
+            raise ValueError("conditioning tokenizer missing model_max_length")
+        descriptor = ModelContextDescriptor(
+            model_family=family,
+            tokenizer_max_length=int(max_length),
+            encoder_identities=consumer.compatibility.encoder_identities,
+            hidden_dimensions=consumer.compatibility.hidden_dimensions,
+            pooled_required=consumer.compatibility.pooled_required,
+            encode_dtype_name=consumer.compatibility.dtype_name,
+            device=str(self.device),
+        )
+        bundle = _CudaEncoderBundle(
+            _tokenizers=tuple(tokenizers),
+            _text_encoders=tuple(encoders),
+            _live_dtype=lambda: self._pipeline_encode_dtype(pipe),
+        )
+        return ModelContext(descriptor=descriptor, local_encoder_bundle=bundle)
+
+    def _accept_conditioning_artifact(self, pipe: Any, artifact: Any) -> dict[str, Any]:
+        if isinstance(artifact, DelegatedConditioning):
+            return {"prompt": artifact.prompt, "negative_prompt": artifact.negative_prompt}
+
+        if not isinstance(artifact, MaterializedConditioning):
+            raise ValueError(f"unknown conditioning artifact: {type(artifact).__name__}")
+
+        live = self._describe_conditioning_consumer(pipe)
+        if artifact.compatibility != live.compatibility:
+            if artifact.compatibility.dtype_name != live.compatibility.dtype_name:
+                raise ValueError("conditioning dtype does not match live pipeline")
+            raise ValueError("conditioning compatibility does not match live pipeline")
+
+        required = (
+            {"prompt_embeds", "negative_prompt_embeds"}
+            if live.model_family == "sd15"
+            else {
+                "prompt_embeds",
+                "negative_prompt_embeds",
+                "pooled_prompt_embeds",
+                "negative_pooled_prompt_embeds",
+            }
+        )
+        if set(artifact.slots) != required:
+            raise ValueError("conditioning slots do not match live pipeline")
+
+        slots = dict(artifact.slots)
+        for name, value in slots.items():
+            if not torch.is_tensor(value):
+                raise ValueError(f"conditioning slot {name} is not a tensor")
+            if value.dtype != self._pipeline_encode_dtype(pipe):
+                raise ValueError(f"conditioning slot {name} dtype does not match live pipeline")
+
+        prompt_embeds = slots["prompt_embeds"]
+        negative_prompt_embeds = slots["negative_prompt_embeds"]
+        if len(prompt_embeds.shape) != 3 or len(negative_prompt_embeds.shape) != 3:
+            raise ValueError("conditioning prompt embeds must be rank-3 tensors")
+        if prompt_embeds.shape[0] != negative_prompt_embeds.shape[0]:
+            raise ValueError("conditioning prompt batch does not match negative batch")
+        if prompt_embeds.shape[1] != negative_prompt_embeds.shape[1]:
+            raise ValueError("conditioning prompt sequence does not match negative sequence")
+        if prompt_embeds.shape[2] != negative_prompt_embeds.shape[2]:
+            raise ValueError("conditioning prompt hidden width does not match negative hidden width")
+
+        expected_hidden = (
+            live.compatibility.hidden_dimensions[0]
+            if live.model_family == "sd15"
+            else sum(live.compatibility.hidden_dimensions)
+        )
+        if prompt_embeds.shape[2] != expected_hidden:
+            raise ValueError("conditioning hidden width does not match live pipeline")
+
+        if live.model_family == "sdxl":
+            pooled_prompt = slots["pooled_prompt_embeds"]
+            negative_pooled = slots["negative_pooled_prompt_embeds"]
+            if len(pooled_prompt.shape) != 2 or len(negative_pooled.shape) != 2:
+                raise ValueError("conditioning pooled embeds must be rank-2 tensors")
+            if pooled_prompt.shape[0] != prompt_embeds.shape[0]:
+                raise ValueError("conditioning pooled batch does not match prompt batch")
+            if negative_pooled.shape[0] != negative_prompt_embeds.shape[0]:
+                raise ValueError("conditioning negative pooled batch does not match negative batch")
+            if pooled_prompt.shape[1] != negative_pooled.shape[1]:
+                raise ValueError("conditioning pooled width does not match negative pooled width")
+            if pooled_prompt.shape[1] != live.pooled_projection_dimension:
+                raise ValueError("conditioning pooled width does not match live pipeline")
+
+        return slots
+
     def _normalize_img2img_modules(self) -> None:
         """
         Re-align shared img2img modules to the worker runtime dtype/device.
@@ -238,14 +486,8 @@ class CudaWorkerBase:
         the VAE to the same dtype here instead of assuming self.dtype.
         """
         vae = getattr(getattr(self, "pipe", None), "vae", None)
-        target_dtype = self.dtype
         pipe = getattr(self, "pipe", None)
-        for attr in ("text_encoder_2", "text_encoder", "unet"):
-            module = getattr(pipe, attr, None)
-            candidate_dtype = getattr(module, "dtype", None)
-            if candidate_dtype is not None and not callable(candidate_dtype):
-                target_dtype = candidate_dtype
-                break
+        target_dtype = self._pipeline_encode_dtype(pipe)
         if vae is not None and hasattr(vae, "to"):
             # Skip the no-op cast when already aligned: diffusers logs a
             # "Casting directly with to()" warning on every ModelMixin.to()
@@ -598,7 +840,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
         controlnet_kwargs: dict[str, Any] = {}
 
         out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
         try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None and bindings:
                 _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
@@ -616,8 +861,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        combined_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -635,8 +882,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        self._img2img_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -651,8 +900,6 @@ class DiffusersCudaWorker(CudaWorkerBase):
                         bindings, (width, height), loaded_ids
                     )
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
                     "width": width,
                     "height": height,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -664,8 +911,12 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 controlnet_obj = pipe_kwargs.pop("controlnet", None)
                 if controlnet_obj is not None:
                     pipe = self._build_controlnet_pipe(controlnet_obj)
+                conditioning_kwargs = self._accept_conditioning_artifact(
+                    pipe,
+                    conditioning_artifact,
+                )
                 with torch.inference_mode():
-                    out = pipe(**pipe_kwargs)
+                    out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -687,6 +938,8 @@ class DiffusersCudaWorker(CudaWorkerBase):
             return buf.getvalue(), seed
         finally:
             out = None  # release on OOM/exception; no-op on success
+            conditioning_artifact = None
+            pipe_kwargs = None
             self._apply_style(None, 0)
             # Release ControlNet cache pins
             if loaded_ids:
@@ -730,18 +983,25 @@ class DiffusersCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                negative_prompt=getattr(req, "negative_prompt", None),
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-                output_type="latent",
-                return_dict=True,
-            )
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            pipe_kwargs = {
+                **self._accept_conditioning_artifact(self.pipe, conditioning_artifact),
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "generator": gen,
+                "output_type": "latent",
+                "return_dict": True,
+            }
+            with torch.inference_mode():
+                out = self.pipe(**pipe_kwargs)
+        finally:
+            conditioning_artifact = None
+            pipe_kwargs = None
 
         self._apply_style(None, 0)
 
@@ -799,6 +1059,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
       - Latent space: 128x128 (vs 64x64 for SD1.5)
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
+    _conditioning_model_family: str = "sdxl"
 
     def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
         super().__init__(worker_id, model_info=model_info)
@@ -954,7 +1215,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         controlnet_kwargs: dict[str, Any] = {}
 
         out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
         try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None and bindings:
                 _validate_control_image_aspect_ratio(init_image, bindings)
                 controlnet_kwargs = self._build_controlnet_kwargs(
@@ -972,8 +1236,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        combined_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -991,8 +1257,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 self._normalize_img2img_modules()
                 denoise_strength = float(getattr(req, 'denoise_strength', 0.75))
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    **self._accept_conditioning_artifact(
+                        self._img2img_pipe,
+                        conditioning_artifact,
+                    ),
                     "image": init_pil,
                     "strength": denoise_strength,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -1007,8 +1275,6 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                         bindings, (width, height), loaded_ids
                     )
                 pipe_kwargs = {
-                    "prompt": req.prompt,
-                    "negative_prompt": getattr(req, "negative_prompt", None),
                     "width": width,
                     "height": height,
                     "num_inference_steps": int(req.num_inference_steps),
@@ -1020,8 +1286,12 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 controlnet_obj = pipe_kwargs.pop("controlnet", None)
                 if controlnet_obj is not None:
                     pipe = self._build_controlnet_pipe(controlnet_obj)
+                conditioning_kwargs = self._accept_conditioning_artifact(
+                    pipe,
+                    conditioning_artifact,
+                )
                 with torch.inference_mode():
-                    out = pipe(**pipe_kwargs)
+                    out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
             out = None  # release tensor reference before PNG encoding
@@ -1043,6 +1313,8 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
             return buf.getvalue(), seed
         finally:
             out = None  # release on OOM/exception; no-op on success
+            conditioning_artifact = None
+            pipe_kwargs = None
             self._apply_style(None, 0)
             # Release ControlNet cache pins
             if loaded_ids:
@@ -1089,18 +1361,25 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         self._apply_style(style_id, level)
         scheduler_id = self._apply_request_scheduler(req)
 
-        with torch.inference_mode():
-            out = self.pipe(
-                prompt=req.prompt,
-                negative_prompt=getattr(req, "negative_prompt", None),
-                width=width,
-                height=height,
-                num_inference_steps=int(req.num_inference_steps),
-                guidance_scale=float(req.guidance_scale),
-                generator=gen,
-                output_type="latent",
-                return_dict=True,
-            )
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            pipe_kwargs = {
+                **self._accept_conditioning_artifact(self.pipe, conditioning_artifact),
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "generator": gen,
+                "output_type": "latent",
+                "return_dict": True,
+            }
+            with torch.inference_mode():
+                out = self.pipe(**pipe_kwargs)
+        finally:
+            conditioning_artifact = None
+            pipe_kwargs = None
 
         self._apply_style(None, 0)
 

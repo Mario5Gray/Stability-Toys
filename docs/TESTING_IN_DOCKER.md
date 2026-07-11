@@ -134,6 +134,28 @@ docker compose -f docker-compose.test.yml run --rm test \
   python -c "import torch; from server.mode_config import get_mode_config; cfg = get_mode_config('/conf'); print(f'torch={torch.__version__} cuda={torch.version.cuda} default_mode={cfg.get_default_mode()}')"
 ```
 
+## Prompt Conditioning Checks
+
+Prompt-conditioning dependency checks are deterministic and split by container
+path.
+
+Build the local/native test image and verify the isolated Compel pin imports:
+
+```bash
+docker compose -f docker-compose.test.yml build test
+docker compose -f docker-compose.test.yml run --rm test \
+  python -c "from importlib.metadata import version; import compel; print(version('compel'))"
+```
+
+Run the local/native conditioning package slice:
+
+```bash
+docker compose -f docker-compose.test.yml run --rm test \
+  python -m pytest tests/test_conditioning_contracts.py \
+    tests/test_conditioning_registry.py tests/test_conditioning_compel.py \
+    tests/test_compel_packaging.py -q
+```
+
 Build the explicit CUDA image:
 
 ```bash
@@ -145,6 +167,21 @@ Run the explicit CUDA suite:
 ```bash
 docker compose -f docker-compose.test.yml run --rm test-cuda
 ```
+
+Run the explicit CUDA prompt-conditioning and CUDA-consumer slice:
+
+```bash
+docker compose -f docker-compose.test.yml build test-cuda
+docker compose -f docker-compose.test.yml run --rm test-cuda \
+  python -m pytest tests/test_conditioning_compel.py \
+    tests/test_cuda_worker_capabilities.py \
+    tests/test_cuda_worker_controlnet.py -q
+```
+
+Production and test image package inspection must show `compel==2.3.1`. The
+Compel installation must not introduce Notebook or Jupyter packages; the images
+install the dedicated conditioning requirements with `--no-deps`, while Torch,
+Diffusers, Transformers, and pyparsing remain under repository requirements.
 
 ## Remote GPU Dev Verification
 

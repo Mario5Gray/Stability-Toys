@@ -7,13 +7,37 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ## Active work
 
-No track is currently in flight. The next likely pickup point is the **st CLI v2
-brainstorm** (`STABL-kczspmud`, in-progress, one subtask done) — see "v2 brainstorm"
-below.
+Prompt-conditioning closeout is in flight under `STABL-hvalobvn`; implementation
+children through CUDA wiring are complete, with docs/container/live verification
+remaining in `STABL-dxxgoevd`.
 
 ---
 
 ## Recently landed
+
+### Pluggable prompt conditioning + Compel long prompts — landing
+
+**FP:** STABL-hvalobvn | **Spec:** `docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md`
+
+CUDA workers now use a Stability-Toys-owned prompt-conditioning seam. Native
+prompt delegation remains the empty-configuration default; per-mode
+`conditioning.service: compel` opts CUDA modes into local Compel materialization
+for SD1.5 and SDXL. Compel is pinned in `requirements-conditioning.txt` and
+installed with `--no-deps` in CUDA-capable images to avoid Notebook/Jupyter
+dependency creep.
+
+The consumer boundary is intentionally CUDA-local and live: every SD1.5/SDXL
+generation branch, including txt2img, img2img, ControlNet, combined
+img2img+ControlNet, and both latent entry points, invokes one chain per job and
+then validates the artifact against the exact target pipeline immediately before
+calling Diffusers. Compatibility failures are structural consumer failures and
+never enter native fallback; `native_on_failure` only covers configured-service
+invocation failure and can restore native truncation.
+
+Direct/proxy conditioning, Redis/Qdrant artifact storage, non-CUDA materialized
+consumers, frontend changes, and new CLI flags remain deferred. Operators should
+enable Compel only in CUDA deployment config, not in shared repo defaults.
 
 ### Combined img2img + ControlNet — merged (PR #6)
 
