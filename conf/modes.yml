@@ -51,6 +51,8 @@ modes:
     default_size: 768x768
     default_steps: 8
     default_guidance: 3
+    conditioning:
+      service: compel
     negative_prompt_templates:
       safe_photo: "blurry, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"
@@ -90,6 +92,8 @@ modes:
     default_size: 512x512
     default_steps: 8
     default_guidance: 1.5
+    conditioning:
+      service: compel    
     negative_prompt_templates:
       safe_photo: "blurry, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"
@@ -115,6 +119,8 @@ modes:
     recommended_size: 1024x1024
     default_steps: 11
     default_guidance: 3.0
+    conditioning:
+      service: compel    
     negative_prompt_templates:
       safe_photo: "blurry, compression artifacts, bad anatomy, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"

@@ -159,19 +159,22 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 	return a
 }
 
-// localRecipePath returns a local PNG (recreate first, then init-image) whose
-// lcm metadata should seed precedence layer 2. fileref: inputs and non-existent
+// localRecipePath returns a local image (recreate first, then init-image) whose
+// lcm metadata should seed precedence layer 2, and whether baked params are
+// mandatory. Reading the recipe is --recreate's entire purpose, so it is
+// required; an init image may be any decodable format, so missing/unreadable
+// baked params just mean no baked layer. fileref: inputs and non-existent
 // paths are ignored.
-func localRecipePath(a genArgs) string {
+func localRecipePath(a genArgs) (path string, required bool) {
 	for _, cand := range []string{a.Recreate, a.InitImage} {
 		if cand == "" || strings.HasPrefix(cand, "fileref:") {
 			continue
 		}
 		if _, err := os.Stat(cand); err == nil {
-			return cand
+			return cand, cand == a.Recreate
 		}
 	}
-	return ""
+	return "", false
 }
 
 // buildGenParams layers config < baked PNG < flags into the WS params. It sets
@@ -182,14 +185,16 @@ func buildGenParams(cfg *config.Config, a genArgs) (stclient.GenParams, error) {
 		cfg = &config.Config{}
 	}
 	var baked map[string]any
-	if local := localRecipePath(a); local != "" {
+	if local, required := localRecipePath(a); local != "" {
 		data, err := os.ReadFile(local)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			baked, err = pngmeta.BakedParams(data)
 		}
-		baked, err = pngmeta.BakedParams(data)
 		if err != nil {
-			return nil, err
+			if required {
+				return nil, err
+			}
+			baked = nil
 		}
 	}
 	p := config.ResolveParams(cfg, baked, a.toFlags())
