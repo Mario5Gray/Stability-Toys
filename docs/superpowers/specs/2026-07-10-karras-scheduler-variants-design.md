@@ -1,7 +1,7 @@
 # Karras Scheduler Variants Design
 
 **Date:** 2026-07-10
-**Status:** Draft for review
+**Status:** Approved
 **FP:** STABL-jltuulda
 
 ## Problem
