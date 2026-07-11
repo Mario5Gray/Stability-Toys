@@ -316,7 +316,7 @@ git commit -m "test(schedulers): prove Karras worker propagation (STABL-jltuulda
 **Files:**
 - Modify: `conf/modes.yml`
 
-- [ ] **Step 1: Check drift bindings before editing shared mode policy**
+- [x] **Step 1: Check drift bindings before editing shared mode policy**
 
 Run:
 
@@ -326,7 +326,7 @@ drift refs conf/modes.yml
 
 Expected: any bound docs are listed for review before the policy change.
 
-- [ ] **Step 2: Add the two canonical IDs to the SDXL allowlist**
+- [x] **Step 2: Add the two canonical IDs to the SDXL allowlist**
 
 Change only the `modes.SDXL.allowed_scheduler_ids` sequence in `conf/modes.yml`:
 
@@ -344,7 +344,7 @@ default_scheduler_id: dpmpp_2m
 
 Do not change SD1.5 mode allowlists or the SDXL default.
 
-- [ ] **Step 3: Verify the shared policy directly**
+- [x] **Step 3: Verify the shared policy directly**
 
 Run:
 
@@ -356,7 +356,7 @@ Expected: `SDXL scheduler policy ok`.
 
 Do not modify `tests/test_mode_config.py`, `tests/test_model_routes.py`, or `tests/test_worker_pool.py`; their scheduler allowlists are synthetic fixtures and do not cover shared `conf/modes.yml`.
 
-- [ ] **Step 4: Run the complete focused regression slice**
+- [x] **Step 4: Run the complete focused regression slice**
 
 Run:
 
@@ -366,7 +366,7 @@ python -m pytest tests/test_scheduler_registry.py tests/test_cuda_worker_capabil
 
 Expected: all tests PASS with no failures.
 
-- [ ] **Step 5: Verify diff scope and drift state**
+- [x] **Step 5: Verify diff scope and drift state**
 
 Run:
 
@@ -381,14 +381,14 @@ drift check --changed conf/modes.yml
 
 Expected: no whitespace errors; only the planned files are changed; every scoped drift check reports `ok` or identifies prose that must be reviewed and updated before proceeding.
 
-- [ ] **Step 6: Commit policy and final verification checkpoint**
+- [x] **Step 6: Commit policy and final verification checkpoint**
 
 ```bash
 git add conf/modes.yml
 git commit -m "config(schedulers): allow Karras variants on SDXL (STABL-jltuulda)"
 ```
 
-- [ ] **Step 7: Attach revisions and stop for review**
+- [x] **Step 7: Attach revisions and stop for review**
 
 Run:
 
