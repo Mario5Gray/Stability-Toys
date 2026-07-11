@@ -6,6 +6,7 @@ dependencies while still exercising the loader and scheduler branches added for
 capability-aware SDXL checkpoints.
 """
 
+import json
 import os
 import sys
 from types import SimpleNamespace
@@ -244,6 +245,32 @@ class TestSchedulerSelection:
         with pytest.raises(RuntimeError, match="not allowed"):
             base._apply_request_scheduler(SimpleNamespace(scheduler_id="euler"))
 
+    def test_karras_scheduler_id_is_normalized_and_applied_under_allowlist(self):
+        pipe = _make_pipe()
+        base = _make_base()
+        base.pipe = pipe
+        base.model_info = SimpleNamespace(
+            default_scheduler_id=None,
+            allowed_scheduler_ids=["dpmpp_sde_karras"],
+        )
+        base._baseline_scheduler_class = MagicMock()
+        base._baseline_scheduler_config = {"name": "base"}
+        req = SimpleNamespace(scheduler_id=" DPMpp_SDE_Karras ")
+        built_scheduler = object()
+
+        with patch(
+            "backends.cuda_worker.build_scheduler",
+            return_value=built_scheduler,
+        ) as mock_build:
+            selected = base._apply_request_scheduler(req)
+
+        assert selected == "dpmpp_sde_karras"
+        mock_build.assert_called_once_with(
+            "dpmpp_sde_karras",
+            {"name": "base"},
+        )
+        assert pipe.scheduler is built_scheduler
+
     def test_missing_scheduler_selection_restores_baseline(self):
         pipe = _make_pipe()
         base = _make_base()
@@ -397,7 +424,7 @@ class TestNegativePromptForwarding:
         worker.pipe.return_value = SimpleNamespace(images=[MagicMock()])
         worker._img2img_pipe = None
         worker._apply_style = Mock()
-        worker._apply_request_scheduler = Mock(return_value="euler")
+        worker._apply_request_scheduler = Mock(return_value="dpmpp_sde_karras")
 
         req = SimpleNamespace(
             prompt="a castle",
@@ -426,6 +453,9 @@ class TestNegativePromptForwarding:
         worker._apply_request_scheduler.assert_called_once_with(req)
         assert worker.pipe.call_args.kwargs["negative_prompt"] == "blurry, watermark"
         pnginfo.add_text.assert_called_once()
+        metadata_key, metadata_json = pnginfo.add_text.call_args.args
+        assert metadata_key == "lcm"
+        assert json.loads(metadata_json)["scheduler_id"] == "dpmpp_sde_karras"
 
     def test_sdxl_img2img_normalizes_vae_dtype_before_execution(self):
         worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
