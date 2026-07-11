@@ -12,6 +12,15 @@ install-st: ## Install the st CLI to ~/.local/bin
 install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|all])
 	pip install "./scripts[$(or $(EXTRAS),all)]"
 
+.PHONY: prod-build
+prod-build: ## Full prod image build (--no-cache; override: make prod-build BACKEND=cuda PLATFORM=amd64 IMAGE=foo:tag CACHE=1)
+	docker build -f Dockerfile \
+	  $(if $(CACHE),,--no-cache) \
+	  --build-arg BACKEND=$(or $(BACKEND),cuda) \
+	  --platform=linux/$(or $(PLATFORM),amd64) \
+	  -t $(or $(IMAGE),harbor.lan/lcm-sd:latest) \
+	  .
+
 .PHONY: quick-build
 quick-build: ## Rebuild only Python source into existing image (no deps/UI/CUDA reinstall). Override: make quick-build IMAGE=foo:tag
 	docker build -f Dockerfile.quick \
