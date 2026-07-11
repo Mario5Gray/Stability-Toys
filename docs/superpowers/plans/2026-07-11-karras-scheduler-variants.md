@@ -224,7 +224,7 @@ git commit -m "feat(schedulers): add Karras registry variants (STABL-jltuulda)"
 - Modify: `tests/test_cuda_worker_capabilities.py`
 - No production change: `backends/cuda_worker.py`
 
-- [ ] **Step 1: Check drift bindings before editing the worker test**
+- [x] **Step 1: Check drift bindings before editing the worker test**
 
 Run:
 
@@ -234,7 +234,7 @@ drift refs tests/test_cuda_worker_capabilities.py
 
 Expected: any bindings are listed; no files are modified.
 
-- [ ] **Step 2: Add the Karras allowlist selection test**
+- [x] **Step 2: Add the Karras allowlist selection test**
 
 Add this test to `TestSchedulerSelection` in `tests/test_cuda_worker_capabilities.py`:
 
@@ -266,7 +266,7 @@ def test_karras_scheduler_id_is_normalized_and_applied_under_allowlist(self):
     assert pipe.scheduler is built_scheduler
 ```
 
-- [ ] **Step 3: Extend the existing SDXL render test to inspect metadata**
+- [x] **Step 3: Extend the existing SDXL render test to inspect metadata**
 
 Add `import json` near the top of `tests/test_cuda_worker_capabilities.py`. In `test_sdxl_run_job_forwards_negative_prompt`, return the canonical Karras ID from the existing scheduler mock:
 
@@ -285,7 +285,7 @@ assert json.loads(metadata_json)["scheduler_id"] == "dpmpp_sde_karras"
 
 This is characterization coverage of the existing opaque metadata path, so it is expected to pass without a `cuda_worker.py` change.
 
-- [ ] **Step 4: Run the focused worker tests**
+- [x] **Step 4: Run the focused worker tests**
 
 Run:
 
@@ -304,7 +304,7 @@ python -m pytest tests/test_cuda_worker_capabilities.py -k 'SchedulerSelection o
 
 Expected: all selected tests PASS, proving allowlist selection and exact PNG metadata propagation with no production worker edit.
 
-- [ ] **Step 5: Commit the worker proof checkpoint**
+- [x] **Step 5: Commit the worker proof checkpoint**
 
 ```bash
 git add tests/test_cuda_worker_capabilities.py
