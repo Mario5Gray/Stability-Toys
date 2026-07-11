@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -376,5 +380,95 @@ func TestBuildGenParamsCombinedInitImageAndControlnet(t *testing.T) {
 	list, ok := p["controlnets"].([]any)
 	if !ok || len(list) != 1 {
 		t.Fatalf("controlnets not threaded: %+v", p["controlnets"])
+	}
+}
+
+// jpegFile writes a minimal real JPEG to a temp path. The backend decodes init
+// images via PIL auto-detection, so the CLI must not require PNG here.
+func jpegFile(t *testing.T) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 1, 1)), nil); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(t.TempDir(), "init.jpg")
+	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// plainPNGFile writes a valid PNG with no lcm tEXt chunk.
+func plainPNGFile(t *testing.T) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(t.TempDir(), "plain.png")
+	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestBuildGenParamsInitImageJPEG: a local non-PNG init image is not a recipe
+// source; missing baked params must mean "no baked layer", not a hard error
+// (STABL-eccqgurq).
+func TestBuildGenParamsInitImageJPEG(t *testing.T) {
+	p, err := buildGenParams(nil, genArgs{Prompt: "an owl", InitImage: jpegFile(t)})
+	if err != nil {
+		t.Fatalf("local JPEG init image must not fail param build: %v", err)
+	}
+	if p["prompt"] != "an owl" {
+		t.Fatalf("params: %+v", p)
+	}
+	if _, ok := p["init_image_ref"]; ok {
+		t.Fatalf("local path uploads in the runner, must not set init_image_ref: %+v", p)
+	}
+}
+
+// TestBuildGenParamsInitImagePlainPNG: a PNG without an lcm chunk contributes
+// no baked layer but must not error (STABL-eccqgurq).
+func TestBuildGenParamsInitImagePlainPNG(t *testing.T) {
+	p, err := buildGenParams(nil, genArgs{Prompt: "an owl", InitImage: plainPNGFile(t)})
+	if err != nil {
+		t.Fatalf("plain PNG init image must not fail param build: %v", err)
+	}
+	if p["prompt"] != "an owl" {
+		t.Fatalf("params: %+v", p)
+	}
+}
+
+// TestBuildGenParamsInitImageWithLCMStillSeeds pins that a generated PNG used
+// as init image keeps seeding baked params (existing behavior, must survive fix).
+func TestBuildGenParamsInitImageWithLCMStillSeeds(t *testing.T) {
+	path := pngWithLCM(t, `{"prompt":"base","cfg":9}`)
+	p, err := buildGenParams(nil, genArgs{InitImage: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p["guidance_scale"] != float64(9) || p["prompt"] != "base" {
+		t.Fatalf("baked layer not applied from init image: %+v", p)
+	}
+}
+
+// TestRecreateStillRequiresLCM: --recreate exists to read the recipe, so a
+// non-recipe file must remain a hard error (both non-PNG and lcm-less PNG).
+func TestRecreateStillRequiresLCM(t *testing.T) {
+	if _, err := buildGenParams(nil, genArgs{Recreate: jpegFile(t)}); err == nil {
+		t.Fatal("--recreate on a JPEG must error")
+	}
+	if _, err := buildGenParams(nil, genArgs{Recreate: plainPNGFile(t)}); err == nil {
+		t.Fatal("--recreate on a plain PNG must error")
+	}
+}
+
+// TestRecreateRequiredEvenWithInitImage: when both are set, recreate is the
+// recipe source and stays mandatory even if the init image is fine.
+func TestRecreateRequiredEvenWithInitImage(t *testing.T) {
+	args := genArgs{Recreate: plainPNGFile(t), InitImage: jpegFile(t)}
+	if _, err := buildGenParams(nil, args); err == nil {
+		t.Fatal("--recreate without lcm chunk must error even alongside --init-image")
 	}
 }
