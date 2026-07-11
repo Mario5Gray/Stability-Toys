@@ -73,6 +73,17 @@ def test_list_scheduler_ids_includes_karras_variants():
     assert {"dpmpp_2m_karras", "dpmpp_sde_karras"} <= set(list_scheduler_ids())
 
 
+def test_scheduler_spec_extra_kwargs_are_immutable():
+    from backends.scheduler_registry import SCHEDULER_SPECS
+
+    spec = SCHEDULER_SPECS["dpmpp_sde_karras"]
+
+    with pytest.raises(TypeError):
+        spec.extra_kwargs["use_karras_sigmas"] = False
+
+    assert spec.extra_kwargs == {"use_karras_sigmas": True}
+
+
 def test_build_scheduler_unknown_id_raises():
     from backends import scheduler_registry
 

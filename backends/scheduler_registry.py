@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 from copy import deepcopy
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Mapping
 
 
@@ -12,6 +13,9 @@ from typing import Any, Mapping
 class SchedulerSpec:
     class_path: str
     extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "extra_kwargs", MappingProxyType(dict(self.extra_kwargs)))
 
 
 SCHEDULER_SPECS = {
