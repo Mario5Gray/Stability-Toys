@@ -129,7 +129,9 @@ modes:
     allowed_scheduler_ids:
       - ddim
       - dpmpp_2m
+      - dpmpp_2m_karras
       - dpmpp_sde
+      - dpmpp_sde_karras
       - euler
       - lcm
     default_scheduler_id: dpmpp_2m
