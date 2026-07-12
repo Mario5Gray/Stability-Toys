@@ -71,6 +71,13 @@ Contract rules:
   interpreted by routing. A task with `target_ids` omitted binds to all
   targets whose effective role is `primary`. Explicit `target_ids` must
   reference declared target IDs (`analysis_target_binding_invalid` otherwise).
+- **Zero-run binding is a validation error:** after binding resolution, every
+  task must bind to at least one target. A task that binds to zero targets —
+  including the case where `target_ids` is omitted and no target has
+  effective role `primary` — fails request validation with a non-2xx
+  `analysis_target_binding_invalid` error naming the offending `task_id`. No
+  `DescribeResponse` is produced, no synthetic skipped runs exist, and
+  consequently every `DescribeResponse` carries a non-empty `runs` array.
 - There is no request-level `profile`, provider, or delegate field in v1. The
   server resolves the analysis profile from the effective mode
   (`request.mode` when provided, otherwise the server's active mode).
@@ -92,8 +99,80 @@ type DescribeResponse struct {
   - `partial`: at least one run succeeded and at least one run failed or was
     skipped.
   - `failed`: no concrete run succeeded.
-- Every observation carries `task_id`, `target_id`, `kind`, and the normalized
-  payload for that observation kind:
+- `Runs` is always non-empty (zero-run requests fail validation; see Request
+  Contract).
+
+### Observation and Artifact Types
+
+`DescribeObservation` follows the same pattern as `DescribeTask`: a closed
+`kind` enum plus exactly one typed payload block matching `kind`.
+
+```go
+type DescribeObservation struct {
+    TaskID   string          `json:"task_id"`
+    TargetID string          `json:"target_id"`
+    Kind     ObservationKind `json:"kind"` // text | detection | attribute | keypoints
+
+    Text      *TextObservation      `json:"text,omitempty"`
+    Detection *DetectionObservation `json:"detection,omitempty"`
+    Attribute *AttributeObservation `json:"attribute,omitempty"`
+    Keypoints *KeypointsObservation `json:"keypoints,omitempty"`
+}
+
+type TextObservation struct {
+    Content string `json:"content"`
+}
+
+type DetectionObservation struct {
+    Label      string  `json:"label"`
+    Confidence float64 `json:"confidence"` // [0,1]
+    Box        Box     `json:"box"`
+}
+
+// Box coordinates are normalized to [0,1] relative to the target image;
+// x,y is the top-left corner.
+type Box struct {
+    X float64 `json:"x"`
+    Y float64 `json:"y"`
+    W float64 `json:"w"`
+    H float64 `json:"h"`
+}
+
+type AttributeObservation struct {
+    Name       string   `json:"name"`
+    Value      string   `json:"value"`
+    Confidence *float64 `json:"confidence,omitempty"` // [0,1]
+    Box        *Box     `json:"box,omitempty"`         // set for localized OCR fields
+}
+
+type KeypointsObservation struct {
+    Skeleton string     `json:"skeleton,omitempty"` // e.g. "coco17"; opaque label in v1
+    Points   []Keypoint `json:"points"`
+}
+
+type Keypoint struct {
+    Name       string   `json:"name,omitempty"`
+    X          float64  `json:"x"` // normalized [0,1]
+    Y          float64  `json:"y"` // normalized [0,1]
+    Confidence *float64 `json:"confidence,omitempty"`
+}
+```
+
+`DescribeArtifact` carries results too large or too binary to inline. In v1
+the only artifact kind is `embedding_ref`; the embedding bytes live in the
+asset store and the artifact points at them.
+
+```go
+type DescribeArtifact struct {
+    TaskID   string       `json:"task_id"`
+    TargetID string       `json:"target_id"`
+    Kind     ArtifactKind `json:"kind"` // embedding_ref (only kind in v1)
+    Ref      string       `json:"ref"`  // asset store ref
+    Dims     *int         `json:"dims,omitempty"`
+}
+```
+
+Normalization mapping:
 
 | Backend output | Normalized shape |
 | --- | --- |
@@ -101,9 +180,14 @@ type DescribeResponse struct {
 | Bounding boxes | `observation.kind = detection` |
 | OCR fields / labels / tags | `observation.kind = attribute` |
 | Pose / landmarks | `observation.kind = keypoints` |
-| Masks / regions | `observation.kind = mask` |
 | Embeddings | `artifact.kind = embedding_ref` |
 | Provider-specific extras | preserved in `runs[].raw_output` |
+
+**Masks are scoped out of v1.** No v1 task kind produces mask output, and a
+mask payload needs an asset-store storage decision (inline RLE vs stored
+artifact) that should be made alongside a real segmentation provider. A
+future `mask` observation or artifact kind is an additive, non-breaking
+change to the closed enums.
 
 - **`Summary` ownership (followup 4 resolved):** `Summary` is owned by the
   orchestrator only. Providers never populate it. In v1 the orchestrator
@@ -239,6 +323,7 @@ class DescribeProvider(Protocol):
 - No request-level provider/delegate selection.
 - No untyped task params in the public library contract.
 - No population of `Response.Summary`.
+- No `mask` observation/artifact kind (deferred with segmentation providers).
 
 ## Implementation Order (input to the plan)
 
@@ -261,3 +346,9 @@ All five spec-time followups from the theta v3 review are resolved above:
 | 3 | `DescribeRun.status` not enumerated | closed enum `succeeded / failed / skipped`; `skipped` = never dispatched |
 | 4 | `Summary` provenance undefined | orchestrator-owned; unset in v1, reserved |
 | 5 | stale brainstorm labels | this spec supersedes the brainstorm as authority; labels historical |
+
+Spec-review round 2 (2026-07-12) resolved two further gaps: observation and
+artifact wire types are now fully defined (with `mask` explicitly scoped out
+of v1), and zero-run binding is a request validation error
+(`analysis_target_binding_invalid`), guaranteeing `runs` is non-empty in every
+`DescribeResponse`.
