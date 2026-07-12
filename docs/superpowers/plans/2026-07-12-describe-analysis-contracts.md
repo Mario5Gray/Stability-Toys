@@ -27,6 +27,8 @@ Copied from the spec; every task inherits these.
 - Zero-run binding is a request validation error (`analysis_target_binding_invalid`); every `DescribeResponse` has non-empty `runs`.
 - Box/keypoint coordinates normalized to `[0,1]`, box origin top-left.
 - Config load fails fast: unknown connection/delegate/profile references, and `task_routes` key ≠ delegate `kind` (`analysis_delegate_kind_mismatch`).
+- `raw_output` is an opaque provider payload on both sides: `json.RawMessage` in Go, untyped passthrough (`Any`) in Python. Neither side types or restructures it.
+- `analysis_run_failed` is the blessed error code for a single run whose delegate was invoked and raised; it is part of the extensible `analysis_*` vocabulary (spec Error Vocabulary section).
 - Out of scope for this plan: transport (WS vs HTTP), `st describe`, real providers, `Summary` population, frontend.
 - Python commands run under Miniforge base: `source /Users/darkbit1001/miniforge3/bin/activate base` then `python -m pytest ...`.
 - Go commands run from `cli/go/`.
@@ -230,7 +232,10 @@ Expected: compile FAILURE — `undefined: DescribeRequest` etc.
 ```go
 package stclient
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Describe contract (spec: docs/superpowers/specs/2026-07-11-describe-analysis-
 // interface-design.md). Closed enums; exactly one typed params block per task;
@@ -396,12 +401,14 @@ type RunError struct {
 }
 
 type DescribeRun struct {
-	TaskID    string          `json:"task_id"`
-	TargetID  string          `json:"target_id"`
-	Delegate  string          `json:"delegate"`
-	Status    RunStatus       `json:"status"`
-	Error     *RunError       `json:"error,omitempty"`
-	RawOutput map[string]any  `json:"raw_output,omitempty"`
+	TaskID   string    `json:"task_id"`
+	TargetID string    `json:"target_id"`
+	Delegate string    `json:"delegate"`
+	Status   RunStatus `json:"status"`
+	Error    *RunError `json:"error,omitempty"`
+	// RawOutput is the opaque provider payload; the contract deliberately
+	// does not type it (spec: raw provider outputs preserved verbatim).
+	RawOutput json.RawMessage `json:"raw_output,omitempty"`
 }
 
 func validationErr(code, format string, args ...any) error {
@@ -521,7 +528,7 @@ git commit -m "feat(stclient): typed describe contract with client-boundary vali
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `TaskKind`, `ObservationKind`, `RunStatus`, `DescribeStatus` (all `str`-enums); frozen dataclasses `DescribeTarget`, `DescribeTask`, `DescribeRequest`, `TextObservation`, `DetectionObservation`, `AttributeObservation`, `KeypointsObservation`, `Box`, `Keypoint`, `DescribeObservation`, `DescribeArtifact`, `RunError`, `DescribeRun`, `DescribeResponse`; `AnalysisValidationError(code, message)`; `parse_describe_request(payload: dict) -> DescribeRequest`; `effective_role(target) -> str`; `PRIMARY_ROLE = "primary"`; `response_to_dict(resp) -> dict`. Tasks 4–5 consume these.
+- Produces: `TaskKind`, `ObservationKind`, `RunStatus`, `DescribeStatus` (all `str`-enums); typed param dataclasses `CaptionParams`, `DetectParams`, `OcrParams`, `PoseParams`, `EmbedParams` (mirroring the Go contract — no untyped params anywhere); frozen dataclasses `DescribeTarget`, `DescribeTask` (with exactly-one optional typed params block), `DescribeRequest`, `TextObservation`, `DetectionObservation`, `AttributeObservation`, `KeypointsObservation`, `Box`, `Keypoint`, `DescribeObservation`, `DescribeArtifact`, `RunError`, `DescribeRun`, `DescribeResponse`; `AnalysisValidationError(code, message)`; `parse_describe_request(payload: dict) -> DescribeRequest`; `effective_role(target) -> str`; `PRIMARY_ROLE = "primary"`; `response_to_dict(resp) -> dict`. Tasks 4–5 consume these.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -562,6 +569,21 @@ def test_parse_valid_request():
     assert req.targets[0].id == "t1"
     assert req.targets[0].asset_ref == "asset-1"
     assert req.tasks[0].kind == TaskKind.CAPTION
+    # params materialize as the typed block matching kind, never a raw dict
+    from backends.analysis import CaptionParams
+    assert req.tasks[0].caption == CaptionParams()
+    assert req.tasks[0].detect is None
+
+
+def test_parse_typed_detect_params():
+    payload = valid_payload()
+    payload["tasks"] = [{
+        "id": "det1", "kind": "detect",
+        "detect": {"labels": ["owl"], "min_confidence": 0.5},
+    }]
+    from backends.analysis import DetectParams
+    req = parse_describe_request(payload)
+    assert req.tasks[0].detect == DetectParams(labels=("owl",), min_confidence=0.5)
 
 
 @pytest.mark.parametrize(
@@ -652,7 +674,7 @@ request validation error so every DescribeResponse carries non-empty runs.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Mapping, Optional, Tuple
 
@@ -707,13 +729,44 @@ def effective_role(target: DescribeTarget) -> str:
     return target.role or PRIMARY_ROLE
 
 
+# v1-minimal typed params, mirroring the Go contract field-for-field.
+@dataclass(frozen=True)
+class CaptionParams:
+    prompt: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class DetectParams:
+    labels: Tuple[str, ...] = ()
+    min_confidence: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class OcrParams:
+    pass
+
+
+@dataclass(frozen=True)
+class PoseParams:
+    pass
+
+
+@dataclass(frozen=True)
+class EmbedParams:
+    pass
+
+
 @dataclass(frozen=True)
 class DescribeTask:
     id: str
     kind: TaskKind
     target_ids: Tuple[str, ...] = ()
-    # Exactly one params mapping is set, matching `kind`; parse enforces it.
-    params: Mapping[str, Any] = field(default_factory=dict)
+    # Exactly one typed params block is set, matching `kind`; parse enforces it.
+    caption: Optional[CaptionParams] = None
+    detect: Optional[DetectParams] = None
+    ocr: Optional[OcrParams] = None
+    pose: Optional[PoseParams] = None
+    embed: Optional[EmbedParams] = None
 
 
 @dataclass(frozen=True)
@@ -798,7 +851,9 @@ class DescribeRun:
     delegate: str
     status: RunStatus
     error: Optional[RunError] = None
-    raw_output: Optional[Mapping[str, Any]] = None
+    # Opaque provider payload; the contract deliberately does not type it.
+    # Must be JSON-serializable; serialized verbatim, never restructured.
+    raw_output: Optional[Any] = None
 
 
 @dataclass(frozen=True)
@@ -818,6 +873,21 @@ _PARAM_KEYS = {
     TaskKind.EMBED: "embed",
 }
 _ALL_PARAM_KEYS = set(_PARAM_KEYS.values())
+
+
+def _parse_params(kind: TaskKind, raw: Mapping[str, Any]):
+    if kind == TaskKind.CAPTION:
+        return CaptionParams(prompt=raw.get("prompt"))
+    if kind == TaskKind.DETECT:
+        return DetectParams(
+            labels=tuple(raw.get("labels") or ()),
+            min_confidence=raw.get("min_confidence"),
+        )
+    if kind == TaskKind.OCR:
+        return OcrParams()
+    if kind == TaskKind.POSE:
+        return PoseParams()
+    return EmbedParams()
 
 
 def _invalid(message: str) -> AnalysisValidationError:
@@ -895,7 +965,7 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
                 id=task_id,
                 kind=kind,
                 target_ids=target_ids,
-                params=dict(raw.get(_PARAM_KEYS[kind]) or {}),
+                **{_PARAM_KEYS[kind]: _parse_params(kind, raw.get(_PARAM_KEYS[kind]) or {})},
             )
         )
 
@@ -945,7 +1015,7 @@ def response_to_dict(resp: DescribeResponse) -> Dict[str, Any]:
             "delegate": r.delegate,
             "status": r.status.value,
             "error": {"code": r.error.code, "message": r.error.message} if r.error else None,
-            "raw_output": dict(r.raw_output) if r.raw_output is not None else None,
+            "raw_output": r.raw_output,  # opaque passthrough, never restructured
         })
 
     out: Dict[str, Any] = {
@@ -974,6 +1044,7 @@ from .contracts import (
     AnalysisValidationError,
     AttributeObservation,
     Box,
+    CaptionParams,
     DescribeArtifact,
     DescribeObservation,
     DescribeRequest,
@@ -982,10 +1053,14 @@ from .contracts import (
     DescribeStatus,
     DescribeTarget,
     DescribeTask,
+    DetectParams,
     DetectionObservation,
+    EmbedParams,
     Keypoint,
     KeypointsObservation,
     ObservationKind,
+    OcrParams,
+    PoseParams,
     RunError,
     RunStatus,
     TaskKind,
@@ -1000,6 +1075,11 @@ __all__ = [
     "AnalysisValidationError",
     "AttributeObservation",
     "Box",
+    "CaptionParams",
+    "DetectParams",
+    "EmbedParams",
+    "OcrParams",
+    "PoseParams",
     "DescribeArtifact",
     "DescribeObservation",
     "DescribeRequest",
@@ -1061,7 +1141,10 @@ BASE_YAML = textwrap.dedent("""\
     model_root: /tmp/models
     lora_root: /tmp/loras
     default_mode: SDXL
-    resolution_sets: {}
+    resolution_sets:
+      default:
+        - size: 1024x1024
+          aspect_ratio: "1:1"
     analysis_connections:
       local_vlm:
         endpoint: "http://node2.lan:8080/v1"
@@ -1090,9 +1173,10 @@ BASE_YAML = textwrap.dedent("""\
 
 
 def load(tmp_path, yaml_text):
-    p = tmp_path / "modes.yml"
-    p.write_text(yaml_text)
-    return ModeConfigManager(str(p))
+    # ModeConfigManager takes the config *directory* and appends modes.yml
+    # itself (server/mode_config.py:164) — pass tmp_path, not the file.
+    (tmp_path / "modes.yml").write_text(yaml_text)
+    return ModeConfigManager(str(tmp_path))
 
 
 def test_parses_analysis_sections(tmp_path):
@@ -1576,10 +1660,11 @@ def test_unrouted_kind_yields_skipped_run_and_partial():
     assert skipped[0].error.code == "analysis_no_supported_delegate"
 ```
 
-Note the deliberately loose assertion on the failed run's error code: the spec
-reserves `analysis_all_runs_failed` for the aggregate case; a single failed
-run's `error.code` is provider-shaped. Pin only that `code` and `message` are
-non-empty.
+The failed-run code is pinned deliberately: `analysis_run_failed` is the
+blessed contract code for any single run whose delegate was invoked and
+raised (see Global Constraints and the spec's Error Vocabulary). The
+provider-specific detail lives in `error.message`; `analysis_all_runs_failed`
+remains reserved for the aggregate request-level case.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1619,7 +1704,8 @@ class ProviderRun:
 class ProviderResult:
     observations: Tuple[DescribeObservation, ...] = ()
     artifacts: Tuple[DescribeArtifact, ...] = ()
-    raw_output: Optional[Mapping[str, Any]] = None
+    # Opaque, JSON-serializable provider payload; passed through verbatim.
+    raw_output: Optional[Any] = None
 
 
 class DescribeProvider(Protocol):

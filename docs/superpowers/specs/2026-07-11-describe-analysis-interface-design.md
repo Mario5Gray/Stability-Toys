@@ -286,6 +286,7 @@ Operator-facing codes (extensible, `analysis_` prefixed):
 - `analysis_delegate_not_found`
 - `analysis_delegate_kind_mismatch`
 - `analysis_no_supported_delegate`
+- `analysis_run_failed` (single run: delegate invoked and raised; provider detail in `error.message`)
 - `analysis_all_runs_failed`
 
 ## Server Implementation Framework
