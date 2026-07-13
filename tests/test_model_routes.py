@@ -490,6 +490,87 @@ async def test_save_all_modes_prunes_stale_chat_bindings_when_chat_omitted():
     }
 
 
+async def test_save_all_modes_preserves_analysis_sections_when_omitted():
+    # Review blocker: bulk PUT /api/modes must not silently erase analysis
+    # routing when the client payload omits the analysis_* sections.
+    config = Mock()
+    config.to_dict.return_value = {
+        "chat": {},
+        "analysis_connections": {"local_vlm": {"endpoint": "http://x:1/v1", "api_key_env": "K"}},
+        "analysis_delegates": {"vlm_caption": {"connection": "local_vlm", "kind": "caption", "model": "m"}},
+        "analysis_profiles": {"default": {"task_routes": {"caption": "vlm_caption"}}},
+    }
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    saved_payload = config.save_config.call_args.args[0]
+    assert saved_payload["analysis_connections"] == {
+        "local_vlm": {"endpoint": "http://x:1/v1", "api_key_env": "K"}
+    }
+    assert saved_payload["analysis_delegates"] == {
+        "vlm_caption": {"connection": "local_vlm", "kind": "caption", "model": "m"}
+    }
+    assert saved_payload["analysis_profiles"] == {
+        "default": {"task_routes": {"caption": "vlm_caption"}}
+    }
+
+
+async def test_save_all_modes_accepts_explicit_analysis_sections():
+    config = Mock()
+    config.to_dict.return_value = {"chat": {}}
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        },
+        "analysis_connections": {"det": {"endpoint": "http://y:2"}},
+        "analysis_delegates": {"yolo": {"connection": "det", "kind": "detect", "model": "yolo11x"}},
+        "analysis_profiles": {"p": {"task_routes": {"detect": "yolo"}}},
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+                "analysis_profile": "p",
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    saved_payload = config.save_config.call_args.args[0]
+    assert saved_payload["analysis_delegates"] == {
+        "yolo": {"connection": "det", "kind": "detect", "model": "yolo11x"}
+    }
+    assert saved_payload["analysis_profiles"] == {"p": {"task_routes": {"detect": "yolo"}}}
+    assert saved_payload["modes"]["sdxl"]["analysis_profile"] == "p"
+
+
 async def test_create_or_update_mode_preserves_existing_resolution_and_policy_fields():
     config = Mock()
     config.to_dict.return_value = {

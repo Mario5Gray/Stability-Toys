@@ -158,6 +158,46 @@ def test_describe_rejects_zero_run_binding_request():
     assert exc.value.code == "analysis_target_binding_invalid"
 
 
+@pytest.mark.parametrize(
+    "targets,tasks",
+    [
+        # Review blocker: direct dataclass construction with malformed value
+        # types must fail validation, not slip through describe().
+        (  # non-str target id
+            (DescribeTarget(id=1, asset_ref="a"),),
+            None,  # use default valid task
+        ),
+        (  # params block of the wrong type entirely
+            (DescribeTarget(id="t1", asset_ref="a"),),
+            "caption_str",
+        ),
+        (  # non-str entries in target_ids
+            (DescribeTarget(id="t1", asset_ref="a"),),
+            "bad_target_ids",
+        ),
+        (  # non-str role
+            (DescribeTarget(id="t1", asset_ref="a", role=42),),
+            None,
+        ),
+    ],
+)
+def test_describe_rejects_malformed_dataclass_values(targets, tasks):
+    from backends.analysis import CaptionParams, TaskKind
+
+    if tasks is None:
+        tasks = (DescribeTask(id="cap1", kind=TaskKind.CAPTION, caption=CaptionParams()),)
+    elif tasks == "caption_str":
+        tasks = (DescribeTask(id="cap1", kind=TaskKind.CAPTION, caption="bad"),)
+    elif tasks == "bad_target_ids":
+        tasks = (DescribeTask(id="cap1", kind=TaskKind.CAPTION, caption=CaptionParams(),
+                              target_ids=(1,)),)
+    orch = AnalysisOrchestrator(task_routes={"caption": "d"}, providers={})
+    req = DescribeRequest(targets=targets, tasks=tasks)
+    with pytest.raises(AnalysisValidationError) as exc:
+        asyncio.run(orch.describe(req))
+    assert exc.value.code == "analysis_invalid_request"
+
+
 class UnsupportingProvider:
     def supports(self, task):
         return False

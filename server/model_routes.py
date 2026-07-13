@@ -415,6 +415,9 @@ class ModesBulkSaveRequest(BaseModel):
     chat: Optional[Dict[str, Any]] = None
     chat_connections: Optional[Dict[str, Any]] = None
     chat_delegates: Optional[Dict[str, Any]] = None
+    analysis_connections: Optional[Dict[str, Any]] = None
+    analysis_delegates: Optional[Dict[str, Any]] = None
+    analysis_profiles: Optional[Dict[str, Any]] = None
     modes: Dict[str, Any]
 
 
@@ -431,6 +434,10 @@ async def save_all_modes(request: ModesBulkSaveRequest):
         data["chat_connections"] = existing.get("chat_connections", {})
     if data.get("chat_delegates") is None:
         data["chat_delegates"] = existing.get("chat_delegates", {})
+    # Analysis policy survives bulk saves that omit it (same contract as chat).
+    for analysis_section in ("analysis_connections", "analysis_delegates", "analysis_profiles"):
+        if data.get(analysis_section) is None:
+            data[analysis_section] = existing.get(analysis_section, {})
 
     active_mode_names = set(data["modes"].keys())
     if isinstance(data.get("chat"), dict):

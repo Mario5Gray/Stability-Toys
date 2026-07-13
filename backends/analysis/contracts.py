@@ -213,6 +213,14 @@ _PARAM_KEYS = {
 }
 _ALL_PARAM_KEYS = set(_PARAM_KEYS.values())
 
+_PARAM_TYPES = {
+    TaskKind.CAPTION: CaptionParams,
+    TaskKind.DETECT: DetectParams,
+    TaskKind.OCR: OcrParams,
+    TaskKind.POSE: PoseParams,
+    TaskKind.EMBED: EmbedParams,
+}
+
 
 def _require_str(value: Any, what: str) -> str:
     if not isinstance(value, str):
@@ -359,10 +367,14 @@ def validate_describe_request(request: DescribeRequest) -> None:
     roles: Dict[str, str] = {}
     primary_count = 0
     for target in request.targets:
-        if not target.id:
-            raise _invalid("target id must be set")
+        if not isinstance(target.id, str) or not target.id:
+            raise _invalid("target id must be a non-empty string")
         if target.id in roles:
             raise _invalid(f"duplicate target id '{target.id}'")
+        _optional_str(target.asset_ref, f"target '{target.id}' asset_ref")
+        _optional_str(target.url, f"target '{target.id}' url")
+        if not isinstance(target.role, str):
+            raise _invalid(f"target '{target.id}' role must be a string")
         if bool(target.asset_ref) == bool(target.url):
             raise _invalid(f"target '{target.id}' must set exactly one of asset_ref or url")
         roles[target.id] = effective_role(target)
@@ -370,8 +382,8 @@ def validate_describe_request(request: DescribeRequest) -> None:
             primary_count += 1
     seen_task_ids = set()
     for task in request.tasks:
-        if not task.id:
-            raise _invalid("task id must be set")
+        if not isinstance(task.id, str) or not task.id:
+            raise _invalid("task id must be a non-empty string")
         if task.id in seen_task_ids:
             raise _invalid(f"duplicate task id '{task.id}'")
         seen_task_ids.add(task.id)
@@ -384,7 +396,14 @@ def validate_describe_request(request: DescribeRequest) -> None:
             raise _invalid(
                 f"task '{task.id}' must set exactly one params block matching kind '{kind.value}'"
             )
+        expected_type = _PARAM_TYPES[kind]
+        if not isinstance(getattr(task, _PARAM_KEYS[kind]), expected_type):
+            raise _invalid(
+                f"task '{task.id}' params block must be {expected_type.__name__}"
+            )
         for tid in task.target_ids:
+            if not isinstance(tid, str):
+                raise _invalid(f"task '{task.id}' target_ids entries must be strings")
             if tid not in roles:
                 raise _binding_invalid(f"task '{task.id}' references unknown target '{tid}'")
         if not task.target_ids and primary_count == 0:
