@@ -4,11 +4,14 @@ import pytest
 
 from backends.analysis import (
     AnalysisValidationError,
+    CaptionParams,
     DescribeRequest,
     DescribeStatus,
     DescribeTarget,
     DescribeTask,
+    DetectParams,
     RunStatus,
+    TaskKind,
     parse_describe_request,
 )
 from backends.analysis.orchestrator import AnalysisOrchestrator, RunPlan, expand_runs
@@ -195,6 +198,85 @@ def test_describe_rejects_malformed_dataclass_values(targets, tasks):
     req = DescribeRequest(targets=targets, tasks=tasks)
     with pytest.raises(AnalysisValidationError) as exc:
         asyncio.run(orch.describe(req))
+    assert exc.value.code == "analysis_invalid_request"
+
+
+def _valid_target():
+    return DescribeTarget(id="t1", asset_ref="a")
+
+
+def _valid_task(**overrides):
+    kwargs = dict(id="cap1", kind=TaskKind.CAPTION, caption=CaptionParams())
+    kwargs.update(overrides)
+    return DescribeTask(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "build_request",
+    [
+        # Review blocker round 3: deep value validation on direct dataclasses.
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),), tasks=(_valid_task(),), mode=1
+            ),
+            id="int-mode",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(_valid_task(caption=CaptionParams(prompt=1)),),
+            ),
+            id="caption-prompt-int",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(
+                    DescribeTask(
+                        id="det1", kind=TaskKind.DETECT,
+                        detect=DetectParams(labels="person"),
+                    ),
+                ),
+            ),
+            id="detect-labels-str-container",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(
+                    DescribeTask(
+                        id="det1", kind=TaskKind.DETECT,
+                        detect=DetectParams(labels=(1,)),
+                    ),
+                ),
+            ),
+            id="detect-labels-int-entry",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(
+                    DescribeTask(
+                        id="det1", kind=TaskKind.DETECT,
+                        detect=DetectParams(min_confidence="hi"),
+                    ),
+                ),
+            ),
+            id="detect-min-confidence-str",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(_valid_task(target_ids="t1"),),
+            ),
+            id="target-ids-str-container",
+        ),
+    ],
+)
+def test_describe_rejects_malformed_nested_values(build_request):
+    orch = AnalysisOrchestrator(task_routes={"caption": "d", "detect": "d"}, providers={})
+    with pytest.raises(AnalysisValidationError) as exc:
+        asyncio.run(orch.describe(build_request()))
     assert exc.value.code == "analysis_invalid_request"
 
 

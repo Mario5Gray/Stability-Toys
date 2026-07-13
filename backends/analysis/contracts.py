@@ -354,6 +354,22 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
     return DescribeRequest(targets=tuple(targets), tasks=tuple(tasks), mode=mode)
 
 
+def _validate_params_values(kind: TaskKind, task_id: str, params: Any) -> None:
+    """Mirror _parse_params field rules for directly constructed params."""
+    if kind == TaskKind.CAPTION:
+        _optional_str(params.prompt, f"task '{task_id}' caption.prompt")
+    elif kind == TaskKind.DETECT:
+        labels = params.labels
+        if isinstance(labels, str) or not isinstance(labels, (list, tuple)):
+            raise _invalid(f"task '{task_id}' detect.labels must be a list of strings")
+        for label in labels:
+            _require_str(label, f"task '{task_id}' detect.labels entry")
+        if params.min_confidence is not None and not isinstance(
+            params.min_confidence, (int, float)
+        ):
+            raise _invalid(f"task '{task_id}' detect.min_confidence must be a number")
+
+
 def validate_describe_request(request: DescribeRequest) -> None:
     """Dataclass-level contract validation.
 
@@ -364,6 +380,7 @@ def validate_describe_request(request: DescribeRequest) -> None:
     """
     if not request.targets or not request.tasks:
         raise _invalid("targets and tasks must be non-empty")
+    _optional_str(request.mode, "mode")
     roles: Dict[str, str] = {}
     primary_count = 0
     for target in request.targets:
@@ -397,10 +414,16 @@ def validate_describe_request(request: DescribeRequest) -> None:
                 f"task '{task.id}' must set exactly one params block matching kind '{kind.value}'"
             )
         expected_type = _PARAM_TYPES[kind]
-        if not isinstance(getattr(task, _PARAM_KEYS[kind]), expected_type):
+        params = getattr(task, _PARAM_KEYS[kind])
+        if not isinstance(params, expected_type):
             raise _invalid(
                 f"task '{task.id}' params block must be {expected_type.__name__}"
             )
+        _validate_params_values(kind, task.id, params)
+        if isinstance(task.target_ids, str) or not isinstance(
+            task.target_ids, (list, tuple)
+        ):
+            raise _invalid(f"task '{task.id}' target_ids must be a list of strings")
         for tid in task.target_ids:
             if not isinstance(tid, str):
                 raise _invalid(f"task '{task.id}' target_ids entries must be strings")
