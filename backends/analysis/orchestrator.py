@@ -6,13 +6,20 @@ composition lives here.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Mapping, Optional, Tuple
 
 from .contracts import (
     PRIMARY_ROLE,
+    DescribeArtifact,
+    DescribeObservation,
     DescribeRequest,
+    DescribeResponse,
+    DescribeRun,
+    DescribeStatus,
     RunError,
+    RunStatus,
     effective_role,
 )
 
@@ -55,3 +62,87 @@ def expand_runs(request: DescribeRequest, task_routes: Mapping[str, str]) -> Tup
             else:
                 plans.append(RunPlan(task_id=task.id, target_id=target_id, delegate=delegate))
     return tuple(plans)
+
+
+class AnalysisOrchestrator:
+    """Owns validation, routing, dispatch, normalization, and assembly.
+
+    Providers are keyed by delegate name. Runs against distinct delegates
+    execute concurrently; per-run failure is isolated and degrades the
+    response status rather than aborting siblings.
+    """
+
+    def __init__(self, task_routes, providers):
+        self._task_routes = dict(task_routes)
+        self._providers = dict(providers)
+
+    async def describe(self, request: DescribeRequest) -> DescribeResponse:
+        from .providers import ProviderRun  # local import: providers imports RunPlan from here
+
+        plans = expand_runs(request, self._task_routes)
+        tasks_by_id = {t.id: t for t in request.tasks}
+        targets_by_id = {t.id: t for t in request.targets}
+
+        async def execute(plan: RunPlan):
+            if plan.delegate is None:
+                return plan, None, plan.skip_error
+            provider = self._providers.get(plan.delegate)
+            if provider is None:
+                return plan, None, RunError(
+                    code="analysis_delegate_not_found",
+                    message=f"no provider registered for delegate '{plan.delegate}'",
+                )
+            provider_run = ProviderRun(
+                plan=plan,
+                task=tasks_by_id[plan.task_id],
+                target=targets_by_id[plan.target_id],
+            )
+            try:
+                result = await provider.run(provider_run)
+                return plan, result, None
+            except Exception as exc:  # per-run isolation is the contract
+                return plan, None, RunError(
+                    code="analysis_run_failed",
+                    message=f"{type(exc).__name__}: {exc}",
+                )
+
+        outcomes = await asyncio.gather(*(execute(p) for p in plans))
+
+        observations: list[DescribeObservation] = []
+        artifacts: list[DescribeArtifact] = []
+        runs: list[DescribeRun] = []
+        for plan, result, error in outcomes:
+            if plan.delegate is None:
+                runs.append(DescribeRun(
+                    task_id=plan.task_id, target_id=plan.target_id, delegate="",
+                    status=RunStatus.SKIPPED, error=error,
+                ))
+            elif error is not None:
+                runs.append(DescribeRun(
+                    task_id=plan.task_id, target_id=plan.target_id, delegate=plan.delegate,
+                    status=RunStatus.FAILED, error=error,
+                ))
+            else:
+                assert result is not None  # execute() invariant: no error => result
+                observations.extend(result.observations)
+                artifacts.extend(result.artifacts)
+                runs.append(DescribeRun(
+                    task_id=plan.task_id, target_id=plan.target_id, delegate=plan.delegate,
+                    status=RunStatus.SUCCEEDED, raw_output=result.raw_output,
+                ))
+
+        succeeded = sum(1 for r in runs if r.status == RunStatus.SUCCEEDED)
+        if succeeded == len(runs):
+            status = DescribeStatus.OK
+        elif succeeded > 0:
+            status = DescribeStatus.PARTIAL
+        else:
+            status = DescribeStatus.FAILED
+
+        return DescribeResponse(
+            status=status,
+            observations=tuple(observations),
+            artifacts=tuple(artifacts),
+            runs=tuple(runs),
+            summary=None,  # orchestrator-owned; deliberately unset in v1
+        )

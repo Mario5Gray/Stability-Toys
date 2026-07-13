@@ -28,8 +28,17 @@ from .contracts import (
     parse_describe_request,
     response_to_dict,
 )
+from .orchestrator import AnalysisOrchestrator, RunPlan, expand_runs
+from .providers import DescribeProvider, ProviderResult, ProviderRun, StubProvider
 
 __all__ = [
+    "AnalysisOrchestrator",
+    "DescribeProvider",
+    "ProviderResult",
+    "ProviderRun",
+    "RunPlan",
+    "StubProvider",
+    "expand_runs",
     "PRIMARY_ROLE",
     "AnalysisValidationError",
     "AttributeObservation",

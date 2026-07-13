@@ -1403,7 +1403,7 @@ git commit -m "config(analysis): analysis_connections/delegates/profiles with ki
 - Consumes: `DescribeRequest`, `DescribeTask`, `effective_role`, `PRIMARY_ROLE`, `AnalysisValidationError` from `backends.analysis`; `AnalysisProfileConfig` shape from Task 3 (only `task_routes: Mapping[str, str]` is used — accept any mapping to avoid a server import in the backends package).
 - Produces: `RunPlan(task_id, target_id, delegate: Optional[str], skip_error: Optional[RunError])` frozen dataclass and `expand_runs(request, task_routes: Mapping[str, str]) -> tuple[RunPlan, ...]`. Task 5 dispatches these.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to a new `tests/test_analysis_orchestrator.py`:
 
@@ -1463,12 +1463,12 @@ def test_expand_is_deterministic_task_major_order():
     assert [r.task_id for r in expand_runs(req, ROUTES)] == ["cap1", "det1"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_orchestrator.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'backends.analysis.orchestrator'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `backends/analysis/orchestrator.py` (part 1 — Task 5 extends this file):
 
@@ -1532,12 +1532,12 @@ def expand_runs(request: DescribeRequest, task_routes: Mapping[str, str]) -> Tup
     return tuple(plans)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_orchestrator.py tests/test_analysis_contracts.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/analysis/orchestrator.py tests/test_analysis_orchestrator.py
@@ -1558,7 +1558,7 @@ git commit -m "feat(analysis): deterministic run expansion with skip plans (STAB
 - Consumes: `RunPlan`, `expand_runs` (Task 4); contracts (Task 2).
 - Produces: `ProviderRun(plan: RunPlan, task: DescribeTask, target: DescribeTarget)`; `ProviderResult(observations, artifacts, raw_output)`; `DescribeProvider` protocol (`supports(task) -> bool`, `async run(provider_run) -> ProviderResult`); `StubProvider(kind, observation_factory=None)`; `AnalysisOrchestrator(task_routes, providers: Mapping[str, DescribeProvider]).describe(request) -> DescribeResponse`. Future transport wiring (out of this plan) consumes `AnalysisOrchestrator`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_analysis_orchestrator.py`:
 
@@ -1666,12 +1666,12 @@ raised (see Global Constraints and the spec's Error Vocabulary). The
 provider-specific detail lives in `error.message`; `analysis_all_runs_failed`
 remains reserved for the aggregate request-level case.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_orchestrator.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'backends.analysis.providers'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `backends/analysis/providers.py`:
 
@@ -1843,17 +1843,17 @@ class AnalysisOrchestrator:
 
 Add to `backends/analysis/__init__.py` imports/`__all__`: `RunPlan`, `expand_runs`, `AnalysisOrchestrator` (from `.orchestrator`), `DescribeProvider`, `ProviderResult`, `ProviderRun`, `StubProvider` (from `.providers`).
 
-- [ ] **Step 4: Run the full analysis suite plus mode-config**
+- [x] **Step 4: Run the full analysis suite plus mode-config**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_orchestrator.py tests/test_analysis_contracts.py tests/test_analysis_mode_config.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Run the Go suite once more for cross-task regression**
+- [x] **Step 5: Run the Go suite once more for cross-task regression**
 
 Run: `cd cli/go && go test ./pkg/stclient/ -v`
 Expected: all PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/analysis/providers.py backends/analysis/orchestrator.py backends/analysis/__init__.py tests/test_analysis_orchestrator.py
