@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/darkbit/stability-toys/cli/st/internal/history"
 )
 
@@ -160,11 +162,22 @@ func classifyFamily(argv []string) history.Family {
 }
 
 func dispatchInvocation(ctx context.Context, _ *invocationState, plan invocationPlan, argv []string) error {
+	setCommandContext(rootCmd, ctx)
 	if plan.kind == invocationRootGen {
 		return runConflatedRootGen(ctx, rootCmd, *plan.rootGenPatch)
 	}
 	rootCmd.SetArgs(argv)
 	return rootCmd.ExecuteContext(ctx)
+}
+
+func setCommandContext(cmd interface {
+	SetContext(context.Context)
+	Commands() []*cobra.Command
+}, ctx context.Context) {
+	cmd.SetContext(ctx)
+	for _, child := range cmd.Commands() {
+		setCommandContext(child, ctx)
+	}
 }
 
 func appendHistory(ctx context.Context, state *invocationState, started time.Time, plan invocationPlan, runErr error) error {

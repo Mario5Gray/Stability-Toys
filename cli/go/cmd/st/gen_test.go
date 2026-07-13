@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/coder/websocket"
@@ -101,6 +103,54 @@ func writeTestConfig(t *testing.T, outDir string) string {
 	return p
 }
 
+type genReply struct {
+	Error string
+	Seed  int64
+}
+
+func newScriptedGenServer(t *testing.T, replies ...genReply) (*httptest.Server, *[]stclient.GenParams) {
+	t.Helper()
+	var mu sync.Mutex
+	index := 0
+	captured := []stclient.GenParams{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/storage/") {
+			_, _ = w.Write([]byte("PNGBYTES"))
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+		var sub map[string]any
+		if err := wsjson.Read(r.Context(), conn, &sub); err != nil {
+			return
+		}
+		params, _ := sub["params"].(map[string]any)
+		mu.Lock()
+		captured = append(captured, stclient.GenParams(params))
+		reply := replies[index]
+		index++
+		mu.Unlock()
+		_ = wsjson.Write(r.Context(), conn, map[string]any{"type": "job:ack", "id": sub["id"], "jobId": fmt.Sprintf("J%d", index)})
+		if reply.Error != "" {
+			_ = wsjson.Write(r.Context(), conn, map[string]any{"type": "job:error", "error": reply.Error})
+			return
+		}
+		_ = wsjson.Write(r.Context(), conn, map[string]any{
+			"type":  "job:complete",
+			"jobId": fmt.Sprintf("J%d", index),
+			"outputs": []any{map[string]any{
+				"url": "/storage/K1",
+				"key": "K1",
+			}},
+			"meta": map[string]any{"seed": reply.Seed},
+		})
+	}))
+	return srv, &captured
+}
+
 func runCmd(t *testing.T, args ...string) string {
 	t.Helper()
 	out, err := runCmdMayFailWithStateRoot(t, t.TempDir(), args...)
@@ -137,6 +187,20 @@ func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) 
 	rootCmd.SetArgs(args)
 	err := executeCLI(context.Background(), args)
 	return sb.String(), err
+}
+
+func runCmdCaptureWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, string, error) {
+	t.Helper()
+	old := resolveStateRoot
+	resolveStateRoot = func() (string, error) { return stateRoot, nil }
+	defer func() { resolveStateRoot = old }()
+	resetCLIFlagState()
+	var stdout, stderr strings.Builder
+	rootCmd.SetOut(&stdout)
+	rootCmd.SetErr(&stderr)
+	rootCmd.SetArgs(args)
+	err := executeCLI(context.Background(), args)
+	return stdout.String(), stderr.String(), err
 }
 
 func resetCLIFlagState() {
