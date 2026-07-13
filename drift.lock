@@ -1,3 +1,5 @@
+cli/go/USAGE.md -> cli/go/jq/st-history.jq sig:dad793009f9b3813
+cli/go/USAGE.md -> cli/go/jq/test-st-history.sh sig:bfe46e913bac3613
 docs/CUDA_VERIFICATION.md -> Dockerfile.test sig:8a252913e03667db
 docs/PRIVILEGED_MODE.md -> Dockerfile.test sig:8a252913e03667db
 docs/TESTING_IN_DOCKER.md -> Dockerfile.test sig:8a252913e03667db

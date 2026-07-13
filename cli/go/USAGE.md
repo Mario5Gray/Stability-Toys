@@ -209,6 +209,18 @@ History state is global and stored under `$XDG_STATE_HOME/st/`, or
 `~/.local/state/st/` when `XDG_STATE_HOME` is unset. Files are
 `history.jsonl`, `conflate-policy.json`, `next-id`, and `state.lock`.
 
+Until a first-class `st history` command exists, jq helpers are available:
+
+```bash
+# Human summary, newest first:
+jq -Rrs 'include "st-history"; st_history_human(20)' \
+  -L cli/go/jq ~/.local/state/st/history.jsonl
+
+# JSON summary array, newest first:
+jq -Rrs 'include "st-history"; st_history_json(20)' \
+  -L cli/go/jq ~/.local/state/st/history.jsonl
+```
+
 ---
 
 ## Replay
