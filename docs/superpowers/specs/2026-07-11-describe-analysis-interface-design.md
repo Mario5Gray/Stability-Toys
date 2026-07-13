@@ -213,8 +213,9 @@ type DescribeRun struct {
 - **`RunStatus` (followup 3 resolved):** closed enum
   `succeeded | failed | skipped`. `skipped` is real and occurs when a run is
   never dispatched: the active profile has no route for the task kind
-  (`analysis_no_supported_delegate`), or the run's target failed resolution
-  before dispatch. `failed` means the delegate was invoked and did not
+  (`analysis_no_supported_delegate`), the routed provider's `supports()`
+  capability check rejects the task (same code), or the run's target failed
+  resolution before dispatch. `failed` means the delegate was invoked and did not
   produce a usable result. `error` is required for `failed` and `skipped`,
   absent for `succeeded`.
 - Request validation failures never produce a `DescribeResponse`; they return

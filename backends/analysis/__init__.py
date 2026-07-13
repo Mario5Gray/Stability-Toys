@@ -28,6 +28,7 @@ from .contracts import (
     effective_role,
     parse_describe_request,
     response_to_dict,
+    validate_describe_request,
 )
 from .orchestrator import AnalysisOrchestrator, RunPlan, expand_runs
 from .providers import DescribeProvider, ProviderResult, ProviderRun, StubProvider
@@ -69,4 +70,5 @@ __all__ = [
     "effective_role",
     "parse_describe_request",
     "response_to_dict",
+    "validate_describe_request",
 ]

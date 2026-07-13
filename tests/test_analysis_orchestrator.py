@@ -1,7 +1,13 @@
 import asyncio
 
+import pytest
+
 from backends.analysis import (
+    AnalysisValidationError,
+    DescribeRequest,
     DescribeStatus,
+    DescribeTarget,
+    DescribeTask,
     RunStatus,
     parse_describe_request,
 )
@@ -127,6 +133,55 @@ def test_all_failed_status_failed():
     resp = run_describe(orch, single_caption_payload())
     assert resp.status == DescribeStatus.FAILED
     assert resp.observations == ()
+
+
+def test_describe_rejects_directly_constructed_invalid_request():
+    # Review blocker: bypassing parse_describe_request must not yield
+    # OK-with-empty-runs; the orchestrator revalidates at its boundary.
+    orch = AnalysisOrchestrator(task_routes={}, providers={})
+    empty = DescribeRequest(targets=(), tasks=())
+    with pytest.raises(AnalysisValidationError) as exc:
+        asyncio.run(orch.describe(empty))
+    assert exc.value.code == "analysis_invalid_request"
+
+
+def test_describe_rejects_zero_run_binding_request():
+    from backends.analysis import CaptionParams, TaskKind
+
+    orch = AnalysisOrchestrator(task_routes={"caption": "d"}, providers={})
+    req = DescribeRequest(
+        targets=(DescribeTarget(id="t1", asset_ref="a", role="reference"),),
+        tasks=(DescribeTask(id="cap1", kind=TaskKind.CAPTION, caption=CaptionParams()),),
+    )
+    with pytest.raises(AnalysisValidationError) as exc:
+        asyncio.run(orch.describe(req))
+    assert exc.value.code == "analysis_target_binding_invalid"
+
+
+class UnsupportingProvider:
+    def supports(self, task):
+        return False
+
+    async def run(self, provider_run):
+        raise AssertionError("must not be dispatched when supports() is false")
+
+
+def test_unsupporting_provider_is_skipped_not_dispatched():
+    payload = single_caption_payload()
+    payload["tasks"].append({"id": "det1", "kind": "detect", "detect": {}})
+    orch = AnalysisOrchestrator(
+        task_routes={"caption": "vlm_caption", "detect": "yolo_detect"},
+        providers={
+            "vlm_caption": StubProvider(kind="caption"),
+            "yolo_detect": UnsupportingProvider(),
+        },
+    )
+    resp = run_describe(orch, payload)
+    assert resp.status == DescribeStatus.PARTIAL
+    by_task = {r.task_id: r for r in resp.runs}
+    skipped = by_task["det1"]
+    assert skipped.status == RunStatus.SKIPPED
+    assert skipped.error.code == "analysis_no_supported_delegate"
 
 
 def test_unrouted_kind_yields_skipped_run_and_partial():

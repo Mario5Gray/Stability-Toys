@@ -346,6 +346,53 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
     return DescribeRequest(targets=tuple(targets), tasks=tuple(tasks), mode=mode)
 
 
+def validate_describe_request(request: DescribeRequest) -> None:
+    """Dataclass-level contract validation.
+
+    parse_describe_request enforces these rules while building from wire
+    payloads; this function re-enforces them for directly constructed
+    requests at the orchestrator boundary, so bypassing the parser can never
+    yield a zero-run or malformed execution.
+    """
+    if not request.targets or not request.tasks:
+        raise _invalid("targets and tasks must be non-empty")
+    roles: Dict[str, str] = {}
+    primary_count = 0
+    for target in request.targets:
+        if not target.id:
+            raise _invalid("target id must be set")
+        if target.id in roles:
+            raise _invalid(f"duplicate target id '{target.id}'")
+        if bool(target.asset_ref) == bool(target.url):
+            raise _invalid(f"target '{target.id}' must set exactly one of asset_ref or url")
+        roles[target.id] = effective_role(target)
+        if roles[target.id] == PRIMARY_ROLE:
+            primary_count += 1
+    seen_task_ids = set()
+    for task in request.tasks:
+        if not task.id:
+            raise _invalid("task id must be set")
+        if task.id in seen_task_ids:
+            raise _invalid(f"duplicate task id '{task.id}'")
+        seen_task_ids.add(task.id)
+        try:
+            kind = TaskKind(task.kind)
+        except ValueError:
+            raise _invalid(f"task '{task.id}' has unknown kind '{task.kind}'")
+        set_blocks = [k for k in _ALL_PARAM_KEYS if getattr(task, k) is not None]
+        if set_blocks != [_PARAM_KEYS[kind]]:
+            raise _invalid(
+                f"task '{task.id}' must set exactly one params block matching kind '{kind.value}'"
+            )
+        for tid in task.target_ids:
+            if tid not in roles:
+                raise _binding_invalid(f"task '{task.id}' references unknown target '{tid}'")
+        if not task.target_ids and primary_count == 0:
+            raise _binding_invalid(
+                f"task '{task.id}' binds to zero targets: no primary targets declared"
+            )
+
+
 def _drop_nones(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
 

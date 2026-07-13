@@ -21,6 +21,7 @@ from .contracts import (
     RunError,
     RunStatus,
     effective_role,
+    validate_describe_request,
 )
 
 
@@ -79,56 +80,64 @@ class AnalysisOrchestrator:
     async def describe(self, request: DescribeRequest) -> DescribeResponse:
         from .providers import ProviderRun  # local import: providers imports RunPlan from here
 
+        # Boundary validation: directly constructed requests get the same
+        # contract enforcement as wire payloads (non-empty runs invariant).
+        validate_describe_request(request)
+
         plans = expand_runs(request, self._task_routes)
         tasks_by_id = {t.id: t for t in request.tasks}
         targets_by_id = {t.id: t for t in request.targets}
 
         async def execute(plan: RunPlan):
             if plan.delegate is None:
-                return plan, None, plan.skip_error
+                return plan, None, plan.skip_error, RunStatus.SKIPPED
             provider = self._providers.get(plan.delegate)
             if provider is None:
                 return plan, None, RunError(
                     code="analysis_delegate_not_found",
                     message=f"no provider registered for delegate '{plan.delegate}'",
-                )
+                ), RunStatus.FAILED
+            task = tasks_by_id[plan.task_id]
+            if not provider.supports(task):
+                # Never dispatched -> skipped per spec's RunStatus semantics.
+                return plan, None, RunError(
+                    code="analysis_no_supported_delegate",
+                    message=f"delegate '{plan.delegate}' does not support kind {task.kind.value}",
+                ), RunStatus.SKIPPED
             provider_run = ProviderRun(
                 plan=plan,
-                task=tasks_by_id[plan.task_id],
+                task=task,
                 target=targets_by_id[plan.target_id],
             )
             try:
                 result = await provider.run(provider_run)
-                return plan, result, None
+                return plan, result, None, RunStatus.SUCCEEDED
             except Exception as exc:  # per-run isolation is the contract
                 return plan, None, RunError(
                     code="analysis_run_failed",
                     message=f"{type(exc).__name__}: {exc}",
-                )
+                ), RunStatus.FAILED
 
         outcomes = await asyncio.gather(*(execute(p) for p in plans))
 
         observations: list[DescribeObservation] = []
         artifacts: list[DescribeArtifact] = []
         runs: list[DescribeRun] = []
-        for plan, result, error in outcomes:
-            if plan.delegate is None:
-                runs.append(DescribeRun(
-                    task_id=plan.task_id, target_id=plan.target_id, delegate="",
-                    status=RunStatus.SKIPPED, error=error,
-                ))
-            elif error is not None:
-                runs.append(DescribeRun(
-                    task_id=plan.task_id, target_id=plan.target_id, delegate=plan.delegate,
-                    status=RunStatus.FAILED, error=error,
-                ))
-            else:
-                assert result is not None  # execute() invariant: no error => result
+        for plan, result, error, status in outcomes:
+            if status == RunStatus.SUCCEEDED:
+                assert result is not None  # execute() invariant: succeeded => result
                 observations.extend(result.observations)
                 artifacts.extend(result.artifacts)
                 runs.append(DescribeRun(
-                    task_id=plan.task_id, target_id=plan.target_id, delegate=plan.delegate,
-                    status=RunStatus.SUCCEEDED, raw_output=result.raw_output,
+                    task_id=plan.task_id, target_id=plan.target_id,
+                    delegate=plan.delegate or "",
+                    status=status, raw_output=result.raw_output,
+                ))
+            else:
+                runs.append(DescribeRun(
+                    task_id=plan.task_id, target_id=plan.target_id,
+                    delegate=plan.delegate or "",
+                    status=status, error=error,
                 ))
 
         succeeded = sum(1 for r in runs if r.status == RunStatus.SUCCEEDED)
