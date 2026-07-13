@@ -14,6 +14,9 @@ resolution_sets:
       aspect_ratio: "1:1"
     - size: 1152x896
       aspect_ratio: "9:7"
+    - size: 896x1152
+      aspect_ratio: "7:9"
+
   sdxl:
     - size: 512x512
       aspect_ratio: "1:1"
@@ -158,4 +161,4 @@ modes:
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
-          max_strength: 2.0    
+          max_strength: 2.0
