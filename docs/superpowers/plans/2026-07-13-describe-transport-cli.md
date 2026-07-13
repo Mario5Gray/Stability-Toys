@@ -811,7 +811,7 @@ import (
 	"fmt"
 	"strings"
 
-	"stability-toys/cli/go/pkg/stclient" // match the module path used by gen.go's import block
+	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
 type describeOptions struct {
@@ -887,7 +887,10 @@ func validateDescribeFlags(o describeOptions) error {
 }
 ```
 
-Before writing, check the exact `stclient` import path and the `CaptionParams`/`DetectParams` field names in `cli/go/pkg/stclient/describe_types.go` (lines 59–66) and use those — the field names above (`Prompt`, `Labels`, `MinConfidence`) must match the existing types, not be invented.
+Check the `CaptionParams`/`DetectParams` field names in
+`cli/go/pkg/stclient/describe_types.go` (lines 59–66) and use those — the
+field names above (`Prompt`, `Labels`, `MinConfidence`) must match the
+existing types, not be invented.
 
 - [ ] **Step 4: Run tests, verify they pass**
 
@@ -1122,6 +1125,14 @@ func describeStatusErr(resp *stclient.DescribeResponse) error {
 
 Check `exitError` construction against `history_runtime.go:37` (unexported fields `code`, `err` — same package, so literal construction works) and match `DescribeRun.Status`/`RunStatus` comparison style to how `describe_types.go` declares it (string-typed constants — compare with a conversion if needed).
 
+Also extend `resetCLIFlagState()` in `gen_test.go` to zero the new
+package-global flag state — its whole purpose is that no command's globals
+leak between CLI tests:
+
+```go
+	describeOpts = describeOptions{}
+```
+
 - [ ] **Step 4: Run tests, verify they pass**
 
 Run: `cd cli/go && go test ./cmd/st/ -run 'TestRenderDescribe|TestDescribeStatusErr' -v`
@@ -1166,8 +1177,12 @@ func TestDescribeEndToEndUploadsAndExitsPartial(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := executeCLI(context.Background(),
-		[]string{"describe", img, "--caption", "--detect", "--server", srv.URL})
+	// runCmdCaptureWithStateRoot (gen_test.go:192) resets global flag state
+	// and overrides the history state root — required for any test that
+	// drives the CLI, or globals leak across the ./cmd/st suite and history
+	// writes hit the real user state dir.
+	stdout, stderr, err := runCmdCaptureWithStateRoot(t, t.TempDir(),
+		"describe", img, "--caption", "--detect", "--server", srv.URL)
 	if code := exitCodeOf(err); code != 3 {
 		t.Fatalf("partial must exit 3, got %d (%v)", code, err)
 	}
@@ -1175,6 +1190,16 @@ func TestDescribeEndToEndUploadsAndExitsPartial(t *testing.T) {
 	target := describeBody["targets"].([]any)[0].(map[string]any)
 	if target["id"] != "t1" || target["asset_ref"] != "ref-123" {
 		t.Fatalf("upload not wired into target: %v", target)
+	}
+	if !strings.Contains(stdout, "stub") {
+		t.Fatalf("caption not rendered to stdout:\n%s", stdout)
+	}
+	// Frozen failure-rendering contract, asserted on captured stderr:
+	// runDescribe writes run failures through cmd.ErrOrStderr().
+	for _, want := range []string{"detect", "t1", "yolo_detect", "failed", "analysis_run_failed", "boom"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("failure line missing %q on stderr:\n%s", want, stderr)
+		}
 	}
 }
 ```
@@ -1187,8 +1212,8 @@ func TestDescribeTransportFailureExitsOneWithMessage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	srv.Close() // connection refused from here on
 
-	err := executeCLI(context.Background(),
-		[]string{"describe", "http://x/a.png", "--caption", "--server", srv.URL})
+	_, _, err := runCmdCaptureWithStateRoot(t, t.TempDir(),
+		"describe", "http://x/a.png", "--caption", "--server", srv.URL)
 	if err == nil {
 		t.Fatal("want transport error")
 	}
@@ -1205,10 +1230,16 @@ func TestDescribeTransportFailureExitsOneWithMessage(t *testing.T) {
 }
 ```
 
-(main prints `error: <message>` to stderr for any non-nil RunE error —
-`main.go:122-125` — which satisfies the frozen message-only rendering.)
+Stderr note for this case: `rootCmd` sets `SilenceErrors: true`
+(`main.go:34`), so cobra never writes RunE errors to the captured `Err`
+writer — `main()` itself prints `error: <message>` to `os.Stderr`
+(`main.go:122-125`). The captured-stderr assertion therefore lives in the
+partial-response test above (run-failure lines, which `runDescribe` writes
+through `cmd.ErrOrStderr()`); for transport failures the in-process
+boundary is the returned error, and main's existing print is the frozen
+stderr path — assert on `err.Error()` here, don't fight the harness.
 
-Before finalizing, check the actual `/v1/upload` response shape `Client.Upload` expects (`http.go:189` region) and the exact `executeCLI` signature/flags from `main_test.go` — adjust the handler body and invocation to match reality, not this sketch.
+Before finalizing, check the actual `/v1/upload` response shape `Client.Upload` expects (`http.go:189` region) — adjust the handler body to match reality, not this sketch.
 
 - [ ] **Step 6: Run wiring test, verify it fails, then fix wiring until green**
 
