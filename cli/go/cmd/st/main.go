@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
+	"github.com/darkbit/stability-toys/cli/st/internal/history"
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
@@ -30,6 +32,19 @@ var rootCmd = &cobra.Command{
 	Short:         "Stability-Toys operations CLI",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+}
+
+var (
+	resolveStateRoot = history.ResolveStateRoot
+	newHistoryStore  = func(root string) history.Store { return history.NewFSStore(root) }
+)
+
+func loadStateStore() (history.Store, error) {
+	root, err := resolveStateRoot()
+	if err != nil {
+		return nil, err
+	}
+	return newHistoryStore(root), nil
 }
 
 func init() {
@@ -67,8 +82,7 @@ func requireConfig() (*config.Config, error) {
 	}
 	cfg, message, bootstrapped := resolveConfig(path)
 	if bootstrapped {
-		fmt.Fprintln(os.Stderr, message)
-		os.Exit(2)
+		return nil, exitError{code: 2, err: fmt.Errorf("%s", message)}
 	}
 	if cfg == nil {
 		return nil, fmt.Errorf("%s", message)
@@ -105,8 +119,8 @@ func newClient() *stclient.Client {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := executeCLI(context.Background(), os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		os.Exit(exitCodeOf(err))
 	}
 }

@@ -1,6 +1,6 @@
 # `st gen` Conflation and Command History - v1 Design
 
-**Status:** Approved design, awaiting written-spec review
+**Status:** Approved; implemented (STABL-jfwcbnrt)
 
 ## Goal
 
@@ -251,7 +251,8 @@ and can be inherited. This avoids depending on a local file still existing.
 
 The stored effective seed is the concrete seed returned by a completed
 generation when available. If a failed run never received a concrete seed, its
-resolved request value, including `"random"`, remains in the effective object.
+resolved request value remains in the effective object; when the request
+delegated randomization with `--seed random`, the seed key is absent.
 
 Replay is a separate resolution path. It copies the selected entry's complete
 `effective.params` without applying config defaults, baked PNG params, or

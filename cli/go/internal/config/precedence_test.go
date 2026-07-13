@@ -72,5 +72,44 @@ func TestPrecedenceSkipStepZeroOmitted(t *testing.T) {
 	}
 }
 
+func TestResolveParamsWithBaselinePrecedence(t *testing.T) {
+	cfg := &Config{}
+	cfg.Defaults.Generation = Generation{Cfg: 2, Steps: 5, Genres: "512x512"}
+	baked := map[string]any{"guidance_scale": 3.0, "num_inference_steps": 10, "size": "768x768"}
+	baseline := map[string]any{"guidance_scale": 4.5, "num_inference_steps": 20, "size": "1024x1024"}
+	got := ResolveParamsWithBaseline(cfg, baked, baseline, Flags{Steps: intp(30)})
+	if got["guidance_scale"] != 4.5 || got["size"] != "1024x1024" || got["num_inference_steps"] != 30 {
+		t.Fatalf("params = %#v", got)
+	}
+}
+
+func TestResolveParamsWithBaselineExplicitZeroClearsInheritedFields(t *testing.T) {
+	zero := 0
+	zeroFloat := 0.0
+	baseline := map[string]any{
+		"guidance_scale":     4.5,
+		"skip_step":          4,
+		"superres":           true,
+		"superres_magnitude": 2,
+	}
+	got := ResolveParamsWithBaseline(&Config{}, nil, baseline, Flags{Cfg: &zeroFloat, SkipStep: &zero, SRLevel: &zero})
+	if got["guidance_scale"] != float64(0) {
+		t.Fatalf("guidance_scale = %#v", got["guidance_scale"])
+	}
+	for _, key := range []string{"skip_step", "superres", "superres_magnitude"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("%s unexpectedly present in %#v", key, got)
+		}
+	}
+}
+
+func TestResolveParamsWithBaselineRandomClearsInheritedSeed(t *testing.T) {
+	random := "random"
+	got := ResolveParamsWithBaseline(&Config{}, nil, map[string]any{"seed": 421337}, Flags{Seed: &random})
+	if _, ok := got["seed"]; ok {
+		t.Fatalf("seed unexpectedly present in %#v", got)
+	}
+}
+
 func intp(i int) *int       { return &i }
 func strp(s string) *string { return &s }

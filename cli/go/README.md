@@ -30,6 +30,8 @@ thin wrappers.
 | Command | Purpose |
 | --- | --- |
 | `st gen [prompt]` | Generate an image (WS); resolves config < baked PNG < flags |
+| `st conflate ...` | Toggle or configure gen-only parameter inheritance from history |
+| `st replay <id>` | Re-run one historical generation entry exactly |
 | `st read <png>` | Print embedded PNG metadata (`lcm`, `controlnet`, `controlnet_map`) |
 | `st upload <file>` | Upload a file, print its fileref |
 | `st superres <file>` | Upscale via the backend super-resolution endpoint |
@@ -53,6 +55,10 @@ exit non-zero so you can edit it. Discovery order:
 
 Generation parameters layer by precedence: **config defaults < baked PNG params
 (`--recreate`/local `--init-image`) < explicit CLI flags**.
+
+History/state lives under `$XDG_STATE_HOME/st/` (or `~/.local/state/st/`) in
+`history.jsonl`, `conflate-policy.json`, `next-id`, and `state.lock`. History is
+always written; conflation is opt-in.
 
 ## OpenAPI contract & drift guard
 

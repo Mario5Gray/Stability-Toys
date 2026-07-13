@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -11,12 +12,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
+	"github.com/darkbit/stability-toys/cli/st/internal/history"
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
@@ -98,27 +103,129 @@ func writeTestConfig(t *testing.T, outDir string) string {
 	return p
 }
 
+type genReply struct {
+	Error string
+	Seed  int64
+}
+
+func newScriptedGenServer(t *testing.T, replies ...genReply) (*httptest.Server, *[]stclient.GenParams) {
+	t.Helper()
+	var mu sync.Mutex
+	index := 0
+	captured := []stclient.GenParams{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/storage/") {
+			_, _ = w.Write([]byte("PNGBYTES"))
+			return
+		}
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+		var sub map[string]any
+		if err := wsjson.Read(r.Context(), conn, &sub); err != nil {
+			return
+		}
+		params, _ := sub["params"].(map[string]any)
+		mu.Lock()
+		captured = append(captured, stclient.GenParams(params))
+		reply := replies[index]
+		index++
+		mu.Unlock()
+		_ = wsjson.Write(r.Context(), conn, map[string]any{"type": "job:ack", "id": sub["id"], "jobId": fmt.Sprintf("J%d", index)})
+		if reply.Error != "" {
+			_ = wsjson.Write(r.Context(), conn, map[string]any{"type": "job:error", "error": reply.Error})
+			return
+		}
+		_ = wsjson.Write(r.Context(), conn, map[string]any{
+			"type":  "job:complete",
+			"jobId": fmt.Sprintf("J%d", index),
+			"outputs": []any{map[string]any{
+				"url": "/storage/K1",
+				"key": "K1",
+			}},
+			"meta": map[string]any{"seed": reply.Seed},
+		})
+	}))
+	return srv, &captured
+}
+
 func runCmd(t *testing.T, args ...string) string {
 	t.Helper()
-	var sb strings.Builder
-	rootCmd.SetOut(&sb)
-	rootCmd.SetErr(&sb)
-	rootCmd.SetArgs(args)
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("execute %v: %v\noutput: %s", args, err, sb.String())
+	out, err := runCmdMayFailWithStateRoot(t, t.TempDir(), args...)
+	if err != nil {
+		t.Fatalf("execute %v: %v\noutput: %s", args, err, out)
 	}
-	return sb.String()
+	return out
 }
 
 // runCmdMayFail is like runCmd but returns the error instead of fataling.
 func runCmdMayFail(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	return runCmdMayFailWithStateRoot(t, t.TempDir(), args...)
+}
+
+func runCmdWithStateRoot(t *testing.T, stateRoot string, args ...string) string {
+	t.Helper()
+	out, err := runCmdMayFailWithStateRoot(t, stateRoot, args...)
+	if err != nil {
+		t.Fatalf("execute %v: %v\noutput: %s", args, err, out)
+	}
+	return out
+}
+
+func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, error) {
+	t.Helper()
+	resetCLIFlagState()
+	old := resolveStateRoot
+	resolveStateRoot = func() (string, error) { return stateRoot, nil }
+	defer func() { resolveStateRoot = old }()
 	var sb strings.Builder
 	rootCmd.SetOut(&sb)
 	rootCmd.SetErr(&sb)
 	rootCmd.SetArgs(args)
-	err := rootCmd.Execute()
+	err := executeCLI(context.Background(), args)
 	return sb.String(), err
+}
+
+func runCmdCaptureWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, string, error) {
+	t.Helper()
+	old := resolveStateRoot
+	resolveStateRoot = func() (string, error) { return stateRoot, nil }
+	defer func() { resolveStateRoot = old }()
+	resetCLIFlagState()
+	var stdout, stderr strings.Builder
+	rootCmd.SetOut(&stdout)
+	rootCmd.SetErr(&stderr)
+	rootCmd.SetArgs(args)
+	err := executeCLI(context.Background(), args)
+	return stdout.String(), stderr.String(), err
+}
+
+func resetCLIFlagState() {
+	flagServer = os.Getenv("ST_SERVER")
+	flagConfig, flagOutputDir = "", ""
+	flagJSON = false
+	flagTimeout = 0
+	genPrompt, genNegative, genSize = "", "", ""
+	genSeed, genScheduler, genMode, genInitImage, genRecreate = "", "", "", "", ""
+	genControlnetFile, genOutfile = "", ""
+	genSteps, genSkipStep, genSR = 0, 0, 0
+	genCfg, genControlStrength = 0, 0
+	genStream, genQuiet = false, false
+	genControlnets, genControlImages = nil, nil
+	conflateInclusive, conflateExitCodes = nil, nil
+
+	var clearChanged func(*cobra.Command)
+	clearChanged = func(cmd *cobra.Command) {
+		cmd.Flags().VisitAll(func(flag *pflag.Flag) { flag.Changed = false })
+		cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) { flag.Changed = false })
+		for _, child := range cmd.Commands() {
+			clearChanged(child)
+		}
+	}
+	clearChanged(rootCmd)
 }
 
 func TestBuildGenParamsControlnetFile(t *testing.T) {
@@ -450,6 +557,91 @@ func TestBuildGenParamsInitImageWithLCMStillSeeds(t *testing.T) {
 	}
 	if p["guidance_scale"] != float64(9) || p["prompt"] != "base" {
 		t.Fatalf("baked layer not applied from init image: %+v", p)
+	}
+}
+
+func TestConflatedGenUsesBaselineEffectiveParams(t *testing.T) {
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	baseID, _ := store.ReserveID(context.Background())
+	_ = store.Append(context.Background(), history.Entry{
+		SchemaVersion: 1,
+		ID:            baseID,
+		Family:        history.FamilyGen,
+		Raw:           history.CommandView{Argv: []string{"st", "gen"}, Display: "st gen"},
+		Effective: &history.CommandView{
+			Params: map[string]any{"prompt": "horse bartender", "guidance_scale": 4.5, "size": "1024x1024", "seed": 421337},
+		},
+		ExitCode: 0,
+	})
+
+	runCmdWithStateRoot(t, root, "conflate", "history:1")
+	patch, err := parseRootGenPatch([]string{"--prompt", "two horses drinking"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.Cfg = 7.5
+	params, baseline, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline.ID != 1 || params["guidance_scale"] != 4.5 || params["size"] != "1024x1024" || numericParam(params["seed"]) != 421337 || params["prompt"] != "two horses drinking" {
+		t.Fatalf("baseline=%#v params=%#v", baseline, params)
+	}
+}
+
+func TestConflatedGenExplicitZeroAndRandomOverrideBaseline(t *testing.T) {
+	baseline := stclient.GenParams{
+		"prompt": "owl", "guidance_scale": 4.5, "skip_step": 4,
+		"superres": true, "superres_magnitude": 2, "seed": 421337,
+	}
+	patch := genPatch{
+		Active:  true,
+		Args:    genArgs{Cfg: f64p(0), SkipStep: intp(0), SR: intp(0), Seed: strp("random")},
+		Changed: map[string]bool{"cfg": true, "skip-step": true, "sr": true, "seed": true},
+	}
+	got, err := buildGenParamsWithBaseline(nil, patch.Args, baseline, patch.Changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["guidance_scale"] != float64(0) {
+		t.Fatalf("cfg = %#v", got["guidance_scale"])
+	}
+	for _, key := range []string{"skip_step", "superres", "superres_magnitude", "seed"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("%s unexpectedly inherited: %#v", key, got)
+		}
+	}
+}
+
+func TestExplicitGenWithoutRecentBaselineFallsBackToNormalResolution(t *testing.T) {
+	store := history.NewFSStore(t.TempDir())
+	policy := history.DefaultPolicy()
+	policy.Enabled = true
+	if err := store.SavePolicy(context.Background(), policy); err != nil {
+		t.Fatal(err)
+	}
+	patch := genPatch{Args: genArgs{Prompt: "first run"}}
+	got, baseline, _, err := buildConflatedParams(context.Background(), store, patch, &config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline != nil || got["prompt"] != "first run" {
+		t.Fatalf("baseline=%#v params=%#v", baseline, got)
+	}
+}
+
+func numericParam(v any) float64 {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case float64:
+		return n
+	default:
+		return 0
 	}
 }
 

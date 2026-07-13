@@ -173,6 +173,59 @@ set to zero (e.g. `--cfg 0`) still takes precedence over baked params.
 
 ---
 
+## Conflation
+
+`st` always writes local command history. Conflation is an opt-in mode that
+lets a generation inherit unchanged backend parameters from a prior `gen` run.
+
+```bash
+# Toggle recent successful gen-run conflation on:
+st conflate
+
+# Patch only changed fields from the selected baseline:
+st --cfg 4.3 --prompt "two horses drinking"
+
+# Pin one baseline until changed:
+st conflate history:12345
+st --prompt "variation prompt"
+```
+
+Root shorthand is flag-only while conflation is enabled. Use `--prompt`; bare
+positional text at the `st` root is rejected so mistyped commands do not become
+paid prompt patches. Explicit `st gen ...` remains valid and also inherits from
+the selected baseline while conflation is on.
+
+Selectors:
+
+```bash
+st conflate --inclusive gen       # recent successful gen runs
+st conflate --with-exit 1         # recent gen runs whose exit code is 1
+st conflate --with-exit 0,1       # comma form also accepted
+st conflate off
+st conflate status
+```
+
+History state is global and stored under `$XDG_STATE_HOME/st/`, or
+`~/.local/state/st/` when `XDG_STATE_HOME` is unset. Files are
+`history.jsonl`, `conflate-policy.json`, `next-id`, and `state.lock`.
+
+---
+
+## Replay
+
+Replay runs one historical generation entry's stored effective parameter object
+exactly once. It does not apply current config defaults, baked PNG params, or
+conflation policy.
+
+```bash
+st replay 12345
+```
+
+Generation overrides and positional prompt text are rejected for replay. Use
+`st conflate history:12345` when you want to iterate with changed parameters.
+
+---
+
 ## ControlNet
 
 Server/operator setup lives in [`../../CONTROLNET.md`](../../CONTROLNET.md): required model families, `conf/modes.yml` policy, `conf/controlnets.yaml` registry, and backend support boundary.
