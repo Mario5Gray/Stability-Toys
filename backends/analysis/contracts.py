@@ -378,12 +378,18 @@ def validate_describe_request(request: DescribeRequest) -> None:
     requests at the orchestrator boundary, so bypassing the parser can never
     yield a zero-run or malformed execution.
     """
+    if isinstance(request.targets, str) or not isinstance(request.targets, (list, tuple)):
+        raise _invalid("targets must be a list of DescribeTarget")
+    if isinstance(request.tasks, str) or not isinstance(request.tasks, (list, tuple)):
+        raise _invalid("tasks must be a list of DescribeTask")
     if not request.targets or not request.tasks:
         raise _invalid("targets and tasks must be non-empty")
     _optional_str(request.mode, "mode")
     roles: Dict[str, str] = {}
     primary_count = 0
     for target in request.targets:
+        if not isinstance(target, DescribeTarget):
+            raise _invalid("each target must be a DescribeTarget")
         if not isinstance(target.id, str) or not target.id:
             raise _invalid("target id must be a non-empty string")
         if target.id in roles:
@@ -399,6 +405,8 @@ def validate_describe_request(request: DescribeRequest) -> None:
             primary_count += 1
     seen_task_ids = set()
     for task in request.tasks:
+        if not isinstance(task, DescribeTask):
+            raise _invalid("each task must be a DescribeTask")
         if not isinstance(task.id, str) or not task.id:
             raise _invalid("task id must be a non-empty string")
         if task.id in seen_task_ids:

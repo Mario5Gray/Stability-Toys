@@ -271,6 +271,24 @@ def _valid_task(**overrides):
             ),
             id="target-ids-str-container",
         ),
+        # Review round 4: container shapes must fail validation, not leak
+        # AttributeError from field access on non-dataclass elements.
+        pytest.param(
+            lambda: DescribeRequest(targets="bad", tasks=(_valid_task(),)),
+            id="targets-str-container",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(targets=(_valid_target(),), tasks="bad"),
+            id="tasks-str-container",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(targets=(object(),), tasks=(_valid_task(),)),
+            id="targets-non-dataclass-element",
+        ),
+        pytest.param(
+            lambda: DescribeRequest(targets=(_valid_target(),), tasks=(object(),)),
+            id="tasks-non-dataclass-element",
+        ),
     ],
 )
 def test_describe_rejects_malformed_nested_values(build_request):
