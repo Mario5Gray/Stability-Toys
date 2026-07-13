@@ -179,11 +179,14 @@ func (e *APIError) Error() string
   rendered to stderr with its `task_id`, `target_id`, `delegate`, run
   `status`, and the error `code` and `message` — e.g.
   `run detect/t2 (yolo_detect) failed: analysis_run_failed: <message>`.
-  When the server returns a non-2xx error (or transport fails), the error
-  `code` and `message` MUST be rendered to stderr —
-  `error: analysis_mode_not_found: <message>`. The exact line format may
-  evolve with the rest of the human rendering; the presence and content
-  requirements are frozen.
+  When the server returns a non-2xx error, the error `code` and `message`
+  MUST be rendered to stderr — `error: analysis_mode_not_found: <message>`.
+  A pure transport failure (timeout, refused connection, bad base URL) has no
+  `analysis_*` code — it is a plain client-side error, not a typed server
+  payload — and guarantees a human-readable message to stderr only; no
+  synthetic code is invented. Both exit 1. The exact line format may evolve
+  with the rest of the human rendering; the presence and content requirements
+  are frozen.
 - **`--json`:** the wire `DescribeResponse` verbatim — indented, a single
   terminal JSON object, not NDJSON, no added or removed fields. Same
   discipline as the frozen `st gen --json` contract.
@@ -235,4 +238,5 @@ Scripts branch on degraded runs via exit 3 without parsing output.
 2. `stclient.Describe()` + `APIError` mapping, with `httptest` coverage.
 3. `st describe` verb: target auto-upload, task flags, output rendering,
    exit codes.
-4. `supports_describe` in `/models/status` (small, can ride with step 1).
+4. `capabilities.supports_describe` in `/api/models/status` (small, can ride
+   with step 1).
