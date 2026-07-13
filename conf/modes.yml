@@ -65,7 +65,7 @@ modes:
     chat_delegate: sdxl_advisor
     controlnet_policy:
       enabled: true
-      max_attachments: 1
+      max_attachments: 2
       allow_reuse_emitted_maps: true
       allowed_control_types:
         canny:
@@ -134,11 +134,11 @@ modes:
       - dpmpp_sde_karras
       - euler
       - lcm
-    default_scheduler_id: dpmpp_2m
+    default_scheduler_id: dpmpp_2m_karras
     chat_delegate: sdxl_advisor
     controlnet_policy:
       enabled: true
-      max_attachments: 1
+      max_attachments: 2
       allow_reuse_emitted_maps: true
       allowed_control_types:
         canny:
