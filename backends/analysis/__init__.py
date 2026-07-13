@@ -1,6 +1,7 @@
 from .contracts import (
     PRIMARY_ROLE,
     AnalysisValidationError,
+    ArtifactKind,
     AttributeObservation,
     Box,
     CaptionParams,
@@ -41,6 +42,7 @@ __all__ = [
     "expand_runs",
     "PRIMARY_ROLE",
     "AnalysisValidationError",
+    "ArtifactKind",
     "AttributeObservation",
     "Box",
     "CaptionParams",

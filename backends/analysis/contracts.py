@@ -37,6 +37,10 @@ class ObservationKind(str, Enum):
     KEYPOINTS = "keypoints"
 
 
+class ArtifactKind(str, Enum):
+    EMBEDDING_REF = "embedding_ref"
+
+
 class RunStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -154,7 +158,9 @@ class KeypointsObservation:
 class DescribeObservation:
     task_id: str
     target_id: str
-    kind: str  # ObservationKind value
+    # ObservationKind (str values accepted; validated against the closed
+    # enum at serialization time in response_to_dict).
+    kind: "ObservationKind | str"
     text: Optional[TextObservation] = None
     detection: Optional[DetectionObservation] = None
     attribute: Optional[AttributeObservation] = None
@@ -165,7 +171,8 @@ class DescribeObservation:
 class DescribeArtifact:
     task_id: str
     target_id: str
-    kind: str  # "embedding_ref" only in v1
+    # ArtifactKind (embedding_ref only in v1); validated at serialization.
+    kind: "ArtifactKind | str"
     ref: str
     dims: Optional[int] = None
 
@@ -207,14 +214,38 @@ _PARAM_KEYS = {
 _ALL_PARAM_KEYS = set(_PARAM_KEYS.values())
 
 
-def _parse_params(kind: TaskKind, raw: Mapping[str, Any]):
+def _require_str(value: Any, what: str) -> str:
+    if not isinstance(value, str):
+        raise _invalid(f"{what} must be a string")
+    return value
+
+
+def _optional_str(value: Any, what: str) -> Optional[str]:
+    if value is None:
+        return None
+    return _require_str(value, what)
+
+
+def _parse_params(kind: TaskKind, task_id: str, raw: Any):
+    if not isinstance(raw, Mapping):
+        raise _invalid(f"task '{task_id}' params block for kind '{kind.value}' must be an object")
     if kind == TaskKind.CAPTION:
-        return CaptionParams(prompt=raw.get("prompt"))
-    if kind == TaskKind.DETECT:
-        return DetectParams(
-            labels=tuple(raw.get("labels") or ()),
-            min_confidence=raw.get("min_confidence"),
+        return CaptionParams(
+            prompt=_optional_str(raw.get("prompt"), f"task '{task_id}' caption.prompt"),
         )
+    if kind == TaskKind.DETECT:
+        labels = raw.get("labels")
+        if labels is None:
+            labels = ()
+        if isinstance(labels, str) or not isinstance(labels, (list, tuple)):
+            raise _invalid(f"task '{task_id}' detect.labels must be a list of strings")
+        labels = tuple(
+            _require_str(label, f"task '{task_id}' detect.labels entry") for label in labels
+        )
+        min_confidence = raw.get("min_confidence")
+        if min_confidence is not None and not isinstance(min_confidence, (int, float)):
+            raise _invalid(f"task '{task_id}' detect.min_confidence must be a number")
+        return DetectParams(labels=labels, min_confidence=min_confidence)
     if kind == TaskKind.OCR:
         return OcrParams()
     if kind == TaskKind.POSE:
@@ -244,20 +275,20 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
     for raw in raw_targets:
         if not isinstance(raw, Mapping):
             raise _invalid("each target must be an object")
-        target_id = (raw.get("id") or "").strip()
+        target_id = (_optional_str(raw.get("id"), "target id") or "").strip()
         if not target_id:
             raise _invalid("target id must be set")
         if target_id in roles:
             raise _invalid(f"duplicate target id '{target_id}'")
-        asset_ref = raw.get("asset_ref")
-        url = raw.get("url")
+        asset_ref = _optional_str(raw.get("asset_ref"), f"target '{target_id}' asset_ref")
+        url = _optional_str(raw.get("url"), f"target '{target_id}' url")
         if bool(asset_ref) == bool(url):
             raise _invalid(f"target '{target_id}' must set exactly one of asset_ref or url")
         target = DescribeTarget(
             id=target_id,
             asset_ref=asset_ref,
             url=url,
-            role=(raw.get("role") or "").strip(),
+            role=(_optional_str(raw.get("role"), f"target '{target_id}' role") or "").strip(),
         )
         roles[target_id] = effective_role(target)
         if roles[target_id] == PRIMARY_ROLE:
@@ -269,7 +300,7 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
     for raw in raw_tasks:
         if not isinstance(raw, Mapping):
             raise _invalid("each task must be an object")
-        task_id = (raw.get("id") or "").strip()
+        task_id = (_optional_str(raw.get("id"), "task id") or "").strip()
         if not task_id:
             raise _invalid("task id must be set")
         if task_id in seen_task_ids:
@@ -284,7 +315,14 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
             raise _invalid(
                 f"task '{task_id}' must set exactly one params block matching kind '{kind.value}'"
             )
-        target_ids = tuple(raw.get("target_ids") or ())
+        raw_target_ids = raw.get("target_ids")
+        if raw_target_ids is None:
+            raw_target_ids = ()
+        if isinstance(raw_target_ids, str) or not isinstance(raw_target_ids, (list, tuple)):
+            raise _invalid(f"task '{task_id}' target_ids must be a list of strings")
+        target_ids = tuple(
+            _require_str(tid, f"task '{task_id}' target_ids entry") for tid in raw_target_ids
+        )
         for tid in target_ids:
             if tid not in roles:
                 raise _binding_invalid(f"task '{task_id}' references unknown target '{tid}'")
@@ -293,7 +331,7 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
                 f"task '{task_id}' binds to zero targets: no primary targets declared"
             )
         params_kwargs: Dict[str, Any] = {
-            _PARAM_KEYS[kind]: _parse_params(kind, raw.get(_PARAM_KEYS[kind]) or {})
+            _PARAM_KEYS[kind]: _parse_params(kind, task_id, raw.get(_PARAM_KEYS[kind]))
         }
         tasks.append(
             DescribeTask(
@@ -304,7 +342,7 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
             )
         )
 
-    mode = payload.get("mode")
+    mode = _optional_str(payload.get("mode"), "mode")
     return DescribeRequest(targets=tuple(targets), tasks=tuple(tasks), mode=mode)
 
 
@@ -316,7 +354,10 @@ def response_to_dict(resp: DescribeResponse) -> Dict[str, Any]:
     """Serialize to the wire shape pinned by the stclient contract tests."""
 
     def obs_dict(o: DescribeObservation) -> Dict[str, Any]:
-        d: Dict[str, Any] = {"task_id": o.task_id, "target_id": o.target_id, "kind": o.kind}
+        # Coercion validates the closed enum: unknown kinds (e.g. a future
+        # "mask" constructed prematurely) fail here rather than reaching wire.
+        kind = ObservationKind(o.kind).value
+        d: Dict[str, Any] = {"task_id": o.task_id, "target_id": o.target_id, "kind": kind}
         if o.text is not None:
             d["text"] = {"content": o.text.content}
         if o.detection is not None:
@@ -364,7 +405,7 @@ def response_to_dict(resp: DescribeResponse) -> Dict[str, Any]:
         out["artifacts"] = [
             _drop_nones({
                 "task_id": a.task_id, "target_id": a.target_id,
-                "kind": a.kind, "ref": a.ref, "dims": a.dims,
+                "kind": ArtifactKind(a.kind).value, "ref": a.ref, "dims": a.dims,
             })
             for a in resp.artifacts
         ]

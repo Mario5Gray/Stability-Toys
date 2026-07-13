@@ -70,6 +70,54 @@ def test_parse_rejects_invalid(mutate, code):
     assert exc.value.code == code
 
 
+@pytest.mark.parametrize(
+    "mutate,code",
+    [
+        # malformed scalar/block types must become analysis_invalid_request,
+        # never AttributeError (review blocker)
+        (lambda p: p["targets"][0].update(id=123), "analysis_invalid_request"),
+        (lambda p: p["targets"][0].update(role=42), "analysis_invalid_request"),
+        (lambda p: p["targets"][0].update(asset_ref=7), "analysis_invalid_request"),
+        (lambda p: p["tasks"][0].update(id=123), "analysis_invalid_request"),
+        (lambda p: p["tasks"][0].update(caption="x"), "analysis_invalid_request"),
+        (lambda p: p["tasks"][0].update(target_ids="t1"), "analysis_invalid_request"),
+        (lambda p: p["tasks"][0].update(target_ids=[1, 2]), "analysis_invalid_request"),
+        (lambda p: p.update(mode=42), "analysis_invalid_request"),
+        (lambda p: p["tasks"][0].update(caption={"prompt": 5}), "analysis_invalid_request"),
+    ],
+)
+def test_parse_rejects_malformed_types(mutate, code):
+    payload = valid_payload()
+    mutate(payload)
+    with pytest.raises(AnalysisValidationError) as exc:
+        parse_describe_request(payload)
+    assert exc.value.code == code
+
+
+def test_parse_rejects_malformed_detect_params():
+    payload = valid_payload()
+    payload["tasks"] = [{"id": "det1", "kind": "detect", "detect": {"labels": "owl"}}]
+    with pytest.raises(AnalysisValidationError) as exc:
+        parse_describe_request(payload)
+    assert exc.value.code == "analysis_invalid_request"
+
+
+def test_response_to_dict_rejects_unknown_kinds():
+    resp = DescribeResponse(
+        status=DescribeStatus.OK,
+        observations=(
+            DescribeObservation(task_id="t", target_id="t1", kind="mask"),
+        ),
+        artifacts=(),
+        runs=(
+            DescribeRun(task_id="t", target_id="t1", delegate="d",
+                        status=RunStatus.SUCCEEDED),
+        ),
+    )
+    with pytest.raises(ValueError):
+        response_to_dict(resp)
+
+
 def test_explicit_binding_to_non_primary_is_allowed():
     payload = valid_payload()
     payload["targets"][0]["role"] = "reference"
