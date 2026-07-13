@@ -765,6 +765,11 @@ class ModeConfigManager:
             chat_delegate = self._normalize_optional_string(mode_data.get("chat_delegate"))
             if chat_delegate and chat_delegate not in (data.get("chat_delegates") or {}):
                 raise ValueError(f"Mode '{mode_name}' references unknown chat_delegate '{chat_delegate}'")
+            analysis_profile = self._normalize_optional_string(mode_data.get("analysis_profile"))
+            if analysis_profile and analysis_profile not in (data.get("analysis_profiles") or {}):
+                raise ValueError(
+                    f"Mode '{mode_name}' references unknown analysis_profile '{analysis_profile}'"
+                )
             if mode_data.get("resolution_set") is not None:
                 mode_entry["resolution_set"] = mode_data.get("resolution_set")
             for cap_field in (
@@ -791,6 +796,8 @@ class ModeConfigManager:
                 mode_entry["default_scheduler_id"] = mode_data.get("default_scheduler_id")
             if chat_delegate is not None:
                 mode_entry["chat_delegate"] = chat_delegate
+            if analysis_profile is not None:
+                mode_entry["analysis_profile"] = analysis_profile
             conditioning = self._parse_conditioning_config(
                 mode_name, mode_data.get("conditioning")
             )
@@ -852,6 +859,46 @@ class ModeConfigManager:
                 if d.system_prompt is not None:
                     entry["system_prompt"] = d.system_prompt
                 yaml_data["chat_delegates"][delegate_name] = entry
+
+        raw_analysis_connections = data.get("analysis_connections") or {}
+        if not isinstance(raw_analysis_connections, dict):
+            raise ValueError("save_config requires analysis_connections to be a mapping when provided")
+        if raw_analysis_connections:
+            yaml_data["analysis_connections"] = {}
+            for name, raw in raw_analysis_connections.items():
+                conn = self._parse_analysis_connection_config(name, raw)
+                yaml_data["analysis_connections"][name] = {
+                    "endpoint": conn.endpoint,
+                    "api_key_env": conn.api_key_env,
+                }
+
+        raw_analysis_delegates = data.get("analysis_delegates") or {}
+        if not isinstance(raw_analysis_delegates, dict):
+            raise ValueError("save_config requires analysis_delegates to be a mapping when provided")
+        parsed_analysis_delegates: Dict[str, AnalysisDelegateConfig] = {}
+        if raw_analysis_delegates:
+            parsed_analysis_connections = {
+                k: self._parse_analysis_connection_config(k, v)
+                for k, v in raw_analysis_connections.items()
+            }
+            yaml_data["analysis_delegates"] = {}
+            for name, raw in raw_analysis_delegates.items():
+                d = self._parse_analysis_delegate_config(name, raw, parsed_analysis_connections)
+                parsed_analysis_delegates[name] = d
+                yaml_data["analysis_delegates"][name] = {
+                    "connection": d.connection,
+                    "kind": d.kind,
+                    "model": d.model,
+                }
+
+        raw_analysis_profiles = data.get("analysis_profiles") or {}
+        if not isinstance(raw_analysis_profiles, dict):
+            raise ValueError("save_config requires analysis_profiles to be a mapping when provided")
+        if raw_analysis_profiles:
+            yaml_data["analysis_profiles"] = {}
+            for name, raw in raw_analysis_profiles.items():
+                p = self._parse_analysis_profile_config(name, raw, parsed_analysis_delegates)
+                yaml_data["analysis_profiles"][name] = {"task_routes": dict(p.task_routes)}
 
         # Write atomically-ish: write to temp then rename
         tmp_path = self.config_path.with_suffix(".yml.tmp")
@@ -950,6 +997,25 @@ class ModeConfigManager:
                 }
                 for delegate_name, delegate in self.config.chat_delegates.items()
             },
+            "analysis_connections": {
+                name: {
+                    "endpoint": connection.endpoint,
+                    "api_key_env": connection.api_key_env,
+                }
+                for name, connection in self.config.analysis_connections.items()
+            },
+            "analysis_delegates": {
+                name: {
+                    "connection": delegate.connection,
+                    "kind": delegate.kind,
+                    "model": delegate.model,
+                }
+                for name, delegate in self.config.analysis_delegates.items()
+            },
+            "analysis_profiles": {
+                name: {"task_routes": dict(profile.task_routes)}
+                for name, profile in self.config.analysis_profiles.items()
+            },
             "modes": {
                 name: {
                     "model": mode.model,
@@ -989,6 +1055,7 @@ class ModeConfigManager:
                     "allowed_scheduler_ids": mode.allowed_scheduler_ids,
                     "default_scheduler_id": mode.default_scheduler_id,
                     "chat_delegate": mode.chat_delegate,
+                    "analysis_profile": mode.analysis_profile,
                     "metadata": mode.metadata,
                     "conditioning": self._conditioning_to_dict(mode.conditioning),
                     "controlnet_policy": {

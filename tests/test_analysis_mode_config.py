@@ -69,6 +69,39 @@ def test_sections_default_empty(tmp_path):
     assert cfg.modes["SDXL"].analysis_profile is None
 
 
+def test_to_dict_includes_analysis_sections(tmp_path):
+    d = load(tmp_path, BASE_YAML).to_dict()
+    assert d["analysis_connections"]["local_vlm"] == {
+        "endpoint": "http://node2.lan:8080/v1", "api_key_env": "OPENAI_API_KEY",
+    }
+    assert d["analysis_delegates"]["yolo_detect"] == {
+        "connection": "local_detector", "kind": "detect", "model": "yolo11x",
+    }
+    assert d["analysis_profiles"]["default"] == {
+        "task_routes": {"caption": "vlm_caption", "detect": "yolo_detect"},
+    }
+    assert d["modes"]["SDXL"]["analysis_profile"] == "default"
+
+
+def test_save_config_round_trip_preserves_analysis(tmp_path):
+    mgr = load(tmp_path, BASE_YAML)
+    # The ordinary save path: export, save, reload.
+    mgr.save_config(mgr.to_dict())
+    cfg = mgr.config
+    assert set(cfg.analysis_connections) == {"local_vlm", "local_detector"}
+    assert cfg.analysis_delegates["vlm_caption"].kind == "caption"
+    assert cfg.analysis_profiles["default"].task_routes["detect"] == "yolo_detect"
+    assert cfg.modes["SDXL"].analysis_profile == "default"
+
+
+def test_save_config_rejects_unknown_mode_analysis_profile(tmp_path):
+    mgr = load(tmp_path, BASE_YAML)
+    data = mgr.to_dict()
+    data["modes"]["SDXL"]["analysis_profile"] = "nope"
+    with pytest.raises(ValueError, match="unknown analysis_profile"):
+        mgr.save_config(data)
+
+
 @pytest.mark.parametrize(
     "needle,replacement,err_fragment",
     [
