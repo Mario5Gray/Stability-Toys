@@ -75,30 +75,44 @@ Request flow:
 4. Dispatch to the `AnalysisOrchestrator` for that profile; `await describe()`.
 5. Serialize with the existing `response_to_dict()`; return 200.
 
-Orchestrator lifecycle: constructed at lifespan startup from the loaded
-analysis config sections. A **provider registry** maps delegate name →
-provider instance and is the seam for real providers. In this track the
-registry assigns every configured delegate a `StubProvider`; a later track
-registers real providers keyed by connection/delegate type without touching
-the endpoint.
+Orchestrator lifecycle: **request-time construction from live config.**
+`modes.yml` is live-reloadable everywhere else in this server (SIGHUP
+handler, file watcher, `POST /api/modes/reload`), so the analysis policy must
+follow the same discipline — no lifespan-frozen snapshot. The endpoint reads
+the current `ModeConfigManager` state (`get_mode_config()`) on every request
+and builds the orchestrator and provider set from it; a reloaded
+`analysis_profiles`/`analysis_delegates` section takes effect on the next
+request with no process restart. A **provider registry** is a factory keyed
+by delegate config and is the seam for real providers. In this track the
+factory yields a `StubProvider` for every configured delegate — stateless and
+cheap, so per-request construction costs nothing. When real providers arrive
+they may need connection reuse; caching keyed on config generation is that
+track's concern, behind the same factory seam, without touching the endpoint.
 
 Error mapping (no `DescribeResponse` body on non-2xx, per predecessor spec):
 
 | Condition | HTTP | Body |
 | --- | --- | --- |
 | `AnalysisValidationError` (parse or binding) | 400 | `{"error": {"code": "analysis_*", "message": "..."}}` |
+| unknown mode named in `request.mode` | 400 | code `analysis_mode_not_found` |
 | effective mode has no `analysis_profile` | 400 | code `analysis_profile_not_found` |
-| unknown mode named in `request.mode` | 400 | code `analysis_profile_not_found` |
 | unexpected server exception | 500 | code `analysis_internal` |
 
-`analysis_internal` is a new, additive member of the error vocabulary: an
-operator-facing catch-all for faults that are not the client's request. Run
-failures never surface here — they are represented in-band as
-`failed`/`skipped` runs inside a 200 response.
+Two additive members join the error vocabulary:
 
-Capability surfacing: `GET /models/status` gains `supports_describe: bool` —
-true iff the active mode has an `analysis_profile` configured. Additive field;
-existing consumers unaffected.
+- `analysis_mode_not_found` — `request.mode` names a mode the config layer
+  does not know. Kept distinct from `analysis_profile_not_found` (a known
+  mode that has no `analysis_profile` configured) so a mode-name typo stays
+  diagnosable; the config layer already distinguishes the two cases.
+- `analysis_internal` — operator-facing catch-all for faults that are not the
+  client's request. Run failures never surface here — they are represented
+  in-band as `failed`/`skipped` runs inside a 200 response.
+
+Capability surfacing: `GET /api/models/status` gains
+`capabilities.supports_describe: bool` — nested under the existing
+`capabilities` object alongside `supports_generation` etc., true iff the
+active mode has an `analysis_profile` configured. Additive field; existing
+consumers (including the untyped `stclient.Models()` map) are unaffected.
 
 ## `pkg/stclient`: `Describe()`
 
@@ -160,6 +174,16 @@ func (e *APIError) Error() string
 - **Default (human):** caption text lines and a detection table
   (label / confidence / box) to stdout. Human rendering may evolve; scripts
   must not parse it.
+- **Failure rendering (required):** a degraded exit must never be silent.
+  When `status` is `partial` or `failed`, every non-`succeeded` run MUST be
+  rendered to stderr with its `task_id`, `target_id`, `delegate`, run
+  `status`, and the error `code` and `message` — e.g.
+  `run detect/t2 (yolo_detect) failed: analysis_run_failed: <message>`.
+  When the server returns a non-2xx error (or transport fails), the error
+  `code` and `message` MUST be rendered to stderr —
+  `error: analysis_mode_not_found: <message>`. The exact line format may
+  evolve with the rest of the human rendering; the presence and content
+  requirements are frozen.
 - **`--json`:** the wire `DescribeResponse` verbatim — indented, a single
   terminal JSON object, not NDJSON, no added or removed fields. Same
   discipline as the frozen `st gen --json` contract.
@@ -179,14 +203,19 @@ Scripts branch on degraded runs via exit 3 without parsing output.
 
 - **Python (endpoint):** FastAPI `TestClient` against a stub-configured mode
   config — happy path, parse/binding 400s with correct `analysis_*` codes,
-  no-profile 400, unknown-mode 400, `partial` passthrough, run-order pin for
-  the multi-task × multi-target expansion.
+  no-profile 400 (`analysis_profile_not_found`), unknown-mode 400
+  (`analysis_mode_not_found`), `partial` passthrough, run-order pin for the
+  multi-task × multi-target expansion, and a reload-visibility case: swap the
+  analysis policy via `reload_mode_config()` and prove the next request
+  reflects it without restart.
 - **Go (`stclient`):** `Describe()` against `httptest` — wire-shape pin
   (request serialization and response decode), `APIError` code mapping,
   pre-flight `Validate()` short-circuit.
 - **Go (CLI):** arg→request construction unit tests including the positional
   ID assignment (`t1..tN`) and canonical task ordering; exit-code table;
-  usage-error cases (no targets, no task flags, orphan param flags).
+  usage-error cases (no targets, no task flags, orphan param flags); failure
+  rendering — `partial`/`failed` responses emit every non-`succeeded` run's
+  identity and error to stderr, and non-2xx errors emit code + message.
 
 ## Non-Goals
 
