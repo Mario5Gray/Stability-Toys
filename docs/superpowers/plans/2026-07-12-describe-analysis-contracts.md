@@ -58,7 +58,7 @@ Copied from the spec; every task inherits these.
 - Consumes: nothing (leaf task).
 - Produces: `DescribeRequest`, `DescribeTarget`, `DescribeTask`, `DescribeTaskKind` (+ consts `TaskKindCaption` etc.), params structs (`CaptionParams`, `DetectParams`, `OcrParams`, `PoseParams`, `EmbedParams`), `DescribeResponse`, `DescribeObservation`, `ObservationKind`, `TextObservation`, `DetectionObservation`, `AttributeObservation`, `KeypointsObservation`, `Keypoint`, `Box`, `DescribeArtifact`, `DescribeRun`, `RunStatus`, `DescribeStatus`, `RunError`, and `(*DescribeRequest).Validate() error`. Future transport/CLI tasks (out of this plan) consume these.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `cli/go/pkg/stclient/describe_types_test.go`:
 
@@ -220,12 +220,12 @@ func TestDescribeRequestValidate(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd cli/go && go test ./pkg/stclient/ -run 'TestDescribe' -v`
 Expected: compile FAILURE — `undefined: DescribeRequest` etc.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `cli/go/pkg/stclient/describe_types.go`:
 
@@ -505,12 +505,12 @@ func (t DescribeTask) validateParams() error {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd cli/go && go test ./pkg/stclient/ -v`
 Expected: all PASS (including pre-existing stclient tests — no regressions).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cli/go/pkg/stclient/describe_types.go cli/go/pkg/stclient/describe_types_test.go
@@ -530,7 +530,7 @@ git commit -m "feat(stclient): typed describe contract with client-boundary vali
 - Consumes: nothing.
 - Produces: `TaskKind`, `ObservationKind`, `RunStatus`, `DescribeStatus` (all `str`-enums); typed param dataclasses `CaptionParams`, `DetectParams`, `OcrParams`, `PoseParams`, `EmbedParams` (mirroring the Go contract — no untyped params anywhere); frozen dataclasses `DescribeTarget`, `DescribeTask` (with exactly-one optional typed params block), `DescribeRequest`, `TextObservation`, `DetectionObservation`, `AttributeObservation`, `KeypointsObservation`, `Box`, `Keypoint`, `DescribeObservation`, `DescribeArtifact`, `RunError`, `DescribeRun`, `DescribeResponse`; `AnalysisValidationError(code, message)`; `parse_describe_request(payload: dict) -> DescribeRequest`; `effective_role(target) -> str`; `PRIMARY_ROLE = "primary"`; `response_to_dict(resp) -> dict`. Tasks 4–5 consume these.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_analysis_contracts.py`:
 
@@ -656,12 +656,12 @@ def test_response_to_dict_wire_shape():
     assert "error" not in run0
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_contracts.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'backends.analysis'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `backends/analysis/contracts.py`:
 
@@ -1102,12 +1102,12 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_contracts.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/analysis/__init__.py backends/analysis/contracts.py tests/test_analysis_contracts.py
@@ -1126,7 +1126,7 @@ git commit -m "feat(analysis): python wire contracts + request validation (STABL
 - Consumes: `TaskKind` from `backends.analysis` (closed kind set for delegate validation).
 - Produces: `AnalysisConnectionConfig(endpoint, api_key_env)`, `AnalysisDelegateConfig(name, connection, kind, model)`, `AnalysisProfileConfig(name, task_routes: Dict[str, str])`; `ModesYAML.analysis_connections/analysis_delegates/analysis_profiles` dicts; `ModeConfig.analysis_profile: Optional[str]`. Task 5's orchestrator wiring consumes `AnalysisProfileConfig` and `AnalysisDelegateConfig`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_analysis_mode_config.py`. Follow the existing mode-config test pattern: write a temp `modes.yml`, load via `ModeConfigManager`, assert. Base fixture:
 
@@ -1224,12 +1224,12 @@ def test_fail_fast_validation(tmp_path, needle, replacement, err_fragment):
 
 Note: the duplicate-route case (`detect: vlm_caption` replacing `caption: vlm_caption`) leaves `detect` mapped twice in YAML; YAML takes the last value, so the surviving route is `detect: vlm_caption`, whose delegate kind is `caption` — the mismatch fires. Adjust the fixture strings if the loaded YAML behaves differently; the assertion that matters is `analysis_delegate_kind_mismatch`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_mode_config.py -v`
 Expected: FAIL — `AttributeError` (no `analysis_connections` on config) or `TypeError` on `ModesYAML`.
 
-- [ ] **Step 3: Implement in `server/mode_config.py`**
+- [x] **Step 3: Implement in `server/mode_config.py`**
 
 Dataclasses (place after `ChatDelegateConfig`):
 
@@ -1379,12 +1379,12 @@ In the per-mode loop (next to the `chat_delegate` handling, ~line 278):
 
 Pass `analysis_profile=analysis_profile` in the `ModeConfig(...)` construction (next to `chat_delegate=chat_delegate`), and `analysis_connections=analysis_connections, analysis_delegates=analysis_delegates, analysis_profiles=analysis_profiles` in the `ModesYAML(...)` construction.
 
-- [ ] **Step 4: Run tests — new file and the existing mode-config suite**
+- [x] **Step 4: Run tests — new file and the existing mode-config suite**
 
 Run: `source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_analysis_mode_config.py tests/test_mode_config*.py -v`
 Expected: all PASS (existing mode-config tests construct `ModesYAML` via the loader, but if any construct it directly they will fail on the three new required fields — fix those call sites by adding empty dicts, or give the three `ModesYAML` fields `field(default_factory=dict)` defaults; prefer defaults since the chat fields are positional-required only for historical reasons).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/mode_config.py tests/test_analysis_mode_config.py
