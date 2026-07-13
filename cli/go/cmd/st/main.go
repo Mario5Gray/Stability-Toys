@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -81,8 +82,7 @@ func requireConfig() (*config.Config, error) {
 	}
 	cfg, message, bootstrapped := resolveConfig(path)
 	if bootstrapped {
-		fmt.Fprintln(os.Stderr, message)
-		os.Exit(2)
+		return nil, exitError{code: 2, err: fmt.Errorf("%s", message)}
 	}
 	if cfg == nil {
 		return nil, fmt.Errorf("%s", message)
@@ -119,8 +119,8 @@ func newClient() *stclient.Client {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := executeCLI(context.Background(), os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		os.Exit(exitCodeOf(err))
 	}
 }

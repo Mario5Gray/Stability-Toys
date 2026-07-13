@@ -102,34 +102,26 @@ func writeTestConfig(t *testing.T, outDir string) string {
 
 func runCmd(t *testing.T, args ...string) string {
 	t.Helper()
-	var sb strings.Builder
-	rootCmd.SetOut(&sb)
-	rootCmd.SetErr(&sb)
-	rootCmd.SetArgs(args)
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("execute %v: %v\noutput: %s", args, err, sb.String())
+	out, err := runCmdMayFailWithStateRoot(t, t.TempDir(), args...)
+	if err != nil {
+		t.Fatalf("execute %v: %v\noutput: %s", args, err, out)
 	}
-	return sb.String()
+	return out
 }
 
 // runCmdMayFail is like runCmd but returns the error instead of fataling.
 func runCmdMayFail(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	var sb strings.Builder
-	rootCmd.SetOut(&sb)
-	rootCmd.SetErr(&sb)
-	rootCmd.SetArgs(args)
-	err := rootCmd.Execute()
-	return sb.String(), err
+	return runCmdMayFailWithStateRoot(t, t.TempDir(), args...)
 }
 
 func runCmdWithStateRoot(t *testing.T, stateRoot string, args ...string) string {
 	t.Helper()
-	resetCLIFlagState()
-	old := resolveStateRoot
-	resolveStateRoot = func() (string, error) { return stateRoot, nil }
-	defer func() { resolveStateRoot = old }()
-	return runCmd(t, args...)
+	out, err := runCmdMayFailWithStateRoot(t, stateRoot, args...)
+	if err != nil {
+		t.Fatalf("execute %v: %v\noutput: %s", args, err, out)
+	}
+	return out
 }
 
 func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, error) {
@@ -138,7 +130,12 @@ func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) 
 	old := resolveStateRoot
 	resolveStateRoot = func() (string, error) { return stateRoot, nil }
 	defer func() { resolveStateRoot = old }()
-	return runCmdMayFail(t, args...)
+	var sb strings.Builder
+	rootCmd.SetOut(&sb)
+	rootCmd.SetErr(&sb)
+	rootCmd.SetArgs(args)
+	err := executeCLI(context.Background(), args)
+	return sb.String(), err
 }
 
 func resetCLIFlagState() {
