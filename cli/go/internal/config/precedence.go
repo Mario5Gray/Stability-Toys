@@ -20,10 +20,16 @@ type Flags struct {
 // field map. Named ResolveParams (not Resolve) to avoid colliding with the
 // config-path Resolve in config.go; the gen command (Task 12) consumes this.
 func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
+	return ResolveParamsWithBaseline(cfg, baked, nil, f)
+}
+
+func resolveDefaults(cfg *Config) map[string]any {
+	if cfg == nil {
+		cfg = &Config{}
+	}
 	p := map[string]any{}
 	g := cfg.Defaults.Generation
 
-	// layer 1: config defaults
 	setStr(p, "size", g.Genres)
 	if g.Cfg != 0 {
 		p["guidance_scale"] = g.Cfg
@@ -36,13 +42,24 @@ func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
 	}
 	applySeed(p, g.Seed)
 	setStr(p, "mode", g.Mode)
+	return p
+}
 
-	// layer 2: baked params (already in GenerateRequest field names)
+// ResolveParamsWithBaseline layers generation parameters by precedence:
+// config defaults < baked PNG params < inherited baseline < explicit CLI flags.
+func ResolveParamsWithBaseline(cfg *Config, baked, baseline map[string]any, f Flags) map[string]any {
+	p := resolveDefaults(cfg)
 	for k, v := range baked {
 		p[k] = v
 	}
+	for k, v := range baseline {
+		p[k] = v
+	}
+	applyExplicitFlags(p, f)
+	return p
+}
 
-	// layer 3: explicit CLI flags
+func applyExplicitFlags(p map[string]any, f Flags) {
 	if f.Prompt != "" {
 		p["prompt"] = f.Prompt
 	}
@@ -52,8 +69,12 @@ func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
 	if f.Steps != nil {
 		p["num_inference_steps"] = *f.Steps
 	}
-	if f.SkipStep != nil && *f.SkipStep > 0 {
-		p["skip_step"] = *f.SkipStep
+	if f.SkipStep != nil {
+		if *f.SkipStep > 0 {
+			p["skip_step"] = *f.SkipStep
+		} else {
+			delete(p, "skip_step")
+		}
 	}
 	if f.Cfg != nil {
 		p["guidance_scale"] = *f.Cfg
@@ -67,14 +88,17 @@ func ResolveParams(cfg *Config, baked map[string]any, f Flags) map[string]any {
 	if f.Mode != nil {
 		p["mode"] = *f.Mode
 	}
-	if f.SRLevel != nil && *f.SRLevel > 0 {
-		p["superres"] = true
-		p["superres_magnitude"] = clamp(*f.SRLevel, 1, 3)
+	if f.SRLevel != nil {
+		delete(p, "superres")
+		delete(p, "superres_magnitude")
+		if *f.SRLevel > 0 {
+			p["superres"] = true
+			p["superres_magnitude"] = clamp(*f.SRLevel, 1, 3)
+		}
 	}
 	if f.Seed != nil {
 		applySeed(p, *f.Seed)
 	}
-	return p
 }
 
 func setStr(p map[string]any, k, v string) {

@@ -161,7 +161,7 @@ func classifyFamily(argv []string) history.Family {
 
 func dispatchInvocation(ctx context.Context, _ *invocationState, plan invocationPlan, argv []string) error {
 	if plan.kind == invocationRootGen {
-		return fmt.Errorf("%w: run a full st gen command or pin history:<id>", history.ErrNoEligibleEntry)
+		return runConflatedRootGen(ctx, rootCmd, *plan.rootGenPatch)
 	}
 	rootCmd.SetArgs(argv)
 	return rootCmd.ExecuteContext(ctx)

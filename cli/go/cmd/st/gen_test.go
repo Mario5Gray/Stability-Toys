@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
+	"github.com/darkbit/stability-toys/cli/st/internal/history"
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
@@ -492,6 +493,91 @@ func TestBuildGenParamsInitImageWithLCMStillSeeds(t *testing.T) {
 	}
 	if p["guidance_scale"] != float64(9) || p["prompt"] != "base" {
 		t.Fatalf("baked layer not applied from init image: %+v", p)
+	}
+}
+
+func TestConflatedGenUsesBaselineEffectiveParams(t *testing.T) {
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	baseID, _ := store.ReserveID(context.Background())
+	_ = store.Append(context.Background(), history.Entry{
+		SchemaVersion: 1,
+		ID:            baseID,
+		Family:        history.FamilyGen,
+		Raw:           history.CommandView{Argv: []string{"st", "gen"}, Display: "st gen"},
+		Effective: &history.CommandView{
+			Params: map[string]any{"prompt": "horse bartender", "guidance_scale": 4.5, "size": "1024x1024", "seed": 421337},
+		},
+		ExitCode: 0,
+	})
+
+	runCmdWithStateRoot(t, root, "conflate", "history:1")
+	patch, err := parseRootGenPatch([]string{"--prompt", "two horses drinking"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.Cfg = 7.5
+	params, baseline, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline.ID != 1 || params["guidance_scale"] != 4.5 || params["size"] != "1024x1024" || numericParam(params["seed"]) != 421337 || params["prompt"] != "two horses drinking" {
+		t.Fatalf("baseline=%#v params=%#v", baseline, params)
+	}
+}
+
+func TestConflatedGenExplicitZeroAndRandomOverrideBaseline(t *testing.T) {
+	baseline := stclient.GenParams{
+		"prompt": "owl", "guidance_scale": 4.5, "skip_step": 4,
+		"superres": true, "superres_magnitude": 2, "seed": 421337,
+	}
+	patch := genPatch{
+		Active:  true,
+		Args:    genArgs{Cfg: f64p(0), SkipStep: intp(0), SR: intp(0), Seed: strp("random")},
+		Changed: map[string]bool{"cfg": true, "skip-step": true, "sr": true, "seed": true},
+	}
+	got, err := buildGenParamsWithBaseline(nil, patch.Args, baseline, patch.Changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["guidance_scale"] != float64(0) {
+		t.Fatalf("cfg = %#v", got["guidance_scale"])
+	}
+	for _, key := range []string{"skip_step", "superres", "superres_magnitude", "seed"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("%s unexpectedly inherited: %#v", key, got)
+		}
+	}
+}
+
+func TestExplicitGenWithoutRecentBaselineFallsBackToNormalResolution(t *testing.T) {
+	store := history.NewFSStore(t.TempDir())
+	policy := history.DefaultPolicy()
+	policy.Enabled = true
+	if err := store.SavePolicy(context.Background(), policy); err != nil {
+		t.Fatal(err)
+	}
+	patch := genPatch{Args: genArgs{Prompt: "first run"}}
+	got, baseline, _, err := buildConflatedParams(context.Background(), store, patch, &config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline != nil || got["prompt"] != "first run" {
+		t.Fatalf("baseline=%#v params=%#v", baseline, got)
+	}
+}
+
+func numericParam(v any) float64 {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case float64:
+		return n
+	default:
+		return 0
 	}
 }
 
