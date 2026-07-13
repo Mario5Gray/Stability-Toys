@@ -34,6 +34,43 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 
 ---
 
+## resize-for-model.sh
+
+Resize a flat directory of images into model-friendly generation buckets using
+ImageMagick. The script inspects each image aspect ratio, chooses the nearest
+target shape, and writes the resized image to an output directory with the same
+basename.
+
+**Install deps**
+```bash
+brew install imagemagick
+# or use your platform package manager for ImageMagick 7+
+```
+
+**Parameters**
+
+| Argument | Default | Description |
+|---|---|---|
+| `IMAGE_DIR` | — | Directory containing input images |
+| `--out DIR` | — | Output directory |
+| `--profile` | `sd15` | `sd15` buckets: `512x512`, `768x512`, `512x768`, `768x768`; `sdxl` buckets: `1024x1024`, `1152x896`, `896x1152` |
+| `--mode` | `crop` | `crop` fills the target and center-crops; `pad` preserves the full image and pads with black |
+
+**Examples**
+
+```bash
+# SD1.5 buckets, crop-to-fill by default
+scripts/resize-for-model.sh ./raw-images --profile sd15 --out ./resized-sd15
+
+# SDXL buckets, preserve full images with black padding
+scripts/resize-for-model.sh ./raw-images --profile sdxl --mode pad --out ./resized-sdxl
+```
+
+Supported input extensions are `png`, `jpg`, `jpeg`, `webp`, `bmp`, `tif`,
+`tiff`, and `heic`. The scan is non-recursive.
+
+---
+
 ## depth_map.py
 
 Generate a grayscale depth map from an image.
