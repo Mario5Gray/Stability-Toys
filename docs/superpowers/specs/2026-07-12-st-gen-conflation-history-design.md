@@ -20,7 +20,7 @@ $ st conflate
 Conflating recent successful gen runs.
 $ st --cfg 4.3
 initial command [id=1]: st gen --prompt 'a painting of a horse' --cfg 3.2 --size 1024x1024
-next command [id=2]: st gen --prompt 'a painting of a horse' --cfg 4.3 --size 1024x1024
+next command [id=3]: st gen --prompt 'a painting of a horse' --cfg 4.3 --size 1024x1024
 ```
 
 ## Scope
@@ -101,7 +101,9 @@ $ st conflate --with-exit 0 --with-exit 1
 
 Exit codes must be integers in the process exit-code range `0..255`. Duplicate
 values are removed. `history:<id>` is mutually exclusive with `--inclusive` and
-`--with-exit`. Supplying policy selectors with `off` is an error.
+`--with-exit`. Selector arguments may be combined with `on`; this is equivalent
+to the bare selector forms and still mutates policy. `status` and `off` reject
+selector arguments. Supplying policy selectors with `off` is an error.
 
 ### Pin a baseline
 
@@ -161,10 +163,13 @@ $ st gen --cfg 4.3
 $ st --cfg 4.3
 ```
 
-The root-level shorthand is accepted only when conflation is enabled. Only
-flags belonging to `gen`, plus existing root persistent flags, are valid in the
-shorthand. Positional text remains valid and replaces the prompt exactly as it
-does for `st gen`.
+The root-level shorthand is accepted only when conflation is enabled. It is a
+flag-only form: only flags belonging to `gen`, plus existing root persistent
+flags, are valid in the shorthand. Positional arguments are never treated as
+prompt text in shorthand; users must pass `--prompt` or use explicit
+`st gen ...`. This keeps mistyped subcommands such as `st genrate --cfg 3`
+inside ordinary Cobra unknown-command handling instead of silently turning them
+into paid prompt patches.
 
 When conflation is disabled, `st --cfg 4.3` is an ordinary Cobra parse error.
 An explicit `st gen ...` remains a normal generation command and creates a
@@ -248,11 +253,18 @@ following are execution controls and are never inherited:
 Resolved backend references produced from those local inputs, such as
 `init_image_ref` and normalized `controlnets`, are part of `effective_params`
 and can be inherited. This avoids depending on a local file still existing.
+Inherited refs are copied as-is. If such a ref has expired or disappeared, the
+conflated run fails normally; v1 does not fall back to the original local
+source or attempt a fresh upload.
 
 The stored effective seed is the concrete seed returned by a completed
 generation when available. If a failed run never received a concrete seed, its
 resolved request value remains in the effective object; when the request
 delegated randomization with `--seed random`, the seed key is absent.
+Conflation inherits the stored seed exactly like any other generation field.
+This intentionally keeps conflated iterations deterministic once the baseline
+contains a concrete seed. Users who want fresh randomness must override the
+seed explicitly, for example with `--seed random`.
 
 Replay is a separate resolution path. It copies the selected entry's complete
 `effective.params` without applying config defaults, baked PNG params, or
@@ -281,7 +293,7 @@ diagnostics and are never parsed back into commands.
     "params": {
       "prompt": "two horses drinking",
       "guidance_scale": 4.5,
-      "genres": "1024x1024",
+      "size": "1024x1024",
       "seed": 421337
     }
   },
@@ -441,7 +453,8 @@ For every invocation:
    history ID. If state cannot be initialized, fail before remote side effects.
 2. Capture raw argv and start time.
 3. Parse the command. When conflation is enabled, recognize root-level `gen`
-   shorthand before normal Cobra dispatch.
+   shorthand before normal Cobra dispatch. This shorthand is flag-only and never
+   consumes positional prompt text.
 4. For `st replay`, load the selected history entry, validate it as replayable,
    and copy its effective params without consulting conflation policy.
 5. For a generation patch, load policy and resolve either the latest eligible
@@ -480,6 +493,7 @@ Errors must identify the failed operation and state path where relevant.
 Required cases include:
 
 - no eligible recent baseline for root shorthand;
+- root shorthand receives positional arguments instead of `--prompt`;
 - pinned history ID not found;
 - pinned entry is not `gen` or has no effective params;
 - replay history ID not found, not `gen`, or missing effective params;
@@ -500,10 +514,13 @@ failed history entry.
 ### Unit tests
 
 - parameter merge precedence, including explicit zeros and prompt replacement;
+- root shorthand accepts only flag-based generation patches and rejects
+  positional text;
 - separation of inheritable generation params from execution controls;
 - recent selection by greatest ID, family, exact exit-code set, and effective
   params presence;
 - pinned selection across later successes and failures;
+- seed inheritance, including explicit `--seed random` overrides;
 - exact replay resolution without config, baked, or policy overlays;
 - replay and conflation lineage fields are mutually exclusive;
 - policy validation and transactional updates;
@@ -516,9 +533,14 @@ failed history entry.
 - history is written with conflation off for successful and failed commands;
 - bare toggle, explicit `on|off|status`, `--inclusive gen`, repeated
   `--with-exit`, and `history:<id>` behavior;
+- `on` may be combined with selectors, while `off` and `status` reject them;
 - explicit `st gen` and root-level shorthand produce the same effective patch;
+- root-level shorthand rejects positional prompt text and unknown-command typos
+  remain normal parse errors;
 - recent exit-1 history advances only after exit-1 runs;
 - a pinned failed baseline remains pinned through derived outcomes;
+- conflation and replay both fail normally when inherited backend refs have
+  expired;
 - successful and failed entries with effective params can be replayed exactly;
 - replay leaves conflation policy unchanged and records a new eligible `gen`
   entry with `replayed_from_history_id`;
