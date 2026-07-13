@@ -33,6 +33,7 @@ V1 includes:
 - conflation eligibility fixed to the `gen` command family;
 - recent-history selection by exit status;
 - an explicitly pinned history baseline;
+- exact one-shot replay of a generation history entry;
 - raw and effective representations for generation history;
 - an abstract storage boundary with a filesystem implementation; and
 - XDG state storage in one `history.jsonl` plus small sidecar files.
@@ -118,6 +119,38 @@ changing the existing policy.
 Pinned mode never advances automatically. Derived successes and failures are
 written to history, but every later conflated invocation continues to derive
 from ID `12345` until another `st conflate ...` command changes the selector.
+
+### Replay one entry
+
+```console
+$ st replay 12345
+replaying [id=12345]: st gen --prompt 'a horse talking with a bartender at night' --cfg 4.5 --size 1024x1024
+```
+
+`st replay <id>` executes the selected entry's authoritative
+`effective.params` exactly once. It does not read, enable, disable, or otherwise
+change conflation policy. Bare `st` retains its normal help behavior and never
+replays hidden state.
+
+The selected entry may have any exit code, including failure, but it must belong
+to the `gen` family and contain a complete effective generation parameter
+object. Replay uses only that object; it does not reparse the entry's raw or
+effective display command, reread its config, or reopen its original local
+recipe/upload files. If a stored backend reference has expired or disappeared,
+the replay fails normally; v1 does not fall back to the original local source.
+
+Replay accepts exactly one positive integer history ID. Generation parameter
+flags and positional prompt text are rejected because replay is exact; iteration
+with overrides belongs to `st conflate history:<id>`. Existing root persistent
+execution flags remain available and affect only the current transport, output,
+and formatting behavior, never the replayed backend parameter object.
+
+The replayed invocation is appended as a new `gen` history entry with
+`replayed_from_history_id` set to the source ID. It may therefore satisfy a
+later recent-history query based on its own exit code. It never sets
+`derived_from_history_id` because no conflation baseline was applied. Replaying
+a replay records the immediately selected source ID, preserving the chain one
+hop per entry.
 
 ## Eligible Invocation Forms
 
@@ -220,6 +253,10 @@ The stored effective seed is the concrete seed returned by a completed
 generation when available. If a failed run never received a concrete seed, its
 resolved request value, including `"random"`, remains in the effective object.
 
+Replay is a separate resolution path. It copies the selected entry's complete
+`effective.params` without applying config defaults, baked PNG params, or
+conflation overlays. Current execution flags remain outside that copied object.
+
 ## History Model
 
 The history store appends one JSON object per invocation. `argv` arrays are the
@@ -260,17 +297,46 @@ diagnostics and are never parsed back into commands.
 Rules:
 
 - `id`, timestamps, `family`, `raw`, and `exit_code` are required.
-- `family` is the parsed top-level command name, `gen` for root shorthand, or
-  `unknown` when parsing cannot identify a command.
+- `family` is the semantic execution family. Explicit `st gen`, root shorthand,
+  and `st replay` entries all use `gen`; other commands use their parsed
+  top-level name, or `unknown` when parsing cannot identify one.
 - `effective` is required for a `gen` invocation once parameter resolution
   succeeds. It is absent for other families and for pre-resolution failures.
 - `derived_from_history_id` is present only when a baseline was applied.
+- `replayed_from_history_id` is present only for `st replay`; it is mutually
+  exclusive with `derived_from_history_id`.
 - `conflate_policy` snapshots the selector used for that invocation and is
   absent when no baseline was applied.
 - `error` is a stable summary string for non-zero exits and `null` otherwise.
 - Parse and validation failures are recorded. Help/version invocations and the
   `conflate` command are also recorded.
 - History entries are immutable after append.
+
+A replay entry retains the replay verb in `raw` while recording generation as
+its semantic family and the copied request as its effective representation. The
+distinguishing fields are shown below; the other required history fields remain
+unchanged:
+
+```json
+{
+  "family": "gen",
+  "raw": {
+    "argv": ["st", "replay", "12345"],
+    "display": "st replay 12345"
+  },
+  "effective": {
+    "argv": ["st", "gen", "--prompt", "two horses drinking", "--cfg", "4.5"],
+    "display": "st gen --prompt 'two horses drinking' --cfg 4.5",
+    "params": {
+      "prompt": "two horses drinking",
+      "guidance_scale": 4.5,
+      "seed": 421337
+    }
+  },
+  "exit_code": 0,
+  "replayed_from_history_id": 12345
+}
+```
 
 The canonical effective `argv` normalizes a positional prompt to `--prompt` and
 renders known request fields in stable flag order. It is diagnostic and may omit
@@ -375,12 +441,14 @@ For every invocation:
 2. Capture raw argv and start time.
 3. Parse the command. When conflation is enabled, recognize root-level `gen`
    shorthand before normal Cobra dispatch.
-4. For a generation patch, load policy and resolve either the latest eligible
-   entry or the pinned entry.
-5. Resolve config and baked PNG inputs, overlay baseline `effective.params`,
-   then overlay current explicit generation fields.
+4. For `st replay`, load the selected history entry, validate it as replayable,
+   and copy its effective params without consulting conflation policy.
+5. For a generation patch, load policy and resolve either the latest eligible
+   entry or the pinned entry. Resolve config and baked PNG inputs, overlay
+   baseline `effective.params`, then overlay current explicit generation fields.
 6. Resolve local uploads into backend references. Record the final request as
-   `effective.params` before submitting it.
+   `effective.params` before submitting it. Replay skips local-input resolution
+   because its stored effective object already contains resolved references.
 7. When a baseline was applied, print its canonical command and the reserved
    next command ID to stderr before normal generation output:
 
@@ -389,12 +457,16 @@ For every invocation:
    next command [id=20001]: st gen --prompt 'two horses drinking...' --cfg 4.5 --size 1024x1024
    ```
 
+   For replay, print `replaying [id=<source>]: <effective display>` to stderr
+   instead. Replay does not describe the source as an initial baseline.
+
 8. Execute the command and capture its process exit code. On completed
    generation, replace a symbolic/random seed with the concrete result seed.
 9. Append exactly one final history entry.
 
 Conflation diagnostics use stderr so the frozen `--json` object and `--stream`
 NDJSON stdout contracts do not change. `--quiet` suppresses these diagnostics.
+The `replaying [id=...]` diagnostic also uses stderr.
 
 The command lifecycle must return an exit code to one top-level history wrapper;
 subcommands must not terminate the process directly. If final append fails after
@@ -409,6 +481,8 @@ Required cases include:
 - no eligible recent baseline for root shorthand;
 - pinned history ID not found;
 - pinned entry is not `gen` or has no effective params;
+- replay history ID not found, not `gen`, or missing effective params;
+- replay ID is not a positive integer, or replay receives generation overrides;
 - corrupt or unsupported policy/history schema;
 - invalid `--inclusive` family or `--with-exit` value;
 - conflicting toggle/selector arguments;
@@ -429,6 +503,8 @@ failed history entry.
 - recent selection by greatest ID, family, exact exit-code set, and effective
   params presence;
 - pinned selection across later successes and failures;
+- exact replay resolution without config, baked, or policy overlays;
+- replay and conflation lineage fields are mutually exclusive;
 - policy validation and transactional updates;
 - JSONL round-trip, incomplete trailing line handling, interior corruption, and
   monotonic ID reservation; and
@@ -442,6 +518,11 @@ failed history entry.
 - explicit `st gen` and root-level shorthand produce the same effective patch;
 - recent exit-1 history advances only after exit-1 runs;
 - a pinned failed baseline remains pinned through derived outcomes;
+- successful and failed entries with effective params can be replayed exactly;
+- replay leaves conflation policy unchanged and records a new eligible `gen`
+  entry with `replayed_from_history_id`;
+- replay rejects non-`gen` entries, missing effective params, and generation
+  overrides;
 - missing/corrupt/unwritable state fails as specified;
 - concurrent processes reserve unique increasing IDs and append valid JSONL;
 - `--quiet` suppresses conflation diagnostics; and
@@ -458,6 +539,8 @@ V1 is complete when:
 - conflation is persistently toggleable and fixed to `gen` eligibility;
 - recent selectors are re-evaluated per run using exact configured exit codes;
 - pinned selectors remain fixed regardless of derived results;
+- `st replay <id>` executes one exact effective generation object without
+  reading or mutating conflation policy and records explicit replay lineage;
 - current explicit generation parameters override inherited values without
   inheriting execution/output controls;
 - state lives under the XDG state directory behind storage interfaces; and
