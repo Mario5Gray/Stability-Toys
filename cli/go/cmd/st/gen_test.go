@@ -15,6 +15,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
@@ -119,6 +121,49 @@ func runCmdMayFail(t *testing.T, args ...string) (string, error) {
 	rootCmd.SetArgs(args)
 	err := rootCmd.Execute()
 	return sb.String(), err
+}
+
+func runCmdWithStateRoot(t *testing.T, stateRoot string, args ...string) string {
+	t.Helper()
+	resetCLIFlagState()
+	old := resolveStateRoot
+	resolveStateRoot = func() (string, error) { return stateRoot, nil }
+	defer func() { resolveStateRoot = old }()
+	return runCmd(t, args...)
+}
+
+func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, error) {
+	t.Helper()
+	resetCLIFlagState()
+	old := resolveStateRoot
+	resolveStateRoot = func() (string, error) { return stateRoot, nil }
+	defer func() { resolveStateRoot = old }()
+	return runCmdMayFail(t, args...)
+}
+
+func resetCLIFlagState() {
+	flagServer = os.Getenv("ST_SERVER")
+	flagConfig, flagOutputDir = "", ""
+	flagJSON = false
+	flagTimeout = 0
+	genPrompt, genNegative, genSize = "", "", ""
+	genSeed, genScheduler, genMode, genInitImage, genRecreate = "", "", "", "", ""
+	genControlnetFile, genOutfile = "", ""
+	genSteps, genSkipStep, genSR = 0, 0, 0
+	genCfg, genControlStrength = 0, 0
+	genStream, genQuiet = false, false
+	genControlnets, genControlImages = nil, nil
+	conflateInclusive, conflateExitCodes = nil, nil
+
+	var clearChanged func(*cobra.Command)
+	clearChanged = func(cmd *cobra.Command) {
+		cmd.Flags().VisitAll(func(flag *pflag.Flag) { flag.Changed = false })
+		cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) { flag.Changed = false })
+		for _, child := range cmd.Commands() {
+			clearChanged(child)
+		}
+	}
+	clearChanged(rootCmd)
 }
 
 func TestBuildGenParamsControlnetFile(t *testing.T) {

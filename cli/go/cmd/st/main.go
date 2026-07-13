@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/darkbit/stability-toys/cli/st/internal/config"
+	"github.com/darkbit/stability-toys/cli/st/internal/history"
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
@@ -30,6 +31,19 @@ var rootCmd = &cobra.Command{
 	Short:         "Stability-Toys operations CLI",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+}
+
+var (
+	resolveStateRoot = history.ResolveStateRoot
+	newHistoryStore  = func(root string) history.Store { return history.NewFSStore(root) }
+)
+
+func loadStateStore() (history.Store, error) {
+	root, err := resolveStateRoot()
+	if err != nil {
+		return nil, err
+	}
+	return newHistoryStore(root), nil
 }
 
 func init() {
