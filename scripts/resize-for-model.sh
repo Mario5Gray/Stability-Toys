@@ -4,6 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
+  st-resize-for-model IMAGE_DIR --out OUT_DIR [--profile sd15|sdxl] [--mode crop|pad]
   scripts/resize-for-model.sh IMAGE_DIR --out OUT_DIR [--profile sd15|sdxl] [--mode crop|pad]
 
 Resize each supported image in IMAGE_DIR to the nearest model-friendly aspect bucket.
@@ -24,6 +25,11 @@ die() {
   echo "$*" >&2
   exit 2
 }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
 if [[ $# -lt 1 ]]; then
   usage >&2

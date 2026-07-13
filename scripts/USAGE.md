@@ -10,7 +10,7 @@ Run the scripts directly with `python scripts/<name>.py`, or install them as
 console commands:
 
 ```bash
-# installs st-depth-map, st-pose-map, and st-canny-map onto PATH
+# installs st-depth-map, st-pose-map, st-canny-map, and st-resize-for-model onto PATH
 make install-controlnet-scripts            # all extras (depth + pose + canny)
 make install-controlnet-scripts EXTRAS=depth   # depth backends only
 make install-controlnet-scripts EXTRAS=pose    # pose backends only
@@ -34,7 +34,7 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 
 ---
 
-## resize-for-model.sh
+## st-resize-for-model / resize-for-model.sh
 
 Resize a flat directory of images into model-friendly generation buckets using
 ImageMagick. The script inspects each image aspect ratio, chooses the nearest
@@ -60,10 +60,13 @@ brew install imagemagick
 
 ```bash
 # SD1.5 buckets, crop-to-fill by default
-scripts/resize-for-model.sh ./raw-images --profile sd15 --out ./resized-sd15
+st-resize-for-model ./raw-images --profile sd15 --out ./resized-sd15
 
 # SDXL buckets, preserve full images with black padding
-scripts/resize-for-model.sh ./raw-images --profile sdxl --mode pad --out ./resized-sdxl
+st-resize-for-model ./raw-images --profile sdxl --mode pad --out ./resized-sdxl
+
+# Direct source-tree form also works without installation
+scripts/resize-for-model.sh ./raw-images --profile sd15 --out ./resized-sd15
 ```
 
 Supported input extensions are `png`, `jpg`, `jpeg`, `webp`, `bmp`, `tif`,

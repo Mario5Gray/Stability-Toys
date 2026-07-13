@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "st-controlnet-helpers"
 version = "0.1.0"
-description = "Depth-map and pose-map preprocessing scripts for Stability-Toys ControlNet workflows"
+description = "Preprocessing helper scripts for Stability-Toys image generation workflows"
 requires-python = ">=3.10"
 dependencies = [
     # torch must be installed first via conda on macOS/Apple Silicon:
@@ -40,3 +40,4 @@ st-canny-map = "canny_map:main"
 
 [tool.setuptools]
 py-modules = ["depth_map", "pose_map", "canny_map", "cn_metadata"]
+script-files = ["st-resize-for-model", "resize-for-model.sh"]

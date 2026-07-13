@@ -32,7 +32,9 @@ chmod +x "$tmp/bin/magick"
 export PATH="$tmp/bin:$PATH"
 export MAGICK_LOG="$tmp/magick.log"
 
-"$repo_root/scripts/resize-for-model.sh" "$tmp/in" --profile sd15 --out "$tmp/out"
+"$repo_root/scripts/st-resize-for-model" --help | grep -F "Usage:" >/dev/null
+
+"$repo_root/scripts/st-resize-for-model" "$tmp/in" --profile sd15 --out "$tmp/out"
 
 grep -F -- "$tmp/in/landscape.png -auto-orient -resize 768x512\\^ -gravity center -extent 768x512 $tmp/out/landscape.png" "$MAGICK_LOG" >/dev/null
 grep -F -- "$tmp/in/portrait.jpg -auto-orient -resize 512x768\\^ -gravity center -extent 512x768 $tmp/out/portrait.jpg" "$MAGICK_LOG" >/dev/null
