@@ -1,6 +1,6 @@
 # `st gen` Conflation and Command History - v1 Design
 
-**Status:** Approved design, awaiting written-spec review
+**Status:** Approved; implemented (STABL-jfwcbnrt)
 
 ## Goal
 
