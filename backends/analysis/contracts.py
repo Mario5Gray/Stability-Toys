@@ -274,6 +274,10 @@ def parse_describe_request(payload: Mapping[str, Any]) -> DescribeRequest:
         raise _invalid("request body must be an object")
     raw_targets = payload.get("targets") or []
     raw_tasks = payload.get("tasks") or []
+    if isinstance(raw_targets, str) or not isinstance(raw_targets, (list, tuple)):
+        raise _invalid("targets must be a list of objects")
+    if isinstance(raw_tasks, str) or not isinstance(raw_tasks, (list, tuple)):
+        raise _invalid("tasks must be a list of objects")
     if not raw_targets or not raw_tasks:
         raise _invalid("targets and tasks must be non-empty")
 
@@ -412,10 +416,11 @@ def validate_describe_request(request: DescribeRequest) -> None:
         if task.id in seen_task_ids:
             raise _invalid(f"duplicate task id '{task.id}'")
         seen_task_ids.add(task.id)
-        try:
-            kind = TaskKind(task.kind)
-        except ValueError:
+        # A plain str passes str-enum coercion but keeps task.kind a str,
+        # which crashes expansion on .value — require the enum itself.
+        if not isinstance(task.kind, TaskKind):
             raise _invalid(f"task '{task.id}' has unknown kind '{task.kind}'")
+        kind = task.kind
         set_blocks = [k for k in _ALL_PARAM_KEYS if getattr(task, k) is not None]
         if set_blocks != [_PARAM_KEYS[kind]]:
             raise _invalid(
@@ -454,6 +459,15 @@ def response_to_dict(resp: DescribeResponse) -> Dict[str, Any]:
         # Coercion validates the closed enum: unknown kinds (e.g. a future
         # "mask" constructed prematurely) fail here rather than reaching wire.
         kind = ObservationKind(o.kind).value
+        set_payloads = [
+            k for k in ("text", "detection", "attribute", "keypoints")
+            if getattr(o, k) is not None
+        ]
+        if set_payloads != [kind]:
+            raise ValueError(
+                f"observation (task '{o.task_id}', target '{o.target_id}') must set "
+                f"exactly one payload block matching kind '{kind}', got {set_payloads}"
+            )
         d: Dict[str, Any] = {"task_id": o.task_id, "target_id": o.target_id, "kind": kind}
         if o.text is not None:
             d["text"] = {"content": o.text.content}

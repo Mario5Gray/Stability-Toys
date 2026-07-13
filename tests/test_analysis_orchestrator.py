@@ -289,6 +289,15 @@ def _valid_task(**overrides):
             lambda: DescribeRequest(targets=(_valid_target(),), tasks=(object(),)),
             id="tasks-non-dataclass-element",
         ),
+        # Review round 5: kind as a plain string passes str-enum coercion but
+        # later crashes expansion on .value — must be rejected here instead.
+        pytest.param(
+            lambda: DescribeRequest(
+                targets=(_valid_target(),),
+                tasks=(DescribeTask(id="cap1", kind="caption", caption=CaptionParams()),),
+            ),
+            id="kind-plain-str",
+        ),
     ],
 )
 def test_describe_rejects_malformed_nested_values(build_request):
@@ -304,6 +313,36 @@ class UnsupportingProvider:
 
     async def run(self, provider_run):
         raise AssertionError("must not be dispatched when supports() is false")
+
+
+class ExplodingSupportsProvider:
+    def supports(self, task):
+        raise RuntimeError("supports blew up")
+
+    async def run(self, provider_run):
+        raise AssertionError("must not be dispatched when supports() raises")
+
+
+def test_supports_exception_isolates_to_failed_run():
+    # Review round 5: a raise inside supports() must not escape gather and
+    # abort successful sibling runs.
+    payload = single_caption_payload()
+    payload["tasks"].append({"id": "det1", "kind": "detect", "detect": {}})
+    orch = AnalysisOrchestrator(
+        task_routes={"caption": "vlm_caption", "detect": "yolo_detect"},
+        providers={
+            "vlm_caption": StubProvider(kind="caption"),
+            "yolo_detect": ExplodingSupportsProvider(),
+        },
+    )
+    resp = run_describe(orch, payload)
+    assert resp.status == DescribeStatus.PARTIAL
+    by_task = {r.task_id: r for r in resp.runs}
+    assert by_task["cap1"].status == RunStatus.SUCCEEDED
+    failed = by_task["det1"]
+    assert failed.status == RunStatus.FAILED
+    assert failed.error.code == "analysis_run_failed"
+    assert "supports blew up" in failed.error.message
 
 
 def test_unsupporting_provider_is_skipped_not_dispatched():

@@ -98,7 +98,14 @@ class AnalysisOrchestrator:
                     message=f"no provider registered for delegate '{plan.delegate}'",
                 ), RunStatus.FAILED
             task = tasks_by_id[plan.task_id]
-            if not provider.supports(task):
+            try:
+                supported = provider.supports(task)
+            except Exception as exc:  # provider misbehavior stays per-run
+                return plan, None, RunError(
+                    code="analysis_run_failed",
+                    message=f"{type(exc).__name__}: {exc}",
+                ), RunStatus.FAILED
+            if not supported:
                 # Never dispatched -> skipped per spec's RunStatus semantics.
                 return plan, None, RunError(
                     code="analysis_no_supported_delegate",

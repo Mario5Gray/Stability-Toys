@@ -84,6 +84,10 @@ def test_parse_rejects_invalid(mutate, code):
         (lambda p: p["tasks"][0].update(target_ids=[1, 2]), "analysis_invalid_request"),
         (lambda p: p.update(mode=42), "analysis_invalid_request"),
         (lambda p: p["tasks"][0].update(caption={"prompt": 5}), "analysis_invalid_request"),
+        # scalar containers must fail validation, not leak TypeError from
+        # iteration (review blocker round 5)
+        (lambda p: p.update(targets=5), "analysis_invalid_request"),
+        (lambda p: p.update(tasks=5), "analysis_invalid_request"),
     ],
 )
 def test_parse_rejects_malformed_types(mutate, code):
@@ -108,6 +112,51 @@ def test_response_to_dict_rejects_unknown_kinds():
         observations=(
             DescribeObservation(task_id="t", target_id="t1", kind="mask"),
         ),
+        artifacts=(),
+        runs=(
+            DescribeRun(task_id="t", target_id="t1", delegate="d",
+                        status=RunStatus.SUCCEEDED),
+        ),
+    )
+    with pytest.raises(ValueError):
+        response_to_dict(resp)
+
+
+@pytest.mark.parametrize(
+    "obs",
+    [
+        # exactly-one matching payload block per observation (review blocker
+        # round 5): missing, mismatched, and multiple blocks must all fail
+        # serialization rather than reach the wire.
+        pytest.param(
+            DescribeObservation(task_id="t", target_id="t1", kind="text"),
+            id="missing-block",
+        ),
+        pytest.param(
+            DescribeObservation(
+                task_id="t", target_id="t1", kind="text",
+                detection=DetectionObservation(
+                    label="owl", confidence=0.9, box=Box(x=0.1, y=0.1, w=0.2, h=0.2),
+                ),
+            ),
+            id="mismatched-block",
+        ),
+        pytest.param(
+            DescribeObservation(
+                task_id="t", target_id="t1", kind="text",
+                text=TextObservation(content="an owl"),
+                detection=DetectionObservation(
+                    label="owl", confidence=0.9, box=Box(x=0.1, y=0.1, w=0.2, h=0.2),
+                ),
+            ),
+            id="multiple-blocks",
+        ),
+    ],
+)
+def test_response_to_dict_rejects_payload_block_violations(obs):
+    resp = DescribeResponse(
+        status=DescribeStatus.OK,
+        observations=(obs,),
         artifacts=(),
         runs=(
             DescribeRun(task_id="t", target_id="t1", delegate="d",
