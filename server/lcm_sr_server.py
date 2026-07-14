@@ -90,6 +90,7 @@ import signal
 # Mode system imports
 from server.mode_config import get_mode_config, reload_mode_config
 from server.model_routes import router as model_router
+from server.analysis_routes import router as analysis_router
 from server.advisor_routes import router as advisor_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
@@ -875,6 +876,7 @@ CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
 
 # Model management API
 app.include_router(model_router)
+app.include_router(analysis_router)
 app.include_router(advisor_router)
 app.include_router(telemetry_router)
 app.include_router(workflow_router)
