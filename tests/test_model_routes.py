@@ -827,3 +827,80 @@ async def test_list_modes_controlnet_policy_defaults_when_absent():
     policy = data["modes"]["sd15"]["controlnet_policy"]
     assert policy["enabled"] is False
     assert policy["allowed_control_types"] == {}
+
+
+async def test_models_status_supports_describe_true_when_mode_has_profile():
+    runtime = Mock()
+    runtime.get_current_mode.return_value = "SDXL"
+    runtime.is_model_loaded.return_value = True
+    runtime.get_queue_size.return_value = 0
+    registry = Mock()
+    registry.get_vram_stats.return_value = {}
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True, supports_modes=True, supports_superres=True,
+        supports_model_registry_stats=True, supports_img2img=True,
+    )
+    mode_cfg = SimpleNamespace(analysis_profile="default")
+    manager = Mock()
+    manager.get_mode.return_value = mode_cfg
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry), \
+            patch("server.model_routes.get_mode_config", return_value=manager):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["capabilities"]["supports_describe"] is True
+
+
+async def test_models_status_supports_describe_false_without_profile_or_mode():
+    runtime = Mock()
+    runtime.get_current_mode.return_value = None  # no active mode at all
+    runtime.is_model_loaded.return_value = False
+    runtime.get_queue_size.return_value = 0
+    registry = Mock()
+    registry.get_vram_stats.return_value = {}
+    provider = Mock()
+    provider.backend_id = "cpu"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True, supports_modes=False, supports_superres=False,
+        supports_model_registry_stats=False, supports_img2img=False,
+    )
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["capabilities"]["supports_describe"] is False
+
+
+async def test_models_status_supports_describe_false_when_mode_lacks_profile():
+    # Task 1 review nit, folded in: a KNOWN active mode with no
+    # analysis_profile must report supports_describe False (distinct entry
+    # point from the endpoint's analysis_profile_not_found path).
+    runtime = Mock()
+    runtime.get_current_mode.return_value = "SDXL"
+    runtime.is_model_loaded.return_value = True
+    runtime.get_queue_size.return_value = 0
+    registry = Mock()
+    registry.get_vram_stats.return_value = {}
+    provider = Mock()
+    provider.backend_id = "cuda"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True, supports_modes=True, supports_superres=True,
+        supports_model_registry_stats=True, supports_img2img=True,
+    )
+    mode_cfg = SimpleNamespace(analysis_profile=None)
+    manager = Mock()
+    manager.get_mode.return_value = mode_cfg
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry), \
+            patch("server.model_routes.get_mode_config", return_value=manager):
+        data = await model_routes.get_models_status(_status_request())
+
+    assert data["capabilities"]["supports_describe"] is False

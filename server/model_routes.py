@@ -119,6 +119,14 @@ async def get_models_status(request: Request):
     registry = get_model_registry()
     backend_version = os.environ.get("BACKEND_VERSION", "dev").strip() or "dev"
 
+    supports_describe = False
+    current_mode = runtime.get_current_mode()
+    if current_mode:
+        try:
+            supports_describe = bool(get_mode_config().get_mode(current_mode).analysis_profile)
+        except Exception:
+            supports_describe = False  # no config / unknown mode -> capability off
+
     return {
         "backend": provider.backend_id,
         "backend_version": backend_version,
@@ -136,6 +144,7 @@ async def get_models_status(request: Request):
                 "supports_img2img_and_controlnet",
                 False,
             ),
+            "supports_describe": supports_describe,
         },
         "vram": registry.get_vram_stats(),
     }
