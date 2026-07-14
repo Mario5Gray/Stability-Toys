@@ -35,10 +35,33 @@ resolution_sets:
     - size: 1216x832
       aspect_ratio: "19:13"
 
+analysis_connections:
+  local_vlm:
+    endpoint: "http://node2.lan:8080/v1"
+  local_detector:
+    endpoint: "http://node2.lan:9080"
+
+analysis_delegates:
+  vlm_caption:
+    connection: local_vlm
+    kind: caption
+    model: phi4-mm-Q4_K_M.gguf
+    provider: openai_vlm       # real VLM; omit for the stub
+    options:                   # all optional
+      max_tokens: 512
+      temperature: 0.7
+      timeout_s: 390
+      system_prompt: "Describe the image for stable diffusion keywords."
+
+analysis_profiles:
+  default:
+    task_routes:
+      caption: vlm_caption
+
 chat_connections:
   local_default:
     endpoint: "http://node2.lan:8080/v1"
-    api_key_env: "OPENAI_API_KEY"
+
 
 chat_delegates:
   sdxl_advisor:
@@ -56,6 +79,7 @@ modes:
     default_guidance: 3
     conditioning:
       service: compel
+    analysis_profile: default
     negative_prompt_templates:
       safe_photo: "blurry, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"
