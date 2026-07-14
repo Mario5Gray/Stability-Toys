@@ -1,18 +1,22 @@
 """Tests for VLM caption message assembly and provider."""
 import base64
+import json
 
+import httpx
 import pytest
 
 from backends.analysis import (
     CaptionParams,
     DescribeTarget,
     DescribeTask,
+    DetectParams,
     TaskKind,
 )
 from backends.analysis.orchestrator import RunPlan
 from backends.analysis.providers import ProviderRun
 from backends.analysis.vlm_caption import (
     DEFAULT_SYSTEM_PROMPT,
+    OpenAIVLMCaptionProvider,
     build_caption_messages,
     build_image_part,
 )
@@ -83,3 +87,84 @@ def test_messages_system_prompt_overridable_via_options():
         _run(_url_target()), {"system_prompt": "catalog style"}, _resolver,
     )
     assert messages[0]["content"] == "catalog style"
+
+
+RESPONSE = {
+    "id": "cmpl-1",
+    "choices": [{"message": {"role": "assistant", "content": "a red bicycle"}}],
+    "usage": {"total_tokens": 42},
+}
+
+
+def _provider(capture=None, response=None, status=200, **kwargs):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if capture is not None:
+            capture["payload"] = json.loads(request.content)
+        return httpx.Response(status, json=response if response is not None else RESPONSE)
+    defaults = dict(
+        endpoint="http://vlm.lan:8080/v1",
+        api_key_env="TEST_VLM_KEY",
+        model="qwen2.5-vl",
+        options={},
+        asset_resolver=_resolver,
+        transport=httpx.MockTransport(handler),
+    )
+    defaults.update(kwargs)
+    return OpenAIVLMCaptionProvider(**defaults)
+
+
+async def test_run_maps_response_to_text_observation_and_raw_output():
+    capture = {}
+    result = await _provider(capture).run(_run(_url_target()))
+    obs = result.observations
+    assert len(obs) == 1 and obs[0].kind == "text"
+    assert obs[0].text.content == "a red bicycle"
+    assert obs[0].task_id == "caption" and obs[0].target_id == "t1"
+    assert result.raw_output == RESPONSE
+    # The wire payload uses the Task 3 assembly output verbatim.
+    assert capture["payload"]["messages"] == build_caption_messages(
+        _run(_url_target()), {}, _resolver,
+    )
+
+
+async def test_run_applies_default_and_overridden_options():
+    capture = {}
+    await _provider(capture).run(_run(_url_target()))
+    assert capture["payload"]["max_tokens"] == 512
+    assert capture["payload"]["temperature"] == 0.2
+    assert capture["payload"]["model"] == "qwen2.5-vl"
+
+    await _provider(
+        capture, options={"max_tokens": 64, "temperature": 0.0},
+    ).run(_run(_url_target()))
+    assert capture["payload"]["max_tokens"] == 64
+    assert capture["payload"]["temperature"] == 0.0
+
+
+async def test_run_raises_on_http_error():
+    with pytest.raises(httpx.HTTPStatusError):
+        await _provider(status=500, response={}).run(_run(_url_target()))
+
+
+@pytest.mark.parametrize("bad_response", [
+    {},                                            # no choices
+    {"choices": []},                               # empty choices
+    {"choices": [{"message": {"content": ""}}]},   # empty content
+    {"choices": [{"message": {}}]},                # missing content
+])
+async def test_run_raises_on_missing_or_empty_content(bad_response):
+    with pytest.raises(ValueError):
+        await _provider(response=bad_response).run(_run(_url_target()))
+
+
+async def test_run_raises_when_asset_resolver_fails():
+    def failing_resolver(ref):
+        raise KeyError(f"no such ref {ref}")
+    with pytest.raises(KeyError):
+        await _provider(asset_resolver=failing_resolver).run(_run(_ref_target()))
+
+
+def test_supports_caption_only():
+    provider = _provider()
+    assert provider.supports(DescribeTask(id="c", kind=TaskKind.CAPTION, caption=CaptionParams()))
+    assert not provider.supports(DescribeTask(id="d", kind=TaskKind.DETECT, detect=DetectParams()))

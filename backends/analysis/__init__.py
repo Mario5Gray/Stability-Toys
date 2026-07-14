@@ -32,6 +32,7 @@ from .contracts import (
 )
 from .orchestrator import AnalysisOrchestrator, RunPlan, expand_runs
 from .providers import DescribeProvider, ProviderResult, ProviderRun, StubProvider
+from .vlm_caption import OpenAIVLMCaptionProvider
 
 __all__ = [
     "AnalysisOrchestrator",
@@ -40,6 +41,7 @@ __all__ = [
     "ProviderRun",
     "RunPlan",
     "StubProvider",
+    "OpenAIVLMCaptionProvider",
     "expand_runs",
     "PRIMARY_ROLE",
     "AnalysisValidationError",
