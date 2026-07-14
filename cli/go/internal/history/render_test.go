@@ -31,13 +31,14 @@ func TestCanonicalGenArgvNormalizesPromptAndStableOrder(t *testing.T) {
 		"guidance_scale":      4.5,
 		"size":                "1024x1024",
 		"num_inference_steps": 20,
+		"seed":                int64(421337),
 	}
 	got := CanonicalGenArgv(params)
-	want := []string{"st", "gen", "--prompt", "horse bartender", "--size", "1024x1024", "--steps", "20", "--cfg", "4.5"}
+	want := []string{"st", "gen", "--prompt", "horse bartender", "--size", "1024x1024", "--steps", "20", "--cfg", "4.5", "--seed", "421337"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("argv = %#v, want %#v", got, want)
 	}
-	if display := CanonicalGenDisplay(params); display != "st gen --prompt 'horse bartender' --size 1024x1024 --steps 20 --cfg 4.5" {
+	if display := CanonicalGenDisplay(params); display != "st gen --prompt 'horse bartender' --size 1024x1024 --steps 20 --cfg 4.5 --seed 421337" {
 		t.Fatalf("display = %q", display)
 	}
 }

@@ -134,7 +134,7 @@ func TestPinnedBaselineAndDiagnosticsStayFixed(t *testing.T) {
 	store := history.NewFSStore(root)
 	ctx := context.Background()
 	baseID, _ := store.ReserveID(ctx)
-	_ = store.Append(ctx, replayableEntry(baseID, map[string]any{"prompt": "owl", "guidance_scale": 4.5}, 1))
+	_ = store.Append(ctx, replayableEntry(baseID, map[string]any{"prompt": "owl", "guidance_scale": 4.5, "seed": int64(99)}, 1))
 	if _, _, err := runCmdCaptureWithStateRoot(t, root, "conflate", fmt.Sprintf("history:%d", baseID)); err != nil {
 		t.Fatal(err)
 	}
@@ -144,6 +144,9 @@ func TestPinnedBaselineAndDiagnosticsStayFixed(t *testing.T) {
 	_, stderr, _ := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "--cfg", "5")
 	if !strings.Contains(stderr, fmt.Sprintf("initial command [id=%d]:", baseID)) || !strings.Contains(stderr, "next command [id=3]:") {
 		t.Fatalf("stderr = %q", stderr)
+	}
+	if !strings.Contains(stderr, "--seed 99") {
+		t.Fatalf("next command omitted inherited seed: %q", stderr)
 	}
 	_, quietErr, _ := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "--quiet", "--cfg", "6")
 	if strings.Contains(quietErr, "initial command") || strings.Contains(quietErr, "next command") {

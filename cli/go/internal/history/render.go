@@ -59,6 +59,7 @@ func CanonicalGenArgv(params map[string]any) []string {
 	appendNum("--steps", "num_inference_steps")
 	appendNum("--skip-step", "skip_step")
 	appendNum("--cfg", "guidance_scale")
+	appendNum("--seed", "seed")
 	appendStr("--seed", "seed")
 	appendStr("--scheduler", "scheduler_id")
 	appendStr("--mode", "mode")
