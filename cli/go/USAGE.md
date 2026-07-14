@@ -494,6 +494,68 @@ field is sent (existing behaviour preserved).
 
 ---
 
+## Describe
+
+Run server-side analysis tasks (caption, object detection) against one or more
+images.
+
+```bash
+# Caption a single local image (auto-uploaded first):
+st describe ./photo.png --caption
+
+# Object detection with a label filter:
+st describe ./photo.png --detect --labels person,car
+
+# Multiple targets, multiple tasks:
+st describe ./a.png ./b.png --caption --detect
+
+# A remote image passes through as a URL target (no upload):
+st describe https://example.com/img.png --caption --prompt "focus on lighting"
+```
+
+### Targets (positional, order matters)
+
+Positional arguments are targets, processed **in argument order**. Target IDs
+are assigned positionally: the first argument is `t1`, the second `t2`, and so
+on. Local file paths are uploaded to the asset store first and referenced by
+`asset_ref`; arguments beginning `http://` or `https://` pass through unchanged
+as `url` targets. At least one target is required.
+
+### Task flags
+
+| Flag | Task | Params |
+| --- | --- | --- |
+| `--caption` | caption | `--prompt <text>` (optional) |
+| `--detect` | object detection | `--labels a,b,c` (optional), `--min-confidence <float>` (optional) |
+
+At least one task flag is required. A param flag without its task flag
+(`--prompt` without `--caption`, `--labels`/`--min-confidence` without
+`--detect`) is a usage error. Every task binds to all targets.
+
+### Output
+
+Default output is human-readable: caption text lines and a detection table
+(label / confidence / box). **Do not parse it** — the stable machine surface is
+`--json`, which emits the full `DescribeResponse` object (indented, single
+object).
+
+Any run that did not succeed is always reported to stderr with its task,
+target, delegate, status, and error code/message — a degraded result is never
+silent.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | `ok` — every run succeeded |
+| 1 | transport failure, usage error, or a server-side validation error |
+| 2 | `failed` — no run succeeded |
+| 3 | `partial` — some runs succeeded, some did not |
+
+Scripts can branch on degraded results via exit 3 without parsing output.
+
+---
+
 ## Global flags
 
 | Flag | Env | Default | Purpose |

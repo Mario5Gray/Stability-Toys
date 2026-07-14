@@ -216,6 +216,7 @@ func resetCLIFlagState() {
 	genStream, genQuiet = false, false
 	genControlnets, genControlImages = nil, nil
 	conflateInclusive, conflateExitCodes = nil, nil
+	describeOpts = describeOptions{}
 
 	var clearChanged func(*cobra.Command)
 	clearChanged = func(cmd *cobra.Command) {
