@@ -122,3 +122,96 @@ def test_fail_fast_validation(tmp_path, needle, replacement, err_fragment):
     bad = BASE_YAML.replace(needle, replacement, 1)
     with pytest.raises(ValueError, match=err_fragment):
         load(tmp_path, bad)
+
+
+PROVIDER_YAML = BASE_YAML.replace(
+    "    model: qwen2.5-vl\n",
+    "    model: qwen2.5-vl\n"
+    "    provider: openai_vlm\n"
+    "    options:\n"
+    "      max_tokens: 256\n"
+    "      temperature: 0.0\n"
+    "      timeout_s: 90\n"
+    "      system_prompt: \"Describe for a catalog.\"\n",
+)
+
+
+def test_delegate_provider_defaults_to_stub(tmp_path):
+    cfg = load(tmp_path, BASE_YAML).config
+    assert cfg.analysis_delegates["vlm_caption"].provider == "stub"
+    assert cfg.analysis_delegates["vlm_caption"].options == {}
+
+
+def test_delegate_provider_and_options_parse(tmp_path):
+    cfg = load(tmp_path, PROVIDER_YAML).config
+    d = cfg.analysis_delegates["vlm_caption"]
+    assert d.provider == "openai_vlm"
+    assert d.options == {
+        "max_tokens": 256,
+        "temperature": 0.0,
+        "timeout_s": 90,
+        "system_prompt": "Describe for a catalog.",
+    }
+
+
+def test_unknown_provider_fails_load(tmp_path):
+    bad = BASE_YAML.replace(
+        "    model: qwen2.5-vl\n",
+        "    model: qwen2.5-vl\n    provider: nonsense\n",
+    )
+    with pytest.raises(ValueError, match="provider"):
+        load(tmp_path, bad)
+
+
+def test_openai_vlm_on_non_caption_kind_fails_load(tmp_path):
+    bad = BASE_YAML.replace(
+        "    model: yolo11x\n",
+        "    model: yolo11x\n    provider: openai_vlm\n",
+    )
+    with pytest.raises(ValueError, match="openai_vlm"):
+        load(tmp_path, bad)
+
+
+@pytest.mark.parametrize("options_yaml, match", [
+    ("      bogus_key: 1\n", "bogus_key"),
+    ("      max_tokens: 0\n", "max_tokens"),
+    ("      max_tokens: not-a-number\n", "max_tokens"),
+    ("      temperature: -1\n", "temperature"),
+    ("      timeout_s: 0\n", "timeout_s"),
+    ("      system_prompt: \"\"\n", "system_prompt"),
+])
+def test_bad_options_fail_load(tmp_path, options_yaml, match):
+    bad = BASE_YAML.replace(
+        "    model: qwen2.5-vl\n",
+        "    model: qwen2.5-vl\n    options:\n" + options_yaml,
+    )
+    with pytest.raises(ValueError, match=match):
+        load(tmp_path, bad)
+
+
+def test_options_accepted_without_provider_field(tmp_path):
+    # options is a delegate-tuning surface, not an openai_vlm exclusive.
+    ok = BASE_YAML.replace(
+        "    model: qwen2.5-vl\n",
+        "    model: qwen2.5-vl\n    options:\n      max_tokens: 128\n",
+    )
+    cfg = load(tmp_path, ok).config
+    assert cfg.analysis_delegates["vlm_caption"].options == {"max_tokens": 128}
+    assert cfg.analysis_delegates["vlm_caption"].provider == "stub"
+
+
+def test_provider_and_options_survive_export_save_reload(tmp_path):
+    # Spec: round-trip persistence is definition-of-done.
+    mgr = load(tmp_path, PROVIDER_YAML)
+    exported = mgr.to_dict()
+    d = exported["analysis_delegates"]["vlm_caption"]
+    assert d["provider"] == "openai_vlm"
+    assert d["options"]["max_tokens"] == 256
+    # Default-valued delegates omit the fields (clean exports).
+    assert "provider" not in exported["analysis_delegates"]["yolo_detect"]
+    assert "options" not in exported["analysis_delegates"]["yolo_detect"]
+
+    mgr.save_config(exported)
+    reloaded = mgr.config.analysis_delegates["vlm_caption"]
+    assert reloaded.provider == "openai_vlm"
+    assert reloaded.options["system_prompt"] == "Describe for a catalog."

@@ -72,6 +72,12 @@ class AnalysisConnectionConfig:
     api_key_env: str = "OPENAI_API_KEY"
 
 
+ANALYSIS_PROVIDERS = ("stub", "openai_vlm")
+
+# Known analysis delegate option keys; unknown keys fail config load.
+_ANALYSIS_OPTION_KEYS = ("max_tokens", "temperature", "timeout_s", "system_prompt")
+
+
 @dataclass
 class AnalysisDelegateConfig:
     """Named analyzer backend: connection + kind capability + model."""
@@ -79,6 +85,27 @@ class AnalysisDelegateConfig:
     connection: str  # key into analysis_connections
     kind: str        # closed TaskKind value; capability declaration
     model: str
+    provider: str = "stub"  # closed ANALYSIS_PROVIDERS value
+    options: Dict[str, Any] = field(default_factory=dict)
+
+
+def _analysis_delegate_to_dict(delegate: AnalysisDelegateConfig) -> Dict[str, Any]:
+    """Serialize a delegate for to_dict()/save_config().
+
+    Defaults are omitted (provider when 'stub', options when empty) —
+    omission parses back to the same effective config, keeping exports
+    clean while satisfying the round-trip persistence requirement.
+    """
+    d: Dict[str, Any] = {
+        "connection": delegate.connection,
+        "kind": delegate.kind,
+        "model": delegate.model,
+    }
+    if delegate.provider != "stub":
+        d["provider"] = delegate.provider
+    if delegate.options:
+        d["options"] = dict(delegate.options)
+    return d
 
 
 @dataclass
@@ -664,7 +691,50 @@ class ModeConfigManager:
         model = (raw.get("model") or "").strip()
         if not model:
             raise ValueError(f"Analysis delegate '{name}' missing required field: model")
-        return AnalysisDelegateConfig(name=name, connection=connection, kind=kind, model=model)
+        provider = (raw.get("provider") or "stub").strip()
+        if provider not in ANALYSIS_PROVIDERS:
+            raise ValueError(
+                f"Analysis delegate '{name}' has invalid provider '{provider}' "
+                f"(expected one of {sorted(ANALYSIS_PROVIDERS)})"
+            )
+        if provider == "openai_vlm" and kind != "caption":
+            raise ValueError(
+                f"Analysis delegate '{name}' sets provider 'openai_vlm' but kind "
+                f"'{kind}' — openai_vlm supports kind 'caption' only"
+            )
+        options = self._parse_analysis_options(name, raw.get("options"))
+        return AnalysisDelegateConfig(
+            name=name, connection=connection, kind=kind, model=model,
+            provider=provider, options=options,
+        )
+
+    def _parse_analysis_options(self, name: str, raw: Any) -> Dict[str, Any]:
+        """Validate a delegate options mapping. Unknown keys fail load."""
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError(f"Analysis delegate '{name}' options must be a mapping")
+        options: Dict[str, Any] = {}
+        for key, value in raw.items():
+            if key not in _ANALYSIS_OPTION_KEYS:
+                raise ValueError(
+                    f"Analysis delegate '{name}' has unknown option '{key}' "
+                    f"(expected one of {sorted(_ANALYSIS_OPTION_KEYS)})"
+                )
+            if key == "max_tokens":
+                if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                    raise ValueError(f"Analysis delegate '{name}' option max_tokens must be an int > 0")
+            elif key == "temperature":
+                if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+                    raise ValueError(f"Analysis delegate '{name}' option temperature must be a number >= 0")
+            elif key == "timeout_s":
+                if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+                    raise ValueError(f"Analysis delegate '{name}' option timeout_s must be a number > 0")
+            elif key == "system_prompt":
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(f"Analysis delegate '{name}' option system_prompt must be a non-empty string")
+            options[key] = value
+        return options
 
     def _parse_analysis_profile_config(
         self,
@@ -885,11 +955,7 @@ class ModeConfigManager:
             for name, raw in raw_analysis_delegates.items():
                 d = self._parse_analysis_delegate_config(name, raw, parsed_analysis_connections)
                 parsed_analysis_delegates[name] = d
-                yaml_data["analysis_delegates"][name] = {
-                    "connection": d.connection,
-                    "kind": d.kind,
-                    "model": d.model,
-                }
+                yaml_data["analysis_delegates"][name] = _analysis_delegate_to_dict(d)
 
         raw_analysis_profiles = data.get("analysis_profiles") or {}
         if not isinstance(raw_analysis_profiles, dict):
@@ -1005,11 +1071,7 @@ class ModeConfigManager:
                 for name, connection in self.config.analysis_connections.items()
             },
             "analysis_delegates": {
-                name: {
-                    "connection": delegate.connection,
-                    "kind": delegate.kind,
-                    "model": delegate.model,
-                }
+                name: _analysis_delegate_to_dict(delegate)
                 for name, delegate in self.config.analysis_delegates.items()
             },
             "analysis_profiles": {

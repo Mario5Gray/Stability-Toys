@@ -534,6 +534,48 @@ async def test_save_all_modes_preserves_analysis_sections_when_omitted():
     }
 
 
+async def test_save_all_modes_preserves_delegate_provider_and_options_when_omitted():
+    # Spec round-trip requirement (STABL-rylcqort): a bulk PUT that omits
+    # analysis sections must not strip provider/options from delegates.
+    config = Mock()
+    config.to_dict.return_value = {
+        "chat": {},
+        "analysis_connections": {"local_vlm": {"endpoint": "http://x:1/v1", "api_key_env": "K"}},
+        "analysis_delegates": {
+            "vlm_caption": {
+                "connection": "local_vlm", "kind": "caption", "model": "qwen2.5-vl",
+                "provider": "openai_vlm", "options": {"max_tokens": 256},
+            }
+        },
+        "analysis_profiles": {"default": {"task_routes": {"caption": "vlm_caption"}}},
+    }
+    pool = Mock()
+    pool.get_current_mode.return_value = None
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/loras",
+        "default_mode": "sdxl",
+        "resolution_sets": {
+            "default": [{"size": "512x512", "aspect_ratio": "1:1"}],
+        },
+        "modes": {
+            "sdxl": {
+                "model": "checkpoints/sdxl/model.safetensors",
+                "loras": [],
+                "default_size": "512x512",
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    delegate = config.save_config.call_args.args[0]["analysis_delegates"]["vlm_caption"]
+    assert delegate["provider"] == "openai_vlm"
+    assert delegate["options"] == {"max_tokens": 256}
+
+
 async def test_save_all_modes_accepts_explicit_analysis_sections():
     config = Mock()
     config.to_dict.return_value = {"chat": {}}
