@@ -9,11 +9,14 @@ from backends.analysis import (
     AnalysisOrchestrator,
     AnalysisValidationError,
     DescribeProvider,
+    OpenAIVLMCaptionProvider,
     StubProvider,
     parse_describe_request,
     response_to_dict,
 )
+from server.asset_store import get_store
 from server.mode_config import (
+    AnalysisConnectionConfig,
     AnalysisDelegateConfig,
     AnalysisProfileConfig,
     ModeConfigManager,
@@ -25,15 +28,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analysis"])
 
 
+def _resolve_asset(ref: str):
+    """Adapt the asset store to the provider's (bytes, media_type) contract."""
+    entry = get_store().resolve(ref)
+    return entry.data, entry.metadata.get("media_type", "image/png")
+
+
 def build_providers(
     profile: AnalysisProfileConfig,
     delegates: Mapping[str, AnalysisDelegateConfig],
+    connections: Mapping[str, AnalysisConnectionConfig],
 ) -> Dict[str, DescribeProvider]:
-    """Provider factory real providers can replace behind later."""
-    return {
-        delegate_name: StubProvider(kind=delegates[delegate_name].kind)
-        for delegate_name in profile.task_routes.values()
-    }
+    """Provider factory: selects the implementation per delegate.provider."""
+    providers: Dict[str, DescribeProvider] = {}
+    for delegate_name in profile.task_routes.values():
+        delegate = delegates[delegate_name]
+        if delegate.provider == "openai_vlm":
+            connection = connections[delegate.connection]
+            providers[delegate_name] = OpenAIVLMCaptionProvider(
+                endpoint=connection.endpoint,
+                api_key_env=connection.api_key_env,
+                model=delegate.model,
+                options=delegate.options,
+                asset_resolver=_resolve_asset,
+            )
+        else:
+            providers[delegate_name] = StubProvider(kind=delegate.kind)
+    return providers
 
 
 def _error(status_code: int, code: str, message: str) -> JSONResponse:
@@ -86,7 +107,11 @@ async def describe(request: Request):
 
         orchestrator = AnalysisOrchestrator(
             profile.task_routes,
-            build_providers(profile, manager.config.analysis_delegates),
+            build_providers(
+                profile,
+                manager.config.analysis_delegates,
+                manager.config.analysis_connections,
+            ),
         )
         response = await orchestrator.describe(describe_request)
         return response_to_dict(response)
