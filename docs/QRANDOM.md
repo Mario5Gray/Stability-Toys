@@ -157,6 +157,8 @@ This is the design, not an oversight: the intent is *sent* so it can be
 | `--intent "STRING"` | The performative intent (sent, then dropped). |
 | `--json` | Emit the full record: value, hex, bits, and provenance. |
 | `--sd-seed` | Reduce to a Stable Diffusion seed (see below). |
+| `--shift N` | Slide the `--sd-seed` capture window up N bits (see below). |
+| `--pick "P P ..."` | Capture specific bit positions in order, MSB-first (see below). |
 | `--fresh` | `ibm` only — force a new QPU job instead of drawing from the pool. |
 | `--help` | Guided help. |
 
@@ -218,6 +220,44 @@ Rules: `--shift` requires `--sd-seed`, must be `>= 0`, and must be less than the
 source width (`512` for `nist`, `64` for `anu`/`ibm`) — otherwise there are no
 bits left to capture and `qrng` exits non-zero. With `--json`, a non-zero shift
 is recorded in a `"shift"` field.
+
+### `--pick "P P ..."` — capture specific bit positions
+
+Where `--shift` slides a contiguous 32-bit window, `--pick` selects **individual
+bit positions in an arbitrary order** and packs them into the result. This is a
+separate capture mode from `--sd-seed` (the two are mutually exclusive).
+
+- **Indexing:** position `n` is the bit of significance `n` — bit `0` is the
+  LSB — the same convention as `--shift` (`bit = (value >> n) & 1`).
+- **Order & packing:** bits are read in the order listed and packed **MSB-first**
+  — the *first* position becomes the top bit of the result. The result is as
+  wide as the number of positions you list.
+- **Positions may repeat**, and the separator may be spaces or commas.
+
+```console
+$ qrng --source nist --pick "15 0 1 2 3 4 14"
+# reads bits 15,0,1,2,3,4,14 (MSB-first) -> a 7-bit value
+```
+
+Worked example on `value = 0x8000000000000001` (bit 63 = 1, bit 0 = 1, rest 0):
+
+```console
+$ qrng --source ibm --pick "63 0 62 1" --json
+{ ..., "pick_positions": [63, 0, 62, 1], "pick_width": 4, "pick": 12 }
+#   bit63=1, bit0=1, bit62=0, bit1=0  ->  0b1100  =  12
+```
+
+Rules: every position must be in `[0, width)` (`64` for `anu`/`ibm`, `512` for
+`nist`); a non-integer token, an out-of-range position, or an empty list exits
+non-zero. With `--json`, `pick_positions`, `pick_width`, and `pick` are added.
+
+> **Future direction — IBM temporal picks.** For `--source ibm`, a richer job is
+> possible: rather than picking positions out of one pooled measurement, write a
+> QPU program that *measures the selected qubit positions repeatedly over a
+> period of time* and assembles the seed from that temporal sequence. That is a
+> distinct circuit/runtime design (per-position measurement schedule, not a
+> single snapshot) and is not yet implemented — the current `--pick` operates on
+> the already-harvested source bits for every source uniformly.
 
 ## Environment
 

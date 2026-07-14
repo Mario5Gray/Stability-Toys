@@ -321,6 +321,10 @@ OUTPUT
   --shift N        Right-shift the source bits N times before the 32-bit
                    capture, sliding the window up. shift=0 takes the lowest 32
                    bits; e.g. --shift 32 takes the next 32. Needs --sd-seed.
+  --pick "P P ..." Capture only the named bit positions, in the given order,
+                   packed MSB-first into the result. Position n = bit of
+                   significance n (bit 0 = LSB), like --shift. First position
+                   listed becomes the top bit. Mutually exclusive with --sd-seed.
   --fresh          (ibm only) Force a new QPU job instead of drawing from pool.
   default          Print the integer seed on stdout.
 
@@ -340,7 +344,34 @@ EXAMPLES
   qrng --source nist --sd-seed
   qrng --source nist --sd-seed --shift 64
   qrng --source anu --sd-seed --json
+  qrng --source nist --pick "15 0 1 2 3 4 14"
 """
+
+
+def _parse_positions(spec: str) -> list[int]:
+    """Parse "15 0 1 2 3 4 14" (or comma-separated) into an ordered int list."""
+    tokens = spec.replace(",", " ").split()
+    if not tokens:
+        raise ValueError("no positions given")
+    out = []
+    for t in tokens:
+        try:
+            out.append(int(t))
+        except ValueError as e:
+            raise ValueError(f"not a bit position: {t!r}") from e
+    return out
+
+
+def _pick_bits(value: int, positions: list[int]) -> int:
+    """Read value's bits at the given positions, in order, packed MSB-first.
+
+    Position n selects bit-of-significance n (bit 0 = LSB), matching --shift.
+    The first position listed becomes the most-significant bit of the result.
+    """
+    result = 0
+    for p in positions:
+        result = (result << 1) | ((value >> p) & 1)
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -363,6 +394,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="N",
         help="right-shift source bits N times before capturing (with --sd-seed)",
+    )
+    p.add_argument(
+        "--pick",
+        metavar="POSITIONS",
+        default=None,
+        help='capture bit positions in order, MSB-first, e.g. "15 0 1 2 3 4 14"',
     )
     p.add_argument("--fresh", action="store_true", help="ibm: force a new job")
     p.add_argument("-h", "--help", action="store_true")
@@ -392,12 +429,34 @@ def main(argv: list[str]) -> int:
         print(f"qrng: {e}", file=sys.stderr)
         return 2
 
+    if args.pick is not None and args.sd_seed:
+        print("qrng: choose one capture mode: --pick or --sd-seed", file=sys.stderr)
+        return 1
     if args.shift and not args.sd_seed:
         print("qrng: --shift only applies with --sd-seed", file=sys.stderr)
         return 1
     if args.shift < 0:
         print("qrng: --shift must be >= 0", file=sys.stderr)
         return 1
+
+    if args.pick is not None:
+        try:
+            positions = _parse_positions(args.pick)
+        except ValueError as e:
+            print(f"qrng: --pick: {e}", file=sys.stderr)
+            return 1
+        width = record["bits"]
+        bad = [p for p in positions if p < 0 or p >= width]
+        if bad:
+            print(
+                f"qrng: --pick: position(s) out of range for {width}-bit source: "
+                f"{' '.join(map(str, bad))}",
+                file=sys.stderr,
+            )
+            return 1
+        record["pick_positions"] = positions
+        record["pick_width"] = len(positions)
+        record["pick"] = _pick_bits(record["value"], positions)
 
     if args.sd_seed:
         # Slide the 32-bit capture window up by --shift, then keep those bits.
@@ -415,9 +474,13 @@ def main(argv: list[str]) -> int:
 
     if args.json:
         print(json.dumps(record, indent=2))
+    elif args.pick is not None:
+        print(record["pick"])
+    elif args.sd_seed:
+        print(record["sd_seed"])
     else:
         # The seed. Intent is not in it; it never was.
-        print(record["sd_seed"] if args.sd_seed else record["value"])
+        print(record["value"])
     return 0
 
 
