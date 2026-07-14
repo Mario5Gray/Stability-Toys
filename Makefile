@@ -1,12 +1,26 @@
 include Makefile.test
 
 .PHONY: install
-install: install-st install-controlnet-scripts ## Install all production targets
+install: install-st install-controlnet-scripts install-qrng ## Install all production targets
 
 .PHONY: install-st
 install-st: ## Install the st CLI to ~/.local/bin
 	mkdir -p ~/.local/bin
 	cd cli/go && go build -o ~/.local/bin/st ./cmd/st
+
+.PHONY: install-qrng
+install-qrng: ## Install the qrng quantum-seed script to ~/.local/bin (symlink; edits stay live)
+	mkdir -p ~/.local/bin
+	chmod +x $(CURDIR)/qrandom
+	ln -sf $(CURDIR)/qrandom ~/.local/bin/qrng
+
+.PHONY: install-qrng-ibm
+install-qrng-ibm: install-qrng ## Also install qiskit for qrng --source ibm
+	pip install "qiskit>=1.0" qiskit-ibm-runtime
+
+.PHONY: uninstall-qrng
+uninstall-qrng: ## Remove the qrng symlink from ~/.local/bin
+	rm -f ~/.local/bin/qrng
 
 .PHONY: install-controlnet-scripts
 install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|all])
