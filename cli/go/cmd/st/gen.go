@@ -20,6 +20,8 @@ import (
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
 
+const uploadAssetTTLSeconds = 300
+
 // gen command flag backing vars (pointer-or-nil resolved via flag.Changed).
 var (
 	genPrompt          string
@@ -639,6 +641,7 @@ func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, param
 	jobID, res, err := client.Generate(ctx, params, onAck, onProgress)
 	_ = jobID // surfaced to caller via onAck; reserved for future st watch composition
 	if err != nil {
+		writeExpiredAssetRefAdvisory(cmd, err)
 		return err
 	}
 	params["seed"] = res.Seed
@@ -672,6 +675,42 @@ func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, param
 	}
 
 	return printGenResult(cmd, path, res)
+}
+
+func writeExpiredAssetRefAdvisory(cmd *cobra.Command, err error) {
+	if !isExpiredAssetRefError(err) {
+		return
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), `
+asset advisory:
+  An asset ref from history/conflation is no longer available.
+  Upload refs are temporary by default and expire after %d seconds.
+  If you expect to reuse asset refs across longer conflation or replay sessions,
+  run the backend with asset persistence enabled and retention configured:
+
+    ASSET_STORE_PROVIDER=FILESYSTEM
+    FS_STORAGE_DIR=/data/image-cache
+    FS_STORAGE_TTL_S=604800
+    FS_STORAGE_CLEANUP_INTERVAL_S=3600
+
+  Tiered asset persistence is server-side infrastructure in v1; v1 does not expose a public promote endpoint or st asset promote command.
+  If this ref has already expired, re-upload the original asset and start from a fresh baseline.
+
+`, uploadAssetTTLSeconds)
+}
+
+func isExpiredAssetRefError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "file ref expired") {
+		return true
+	}
+	if strings.Contains(msg, "asset ref") && strings.Contains(msg, "not found or evicted") {
+		return true
+	}
+	return strings.Contains(msg, "asset") && strings.Contains(msg, "expired")
 }
 
 // resolveControlImages uploads each --control-image entry and appends the

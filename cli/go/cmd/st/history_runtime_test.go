@@ -209,10 +209,23 @@ func TestInheritedExpiredRefsFailWithoutFallback(t *testing.T) {
 	srv, captured := newScriptedGenServer(t, genReply{Error: "file ref expired"}, genReply{Error: "file ref expired"})
 	defer srv.Close()
 	cfg := writeTestConfig(t, t.TempDir())
-	_, _, conflateErr := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "--cfg", "5")
-	_, _, replayErr := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "replay", "1")
+	_, conflateStderr, conflateErr := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "--cfg", "5")
+	_, replayStderr, replayErr := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "replay", "1")
 	if conflateErr == nil || replayErr == nil || len(*captured) != 2 {
 		t.Fatalf("conflate=%v replay=%v captured=%#v", conflateErr, replayErr, *captured)
+	}
+	for name, stderr := range map[string]string{"conflate": conflateStderr, "replay": replayStderr} {
+		for _, want := range []string{
+			"asset ref from history/conflation is no longer available",
+			"Upload refs are temporary by default and expire after 300 seconds",
+			"ASSET_STORE_PROVIDER=FILESYSTEM",
+			"FS_STORAGE_TTL_S=604800",
+			"v1 does not expose a public promote endpoint",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("%s stderr missing %q:\n%s", name, want, stderr)
+			}
+		}
 	}
 	for _, request := range *captured {
 		if request["init_image_ref"] != "expired-R1" {
