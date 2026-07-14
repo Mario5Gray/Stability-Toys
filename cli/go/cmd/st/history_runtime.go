@@ -29,6 +29,7 @@ type invocationState struct {
 
 type invocationResult struct {
 	params                map[string]any
+	displaySeed           *string
 	derivedFromHistoryID  *int64
 	replayedFromHistoryID *int64
 	policySnapshot        *history.PolicySnapshot
@@ -198,10 +199,11 @@ func appendHistory(ctx context.Context, state *invocationState, started time.Tim
 		Error:         summary,
 	}
 	if state.final != nil {
+		displayParams := displayParamsWithSeedIntent(state.final.params, state.final.displaySeed)
 		entry.Family = history.FamilyGen
 		entry.Effective = &history.CommandView{
-			Argv:    history.CanonicalGenArgv(state.final.params),
-			Display: history.CanonicalGenDisplay(state.final.params),
+			Argv:    history.CanonicalGenArgv(displayParams),
+			Display: history.CanonicalGenDisplay(displayParams),
 			Params:  history.CloneParams(state.final.params),
 		}
 		entry.DerivedFromHistoryID = state.final.derivedFromHistoryID

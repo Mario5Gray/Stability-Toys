@@ -582,16 +582,35 @@ func runPatchedGen(cmd *cobra.Command, patch genPatch) error {
 		return err
 	}
 	return executeResolvedGen(cmd, cfg, patch.Args, params, func(final stclient.GenParams) {
-		state.final = &invocationResult{params: final, policySnapshot: snapshot}
+		displaySeed := explicitSeedDisplayIntent(patch.Args)
+		state.final = &invocationResult{params: final, displaySeed: displaySeed, policySnapshot: snapshot}
 		if baseline == nil {
 			return
 		}
 		state.final.derivedFromHistoryID = &baseline.ID
 		if !genQuiet {
 			fmt.Fprintf(cmd.ErrOrStderr(), "initial command [id=%d]: %s\n", baseline.ID, baseline.Effective.Display)
-			fmt.Fprintf(cmd.ErrOrStderr(), "next command [id=%d]: %s\n", state.id, history.CanonicalGenDisplay(final))
+			fmt.Fprintf(cmd.ErrOrStderr(), "next command [id=%d]: %s\n", state.id, history.CanonicalGenDisplay(displayParamsWithSeedIntent(final, displaySeed)))
 		}
 	})
+}
+
+func explicitSeedDisplayIntent(a genArgs) *string {
+	if a.Seed == nil || *a.Seed == "" {
+		return nil
+	}
+	seed := *a.Seed
+	return &seed
+}
+
+func displayParamsWithSeedIntent(params map[string]any, displaySeed *string) map[string]any {
+	displayParams := history.CloneParams(params)
+	if displaySeed != nil {
+		if _, ok := displayParams["seed"]; !ok {
+			displayParams["seed"] = *displaySeed
+		}
+	}
+	return displayParams
 }
 
 func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, params stclient.GenParams, beforeSubmit func(stclient.GenParams)) error {

@@ -161,6 +161,43 @@ func TestPinnedBaselineAndDiagnosticsStayFixed(t *testing.T) {
 	}
 }
 
+func TestExplicitRandomSeedIsVisibleBeforeAsyncGeneration(t *testing.T) {
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	ctx := context.Background()
+	baseID, _ := store.ReserveID(ctx)
+	_ = store.Append(ctx, replayableEntry(baseID, map[string]any{"prompt": "owl", "seed": int64(99)}, 0))
+	if _, _, err := runCmdCaptureWithStateRoot(t, root, "conflate", fmt.Sprintf("history:%d", baseID)); err != nil {
+		t.Fatal(err)
+	}
+	srv, captured := newScriptedGenServer(t, genReply{Error: "failed before concrete seed"})
+	defer srv.Close()
+	cfg := writeTestConfig(t, t.TempDir())
+	_, stderr, err := runCmdCaptureWithStateRoot(t, root, "--server", srv.URL, "--config", cfg, "--seed", "random")
+	if err == nil {
+		t.Fatal("expected generation failure")
+	}
+	if !strings.Contains(stderr, "next command [id=3]:") || !strings.Contains(stderr, "--seed random") {
+		t.Fatalf("stderr omitted explicit random seed intent: %q", stderr)
+	}
+	if len(*captured) != 1 {
+		t.Fatalf("captured requests = %#v", *captured)
+	}
+	if _, ok := (*captured)[0]["seed"]; ok {
+		t.Fatalf("random seed should not be sent as a concrete backend seed: %#v", (*captured)[0])
+	}
+	entry, err := store.Get(ctx, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.Effective == nil || !strings.Contains(entry.Effective.Display, "--seed random") {
+		t.Fatalf("failed history display omitted seed intent: %#v", entry.Effective)
+	}
+	if _, ok := entry.Effective.Params["seed"]; ok {
+		t.Fatalf("effective params should preserve backend request shape: %#v", entry.Effective.Params)
+	}
+}
+
 func TestConflateConfirmationUsesStdout(t *testing.T) {
 	stdout, stderr, err := runCmdCaptureWithStateRoot(t, t.TempDir(), "conflate", "on")
 	if err != nil {
