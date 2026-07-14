@@ -58,6 +58,40 @@ func TestBuildGenParamsControlnetsJSON(t *testing.T) {
 	}
 }
 
+func TestBuildGenParamsControlRef(t *testing.T) {
+	args := genArgs{
+		Prompt:          "x",
+		ControlRefs:     []string{"canny:fileref:M1"},
+		ControlStrength: f64p(0.8),
+	}
+	p, err := buildGenParams(nil, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, ok := p["controlnets"].([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("controlnets: %+v", p["controlnets"])
+	}
+	entry, _ := list[0].(map[string]any)
+	if entry["control_type"] != "canny" || entry["map_asset_ref"] != "fileref:M1" {
+		t.Fatalf("entry: %+v", entry)
+	}
+	if entry["strength"] != 0.8 {
+		t.Fatalf("strength = %v, want 0.8", entry["strength"])
+	}
+	if entry["attachment_id"] == "" {
+		t.Fatalf("attachment_id must not be empty: %+v", entry)
+	}
+}
+
+func TestBuildGenParamsControlRefRequiresTypePrefix(t *testing.T) {
+	args := genArgs{Prompt: "x", ControlRefs: []string{":fileref:M1"}}
+	_, err := buildGenParams(nil, args)
+	if err == nil || !strings.Contains(err.Error(), "missing control_type") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 // TestGenWritesOutputFile is the end-to-end spine: gen submits over WS, fetches
 // the storage bytes, and writes them to the auto-incremented output path.
 func TestGenWritesOutputFile(t *testing.T) {
@@ -214,7 +248,7 @@ func resetCLIFlagState() {
 	genSteps, genSkipStep, genSR = 0, 0, 0
 	genCfg, genControlStrength = 0, 0
 	genStream, genQuiet = false, false
-	genControlnets, genControlImages = nil, nil
+	genControlnets, genControlRefs, genControlImages = nil, nil, nil
 	conflateInclusive, conflateExitCodes = nil, nil
 	describeOpts = describeOptions{}
 

@@ -38,6 +38,7 @@ var (
 	genRecreate        string
 	genControlnets     []string
 	genControlnetFile  string
+	genControlRefs     []string
 	genControlImages   []string
 	genControlStrength float64
 	genOutfile         string
@@ -63,6 +64,7 @@ type genArgs struct {
 	Recreate        string
 	Controlnets     []string
 	ControlnetFile  string
+	ControlRefs     []string
 	ControlImages   []string
 	ControlStrength *float64
 	Outfile         string
@@ -104,6 +106,7 @@ type genFlagValues struct {
 	Recreate        string
 	Controlnets     []string
 	ControlnetFile  string
+	ControlRefs     []string
 	ControlImages   []string
 	ControlStrength float64
 	Outfile         string
@@ -183,8 +186,9 @@ func bindGenFlags(f *pflag.FlagSet, v *genFlagValues) {
 	f.StringVar(&v.Recreate, "recreate", "", "local PNG whose lcm params seed this generation (recipe only)")
 	f.StringArrayVar(&v.Controlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
 	f.StringVar(&v.ControlnetFile, "controlnet-file", "", "ControlNetAttachment JSON file (merged with --controlnet entries)")
+	f.StringArrayVar(&v.ControlRefs, "control-ref", nil, "reuse a control map ref directly: type:<asset-ref> (repeatable)")
 	f.StringArrayVar(&v.ControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
-	f.Float64Var(&v.ControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-image attachments (0.0-2.0; unset = mode default)")
+	f.Float64Var(&v.ControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-ref/--control-image attachments (0.0-2.0; unset = mode default)")
 	f.StringVar(&v.Outfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&v.Stream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&v.Quiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -196,6 +200,7 @@ func genArgsFromFlagSet(f *pflag.FlagSet, v genFlagValues, args []string) genArg
 		Recreate:       v.Recreate,
 		Controlnets:    v.Controlnets,
 		ControlnetFile: v.ControlnetFile,
+		ControlRefs:    v.ControlRefs,
 		ControlImages:  v.ControlImages,
 		Outfile:        v.Outfile,
 	}
@@ -245,7 +250,7 @@ func changedGenFlags(f *pflag.FlagSet) map[string]bool {
 	for _, name := range []string{
 		"prompt", "negative", "size", "steps", "skip-step", "cfg", "seed",
 		"scheduler", "mode", "sr", "init-image", "recreate", "controlnet",
-		"controlnet-file", "control-image", "control-strength", "outfile", "stream", "quiet",
+		"controlnet-file", "control-ref", "control-image", "control-strength", "outfile", "stream", "quiet",
 	} {
 		if f.Changed(name) {
 			changed[name] = true
@@ -323,8 +328,9 @@ func init() {
 	f.StringVar(&genRecreate, "recreate", "", "local PNG whose lcm params seed this generation (recipe only)")
 	f.StringArrayVar(&genControlnets, "controlnet", nil, "ControlNetAttachment as JSON (repeatable)")
 	f.StringVar(&genControlnetFile, "controlnet-file", "", "ControlNetAttachment JSON file (merged with --controlnet entries)")
+	f.StringArrayVar(&genControlRefs, "control-ref", nil, "reuse a control map ref directly: type:<asset-ref> (repeatable)")
 	f.StringArrayVar(&genControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
-	f.Float64Var(&genControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-image attachments (0.0-2.0; unset = mode default)")
+	f.Float64Var(&genControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-ref/--control-image attachments (0.0-2.0; unset = mode default)")
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -350,6 +356,7 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 		Recreate:        genRecreate,
 		Controlnets:     genControlnets,
 		ControlnetFile:  genControlnetFile,
+		ControlRefs:     genControlRefs,
 		ControlImages:   genControlImages,
 		ControlStrength: genControlStrength,
 		Outfile:         genOutfile,
@@ -442,7 +449,7 @@ func buildGenParamsWithBaseline(cfg *config.Config, a genArgs, baseline stclient
 		p["init_image_ref"] = ref
 	}
 
-	if changed["controlnet"] || changed["controlnet-file"] || changed["control-image"] {
+	if changed["controlnet"] || changed["controlnet-file"] || changed["control-ref"] || changed["control-image"] {
 		delete(p, "controlnets")
 		if err := applyCurrentControlnetInputs(cfg, a, p); err != nil {
 			return nil, err
@@ -471,7 +478,7 @@ func loadCurrentBakedParams(a genArgs) (map[string]any, error) {
 }
 
 func applyCurrentControlnetInputs(cfg *config.Config, a genArgs, p stclient.GenParams) error {
-	cns := make([]any, 0, len(a.Controlnets)+1)
+	cns := make([]any, 0, len(a.Controlnets)+len(a.ControlRefs)+1)
 	for _, raw := range a.Controlnets {
 		if presetName, ok := strings.CutPrefix(raw, "@"); ok {
 			var preset config.ControlnetPreset
@@ -489,6 +496,24 @@ func applyCurrentControlnetInputs(cfg *config.Config, a genArgs, p stclient.GenP
 			return fmt.Errorf("--controlnet %q: %w", raw, err)
 		}
 		cns = append(cns, cn)
+	}
+	for _, raw := range a.ControlRefs {
+		controlType, mapAssetRef := parseControlRefArg(raw)
+		if controlType == "" {
+			return fmt.Errorf("--control-ref %q: missing control_type prefix (use type:<asset-ref>, e.g. canny:fileref:MAP1)", raw)
+		}
+		if mapAssetRef == "" {
+			return fmt.Errorf("--control-ref %q: missing asset ref", raw)
+		}
+		attachment := map[string]any{
+			"attachment_id": fmt.Sprintf("ctrl-%d", len(cns)),
+			"control_type":  controlType,
+			"map_asset_ref": mapAssetRef,
+		}
+		if a.ControlStrength != nil {
+			attachment["strength"] = *a.ControlStrength
+		}
+		cns = append(cns, attachment)
 	}
 	if a.ControlnetFile != "" {
 		data, err := os.ReadFile(a.ControlnetFile)
@@ -512,6 +537,7 @@ func inferChangedInputs(a genArgs) map[string]bool {
 		"init-image":      a.InitImage != "",
 		"controlnet":      len(a.Controlnets) > 0,
 		"controlnet-file": a.ControlnetFile != "",
+		"control-ref":     len(a.ControlRefs) > 0,
 		"control-image":   len(a.ControlImages) > 0,
 	}
 }
@@ -738,6 +764,7 @@ func isExpiredAssetRefError(err error) bool {
 // because control_type is required by the server.
 func resolveControlImages(ctx context.Context, client *stclient.Client, entries []string, strength *float64, params stclient.GenParams) error {
 	cns, _ := params["controlnets"].([]any)
+	baseIndex := len(cns)
 	for i, entry := range entries {
 		bucket, filePath := parseUploadArg(entry)
 		if bucket == "" {
@@ -752,7 +779,7 @@ func resolveControlImages(ctx context.Context, client *stclient.Client, entries 
 			return fmt.Errorf("--control-image %q: upload: %w", entry, err)
 		}
 		attachment := map[string]any{
-			"attachment_id": fmt.Sprintf("ctrl-%d", i),
+			"attachment_id": fmt.Sprintf("ctrl-%d", baseIndex+i),
 			"control_type":  bucket,
 			"map_asset_ref": ref,
 		}
@@ -765,6 +792,14 @@ func resolveControlImages(ctx context.Context, client *stclient.Client, entries 
 	}
 	params["controlnets"] = cns
 	return nil
+}
+
+func parseControlRefArg(arg string) (controlType, ref string) {
+	before, after, ok := strings.Cut(arg, ":")
+	if !ok {
+		return "", ""
+	}
+	return before, after
 }
 
 func clientMeta(cfg *config.Config, res *stclient.Result) string {

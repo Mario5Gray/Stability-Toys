@@ -243,7 +243,24 @@ Generation overrides and positional prompt text are rejected for replay. Use
 Server/operator setup lives in [`../../CONTROLNET.md`](../../CONTROLNET.md): required model families, `conf/modes.yml` policy, `conf/controlnets.yaml` registry, and backend support boundary.
 
 Each `--controlnet` value is a JSON object matching the `ControlNetAttachment` schema.
-Repeat the flag for multiple attachments. Three ways to supply an attachment:
+Repeat the flag for multiple attachments. Four ways to supply an attachment:
+
+### Direct ref reuse (`--control-ref`)
+
+Use this when you already have a control-map asset ref and just want to reuse it
+through bare CLI flags:
+
+```bash
+MAP_REF=$(st upload canny:./canny-map.png)
+
+st gen "an owl in a forest" \
+  --control-ref "canny:$MAP_REF"
+
+# Apply one explicit strength across all --control-ref / --control-image attachments:
+st gen "an owl in a forest" \
+  --control-ref "canny:$MAP_REF" \
+  --control-strength 0.8
+```
 
 ### Inline JSON
 
@@ -318,13 +335,13 @@ Two attachment variants — use exactly one:
 
 ### Combined with img2img
 
-`--init-image` and `--controlnet`/`--controlnet-file` can be given together — the
+`--init-image` and `--control-ref`/`--controlnet`/`--controlnet-file` can be given together — the
 request carries both `init_image_ref` and `controlnets`:
 
 ```bash
 st gen "an owl in watercolor style" \
   --init-image ./sketch.png \
-  --controlnet "{\"attachment_id\":\"cn-1\",\"control_type\":\"canny\",\"map_asset_ref\":\"$MAP_REF\"}"
+  --control-ref "canny:$MAP_REF"
 ```
 
 Backend support is capability-gated: the combination executes when the backend

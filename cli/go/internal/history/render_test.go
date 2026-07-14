@@ -43,6 +43,53 @@ func TestCanonicalGenArgvNormalizesPromptAndStableOrder(t *testing.T) {
 	}
 }
 
+func TestCanonicalGenArgvRendersExpressibleControlRefs(t *testing.T) {
+	params := map[string]any{
+		"prompt": "horse bartender",
+		"controlnets": []any{
+			map[string]any{
+				"attachment_id": "ctrl-0",
+				"control_type":  "canny",
+				"map_asset_ref": "fileref:M1",
+				"strength":      0.8,
+			},
+		},
+	}
+	got := CanonicalGenArgv(params)
+	want := []string{
+		"st", "gen",
+		"--prompt", "horse bartender",
+		"--control-ref", "canny:fileref:M1",
+		"--control-strength", "0.8",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("argv = %#v, want %#v", got, want)
+	}
+}
+
+func TestCanonicalGenArgvFallsBackToControlnetJSONForUnexposedFields(t *testing.T) {
+	params := map[string]any{
+		"prompt": "horse bartender",
+		"controlnets": []any{
+			map[string]any{
+				"attachment_id": "ctrl-0",
+				"control_type":  "canny",
+				"map_asset_ref": "fileref:M1",
+				"start_percent": 0.25,
+			},
+		},
+	}
+	got := CanonicalGenArgv(params)
+	want := []string{
+		"st", "gen",
+		"--prompt", "horse bartender",
+		"--controlnet", "{\"attachment_id\":\"ctrl-0\",\"control_type\":\"canny\",\"map_asset_ref\":\"fileref:M1\",\"start_percent\":0.25}",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("argv = %#v, want %#v", got, want)
+	}
+}
+
 func TestSelectorSnapshotForPinnedHistory(t *testing.T) {
 	got := SnapshotSelector(Selector{Kind: SelectorHistory, HistoryID: 12345})
 	want := &PolicySnapshot{Selector: "history", HistoryID: 12345}
