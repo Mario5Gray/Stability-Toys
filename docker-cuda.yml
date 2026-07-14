@@ -9,7 +9,7 @@ services:
       args:
         BACKEND: cuda
         GIT_SHA: ${GIT_SHA:-dev}
-    image: harbor.lan/lcm-sd-ui:latest
+    image: harbor.lan/lcm-sd:latest
     security_opt:
       - label:disable
     privileged: true
