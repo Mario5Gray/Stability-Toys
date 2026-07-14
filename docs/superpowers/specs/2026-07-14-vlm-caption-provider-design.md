@@ -157,6 +157,31 @@ analysis_delegates:
   delegate-tuning surface, not an `openai_vlm` exclusive), but only
   `openai_vlm` consumes it in this track; `StubProvider` ignores it.
 
+### Round-trip persistence (required)
+
+`provider` and `options` MUST survive every config write path, or a later
+save silently erases the provider policy — the exact defect class the
+contract track's review caught for the `analysis_*` sections themselves.
+Current code serializes `analysis_delegates` as only
+`connection`/`kind`/`model` in both `to_dict()` and `save_config()`'s
+yaml rebuild (`server/mode_config.py`), so this track must extend all of:
+
+- `ModeConfigManager.to_dict()` — emit `provider` and `options` on each
+  delegate. To keep exports clean, defaults may be omitted (`provider`
+  omitted when `stub`, `options` omitted when empty), since omission
+  parses back to the same effective config.
+- `save_config()`'s `yaml_data` rebuild — same emission rules.
+- The bulk `PUT /api/modes` path (`ModesBulkSaveRequest` /
+  `save_all_modes` in `server/model_routes.py`) — the analysis sections it
+  round-trips must carry the new fields through both the
+  omitted-backfill and explicit-payload branches.
+
+Regression tests are part of this track's definition of done: a config
+with `provider: openai_vlm` + populated `options` must survive
+(1) `to_dict()` → `save_config()` → reload, and (2) a bulk
+`PUT /api/modes` that omits the analysis sections, with the effective
+provider selection identical afterward.
+
 ## Provider Selection (`build_providers`)
 
 `build_providers` in `server/analysis_routes.py` gains access to
@@ -194,6 +219,13 @@ in `run()`.
   raw_output in the run; one failed VLM call among two runs yields
   `partial` (proves per-run isolation through the real provider). Existing
   stub-based tests run unmodified — that is the back-compat proof.
+  **At least one of these integration cases must exercise the real
+  `build_providers` switch unpatched** — the test injects the mock at the
+  httpx-transport level (not by patching the provider factory), so the
+  delegate-config → provider-class selection path is what's under test.
+- **Config round-trip tests** (per Round-trip persistence above):
+  `to_dict()`/`save_config()`/reload and bulk `PUT /api/modes`
+  omitted-backfill both preserve `provider` + `options`.
 - **Live verification** against the real `node2.lan` VLM endpoint:
   deferred to the human, mirroring the compel track's docs/live
   verification split. Not a test-suite concern.
@@ -211,7 +243,10 @@ in `run()`.
 
 ## Implementation Order (input to the plan)
 
-1. Config: `provider` + `options` parsing and load-time validation.
+1. Config: `provider` + `options` parsing, load-time validation, **and
+   round-trip persistence** (`to_dict()`, `save_config()`, bulk
+   `PUT /api/modes`) with regression tests.
 2. VLM client with MockTransport-tested payload/auth/response handling.
 3. Provider: image-part building, prompting, response mapping, failures.
-4. `build_providers` switch + endpoint integration tests.
+4. `build_providers` switch + endpoint integration tests (including the
+   unpatched-factory case).
