@@ -130,7 +130,7 @@ async def get_models_status(request: Request):
     return {
         "backend": provider.backend_id,
         "backend_version": backend_version,
-        "current_mode": runtime.get_current_mode(),
+        "current_mode": current_mode,
         "is_loaded": runtime.is_model_loaded(),
         "queue_size": runtime.get_queue_size(),
         "capabilities": {
