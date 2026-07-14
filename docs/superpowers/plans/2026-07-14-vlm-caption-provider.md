@@ -34,7 +34,7 @@
 
 **Interfaces:**
 - Consumes: existing `AnalysisDelegateConfig`, `_parse_analysis_delegate_config`, `BASE_YAML`/`load()` fixtures in `tests/test_analysis_mode_config.py`.
-- Produces (Task 4 relies on these): `AnalysisDelegateConfig.provider: str` (`"stub"` default), `AnalysisDelegateConfig.options: Dict[str, Any]` (empty default, keys validated against `max_tokens`/`temperature`/`timeout_s`/`system_prompt`); module constants `ANALYSIS_PROVIDERS = ("stub", "openai_vlm")`.
+- Produces (Task 5 relies on these): `AnalysisDelegateConfig.provider: str` (`"stub"` default), `AnalysisDelegateConfig.options: Dict[str, Any]` (empty default, keys validated against `max_tokens`/`temperature`/`timeout_s`/`system_prompt`); module constants `ANALYSIS_PROVIDERS = ("stub", "openai_vlm")`.
 
 - [ ] **Step 1: Write failing parse/validation tests**
 
@@ -314,7 +314,7 @@ git commit -m "feat(analysis): delegate provider/options config with round-trip 
 
 **Interfaces:**
 - Consumes: nothing project-internal (httpx only).
-- Produces (Task 3 relies on this): `VLMChatClient(endpoint: str, api_key_env: str, timeout_s: float, transport: Optional[httpx.BaseTransport] = None)` with `async def complete(self, *, model: str, messages: list, max_tokens: int, temperature: float) -> Dict[str, Any]` returning the parsed full response dict.
+- Produces (Task 4 relies on this): `VLMChatClient(endpoint: str, api_key_env: str, timeout_s: float, transport: Optional[httpx.BaseTransport] = None)` with `async def complete(self, *, model: str, messages: list, max_tokens: int, temperature: float) -> Dict[str, Any]` returning the parsed full response dict.
 
 - [ ] **Step 1: Write failing client tests**
 
@@ -487,62 +487,43 @@ git commit -m "feat(analysis): multimodal VLM chat client returning full respons
 
 ---
 
-### Task 3: `OpenAIVLMCaptionProvider`
+### Task 3: Caption message assembly (pure functions)
 
 **Files:**
-- Create: `backends/analysis/vlm_caption.py`
+- Create: `backends/analysis/vlm_caption.py` (assembly half only — no provider class yet)
 - Create: `tests/test_analysis_vlm_caption.py`
-- Modify: `backends/analysis/__init__.py` (export `OpenAIVLMCaptionProvider`)
 
 **Interfaces:**
-- Consumes: Task 2's `VLMChatClient`; existing `ProviderRun`/`ProviderResult`/`TextObservation`/`DescribeObservation`/`TaskKind` from the package.
-- Produces (Task 4 relies on this): `OpenAIVLMCaptionProvider(endpoint: str, api_key_env: str, model: str, options: Mapping[str, Any], asset_resolver: Callable[[str], Tuple[bytes, str]], transport: Optional[httpx.BaseTransport] = None)` implementing the `DescribeProvider` protocol. `asset_resolver(ref)` returns `(image_bytes, media_type)` and may raise.
+- Consumes: existing `ProviderRun`/`DescribeTarget`/`CaptionParams` from the package. No HTTP, no async — this task is pure.
+- Produces (Task 4 relies on these): module constants `DEFAULT_MAX_TOKENS = 512`, `DEFAULT_TEMPERATURE = 0.2`, `DEFAULT_TIMEOUT_S = 60.0`, `DEFAULT_SYSTEM_PROMPT`; `AssetResolver = Callable[[str], Tuple[bytes, str]]`; `build_image_part(target: DescribeTarget, asset_resolver: AssetResolver) -> Dict[str, Any]`; `build_caption_messages(provider_run: ProviderRun, options: Mapping[str, Any], asset_resolver: AssetResolver) -> List[Dict[str, Any]]`.
 
-- [ ] **Step 1: Write failing provider tests**
+- [ ] **Step 1: Write failing assembly tests**
 
 `tests/test_analysis_vlm_caption.py`:
 
 ```python
-"""Tests for OpenAIVLMCaptionProvider."""
+"""Tests for VLM caption message assembly and provider."""
 import base64
-import json
 
-import httpx
 import pytest
 
 from backends.analysis import (
     CaptionParams,
     DescribeTarget,
     DescribeTask,
-    DetectParams,
     TaskKind,
 )
 from backends.analysis.orchestrator import RunPlan
 from backends.analysis.providers import ProviderRun
-from backends.analysis.vlm_caption import OpenAIVLMCaptionProvider
-
-RESPONSE = {
-    "id": "cmpl-1",
-    "choices": [{"message": {"role": "assistant", "content": "a red bicycle"}}],
-    "usage": {"total_tokens": 42},
-}
+from backends.analysis.vlm_caption import (
+    DEFAULT_SYSTEM_PROMPT,
+    build_caption_messages,
+    build_image_part,
+)
 
 
-def _provider(capture=None, response=None, status=200, **kwargs):
-    def handler(request: httpx.Request) -> httpx.Response:
-        if capture is not None:
-            capture["payload"] = json.loads(request.content)
-        return httpx.Response(status, json=response if response is not None else RESPONSE)
-    defaults = dict(
-        endpoint="http://vlm.lan:8080/v1",
-        api_key_env="TEST_VLM_KEY",
-        model="qwen2.5-vl",
-        options={},
-        asset_resolver=lambda ref: (b"png-bytes", "image/png"),
-        transport=httpx.MockTransport(handler),
-    )
-    defaults.update(kwargs)
-    return OpenAIVLMCaptionProvider(**defaults)
+def _resolver(ref):
+    return b"png-bytes", "image/png"
 
 
 def _run(target, prompt=None):
@@ -564,38 +545,191 @@ def _ref_target():
     return DescribeTarget(id="t1", asset_ref="Rabc123")
 
 
-async def test_run_url_target_passes_url_through():
+def test_image_part_url_target_passes_url_through():
+    part = build_image_part(_url_target(), _resolver)
+    assert part == {"type": "image_url", "image_url": {"url": "http://images/a.png"}}
+
+
+def test_image_part_asset_ref_embeds_base64_data_uri():
+    part = build_image_part(_ref_target(), _resolver)
+    expected = "data:image/png;base64," + base64.b64encode(b"png-bytes").decode()
+    assert part == {"type": "image_url", "image_url": {"url": expected}}
+
+
+def test_image_part_resolver_failure_propagates():
+    def failing_resolver(ref):
+        raise KeyError(f"no such ref {ref}")
+    with pytest.raises(KeyError):
+        build_image_part(_ref_target(), failing_resolver)
+
+
+def test_messages_shape_system_then_user_with_image():
+    messages = build_caption_messages(_run(_url_target()), {}, _resolver)
+    assert [m["role"] for m in messages] == ["system", "user"]
+    assert messages[0]["content"] == DEFAULT_SYSTEM_PROMPT
+    assert messages[1]["content"] == [
+        {"type": "image_url", "image_url": {"url": "http://images/a.png"}},
+    ]
+
+
+def test_messages_include_caller_prompt_as_text_part_only_when_set():
+    messages = build_caption_messages(
+        _run(_url_target(), prompt="focus on lighting"), {}, _resolver,
+    )
+    assert {"type": "text", "text": "focus on lighting"} in messages[1]["content"]
+
+    messages = build_caption_messages(_run(_url_target()), {}, _resolver)
+    assert all(p["type"] != "text" for p in messages[1]["content"])
+
+
+def test_messages_system_prompt_overridable_via_options():
+    messages = build_caption_messages(
+        _run(_url_target()), {"system_prompt": "catalog style"}, _resolver,
+    )
+    assert messages[0]["content"] == "catalog style"
+```
+
+- [ ] **Step 2: Run tests, verify they fail**
+
+Run: `python -m pytest tests/test_analysis_vlm_caption.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'backends.analysis.vlm_caption'`
+
+- [ ] **Step 3: Implement the assembly functions**
+
+`backends/analysis/vlm_caption.py`:
+
+```python
+"""OpenAI-compatible VLM caption provider — the first real DescribeProvider.
+
+Layering: this module never imports server.*. The caller supplies plain
+connection params and an asset_resolver callable; server/analysis_routes.py
+adapts config objects and the asset store.
+"""
+from __future__ import annotations
+
+import base64
+from typing import Any, Callable, Dict, List, Mapping, Tuple
+
+from .contracts import DescribeTarget
+from .providers import ProviderRun
+
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_TEMPERATURE = 0.2
+DEFAULT_TIMEOUT_S = 60.0
+DEFAULT_SYSTEM_PROMPT = (
+    "You are an image captioning assistant. "
+    "Describe the image concisely and factually."
+)
+
+AssetResolver = Callable[[str], Tuple[bytes, str]]
+
+
+def build_image_part(target: DescribeTarget, asset_resolver: AssetResolver) -> Dict[str, Any]:
+    """Build the image_url content part for one target.
+
+    URL targets pass through verbatim; the VLM host fetches them — the
+    server never fetches remote URLs itself. asset_ref targets resolve to
+    bytes and embed as a base64 data-URI.
+    """
+    if target.url:
+        return {"type": "image_url", "image_url": {"url": target.url}}
+    data, media_type = asset_resolver(target.asset_ref or "")
+    payload = base64.b64encode(data).decode()
+    return {
+        "type": "image_url",
+        "image_url": {"url": f"data:{media_type};base64,{payload}"},
+    }
+
+
+def build_caption_messages(
+    provider_run: ProviderRun,
+    options: Mapping[str, Any],
+    asset_resolver: AssetResolver,
+) -> List[Dict[str, Any]]:
+    """Assemble the chat messages: system instruction + user(image[, prompt])."""
+    content: List[Dict[str, Any]] = [build_image_part(provider_run.target, asset_resolver)]
+    caption = provider_run.task.caption
+    if caption is not None and caption.prompt:
+        content.append({"type": "text", "text": caption.prompt})
+    return [
+        {
+            "role": "system",
+            "content": options.get("system_prompt", DEFAULT_SYSTEM_PROMPT),
+        },
+        {"role": "user", "content": content},
+    ]
+```
+
+Check the exact `DescribeTarget`/`CaptionParams` field names against
+`backends/analysis/contracts.py` before writing — `url`/`asset_ref`/`prompt`
+in the code above must match the dataclasses, not be invented.
+
+- [ ] **Step 4: Run tests, verify they pass**
+
+Run: `python -m pytest tests/test_analysis_vlm_caption.py -v`
+Expected: all PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backends/analysis/vlm_caption.py tests/test_analysis_vlm_caption.py
+git commit -m "feat(analysis): caption message assembly — image parts + prompting (STABL-rylcqort) — next: provider execution"
+```
+
+---
+
+### Task 4: `OpenAIVLMCaptionProvider` execution
+
+**Files:**
+- Modify: `backends/analysis/vlm_caption.py` (add the provider class)
+- Modify: `tests/test_analysis_vlm_caption.py` (append provider tests)
+- Modify: `backends/analysis/__init__.py` (export `OpenAIVLMCaptionProvider`)
+
+**Interfaces:**
+- Consumes: Task 2's `VLMChatClient`, Task 3's assembly functions/constants; existing `ProviderResult`/`TextObservation`/`DescribeObservation`/`TaskKind`.
+- Produces (Task 5 relies on this): `OpenAIVLMCaptionProvider(endpoint: str, api_key_env: str, model: str, options: Mapping[str, Any], asset_resolver: AssetResolver, transport: Optional[httpx.BaseTransport] = None)` implementing the `DescribeProvider` protocol.
+
+- [ ] **Step 1: Write failing provider-execution tests**
+
+Append to `tests/test_analysis_vlm_caption.py` (extend the import block with `json`, `httpx`, `DetectParams`, and `OpenAIVLMCaptionProvider`):
+
+```python
+RESPONSE = {
+    "id": "cmpl-1",
+    "choices": [{"message": {"role": "assistant", "content": "a red bicycle"}}],
+    "usage": {"total_tokens": 42},
+}
+
+
+def _provider(capture=None, response=None, status=200, **kwargs):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if capture is not None:
+            capture["payload"] = json.loads(request.content)
+        return httpx.Response(status, json=response if response is not None else RESPONSE)
+    defaults = dict(
+        endpoint="http://vlm.lan:8080/v1",
+        api_key_env="TEST_VLM_KEY",
+        model="qwen2.5-vl",
+        options={},
+        asset_resolver=_resolver,
+        transport=httpx.MockTransport(handler),
+    )
+    defaults.update(kwargs)
+    return OpenAIVLMCaptionProvider(**defaults)
+
+
+async def test_run_maps_response_to_text_observation_and_raw_output():
     capture = {}
     result = await _provider(capture).run(_run(_url_target()))
-    user = capture["payload"]["messages"][1]
-    image_parts = [p for p in user["content"] if p["type"] == "image_url"]
-    assert image_parts == [{"type": "image_url", "image_url": {"url": "http://images/a.png"}}]
     obs = result.observations
     assert len(obs) == 1 and obs[0].kind == "text"
     assert obs[0].text.content == "a red bicycle"
     assert obs[0].task_id == "caption" and obs[0].target_id == "t1"
     assert result.raw_output == RESPONSE
-
-
-async def test_run_asset_ref_target_embeds_base64_data_uri():
-    capture = {}
-    await _provider(capture).run(_run(_ref_target()))
-    user = capture["payload"]["messages"][1]
-    image_url = [p for p in user["content"] if p["type"] == "image_url"][0]["image_url"]["url"]
-    expected = "data:image/png;base64," + base64.b64encode(b"png-bytes").decode()
-    assert image_url == expected
-
-
-async def test_run_includes_caller_prompt_as_text_part_only_when_set():
-    capture = {}
-    provider = _provider(capture)
-    await provider.run(_run(_url_target(), prompt="focus on lighting"))
-    parts = capture["payload"]["messages"][1]["content"]
-    assert {"type": "text", "text": "focus on lighting"} in parts
-
-    await provider.run(_run(_url_target()))
-    parts = capture["payload"]["messages"][1]["content"]
-    assert all(p["type"] != "text" for p in parts)
+    # The wire payload uses the Task 3 assembly output verbatim.
+    assert capture["payload"]["messages"] == build_caption_messages(
+        _run(_url_target()), {}, _resolver,
+    )
 
 
 async def test_run_applies_default_and_overridden_options():
@@ -603,15 +737,13 @@ async def test_run_applies_default_and_overridden_options():
     await _provider(capture).run(_run(_url_target()))
     assert capture["payload"]["max_tokens"] == 512
     assert capture["payload"]["temperature"] == 0.2
-    assert capture["payload"]["messages"][0]["role"] == "system"
+    assert capture["payload"]["model"] == "qwen2.5-vl"
 
     await _provider(
-        capture,
-        options={"max_tokens": 64, "temperature": 0.0, "system_prompt": "catalog style"},
+        capture, options={"max_tokens": 64, "temperature": 0.0},
     ).run(_run(_url_target()))
     assert capture["payload"]["max_tokens"] == 64
     assert capture["payload"]["temperature"] == 0.0
-    assert capture["payload"]["messages"][0]["content"] == "catalog style"
 
 
 async def test_run_raises_on_http_error():
@@ -646,41 +778,13 @@ def test_supports_caption_only():
 - [ ] **Step 2: Run tests, verify they fail**
 
 Run: `python -m pytest tests/test_analysis_vlm_caption.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'backends.analysis.vlm_caption'`
+Expected: new tests FAIL — `ImportError: cannot import name 'OpenAIVLMCaptionProvider'`; Task 3's assembly tests still PASS
 
-- [ ] **Step 3: Implement the provider**
+- [ ] **Step 3: Implement the provider class**
 
-`backends/analysis/vlm_caption.py`:
+Append to `backends/analysis/vlm_caption.py` (extend the import block with `Optional`, `httpx`, `from .contracts import DescribeObservation, DescribeTask, TaskKind, TextObservation`, `from .providers import ProviderResult`, `from .vlm_client import VLMChatClient`):
 
 ```python
-"""OpenAI-compatible VLM caption provider — the first real DescribeProvider.
-
-Layering: this module never imports server.*. The caller supplies plain
-connection params and an asset_resolver callable; server/analysis_routes.py
-adapts config objects and the asset store.
-"""
-from __future__ import annotations
-
-import base64
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
-
-import httpx
-
-from .contracts import DescribeObservation, DescribeTask, TaskKind, TextObservation
-from .providers import ProviderResult, ProviderRun
-from .vlm_client import VLMChatClient
-
-DEFAULT_MAX_TOKENS = 512
-DEFAULT_TEMPERATURE = 0.2
-DEFAULT_TIMEOUT_S = 60.0
-DEFAULT_SYSTEM_PROMPT = (
-    "You are an image captioning assistant. "
-    "Describe the image concisely and factually."
-)
-
-AssetResolver = Callable[[str], Tuple[bytes, str]]
-
-
 class OpenAIVLMCaptionProvider:
     """Caption tasks via an OpenAI-compatible multimodal endpoint.
 
@@ -711,36 +815,12 @@ class OpenAIVLMCaptionProvider:
     def supports(self, task: DescribeTask) -> bool:
         return task.kind == TaskKind.CAPTION
 
-    def _image_part(self, provider_run: ProviderRun) -> Dict[str, Any]:
-        target = provider_run.target
-        if target.url:
-            # URL targets pass through verbatim; the VLM host fetches them.
-            # The server never fetches remote URLs itself.
-            return {"type": "image_url", "image_url": {"url": target.url}}
-        data, media_type = self._asset_resolver(target.asset_ref or "")
-        payload = base64.b64encode(data).decode()
-        return {
-            "type": "image_url",
-            "image_url": {"url": f"data:{media_type};base64,{payload}"},
-        }
-
-    def _messages(self, provider_run: ProviderRun) -> List[Dict[str, Any]]:
-        content: List[Dict[str, Any]] = [self._image_part(provider_run)]
-        caption = provider_run.task.caption
-        if caption is not None and caption.prompt:
-            content.append({"type": "text", "text": caption.prompt})
-        return [
-            {
-                "role": "system",
-                "content": self._options.get("system_prompt", DEFAULT_SYSTEM_PROMPT),
-            },
-            {"role": "user", "content": content},
-        ]
-
     async def run(self, provider_run: ProviderRun) -> ProviderResult:
         response = await self._client.complete(
             model=self._model,
-            messages=self._messages(provider_run),
+            messages=build_caption_messages(
+                provider_run, self._options, self._asset_resolver,
+            ),
             max_tokens=int(self._options.get("max_tokens", DEFAULT_MAX_TOKENS)),
             temperature=float(self._options.get("temperature", DEFAULT_TEMPERATURE)),
         )
@@ -766,11 +846,6 @@ Export it: in `backends/analysis/__init__.py`, add
 `from .vlm_caption import OpenAIVLMCaptionProvider` beside the providers
 import and `"OpenAIVLMCaptionProvider"` to `__all__`.
 
-Check the exact `DescribeObservation`/`CaptionParams` constructor fields
-against `backends/analysis/contracts.py` before writing — field names in
-the tests above (`text=`, `prompt=`, `kind=`) must match the dataclasses,
-not be invented.
-
 - [ ] **Step 4: Run tests, verify they pass**
 
 Run: `python -m pytest tests/test_analysis_vlm_caption.py tests/test_analysis_contracts.py tests/test_analysis_orchestrator.py -v`
@@ -780,19 +855,19 @@ Expected: all PASS
 
 ```bash
 git add backends/analysis/vlm_caption.py backends/analysis/__init__.py tests/test_analysis_vlm_caption.py
-git commit -m "feat(analysis): OpenAIVLMCaptionProvider — first real describe provider (STABL-rylcqort) — next: build_providers switch"
+git commit -m "feat(analysis): OpenAIVLMCaptionProvider execution — first real describe provider (STABL-rylcqort) — next: build_providers switch"
 ```
 
 ---
 
-### Task 4: `build_providers` switch + endpoint integration
+### Task 5: `build_providers` switch + endpoint integration
 
 **Files:**
 - Modify: `server/analysis_routes.py` (`build_providers` ~line 28 and its call site ~line 89)
 - Modify: `tests/test_analysis_routes.py`
 
 **Interfaces:**
-- Consumes: Task 1's `AnalysisDelegateConfig.provider/.options`, Task 3's `OpenAIVLMCaptionProvider`, existing `get_store()` from `server.asset_store`.
+- Consumes: Task 1's `AnalysisDelegateConfig.provider/.options`, Task 4's `OpenAIVLMCaptionProvider`, existing `get_store()` from `server.asset_store`.
 - Produces: `build_providers(profile, delegates, connections)` — the completed real-provider seam.
 
 - [ ] **Step 1: Write failing integration tests**
