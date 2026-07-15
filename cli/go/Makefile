@@ -10,7 +10,7 @@ build:
 	go build ./...
 
 install:
-	go install ./cmd/st
+	go install ./cmd/st ./cmd/stcn
 
 test:
 	go vet ./...
