@@ -137,6 +137,36 @@ The spike is **not** blocked by a VRAM ceiling and does not assert one.
 - fp8/offload gating (STABL-ifymwtiv) — informed by, not decided by, the spike.
 - Multi-controlnet, img2img+HunyuanDiT combinations.
 
+## Forward: family-extension architecture (decided, for the full-family spec)
+
+The full-family spec will commit to **seam-based composition**, not a unified
+polymorphic pipeline. Every family here is a latent-diffusion pipeline with the
+same stage skeleton:
+
+```text
+text ─▶ [conditioning] ─▶ embeds ─▶ [denoiser core + controlnet] ─▶ latents ─▶ [VAE decode] ─▶ pixels ─▶ [post/PNG]
+            seam                          FAMILY ENGINE                          seam
+```
+
+- **Conditioning seam** — already a pluggable boundary (STABL-hvalobvn,
+  `conditioning.service`). Diverges per family (SD1.5 1×CLIP; SDXL 2×CLIP+pooled;
+  HunyuanDiT BERT+mT5) but is consumed through one seam.
+- **Control-map seam** — already built: `_CONTROL_IMAGE_KWARG` + shared
+  `_build_controlnet_kwargs` (`cuda_worker.py:153,652`). Same PNG object; the kwarg
+  name is the one declared point of variance (`image=` vs `control_image=`).
+- **VAE seam** — shared dtype-normalization + decode/save/PNG in `CudaWorkerBase`.
+  All three families are 4-channel 8× SD-family VAEs (SDXL and HunyuanDiT share the
+  `sdxl-vae-fp16-fix` checkpoint). Note: the VAE seam is a shared **interface shape**,
+  not a runtime handoff — latents are not portable across denoiser cores, so do NOT
+  design for cross-family latent routing.
+- **Denoiser core** — the only family-specific part: a thin worker subclass choosing
+  which `from_pipe` class to build.
+
+Net: HunyuanDiT = new denoiser-core worker + `_CONTROL_IMAGE_KWARG="control_image"`,
+reusing all three seams. A unified "one pipeline that contains many families" object
+is explicitly **rejected** — UNet and DiT share no denoiser, so it collapses into a
+per-family-branch god-object (the copy-paste landmine this issue set out to avoid).
+
 ## Outcome recording
 
 On completion, record on STABL-ichgkgno: the working (or broken) dep pins, peak
