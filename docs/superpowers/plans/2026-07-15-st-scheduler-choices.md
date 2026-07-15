@@ -1,6 +1,6 @@
 # Expose Mode Scheduler Choices in st CLI — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. (This repo forbids subagent-driven development — do not dispatch subagents.)
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Checkboxes (`- [ ]`) are inline execution-step markers only — they are not the tracking authority. Task/review state lives in FP + waveplan (review gates). (This repo forbids subagent-driven development — do not dispatch subagents.)
 
 **Goal:** Make the scheduler IDs allowed by each generation mode discoverable from the `st` CLI, both in human `st modes` output and in `st modes show <name> --json`.
 
