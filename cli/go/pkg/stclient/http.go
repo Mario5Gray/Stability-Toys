@@ -181,11 +181,6 @@ func multipartFile(filename string, data []byte, fields map[string]string) (*byt
 	return &buf, mw.FormDataContentType(), nil
 }
 
-// Upload posts data as a multipart "file" to POST /v1/upload and returns the
-// fileRef the backend assigns. bucket is an optional intent label (e.g.
-// "image", "canny") sent as a "type" form field; an empty bucket adds no
-// extra field. The backend may use the type field for routing; v1.x treats
-// it as client-side intent only.
 // UploadResult is the decoded /v1/upload response: the ref plus the
 // server-resolved bucket and (for validated buckets) image dimensions.
 type UploadResult struct {

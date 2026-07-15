@@ -138,11 +138,16 @@ pipeline) is blocked on this. Do not attempt an IPC workaround. Leave the
 `--stream` output contract stable so `st watch` can be added non-breakingly
 when backend support lands.
 
-### Upload bucket is intent-only
-`POST /v1/upload` currently ignores the `type` form field. The bucket argument
-(`st upload canny:./map.png`) is client-side semantic labeling only. Do not
-assume the server routes on it. Do not add backend changes to make it do so
-within this work.
+### Upload `type` routes to a store bucket (STABL-kcjkrpry)
+`POST /v1/upload` reads the `type` form field and routes the file to a store
+bucket: `canny`/`depth`/`pose` → the durable `control_map` bucket,
+`image`/`ref` → `ref_image`, and any other or missing type → the ephemeral
+`upload` bucket (5-minute TTL). Routed buckets are validated as decodable
+images (400 otherwise); the `upload` bucket stays lenient. The response is
+`{fileRef, bucket, width?, height?}` and `st upload --json` surfaces the
+server-resolved bucket. The mapping is a local constant in
+`server/upload_routes.py`, intentionally decoupled from the ControlNet
+registry. (Supersedes the earlier "intent-only" note — the server now routes.)
 
 ---
 
