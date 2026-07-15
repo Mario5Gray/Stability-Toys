@@ -1,6 +1,6 @@
 # stcn — ControlNet Attachment Former Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Subagent-driven development is **forbidden** in this repo (AGENTS.md). Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Subagent-driven development is **forbidden** in this repo (AGENTS.md). **Task/issue tracking is via `fp` subissues, not markdown checklists** (FP_AGENTS.md) — the `- [ ]` boxes below are inline execution-step markers within a task, not a task tracker; claim and close the work through `fp issue` / the waveplan review cycle.
 
 **FP issue:** STABL-nzrqaxla
 **Spec (authority):** `docs/superpowers/specs/2026-07-14-stcn-controlnet-attachment-former-design.md`
@@ -38,15 +38,17 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-`cli/go/cmd/stcn/attach_test.go`:
+`cli/go/cmd/stcn/attach_test.go` (note: these tests receive `buildAttachment`'s
+`openapi.ControlNetAttachment` return via `:=` and access its fields, so they do
+**not** import the `openapi` package — the package identifier is never named
+here, and an unused import would fail to compile. Task 2's test, which declares
+`var back openapi.ControlNetAttachment`, is where the import belongs):
 
 ```go
 package main
 
 import (
 	"testing"
-
-	"github.com/darkbit/stability-toys/cli/st/internal/openapi"
 )
 
 func TestParseHeadSplitsOnFirstColon(t *testing.T) {
