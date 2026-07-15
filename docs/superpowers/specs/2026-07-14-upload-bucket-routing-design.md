@@ -101,6 +101,34 @@ Routing `canny/depth/pose` to `control_map` means the ref inherits
 it" pain as a side effect of routing — **no bucket-policy change is made**; the
 existing `control_map` policy already provides this.
 
+### OpenAPI contract & snapshot (required)
+
+This changes the **served** `/v1/upload` contract: a new optional `type`
+multipart field on the request and a structured 200 body. The repo's contract
+source of truth is `cli/go/openapi.snapshot.json` (captured verbatim from the
+FastAPI backend), with `internal/openapi/drift_test.go` diffing it against a
+live `/openapi.json` (that test is **skipped unless `ST_SERVER` is set**, so a
+stale snapshot will not fail ordinary CI — it just silently rots).
+
+Therefore this track MUST:
+
+- Declare the endpoint accurately in FastAPI so the served spec reflects reality:
+  add `type: str | None = Form(default=None)` and a response model (a small
+  pydantic `UploadResponse{fileRef: str; bucket: str; width: int | None;
+  height: int | None}`) so the 200 body is typed in the OpenAPI rather than an
+  untyped dict.
+- Refresh `cli/go/openapi.snapshot.json` from a live backend and run
+  `make gen` (in `cli/go`) so `internal/openapi` regenerates. The downspec step
+  is codegen-only and must never mutate the snapshot.
+- Verify the drift guard passes against a live backend
+  (`ST_SERVER=<url> go test ./internal/openapi/`).
+
+The handwritten `stclient` upload path does **not** consume the generated
+`internal/openapi` types (it builds multipart by hand), so codegen is not a
+functional dependency here — but the snapshot is the checked-in contract and
+must not be left stale. Refreshing it is part of this track's definition of
+done, not a follow-up.
+
 ## Client: surface the resolved bucket
 
 - Add `type UploadResult struct { Ref, Bucket string; Width, Height int }` and
@@ -114,6 +142,24 @@ existing `control_map` policy already provides this.
   bucket (not the raw client label), so the operator can confirm a control map
   actually landed in `control_map` (i.e. is durable). Plain `st upload` still
   prints the bare ref as a single token.
+
+### Documentation (required)
+
+`cli/go/USAGE.md` currently promises the old shape — `st upload canny:... --json`
+returning `{"bucket": "canny", "fileRef": ...}` — and describes the `type` field
+as intent-only. Both are now false. This track MUST update the Upload section of
+`USAGE.md` to:
+
+- show `--json` returning the **server-resolved** bucket (e.g. `control_map`)
+  plus `width`/`height` for routed buckets;
+- state that `type` now **routes** the file (`canny|depth|pose → control_map`,
+  `image|ref → ref_image`, otherwise the ephemeral `upload` bucket) and that
+  control-map/ref-image uploads are validated as images and are durable
+  (no 5-minute TTL);
+- keep the `type:path` first-colon split note.
+
+This is a visible operator-facing contract change; the doc update is part of the
+work, not optional.
 
 ## Testing
 
@@ -147,8 +193,12 @@ existing `control_map` policy already provides this.
 
 1. Shared `image_metadata(data)` helper (extract from `prepare_promotion`) with
    tests; refactor `prepare_promotion` to use it.
-2. `/v1/upload` reads `type`, maps to a bucket, validates routed buckets,
-   writes with metadata, returns `{fileRef,bucket,width?,height?}`; endpoint
-   tests.
-3. `stclient.UploadFile` + `UploadResult`; `Upload` delegates; `st upload
+2. `/v1/upload` reads `type` (`Form`), maps to a bucket, validates routed
+   buckets, writes with metadata, returns a typed `UploadResponse`
+   `{fileRef,bucket,width?,height?}`; endpoint tests.
+3. Refresh `cli/go/openapi.snapshot.json` from a live backend and run
+   `make gen`; verify the `ST_SERVER`-gated drift guard passes.
+4. `stclient.UploadFile` + `UploadResult`; `Upload` delegates; `st upload
    --json` surfaces the resolved bucket; client tests.
+5. Update `cli/go/USAGE.md` Upload section to the new `--json` shape and routing
+   semantics.
