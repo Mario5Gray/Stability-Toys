@@ -134,7 +134,7 @@ class GenerateRequest(BaseModel):
     size: str = Field(default=os.environ.get("DEFAULT_SIZE", "512x512"), pattern=r"^\d+x\d+$")
     num_inference_steps: int = Field(default=int(os.environ.get("DEFAULT_STEPS", "4")), ge=1, le=50)
     guidance_scale: float = Field(default=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")), ge=0.0, le=20.0)
-    seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
+    seed: Optional[int] = Field(default=None, ge=0, le=2**32 - 1)
     # ---- lora ----
     style_lora: StyleLoraRequest = Field(default_factory=StyleLoraRequest)
     # ---- postprocess ----
