@@ -123,3 +123,41 @@ func TestFetchStorageErrorsOn404(t *testing.T) {
 		t.Fatal("expected error on 404, got nil")
 	}
 }
+
+func TestUploadFileReturnsResolvedBucketAndDims(t *testing.T) {
+	var gotType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseMultipartForm(1 << 20)
+		gotType = r.FormValue("type")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"fileRef":"R1","bucket":"control_map","width":8,"height":6}`))
+	}))
+	defer srv.Close()
+
+	res, err := New(srv.URL).UploadFile(context.Background(), "m.png", []byte("data"), "canny")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotType != "canny" {
+		t.Fatalf("type field = %q", gotType)
+	}
+	if res.Ref != "R1" || res.Bucket != "control_map" || res.Width != 8 || res.Height != 6 {
+		t.Fatalf("bad result: %+v", res)
+	}
+}
+
+func TestUploadDelegatesAndReturnsRef(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"fileRef":"R2","bucket":"upload"}`))
+	}))
+	defer srv.Close()
+
+	ref, err := New(srv.URL).Upload(context.Background(), "x.png", []byte("data"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref != "R2" {
+		t.Fatalf("ref = %q", ref)
+	}
+}
