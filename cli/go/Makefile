@@ -9,8 +9,12 @@ gen:
 build:
 	go build ./...
 
+LOCAL_BIN ?= $(HOME)/.local/bin
+
 install:
-	go install ./cmd/st ./cmd/stcn
+	mkdir -p $(LOCAL_BIN)
+	go build -o $(LOCAL_BIN)/st ./cmd/st
+	go build -o $(LOCAL_BIN)/stcn ./cmd/stcn
 
 test:
 	go vet ./...

@@ -742,7 +742,7 @@ See `docs/DYNAMIC_MODEL_LOADING.md` for complete documentation.
 A Go CLI for the backend API lives in [`cli/go/`](cli/go/). Install with:
 
 ```bash
-make install-st   # builds and places st in ~/.local/bin
+make install-st   # builds and places st + stcn in ~/.local/bin
 ```
 
 - **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard

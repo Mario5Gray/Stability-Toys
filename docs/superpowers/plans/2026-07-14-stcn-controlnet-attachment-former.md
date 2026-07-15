@@ -579,19 +579,22 @@ Change `install:` in `cli/go/Makefile` from:
 
 ```make
 install:
-	go install ./cmd/st
+	mkdir -p $(HOME)/.local/bin
+	go build -o $(HOME)/.local/bin/st ./cmd/st
 ```
 
 to:
 
 ```make
 install:
-	go install ./cmd/st ./cmd/stcn
+	mkdir -p $(HOME)/.local/bin
+	go build -o $(HOME)/.local/bin/st ./cmd/st
+	go build -o $(HOME)/.local/bin/stcn ./cmd/stcn
 ```
 
 - [ ] **Step 2: Verify install builds both**
 
-Run: `cd cli/go && go install ./cmd/st ./cmd/stcn && ls "$(go env GOPATH)/bin/stcn" "$(go env GOPATH)/bin/st"`
+Run: `cd cli/go && make install && ls "$HOME/.local/bin/stcn" "$HOME/.local/bin/st"`
 Expected: both binaries listed, no error.
 
 - [ ] **Step 3: Document stcn in the README command inventory**

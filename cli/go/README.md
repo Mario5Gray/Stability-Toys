@@ -20,6 +20,7 @@ cd cli/go
 make build      # go build ./...
 make test       # go test ./...
 make gen        # regenerate internal/openapi from the snapshot (see below)
+make install    # build st + stcn into ~/.local/bin
 ```
 
 `go test ./...` and `go build ./...` work directly too; the `make` targets are

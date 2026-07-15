@@ -178,8 +178,8 @@ server's "any non-empty string" rule — the server still accepts spaces, but
 `go run` utility and not a hidden target. It is a distinct user-facing tool
 with its own name, exactly as scoped.
 
-- `cli/go/Makefile` `install` target installs both: it becomes
-  `go install ./cmd/st ./cmd/stcn` (today it installs only `./cmd/st`).
+- `cli/go/Makefile` `install` target installs both into `~/.local/bin`,
+  matching the repo's other operator tools.
 - `cli/go/README.md` command inventory gains an `stcn` row so the tool is
   discoverable next to `st`.
 - No alias binaries (`st-cn`, `st-controlnet`) are produced in v1; the name is
