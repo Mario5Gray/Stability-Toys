@@ -40,9 +40,28 @@ thin wrappers.
 | `st models` | Show model/backend status |
 | `st modes` | List available model modes |
 | `st validate-track3` | Script the ControlNet Track 3 acceptance check (needs `--server`) |
+| `stcn <type>:<ref>` | Form one ControlNet attachment as compact JSON for `st gen --controlnet $(stcn ...)` |
 
 Global flags: `--server`/`$ST_SERVER`, `--config`, `-o/--output-dir`, `--json`,
 `--timeout`.
+
+### stcn — ControlNet attachment former
+
+`stcn` is a separate, offline binary that turns flags into one schema-valid
+ControlNet attachment object, built on the generated OpenAPI type (so it
+cannot drift from what the server accepts). It never contacts the server.
+Compose attachments by repeating the flag:
+
+```bash
+st gen --prompt "a bridge" --cfg 7.2 \
+  --controlnet $(stcn canny:Rmap1 --strength 0.8) \
+  --controlnet $(stcn depth:Rmap2 --strength 0.4)
+```
+
+Flags: `--strength` (0.0–2.0), `--start`/`--end` (0.0–1.0), `--model`, `--id`
+(defaults to the control type). Emitted string fields are restricted to
+`A-Z a-z 0-9 . _ : / -` so the unquoted `$(stcn ...)` form is a single shell
+token. v1 supports `map_asset_ref` (a pre-made control map) only.
 
 ## Configuration
 
