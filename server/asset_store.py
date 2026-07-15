@@ -43,27 +43,32 @@ _DEFAULT_BUCKETS: dict[str, BucketPolicy] = {
 }
 
 
-def prepare_promotion(data: bytes, source_metadata: dict[str, Any], source_ref: str) -> dict[str, Any]:
-    """Validate `data` decodes as an image, then return source metadata merged forward
-    with promotion fields overlaid. Raises ValueError if `data` is not a decodable image."""
+def image_metadata(data: bytes) -> dict[str, Any]:
+    """Validate `data` decodes as an image and return its descriptor.
+
+    Raises ValueError if `data` is not a decodable image.
+    """
     try:
         Image.open(io.BytesIO(data)).verify()
     except Exception as exc:
         raise ValueError("asset is not a decodable image") from exc
-
     # verify() leaves the image unusable; reopen to read format/size.
     img = Image.open(io.BytesIO(data))
     fmt = img.format or "PNG"
     media_type = Image.MIME.get(fmt, f"image/{fmt.lower()}")
     width, height = img.size
+    return {"media_type": media_type, "width": width, "height": height}
 
+
+def prepare_promotion(data: bytes, source_metadata: dict[str, Any], source_ref: str) -> dict[str, Any]:
+    """Validate `data` decodes as an image, then return source metadata merged forward
+    with promotion fields overlaid. Raises ValueError if `data` is not a decodable image."""
+    meta = image_metadata(data)
     return {
         **source_metadata,
         "origin": "promoted",
         "source_asset_ref": source_ref,
-        "media_type": media_type,
-        "width": width,
-        "height": height,
+        **meta,
     }
 
 
