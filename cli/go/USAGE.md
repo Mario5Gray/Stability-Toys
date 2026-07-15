@@ -381,20 +381,25 @@ Non-zero exit if the backend returns no `controlnet_artifacts`.
 ## Model modes
 
 ```bash
-# List available modes (shows full config per mode):
+# List available modes (shows full config per mode). Scheduler availability is
+# mode-specific: when a mode constrains schedulers, the allowed IDs are listed
+# with the mode default marked. Modes with no constraint omit the line.
 st modes
 # default (default)
 #   model=sdxl-base  size=1024x1024  steps=20  cfg=7.5  controlnet
 # cartoony
 #   model=sdxl-cartoon  size=512x512  steps=8  cfg=2.5
+#   schedulers: lcm (default), euler, ddim
 
 # Switch to a mode:
 st modes switch cartoony
 # switched to cartoony
 
-# Show one mode's config as JSON:
+# Show one mode's config as JSON. Both default_scheduler_id and
+# allowed_scheduler_ids are exposed for scripting scheduler overrides:
 st modes show cartoony --json
-# {"name":"cartoony","model":"sdxl-cartoon",...}
+# {"name":"cartoony","model":"sdxl-cartoon",...,"allowed_scheduler_ids":["lcm","euler","ddim"]}
+st modes show cartoony --json | jq '.allowed_scheduler_ids'
 
 # Hot-reload modes.yaml on the server (no restart needed):
 st modes reload

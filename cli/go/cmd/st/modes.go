@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -61,6 +62,17 @@ func runModes(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\n  model=%s  size=%s  steps=%d  cfg=%.1f%s\n",
 			name, m.Model, m.DefaultSize, m.DefaultSteps, m.DefaultGuidance, extra)
+		if len(m.AllowedSchedulerIDs) > 0 {
+			labeled := make([]string, len(m.AllowedSchedulerIDs))
+			for i, id := range m.AllowedSchedulerIDs {
+				if id == m.DefaultSchedulerID {
+					labeled[i] = id + " (default)"
+				} else {
+					labeled[i] = id
+				}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  schedulers: %s\n", strings.Join(labeled, ", "))
+		}
 	}
 	return nil
 }

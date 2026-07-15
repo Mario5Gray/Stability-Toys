@@ -58,6 +58,39 @@ func TestModesParsesDictKeysSorted(t *testing.T) {
 	}
 }
 
+func TestModesPreservesAllowedSchedulerIDs(t *testing.T) {
+	body := `{
+	  "default_mode": "default",
+	  "modes": {
+	    "default":  {"model": "sdxl-base", "default_size": "1024x1024", "default_steps": 20, "default_guidance": 7.5,
+	                 "default_scheduler_id": "euler", "controlnet_policy": {"enabled": true}, "chat_enabled": false},
+	    "cartoony": {"model": "sdxl-cartoon", "default_size": "512x512", "default_steps": 8, "default_guidance": 2.5,
+	                 "default_scheduler_id": "lcm", "allowed_scheduler_ids": ["lcm", "euler", "ddim"],
+	                 "controlnet_policy": {"enabled": false}, "chat_enabled": false}
+	  }
+	}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	modes, err := New(srv.URL).Modes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// modes[0] == cartoony (sorted), modes[1] == default
+	if got := modes[0].AllowedSchedulerIDs; len(got) != 3 || got[0] != "lcm" || got[2] != "ddim" {
+		t.Fatalf("cartoony allowed_scheduler_ids not preserved: %+v", got)
+	}
+	if modes[0].DefaultSchedulerID != "lcm" {
+		t.Fatalf("cartoony default_scheduler_id = %q, want lcm", modes[0].DefaultSchedulerID)
+	}
+	// Absent field must decode to nil, not panic or empty-marker.
+	if modes[1].AllowedSchedulerIDs != nil {
+		t.Fatalf("default mode should have nil AllowedSchedulerIDs, got %+v", modes[1].AllowedSchedulerIDs)
+	}
+}
+
 func TestCurrentModeReadsModelsStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/models/status" {

@@ -42,6 +42,54 @@ func fakeModeServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+func TestModesListRendersSchedulers(t *testing.T) {
+	body := `{"default_mode":"fast","modes":{
+	  "fast":{"model":"sdxl-turbo","default_size":"512x512","default_steps":4,"default_guidance":0,
+	          "default_scheduler_id":"lcm","allowed_scheduler_ids":["lcm","euler","ddim"],
+	          "controlnet_policy":{"enabled":true}},
+	  "plain":{"model":"sd15","default_size":"512x512","default_steps":20,"default_guidance":7.5,
+	           "controlnet_policy":{"enabled":false}}
+	}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	out, err := runCmdMayFail(t, "--server", srv.URL, "modes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The allowed list renders with the default marked.
+	if !strings.Contains(out, "schedulers: lcm (default), euler, ddim") {
+		t.Errorf("expected rendered schedulers line, got:\n%s", out)
+	}
+	// A mode with no allowed list must not emit a schedulers line.
+	if strings.Count(out, "schedulers:") != 1 {
+		t.Errorf("mode without allowed_scheduler_ids should omit the line, got:\n%s", out)
+	}
+}
+
+func TestModesShowCmdJSONIncludesSchedulers(t *testing.T) {
+	body := `{"default_mode":"fast","modes":{"fast":{"model":"sdxl-turbo","default_size":"512x512","default_steps":4,"default_guidance":0,"default_scheduler_id":"lcm","allowed_scheduler_ids":["lcm","euler"],"controlnet_policy":{"enabled":true}}}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	out, err := runCmdMayFail(t, "--server", srv.URL, "modes", "show", "fast")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if jsonErr := json.Unmarshal([]byte(strings.TrimSpace(out)), &m); jsonErr != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %q", jsonErr, out)
+	}
+	ids, ok := m["allowed_scheduler_ids"].([]any)
+	if !ok || len(ids) != 2 || ids[0] != "lcm" {
+		t.Errorf("allowed_scheduler_ids missing/wrong in JSON: %v", m["allowed_scheduler_ids"])
+	}
+}
+
 func TestModesShowCmdNotFound(t *testing.T) {
 	srv := fakeModeServer(t)
 	defer srv.Close()
