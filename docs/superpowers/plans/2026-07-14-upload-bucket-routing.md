@@ -15,7 +15,7 @@
 
 - **Type→bucket table** (local constant, NOT derived from the ControlNet registry): `canny|depth|pose → control_map`, `image|ref → ref_image`, missing/unknown → `upload`.
 - **Validation:** routed buckets (`control_map`/`ref_image`) require a decodable image (400 otherwise); the `upload` bucket stays lenient (any non-empty bytes; empty → 400 as today).
-- **Response** (additive): `{fileRef, bucket, width?, height?}`; `bucket` always present, dims only for routed buckets. Declare a typed `UploadResponse` pydantic model so the served OpenAPI is accurate.
+- **Response** (additive): `{fileRef, bucket, width?, height?}`; `bucket` always present, dims only for routed buckets. Declare a typed `UploadResponse` pydantic model **with `response_model_exclude_none=True` on the route** so `None` dims are omitted (not serialized as `null`) for the fallback `upload` bucket.
 - **Durability is a consequence, not a policy change:** `control_map`/`ref_image` already have `ttl_s=None, persist=True`; no bucket policy is edited.
 - **OpenAPI snapshot** (`cli/go/openapi.snapshot.json`) MUST be refreshed via a live backend + `make gen`; drift guard is `ST_SERVER`-gated.
 - **`stclient.Upload` (ref-only) signature is preserved** so its callers (`upload.go`, `gen.go` control-image, `describe.go`) are untouched; it delegates to the new `UploadFile`.
@@ -174,8 +174,10 @@ def test_unknown_type_falls_back_to_upload_bucket():
     assert resp.status_code == 200
     body = resp.json()
     assert body["bucket"] == "upload"
-    # upload bucket is lenient and non-image-validated: no dims required.
-    assert "width" not in body or body["width"] is None
+    # upload bucket is unvalidated: dims are OMITTED entirely, not null
+    # (response_model_exclude_none). Assert absence, not "absent or null".
+    assert "width" not in body
+    assert "height" not in body
     assert get_store().resolve(body["fileRef"]).bucket == "upload"
 
 
@@ -185,6 +187,7 @@ def test_no_type_uses_upload_bucket_backcompat():
     body = resp.json()
     assert body["bucket"] == "upload"
     assert isinstance(body["fileRef"], str)
+    assert "width" not in body and "height" not in body
 
 
 def test_control_map_rejects_non_image():
@@ -235,7 +238,7 @@ class UploadResponse(BaseModel):
     height: Optional[int] = None
 
 
-@upload_router.post("/v1/upload", response_model=UploadResponse)
+@upload_router.post("/v1/upload", response_model=UploadResponse, response_model_exclude_none=True)
 async def upload_temp_file(
     file: UploadFile = File(...),
     type: Optional[str] = Form(default=None),
