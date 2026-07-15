@@ -23,7 +23,7 @@ st gen --prompt "a bridge" --cfg 7.2 \
 
 The server's `ControlNetAttachment` (pydantic, `server/controlnet_models.py`)
 is part of the FastAPI OpenAPI document. That document is snapshotted to
-`cli/go/internal/openapi/openapi.snapshot.json` and code-generated into
+`cli/go/openapi.snapshot.json` (the module root) and code-generated into
 `cli/go/internal/openapi/openapi.gen.go` via `make gen` (downspec 3.1→3.0 +
 oapi-codegen), with `internal/openapi/drift_test.go` failing if the snapshot
 diverges from the live `/openapi.json`.
@@ -103,17 +103,39 @@ that type as `attachment_id`; the user sets distinct `--id` values in that case.
 This matches the "compose externally" model — `stcn` forms one object and does
 not know about its siblings.
 
-## Output
+## Output and the unquoted-`$(...)` contract
 
 - A single JSON object, **compact** (Go `json.Marshal`, no indentation, no
-  spaces), on one line, with a trailing newline.
-- Compactness is a hard requirement, not a preference: the goal usage
-  `--controlnet $(stcn ...)` is an **unquoted** command substitution, so any
-  interior whitespace would be word-split by the shell into multiple arguments.
-  `json.Marshal` output (`{"attachment_id":"canny",...}`) is exactly one shell
-  token.
+  structural spaces), on one line, with a trailing newline.
+- The goal usage `--controlnet $(stcn ...)` is an **unquoted** command
+  substitution, so the emitted bytes must be exactly one shell word. Compact
+  marshaling removes *structural* whitespace, but that is not sufficient on its
+  own: a user-controlled string **value** containing whitespace (e.g.
+  `--id "my id"` → `{"attachment_id":"my id",...}`) still word-splits under an
+  unquoted `$(...)`. Verified in zsh.
+- Therefore `stcn` guarantees single-token output by **validating every emitted
+  string field against a shell-token-safe character set** and rejecting anything
+  outside it (see Validation). Combined with compact marshaling, the output is
+  always exactly one argv token, so the unquoted form is safe by construction —
+  not by convention.
+- Quoting — `--controlnet "$(stcn ...)"` — is always safe too and is the
+  universally robust form; the field validation is what additionally makes the
+  **unquoted** form reliable, which is the ergonomic the tool exists to enable.
 - The shape is the schema's shape, so "frozen output contract" is automatic —
   there is no independent field list to freeze.
+
+## Shell-token-safe string fields
+
+Every string that reaches the emitted JSON — `control_type`, `map_asset_ref`,
+`model_id`, `attachment_id` — must match `^[A-Za-z0-9._:/-]+$`. This set covers
+every realistic input (asset refs like `Rabc123` or `fileref:MAP1`, control
+types like `canny`, model ids like `sdxl-canny`, colon- and slash-bearing
+refs) while excluding whitespace, glob metacharacters (`*?[]`), quotes, and
+other shell-active characters. A value outside the set is a validation error;
+`stcn` never emits it. This is a deliberate client-side narrowing of the
+server's "any non-empty string" rule — the server still accepts spaces, but
+`stcn`'s contract is single-token composability, so it does not produce them.
+`:` is intentionally allowed (refs use it) and is not shell-splitting.
 
 ## Validation and errors
 
@@ -126,6 +148,10 @@ not know about its siblings.
   attempt to enforce policy-level bounds (a control type's
   `[min_strength, max_strength]`) — those are mode-config-dependent and live on
   the server; `stcn` enforces only the schema's own absolute ranges.
+- Every emitted string field is additionally checked against the
+  shell-token-safe set `^[A-Za-z0-9._:/-]+$` (see above); a field with
+  whitespace or a shell metacharacter is rejected, guaranteeing the compact
+  output is one argv token under unquoted `$(...)`.
 
 ## Testing
 
@@ -135,12 +161,29 @@ not know about its siblings.
   `start > end`, missing/empty `control_type` or `map_asset_ref`, malformed
   positional (no `:`), empty `--model`/`--id`. Each returns an error and emits
   nothing.
-- **Compactness pin:** marshaled output contains no space, tab, or newline
-  except the single trailing newline — i.e. it is exactly one shell word under
-  `$(...)` splitting.
+- **Shell-safety rejection:** each string field (`control_type`,
+  `map_asset_ref`, `model_id`, `attachment_id`) with a space, tab, or shell
+  metacharacter (`*`, `"`, `$`, …) is rejected; a colon-bearing ref
+  (`fileref:MAP1`) and slash/dot/dash values are accepted.
+- **Single-token pin:** the full emitted line contains no whitespace except the
+  trailing newline — i.e. it is exactly one shell word under unquoted `$(...)`
+  splitting, for both structural JSON and every field value.
 - **Schema round-trip:** the emitted bytes unmarshal cleanly back into
   `openapi.ControlNetAttachment` with all fields preserved — the
   schema-conformance guarantee.
+
+## Distribution
+
+`stcn` is a **separately installed binary**, alongside `st` — not a dev-only
+`go run` utility and not a hidden target. It is a distinct user-facing tool
+with its own name, exactly as scoped.
+
+- `cli/go/Makefile` `install` target installs both: it becomes
+  `go install ./cmd/st ./cmd/stcn` (today it installs only `./cmd/st`).
+- `cli/go/README.md` command inventory gains an `stcn` row so the tool is
+  discoverable next to `st`.
+- No alias binaries (`st-cn`, `st-controlnet`) are produced in v1; the name is
+  `stcn`. Operators who want aliases can symlink. (Additive later if wanted.)
 
 ## Non-goals (v1)
 
@@ -158,5 +201,8 @@ not know about its siblings.
    validation table (pure, fully unit-tested).
 2. Compact marshal + stdout emit; compactness and round-trip pins.
 3. `cmd/stcn/main.go`: positional + flag wiring, exit codes, `--help`.
-4. `st gen --controlnet $(stcn ...)` end-to-end smoke (documented; the
-   pass-through already works, so this is a wiring/usage check).
+4. Distribution: `Makefile` `install` installs `./cmd/stcn` too; README
+   command inventory gains the `stcn` row.
+5. `st gen --controlnet $(stcn ...)` end-to-end smoke (documented; the
+   pass-through already works, so this is a wiring/usage check), including the
+   unquoted-form single-token check.
