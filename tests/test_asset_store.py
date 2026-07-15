@@ -9,6 +9,7 @@ from server.asset_store import (
     BucketPolicy,
     InMemoryAssetStore,
     get_store,
+    image_metadata,
 )
 
 MB = 1024 * 1024
@@ -407,3 +408,13 @@ def test_discard_removes_present_and_ignores_absent():
     with pytest.raises(KeyError):
         store.resolve(ref)
     store.discard("absent-ref")  # no error
+
+
+def test_image_metadata_reads_png_dimensions():
+    meta = image_metadata(_png(size=(7, 5)))
+    assert meta == {"media_type": "image/png", "width": 7, "height": 5}
+
+
+def test_image_metadata_rejects_non_image():
+    with pytest.raises(ValueError, match="not a decodable image"):
+        image_metadata(b"definitely not an image")

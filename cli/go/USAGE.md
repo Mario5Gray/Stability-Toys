@@ -498,16 +498,22 @@ st upload canny:./control-map.png
 st upload image:./sketch.png
 # Rdef456ghi
 
-# JSON output includes the bucket:
+# JSON output includes the server-resolved bucket (+ dims for control maps):
 st upload canny:./control-map.png --json
 # {
-#   "bucket": "canny",
-#   "fileRef": "Rabc123def"
+#   "bucket": "control_map",
+#   "fileRef": "Rabc123def",
+#   "height": 768,
+#   "width": 768
 # }
 ```
 
-The `type:path` prefix is split on the first `:`. Without a prefix, no `type`
-field is sent (existing behaviour preserved).
+The `type:path` prefix is split on the first `:`. The type now **routes** the
+upload: `canny`/`depth`/`pose` land in the durable `control_map` bucket,
+`image`/`ref` in `ref_image`, and any other or missing type in the ephemeral
+`upload` bucket (5-minute TTL). Control-map and ref-image uploads are validated
+as decodable images and are not time-expired, so their refs stay usable in a
+later `st gen --control-ref` / `stcn`.
 
 ---
 

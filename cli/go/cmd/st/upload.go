@@ -30,19 +30,24 @@ func init() {
 }
 
 func runUpload(cmd *cobra.Command, args []string) error {
-	bucket, filePath := parseUploadArg(args[0])
+	typeLabel, filePath := parseUploadArg(args[0])
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	ref, err := newClient().Upload(cmd.Context(), filepath.Base(filePath), data, bucket)
+	res, err := newClient().UploadFile(cmd.Context(), filepath.Base(filePath), data, typeLabel)
 	if err != nil {
 		return err
 	}
 	if flagJSON {
-		return emitJSON(cmd, map[string]any{"fileRef": ref, "bucket": bucket})
+		out := map[string]any{"fileRef": res.Ref, "bucket": res.Bucket}
+		if res.Width > 0 || res.Height > 0 {
+			out["width"] = res.Width
+			out["height"] = res.Height
+		}
+		return emitJSON(cmd, out)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), ref)
+	fmt.Fprintln(cmd.OutOrStdout(), res.Ref)
 	return nil
 }
 

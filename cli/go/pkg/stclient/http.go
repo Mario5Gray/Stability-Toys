@@ -181,40 +181,59 @@ func multipartFile(filename string, data []byte, fields map[string]string) (*byt
 	return &buf, mw.FormDataContentType(), nil
 }
 
-// Upload posts data as a multipart "file" to POST /v1/upload and returns the
-// fileRef the backend assigns. bucket is an optional intent label (e.g.
-// "image", "canny") sent as a "type" form field; an empty bucket adds no
-// extra field. The backend may use the type field for routing; v1.x treats
-// it as client-side intent only.
-func (c *Client) Upload(ctx context.Context, filename string, data []byte, bucket string) (string, error) {
+// UploadResult is the decoded /v1/upload response: the ref plus the
+// server-resolved bucket and (for validated buckets) image dimensions.
+type UploadResult struct {
+	Ref    string
+	Bucket string
+	Width  int
+	Height int
+}
+
+// UploadFile posts a file to /v1/upload with the given type label and returns
+// the full result. The server maps the type label to a bucket.
+func (c *Client) UploadFile(ctx context.Context, filename string, data []byte, typeLabel string) (UploadResult, error) {
 	var fields map[string]string
-	if bucket != "" {
-		fields = map[string]string{"type": bucket}
+	if typeLabel != "" {
+		fields = map[string]string{"type": typeLabel}
 	}
 	buf, contentType, err := multipartFile(filename, data, fields)
 	if err != nil {
-		return "", err
+		return UploadResult{}, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/upload", buf)
 	if err != nil {
-		return "", err
+		return UploadResult{}, err
 	}
 	req.Header.Set("Content-Type", contentType)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", err
+		return UploadResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("upload -> %s", resp.Status)
+		return UploadResult{}, fmt.Errorf("upload -> %s", resp.Status)
 	}
 	var body struct {
 		FileRef string `json:"fileRef"`
+		Bucket  string `json:"bucket"`
+		Width   int    `json:"width"`
+		Height  int    `json:"height"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return UploadResult{}, err
+	}
+	return UploadResult{Ref: body.FileRef, Bucket: body.Bucket, Width: body.Width, Height: body.Height}, nil
+}
+
+// Upload posts a file and returns just the ref. Preserved for callers that do
+// not need the resolved bucket; delegates to UploadFile.
+func (c *Client) Upload(ctx context.Context, filename string, data []byte, bucket string) (string, error) {
+	res, err := c.UploadFile(ctx, filename, data, bucket)
+	if err != nil {
 		return "", err
 	}
-	return body.FileRef, nil
+	return res.Ref, nil
 }
 
 // SuperRes posts data to POST /superres with the given magnitude (1..3) and
