@@ -16,15 +16,16 @@ import (
 // IsDefault is true when the mode matches the top-level default_mode field.
 // ControlNetEnabled is extracted from controlnet_policy.enabled.
 type Mode struct {
-	Name               string  `json:"name"`
-	IsDefault          bool    `json:"is_default,omitempty"`
-	Model              string  `json:"model"`
-	DefaultSize        string  `json:"default_size"`
-	DefaultSteps       int     `json:"default_steps"`
-	DefaultGuidance    float64 `json:"default_guidance"`
-	DefaultSchedulerID string  `json:"default_scheduler_id,omitempty"`
-	ControlNetEnabled  bool    `json:"controlnet_enabled"`
-	ChatEnabled        bool    `json:"chat_enabled"`
+	Name                string   `json:"name"`
+	IsDefault           bool     `json:"is_default,omitempty"`
+	Model               string   `json:"model"`
+	DefaultSize         string   `json:"default_size"`
+	DefaultSteps        int      `json:"default_steps"`
+	DefaultGuidance     float64  `json:"default_guidance"`
+	DefaultSchedulerID  string   `json:"default_scheduler_id,omitempty"`
+	AllowedSchedulerIDs []string `json:"allowed_scheduler_ids,omitempty"`
+	ControlNetEnabled   bool     `json:"controlnet_enabled"`
+	ChatEnabled         bool     `json:"chat_enabled"`
 }
 
 // ModelsStatus is the untyped GET /api/models/status payload (backend, vram,
@@ -68,27 +69,29 @@ func (c *Client) Modes(ctx context.Context) ([]Mode, error) {
 	modes := make([]Mode, 0, len(names))
 	for _, name := range names {
 		var cfg struct {
-			Model              string  `json:"model"`
-			DefaultSize        string  `json:"default_size"`
-			DefaultSteps       int     `json:"default_steps"`
-			DefaultGuidance    float64 `json:"default_guidance"`
-			DefaultSchedulerID string  `json:"default_scheduler_id"`
-			ControlNetPolicy   struct {
+			Model               string   `json:"model"`
+			DefaultSize         string   `json:"default_size"`
+			DefaultSteps        int      `json:"default_steps"`
+			DefaultGuidance     float64  `json:"default_guidance"`
+			DefaultSchedulerID  string   `json:"default_scheduler_id"`
+			AllowedSchedulerIDs []string `json:"allowed_scheduler_ids"`
+			ControlNetPolicy    struct {
 				Enabled bool `json:"enabled"`
 			} `json:"controlnet_policy"`
 			ChatEnabled bool `json:"chat_enabled"`
 		}
 		_ = json.Unmarshal(body.Modes[name], &cfg)
 		modes = append(modes, Mode{
-			Name:               name,
-			IsDefault:          name == body.DefaultMode,
-			Model:              cfg.Model,
-			DefaultSize:        cfg.DefaultSize,
-			DefaultSteps:       cfg.DefaultSteps,
-			DefaultGuidance:    cfg.DefaultGuidance,
-			DefaultSchedulerID: cfg.DefaultSchedulerID,
-			ControlNetEnabled:  cfg.ControlNetPolicy.Enabled,
-			ChatEnabled:        cfg.ChatEnabled,
+			Name:                name,
+			IsDefault:           name == body.DefaultMode,
+			Model:               cfg.Model,
+			DefaultSize:         cfg.DefaultSize,
+			DefaultSteps:        cfg.DefaultSteps,
+			DefaultGuidance:     cfg.DefaultGuidance,
+			DefaultSchedulerID:  cfg.DefaultSchedulerID,
+			AllowedSchedulerIDs: cfg.AllowedSchedulerIDs,
+			ControlNetEnabled:   cfg.ControlNetPolicy.Enabled,
+			ChatEnabled:         cfg.ChatEnabled,
 		})
 	}
 	return modes, nil
