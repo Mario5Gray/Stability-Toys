@@ -298,16 +298,17 @@ git commit -m "feat(spike): HunyuanDiT from_pipe load + generation + VRAM captur
 ### Task 3: Execute on the NVIDIA host and record the verdict
 
 **Files:**
-- Modify: none beyond Tasks 1–2 (execution + FP recording; container access for
-  `spikes/` was added in the Task 2 review-fix commit — compose mount
-  `./spikes:/app/spikes:ro,Z` + `COPY spikes/ /app/spikes/` in `Dockerfile.test`)
+- Modify: execution support discovered during the remote run: expose NVIDIA GPUs
+  from `test-cuda`, declare SentencePiece for `T5Tokenizer`, and add packaging /
+  early-import regression contracts. Container access for `spikes/` was added in
+  the Task 2 review-fix commit.
 
 **Interfaces:**
 - Consumes: the complete script from Tasks 1–2; run recipe from the spec.
 - Produces: pass/fail verdict + recorded pins/VRAM on `STABL-ichgkgno`, gating
   the full-family spec.
 
-- [ ] **Step 1: Build and run in the test-cuda container on the remote host**
+- [x] **Step 1: Build and run in the test-cuda container on the remote host**
 
 On the linux/amd64 + NVIDIA host, from the repo root:
 ```bash
@@ -332,7 +333,7 @@ Expected sequence:
 and eyeball it: a coherent image whose composition follows the
 rect/ellipse/diagonal edges (pass gate 3).
 
-- [ ] **Step 2: Record the verdict on FP**
+- [x] **Step 2: Record the verdict on FP**
 
 ```bash
 fp comment STABL-ichgkgno "SPIKE RESULT: import gate <OK/FAILED @ pins diffusers=X transformers=Y>; from_pipe <OK/error>; image <coherent-canny-conditioned/verdict>; peak VRAM <n> GiB.
@@ -342,7 +343,7 @@ Fill every angle-bracket field from the actual run output. If the import gate
 failed in the container, the spike still delivered its highest-value finding:
 dependency-pin resolution becomes an explicit work item for the full-family plan.
 
-- [ ] **Step 3: Commit any run artifacts worth keeping (optional) and close out**
+- [x] **Step 3: Commit any run artifacts worth keeping (optional) and close out**
 
 If the eyeballed PNG is worth preserving for the full-family spec discussion,
 add it under `docs/superpowers/specs/assets/` and commit:
@@ -351,6 +352,13 @@ git add docs/superpowers/specs/assets/spike_hunyuandit_out.png
 git commit -m "docs(spike): HunyuanDiT spike output artifact (STABL-ichgkgno) — next: full-family spec go/no-go"
 ```
 Otherwise skip — the FP comment is the record of truth.
+
+**Recorded result:** GO. On the NVIDIA host, `diffusers=0.39.0`,
+`transformers=4.57.6`, and `sentencepiece=0.2.2` passed the import gate; base and
+ControlNet loading plus `HunyuanDiTControlNetPipeline.from_pipe` succeeded;
+30-step 1024x1024 generation completed in 1:43 with 21.37 GiB peak allocated
+VRAM. Human inspection accepted the generated control-conditioned image. The
+PNG remains a run artifact and is not committed; FP is the evidence record.
 
 ---
 
