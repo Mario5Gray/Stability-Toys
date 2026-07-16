@@ -48,6 +48,9 @@ This delivery includes:
 - corrective detector facts for UNet versus transformer architectures
 - a platform-neutral `FamilyProfile` registry and exact-one resolver
 - an explicit `ResolvedModel` emitted before mode overlays can influence family
+- a wire-safe, data-only `ResolvedModel` trace contract: frozen
+  `ModelInfoSnapshot` codec, `schema_version`, canonical `resolution_id`, and
+  the `ModelArtifactRef`/`LocalModelBinding` split
 - family-by-platform worker and execution-capability bindings
 - one coherent active-model snapshot and stale-resolution rejection
 - profile-driven conditioning and ControlNet family validation
@@ -68,6 +71,12 @@ This delivery includes:
   dead detector cleanup, and unused VRAM-estimator cleanup remain follow-ups.
 - There is no cross-family latent routing and no unified denoiser pipeline.
 - The measured VRAM value does not become a `FamilyProfile` field.
+- Remote processors are not implemented. This delivery ships the wire contract,
+  codec, and consumption rules only; no node ever receives a traced
+  `ResolvedModel` over a network in this delivery.
+- Full content addressing is deferred: local-file `ModelArtifactRef.digest`
+  (sha256) stays unpopulated until a remote processor exists. Hub refs carry
+  `repo@revision`; local refs carry a size+mtime fingerprint.
 
 ## Current Failure Model
 
@@ -150,22 +159,29 @@ worker, or server-state imports.
 ```python
 @dataclass(frozen=True)
 class FamilyProfile:
+    # Pure, comparable, wire-safe data. No callables, ever.
     family_id: str
-    detect: Callable[[ModelInfo], bool]
     encoder_roles: tuple[str, ...]
     pooled_required: bool
     pooled_projection_role: str | None
     control_image_kwarg: str
 
 
-FAMILY_REGISTRY: tuple[FamilyProfile, ...] = (...)
+@dataclass(frozen=True)
+class FamilyRegistration:
+    # Selection behavior is registry-local and never serialized.
+    profile: FamilyProfile
+    detect: Callable[[ModelInfo], bool]
+
+
+FAMILY_REGISTRY: tuple[FamilyRegistration, ...] = (...)
 
 
 def resolve_family(model_info: ModelInfo) -> FamilyProfile:
-    matches = tuple(p for p in FAMILY_REGISTRY if p.detect(model_info))
+    matches = tuple(r for r in FAMILY_REGISTRY if r.detect(model_info))
     if len(matches) != 1:
         raise FamilyResolutionError(model_info.path, matches)
-    return matches[0]
+    return matches[0].profile
 
 
 def validate_family_id(family_id: str) -> str:
@@ -173,6 +189,12 @@ def validate_family_id(family_id: str) -> str:
         raise UnknownFamilyError(family_id)
     return family_id
 ```
+
+`detect` lives only on `FamilyRegistration`; `FamilyProfile` is pure data. This
+keeps every downstream carrier of the profile — `ResolvedModel`, request
+traces, the §6 constructor defaults — serializable and value-comparable by
+construction. Registry self-validation additionally asserts profile purity: no
+profile field may hold a callable or other non-JSON-safe value.
 
 Registry rows are:
 
@@ -198,34 +220,103 @@ it.
 Add `backends/model_resolution.py` and move `merge_mode_capabilities()` out of
 `worker_pool.py` into this component.
 
+`ResolvedModel` is immutable, data-only, and wire-safe: it may appear verbatim
+in a request trace, and a future remote processor may consume it without
+re-detecting or re-resolving family. It therefore carries no callables, no live
+`ModelInfo`, and no host-local authority.
+
 ```python
 @dataclass(frozen=True)
+class ModelInfoSnapshot:
+    # Frozen, JSON-safe capture of detector output at resolution time.
+    # Includes every architecture fact (base_arch, transformer_kind, CAD,
+    # encoder hidden sizes, variant by value) plus loader/policy facts.
+    ...
+
+
+@dataclass(frozen=True)
+class ModelArtifactRef:
+    # Location-neutral model identity. Never a bare host path.
+    kind: str            # "hub" | "local"
+    name: str            # hub: repo id; local: basename
+    revision: str | None # hub revision when known
+    fingerprint: str     # hub: repo@revision; local: size+mtime fingerprint
+    digest: str | None   # sha256 when computed; population deferred (see below)
+
+
+@dataclass(frozen=True)
+class LocalModelBinding:
+    # Node-local load authority. NEVER serialized into traces.
+    model_path: str
+
+
+@dataclass(frozen=True)
 class ResolvedModel:
-    raw_info: ModelInfo
-    profile: FamilyProfile
-    info: ModelInfo
+    schema_version: int
+    resolution_id: str        # canonical content hash (see below)
+    model_ref: ModelArtifactRef
+    raw_info: ModelInfoSnapshot
+    profile: FamilyProfile    # pure data per §2
+    info: ModelInfoSnapshot
 
 
-def resolve_model(model_path: str, mode: ModeConfig) -> ResolvedModel:
+def resolve_model(model_path: str, mode: ModeConfig) -> tuple[ResolvedModel, LocalModelBinding]:
     raw = detect_model(model_path)
     profile = resolve_family(raw)
     enriched = merge_mode_capabilities(raw, mode)
-    return ResolvedModel(raw_info=raw, profile=profile, info=enriched)
+    resolved = ResolvedModel(
+        schema_version=RESOLVED_MODEL_SCHEMA_VERSION,
+        resolution_id=_content_hash(...),
+        model_ref=_artifact_ref(model_path),
+        raw_info=freeze_model_info(raw),
+        profile=profile,
+        info=freeze_model_info(enriched),
+    )
+    return resolved, LocalModelBinding(model_path=model_path)
 ```
 
 The ordering is structural: family resolution consumes detector output before
-mode overlays. `raw_info` and `info` are distinct copies. `WorkerPool._load_mode`
-calls this function once and passes the emitted value to the platform factory.
-The final factory signature is:
+mode overlays. `raw_info` and `info` are distinct frozen captures.
+`WorkerPool._load_mode` calls this function once and passes both emitted values
+to the platform factory. The final factory signature is:
 
 ```python
 class WorkerFactory(Protocol):
-    def __call__(self, worker_id: int, resolved: ResolvedModel) -> PipelineWorker: ...
+    def __call__(
+        self, worker_id: int, resolved: ResolvedModel, binding: LocalModelBinding
+    ) -> PipelineWorker: ...
 ```
 
 The migration may temporarily accept the old `model_path`/`model_info` factory
 shape, but that fallback is deleted in the same delivery. The final path has no
 factory `inspect_model()` fallback and no request-time model re-detection.
+
+**Snapshot codec.** `freeze_model_info()` and its inverse are a total,
+round-trip codec: every architecture field survives (including `base_arch` and
+`transformer_kind`), `ModelVariant` is restored by value, and non-JSON-safe
+metadata entries fail at freeze time — at resolution, not later at trace time.
+The existing lossy `ModelInfo.to_dict()` is not the codec and is not extended
+into one. `ModelInfoSnapshot` retains the detection `path` as a detector fact;
+load authority lives only in `LocalModelBinding`.
+
+**Identity, staged.** `resolution_id` is a canonical content hash (sorted-key
+canonical JSON) over `schema_version`, `model_ref`, `raw_info`, `family_id`,
+and `info`. It is portable identity for traces and cross-node reproduction; the
+§5 `resolution_epoch` remains the in-process TOCTOU guard, and the two are
+never interchangeable. `ModelArtifactRef` population is staged: hub models
+carry `repo@revision`; local files carry a cheap size+mtime fingerprint now,
+with `digest` (sha256) population deferred until a remote processor actually
+exists. The schema is stable either way.
+
+**Consumption rules.** A consumer of a traced `ResolvedModel` (diagnostics
+today, a remote processor later) validates `schema_version`, validates
+`profile.family_id` against its own registry, and verifies the traced profile
+equals its canonical registry row **field-for-field — any difference raises
+`ResolutionCompatibilityError`; neither side silently wins.** It resolves
+`model_ref` to its own `LocalModelBinding` and selects its own family-platform
+binding. It never re-detects, never re-resolves family, and never receives
+`detect` or worker references — those are not in the wire format by
+construction. Pickle is forbidden for this contract.
 
 ### 4. Family by Platform Binding
 
@@ -300,17 +391,20 @@ class ActiveModelSnapshot:
     mode_name: str
     mode: ModeConfig
     resolved: ResolvedModel
+    binding: LocalModelBinding   # node-local; excluded from any trace export
     resolution_epoch: int
 ```
 
 The mode stored in the snapshot is a deep copy. A frozen wrapper around a shared
 mutable `ModeConfig` is insufficient. The pool protects snapshot publication and
-reads with its state lock.
+reads with its state lock. `resolved` is the portable authority (its
+`resolution_id` identifies the resolution across nodes); `binding` and
+`resolution_epoch` are node-local lifecycle state and never leave the process.
 
 Load sequence:
 
 1. Resolve from model path and a copied mode.
-2. Construct and configure the worker from `ResolvedModel`.
+2. Construct and configure the worker from `ResolvedModel` plus `LocalModelBinding`.
 3. Register resource observations.
 4. Under the state lock, increment the epoch and atomically publish worker,
    mode name, and `ActiveModelSnapshot`.
@@ -517,6 +611,8 @@ No arrow returns to model detection after `ResolvedModel` is emitted.
 | job admitted under replaced resolution | `StaleResolutionError` | worker loop, before worker invocation |
 | missing Hunyuan runtime dependency | `HunyuanDiTDependencyError` | worker construction, before download |
 | Hunyuan worker receives init image | explicit unsupported-operation error | worker defense in depth |
+| traced resolution fails schema, family, or profile-equality validation | `ResolutionCompatibilityError` | trace consumption |
+| non-JSON-safe metadata at snapshot freeze | explicit codec error | resolution, at freeze time |
 
 Errors include stable family IDs and operation names. They do not expose worker
 class paths as family authority.
@@ -533,14 +629,18 @@ class paths as family authority.
 
 ### Phase 1: Neutral Contract
 
-1. Add profiles, registry validation, errors, and exact-one resolution.
+1. Add profiles, registrations, registry validation, errors, and exact-one
+   resolution — `detect` on `FamilyRegistration` only; profile-purity check in
+   registry self-validation.
 2. Add SD1.5 and SDXL rows first.
 3. Open and validate both conditioning family-string contracts.
 4. Add registry overlap and coherence tests.
 
 ### Phase 2: Thread, Bind, and De-String
 
-1. Move mode overlay into `resolve_model()` and introduce `ResolvedModel`.
+1. Move mode overlay into `resolve_model()` and introduce `ResolvedModel` with
+   the snapshot codec, `ModelArtifactRef`, `LocalModelBinding`, canonical
+   `resolution_id`, and trace-consumption validation.
 2. Migrate factory injection while temporarily preserving the old signature.
 3. Add CUDA family bindings and provider lookup.
 4. Add active snapshot publication, request snapshot reads, and job epochs.
@@ -573,6 +673,16 @@ Add or extend tests for:
   validation
 - pre-overlay family resolution when `checkpoint_variant` conflicts
 - `ResolvedModel` carrying distinct raw and enriched values
+- snapshot codec round-trip: every architecture field (incl. `base_arch`,
+  `transformer_kind`), `ModelVariant` by value; non-JSON-safe metadata rejected
+  at freeze
+- `resolution_id` determinism (same inputs → same hash; any field change →
+  different hash) and epoch/`resolution_id` non-interchangeability
+- profile purity: no callable reaches any `FamilyProfile` field or the wire form
+- trace consumption: schema-version, unknown-family, and profile-inequality
+  inputs each raise `ResolutionCompatibilityError`; valid trace reattaches the
+  canonical registry profile without re-detection
+- `LocalModelBinding` excluded from serialized output
 - legacy factory path removal and lazy worker-reference resolution
 - no Torch/Diffusers import during binding capability reads
 - per-family capability admission for all four request combinations
@@ -624,6 +734,11 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - Every known detector fixture resolves exactly one execution family.
 - Mode overlays cannot change the resolved family.
 - The final load path detects once and carries one `ResolvedModel`.
+- `ResolvedModel` round-trips through the JSON codec with no callables, no live
+  `ModelInfo`, and no host-local path in the wire form; `LocalModelBinding`
+  never serializes.
+- Trace consumption rejects schema, unknown-family, and profile-inequality
+  mismatches with `ResolutionCompatibilityError` and never re-detects.
 - CUDA worker binding and execution capabilities come from one import-clean map.
 - Capability reads do not import worker, Torch, or Diffusers code.
 - Request admission reads one immutable active snapshot.
@@ -656,3 +771,5 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - style/LoRA compatibility-axis cleanup
 - modular/example detector cleanup
 - unused VRAM estimator cleanup or a future consumed resource contract
+- sha256 `ModelArtifactRef.digest` population (with digest cache) and actual
+  remote-processor consumption of traced `ResolvedModel` values
