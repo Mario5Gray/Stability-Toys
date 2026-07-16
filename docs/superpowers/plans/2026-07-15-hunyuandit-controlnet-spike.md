@@ -298,7 +298,9 @@ git commit -m "feat(spike): HunyuanDiT from_pipe load + generation + VRAM captur
 ### Task 3: Execute on the NVIDIA host and record the verdict
 
 **Files:**
-- Modify: none (execution + FP recording only)
+- Modify: none beyond Tasks 1–2 (execution + FP recording; container access for
+  `spikes/` was added in the Task 2 review-fix commit — compose mount
+  `./spikes:/app/spikes:ro,Z` + `COPY spikes/ /app/spikes/` in `Dockerfile.test`)
 
 **Interfaces:**
 - Consumes: the complete script from Tasks 1–2; run recipe from the spec.
@@ -311,7 +313,7 @@ On the linux/amd64 + NVIDIA host, from the repo root:
 ```bash
 docker compose -f docker-compose.test.yml build test-cuda
 docker compose -f docker-compose.test.yml run --rm test-cuda \
-    python spikes/hunyuandit_controlnet_spike.py --out /tmp/spike_hunyuandit_out.png
+    python spikes/hunyuandit_controlnet_spike.py --out /app/logs/spike_hunyuandit_out.png
 ```
 Expected sequence:
 ```
@@ -322,11 +324,13 @@ Expected sequence:
 [spike] composing via from_pipe (production load shape)   <- pass gate 2 if no dtype/VAE error
 [spike] control map: synthesized ...
 [spike] generating: ...
-[spike] saved: /tmp/spike_hunyuandit_out.png
+[spike] saved: /app/logs/spike_hunyuandit_out.png
 [spike] peak VRAM: <n> GiB         <- pass gate 4
 ```
-Copy the output PNG off the host and eyeball it: a coherent image whose
-composition follows the rect/ellipse/diagonal edges (pass gate 3).
+`/app/logs` is the host-mounted `./logs` volume, so the PNG survives
+`docker compose run --rm`. Fetch `./logs/spike_hunyuandit_out.png` off the host
+and eyeball it: a coherent image whose composition follows the
+rect/ellipse/diagonal edges (pass gate 3).
 
 - [ ] **Step 2: Record the verdict on FP**
 

@@ -20,6 +20,7 @@ services:
       - ./utils:/app/utils:ro,Z
       - ./persistence:/app/persistence:ro,Z
       - ./tests:/app/tests:ro,Z
+      - ./spikes:/app/spikes:ro,Z
       - ./invokers:/app/invokers:ro,Z
       - ${TEST_MODELS_HOST_PATH:-./models}:/models:ro,Z
       - ${TEST_FS_HOST_PATH:-./store}:/store:rw,Z

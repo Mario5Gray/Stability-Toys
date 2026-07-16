@@ -108,6 +108,7 @@ COPY invokers/ /app/invokers/
 COPY utils/ /app/utils/
 COPY scripts/ /app/scripts/
 COPY tests/ /app/tests/
+COPY spikes/ /app/spikes/
 COPY *.py /app/
 COPY *.sh /app/
 
