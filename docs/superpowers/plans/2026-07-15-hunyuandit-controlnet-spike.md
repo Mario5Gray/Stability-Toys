@@ -47,7 +47,7 @@ only. Spec: `docs/superpowers/specs/2026-07-15-hunyuandit-controlnet-spike-desig
   prints `diffusers=<v> transformers=<v>`, then either `import gate: OK` (exit 0)
   or `IMPORT GATE FAILED: <exc>` (exit 2). Task 2 extends `main()` past the gate.
 
-- [ ] **Step 1: Write the script with argparse and the import gate**
+- [x] **Step 1: Write the script with argparse and the import gate**
 
 ```python
 #!/usr/bin/env python
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
 ```
 
-- [ ] **Step 2: Write `spikes/README.md`**
+- [x] **Step 2: Write `spikes/README.md`**
 
 ```markdown
 # spikes/
@@ -140,7 +140,7 @@ imported by `server/` or `backends/`. Each spike names its FP issue and spec.
   in `docs/superpowers/specs/2026-07-15-hunyuandit-controlnet-spike-design.md`.
 ```
 
-- [ ] **Step 3: Verify the gate locally (expected failure = the signal)**
+- [x] **Step 3: Verify the gate locally (expected failure = the signal)**
 
 Run:
 ```bash
@@ -157,7 +157,7 @@ exit=2
 Exit MUST be 2 (not an unhandled traceback), and both versions MUST print
 before the failure line.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add spikes/hunyuandit_controlnet_spike.py spikes/README.md
