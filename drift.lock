@@ -6,7 +6,7 @@ docs/TESTING_IN_DOCKER.md -> Dockerfile.test sig:2671a7caac12921c
 docs/TESTING_IN_DOCKER.md -> Makefile sig:81a39c76dc904ef6
 docs/TESTING_IN_DOCKER.md -> Makefile.test sig:8a91483b36a4777b
 docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
-docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:67b6faded7ef6abe
+docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:ff02ccbcf1ad7e20
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:18d3037df08a37dc
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:db90031007f4917c
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:fa99d66f0d8725ea

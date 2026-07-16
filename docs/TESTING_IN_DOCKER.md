@@ -36,7 +36,9 @@ That local path verifies container wiring honestly, but it does not prove CPU in
 - `test-fast`: local-native CPU service with `not slow`
 - `test-cuda`: explicit CUDA service for `linux/amd64`
 
-The local services build `Dockerfile.test` with `BACKEND=cpu`. The CUDA service builds the same Dockerfile with `BACKEND=cuda` and loads `env.cuda`.
+The local services build `Dockerfile.test` with `BACKEND=cpu`. The CUDA service
+builds the same Dockerfile with `BACKEND=cuda`, loads `env.cuda`, and requests
+all NVIDIA GPUs through the Compose device reservation.
 
 `BACKEND=cpu` in the local Docker test path is a build and smoke-test scaffold. It is not a supported generation backend for this app yet.
 

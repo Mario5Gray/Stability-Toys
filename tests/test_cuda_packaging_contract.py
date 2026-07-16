@@ -246,6 +246,25 @@ def test_docker_cuda_yml_passes_backend_cuda_build_arg():
     assert args.get("BACKEND") == "cuda"
 
 
+def test_test_cuda_compose_requests_all_nvidia_gpus():
+    import yaml
+
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-compose.test.yml").read_text(encoding="utf-8")
+    )
+    service = compose["services"]["test-cuda"]
+    devices = service["deploy"]["resources"]["reservations"]["devices"]
+
+    assert service["runtime"] == "nvidia"
+    assert devices == [
+        {
+            "driver": "nvidia",
+            "count": "all",
+            "capabilities": ["gpu"],
+        }
+    ]
+
+
 def test_docker_rknn_yml_passes_backend_rknn_build_arg():
     import yaml
 
