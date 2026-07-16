@@ -178,7 +178,7 @@ git commit -m "feat(spike): HunyuanDiT ControlNet spike import gate + CLI (STABL
 - Produces: full-run behavior for Task 3 — on CUDA, saves `--out` PNG and prints
   `peak VRAM: <n> GiB`; exits 3 when CUDA is absent.
 
-- [ ] **Step 1: Add control-map loading with a synthesized default**
+- [x] **Step 1: Add control-map loading with a synthesized default**
 
 Add after `import_gate()`:
 
@@ -202,7 +202,7 @@ def load_control_map(path: str | None, size: tuple[int, int] = (1024, 1024)):
     return img.convert("RGB")
 ```
 
-- [ ] **Step 2: Add the CUDA run — production `from_pipe` shape + VRAM capture**
+- [x] **Step 2: Add the CUDA run — production `from_pipe` shape + VRAM capture**
 
 Add after `load_control_map`, and replace `main()`:
 
@@ -259,7 +259,7 @@ def main(argv: list[str]) -> int:
     return run(classes, args)
 ```
 
-- [ ] **Step 3: Verify locally — compile + gate behavior unchanged**
+- [x] **Step 3: Verify locally — compile + gate behavior unchanged**
 
 Run:
 ```bash
@@ -271,7 +271,7 @@ python spikes/hunyuandit_controlnet_spike.py --imports-only; echo "exit=$?"
 Expected: `compile OK`; gate run still prints both versions and exits 2 on the
 mac baseline.
 
-- [ ] **Step 4: Verify the synthesized control map locally (PIL path only)**
+- [x] **Step 4: Verify the synthesized control map locally (PIL path only)**
 
 Run:
 ```bash
@@ -286,7 +286,7 @@ EOF
 ```
 Expected: `[spike] control map: synthesized ...` then `synth control map OK`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add spikes/hunyuandit_controlnet_spike.py
