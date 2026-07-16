@@ -139,6 +139,13 @@ The spike is **not** blocked by a VRAM ceiling and does not assert one.
 
 ## Forward: family-extension architecture (decided, for the full-family spec)
 
+> **Superseded in detail by the FP brainstorm** (v4+):
+> `fp://brainstorm?id=ewgzdmdnfumoczdfyergbyghcwsggdij`. The corpus is the
+> authoritative family-generalization architecture — platform-neutral
+> `FamilyProfile`, platform-owned worker maps, `ResolvedModel` emitted by
+> `resolve_model()`, Option C bounded migration, visible Compel deferral.
+> The sketch below is the original in-dialogue summary, kept for provenance.
+
 The full-family spec will commit to **seam-based composition**, not a unified
 polymorphic pipeline. Every family here is a latent-diffusion pipeline with the
 same stage skeleton:
