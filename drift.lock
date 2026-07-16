@@ -75,6 +75,6 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/condi
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/registry.py sig:448245685ce46c5c
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/cuda_worker.py sig:279bdbd0e4239178
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/worker_pool.py sig:5eed2ae0ecc90391
-docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> requirements.txt sig:5743f94ae395053e
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> requirements.txt sig:979a885e577cd41b
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> scripts/st-dtype-live-verify.sh sig:651c210852625d71
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> server/mode_config.py sig:c48816472ffe89b8

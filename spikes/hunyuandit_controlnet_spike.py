@@ -33,7 +33,18 @@ def import_gate() -> dict:
             HunyuanDiTControlNetPipeline,
             HunyuanDiTPipeline,
         )
-        from transformers import BertModel, T5EncoderModel  # noqa: F401
+        from transformers import BertModel, T5EncoderModel, T5Tokenizer  # noqa: F401
+
+        try:
+            tokenizer_loader = getattr(T5Tokenizer, "from_pretrained")
+        except Exception as exc:
+            raise RuntimeError(
+                "T5Tokenizer is not loadable; install the SentencePiece dependency"
+            ) from exc
+        if not callable(tokenizer_loader):
+            raise RuntimeError(
+                "T5Tokenizer is not loadable; install the SentencePiece dependency"
+            )
     except Exception as exc:
         stage(f"IMPORT GATE FAILED: {type(exc).__name__}: {exc}")
         raise SystemExit(2)

@@ -60,6 +60,12 @@ def test_transformers_pinned_below_5_to_preserve_diffusers_single_file_clip_load
         )
 
 
+def test_runtime_requirements_include_sentencepiece_for_t5_tokenizers():
+    lines = _requirements_lines()
+
+    assert any(line.startswith("sentencepiece") for line in lines)
+
+
 def test_dockerfile_verifies_torch_and_xformers_after_cuda_install():
     dockerfile = (REPO_ROOT / "docker/platform/python-cuda.Dockerfile").read_text(
         encoding="utf-8"

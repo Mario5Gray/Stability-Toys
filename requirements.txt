@@ -32,6 +32,7 @@ uvicorn==0.30.6
 pydantic==2.8.2
 pillow
 transformers>=4.30.0,<5.0
+sentencepiece>=0.2.0
 diffusers>=0.27.0
 pyparsing~=3.0
 basicsr-fixed>=1.4.2
