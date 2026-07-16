@@ -553,9 +553,11 @@ class paths as family authority.
 ### Phase 3: HunyuanDiT Family
 
 1. Add the Hunyuan neutral row and CUDA binding.
-2. Add the dependency preflight and Hunyuan worker.
-3. Add Canny registry and mode data.
-4. Run CPU contract tests and the live CUDA acceptance at the proven dependency
+2. Raise the production Diffusers floor to `>=0.39.0`, rebuild `test-cuda`, and
+   rerun the Hunyuan dependency preflight before any model download.
+3. Add the dependency preflight and Hunyuan worker.
+4. Add Canny registry and mode data.
+5. Run CPU contract tests and the live CUDA acceptance at the proven dependency
    matrix.
 
 Phase 3 does not begin until the Phase 2 SD behavior-preservation gate is green.
@@ -648,6 +650,8 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - Hunyuan Depth and Pose live checkpoint enablement
 - authoritative family/capability exposure in `/models/status`
 - scheduler fallback normalization
+- `ResolutionDetector` architecture-before-policy ordering and consolidation of
+  duplicated size/scheduler hint production
 - `utils/detect_model_type.py` delegation or retirement
 - style/LoRA compatibility-axis cleanup
 - modular/example detector cleanup
