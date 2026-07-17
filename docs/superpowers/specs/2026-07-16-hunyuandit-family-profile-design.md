@@ -839,6 +839,14 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - style/LoRA compatibility-axis cleanup
 - modular/example detector cleanup
 - unused VRAM estimator cleanup or a future consumed resource contract
+- VRAM observation and pre-generation feasibility: OOM during a large
+  generation is an accepted failure (reactive cleanup already handles it), but
+  a request-time heuristic could warn or reject beforehand — accumulate
+  per-family observations keyed by (resolution, size, steps, controlnet count)
+  from the existing load-delta and `max_memory_allocated` measurements, then
+  compare a request's predicted peak against current free VRAM at admission.
+  Observation collection is the prerequisite; the gate policy (warn vs reject)
+  comes after data exists
 - sha256 `ModelArtifactRef.digest` population (with digest cache) and actual
   remote-processor consumption of traced `ResolvedModel` values
 - runtime liveness policy: detection/load timeouts, a job-execution watchdog,
