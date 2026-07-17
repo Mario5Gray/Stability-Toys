@@ -76,8 +76,8 @@ This delivery includes:
   `ResolvedModel` over a network in this delivery.
 - Full content addressing is deferred: local `ModelArtifactRef.digest`
   (sha256 of content) stays unpopulated until a remote processor exists. Hub
-  refs carry `repo@revision`; local refs carry the content-stable name/size
-  manifest fingerprint defined in §3 (no mtime, no path).
+  refs carry `repo@revision`; local refs carry the location-stable structural
+  name/size manifest fingerprint defined in §3 (no mtime, no path).
 
 ## Current Failure Model
 
@@ -243,7 +243,7 @@ class ModelArtifactRef:
     kind: str            # "hub" | "local-file" | "local-dir"
     name: str            # hub: repo id; local: basename
     revision: str | None # hub revision when known
-    fingerprint: str     # content-stable weak identity (see below)
+    fingerprint: str     # location-stable structural fingerprint (see below)
     digest: str | None   # sha256 when computed; population deferred (see below)
 
 
@@ -316,18 +316,19 @@ just `family_id` — two resolutions differing only in profile data must never
 share an ID)**, and `info`. A committed golden vector (fixed payload → exact
 canonical bytes → exact hash) pins the encoding; any codec change that breaks
 the vector is a schema change and must bump `schema_version`. `resolution_id`
-is portable identity for traces and cross-node reproduction; the §5
+is portable resolution-descriptor identity — it identifies *the resolution*,
+not the artifact bytes, and is never proof of identical weights; the §5
 `resolution_epoch` remains the in-process TOCTOU guard, and the two are never
 interchangeable.
 
 Artifact identity is two-tier, and the tiers must never be conflated:
 
-- **Weak fingerprint** (`ModelArtifactRef.fingerprint`) — cheap, content-stable
-  correlation for diagnostics and local cache reasoning. Identical artifacts on
-  different nodes produce the identical fingerprint (no mtime, no path), but
-  the converse does not hold: same-sized different weights collide. A weak
-  fingerprint is therefore **never** sufficient to identify an executable
-  artifact.
+- **Weak fingerprint** (`ModelArtifactRef.fingerprint`) — a location-stable
+  structural fingerprint: cheap correlation for diagnostics and local cache
+  reasoning. Identical artifacts on different nodes produce the identical
+  fingerprint (no mtime, no path), but it fingerprints *structure*, not bytes —
+  same-sized different weights collide. A weak fingerprint is therefore
+  **never** sufficient to identify an executable artifact.
 - **Strong identity** — `digest` (full-content sha256) or, for `hub` refs, an
   immutable commit-hash `revision`. A mutable hub tag or branch name is not
   strong identity.
@@ -662,6 +663,7 @@ No arrow returns to model detection after `ResolvedModel` is emitted.
 | missing Hunyuan runtime dependency | `HunyuanDiTDependencyError` | worker construction, before download |
 | Hunyuan worker receives init image | explicit unsupported-operation error | worker defense in depth |
 | traced resolution fails schema, family, or profile-equality validation | `ResolutionCompatibilityError` | trace consumption |
+| cross-node execution attempted with fingerprint-only `model_ref` (no digest, no immutable hub revision) | `ResolutionCompatibilityError` | trace consumption, before any load |
 | non-JSON-safe metadata at snapshot freeze | explicit codec error | resolution, at freeze time |
 
 Errors include stable family IDs and operation names. They do not expose worker
@@ -803,6 +805,8 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
   never serializes.
 - Trace consumption rejects schema, unknown-family, and profile-inequality
   mismatches with `ResolutionCompatibilityError` and never re-detects.
+- Cross-node execution with a fingerprint-only `model_ref` is rejected before
+  any load; weak fingerprints authorize diagnostics and correlation only.
 - CUDA worker binding and execution capabilities come from one import-clean map.
 - Capability reads do not import worker, Torch, or Diffusers code.
 - Request admission reads one immutable active snapshot.
