@@ -294,10 +294,15 @@ The migration may temporarily accept the old `model_path`/`model_info` factory
 shape, but that fallback is deleted in the same delivery. The final path has no
 factory `inspect_model()` fallback and no request-time model re-detection.
 
-**Snapshot codec.** `freeze_model_info()` and its inverse are a total,
-round-trip codec: every architecture field survives (including `base_arch` and
-`transformer_kind`), `ModelVariant` is restored by value, and non-JSON-safe
-metadata entries fail at freeze time — at resolution, not later at trace time.
+**Snapshot codec.** The total round-trip guarantee is
+`ModelInfoSnapshot ↔ JSON`: every architecture field survives (including
+`base_arch` and `transformer_kind`), `ModelVariant` is restored by value, and
+non-JSON-safe metadata entries fail at freeze time — at resolution, not later
+at trace time. Reconstructing a live `ModelInfo` is a separate, explicitly
+partial operation — `thaw_model_info(snapshot, binding: LocalModelBinding)` —
+which rehydrates `path` from the node-local binding; there is deliberately no
+`snapshot → ModelInfo` inverse without a binding, because the snapshot carries
+no path by design.
 The existing lossy `ModelInfo.to_dict()` is not the codec and is not extended
 into one. The codec **strips `ModelInfo.path`**: a host path is node-local
 state, so it may appear nowhere in the wire form — snapshots are hashed, and a
@@ -315,20 +320,43 @@ is portable identity for traces and cross-node reproduction; the §5
 `resolution_epoch` remains the in-process TOCTOU guard, and the two are never
 interchangeable.
 
-`ModelArtifactRef.fingerprint` is content-stable weak identity — identical
-artifacts on different nodes must produce the identical fingerprint, so no
-mtime and no path may enter it:
+Artifact identity is two-tier, and the tiers must never be conflated:
 
-| kind | fingerprint |
+- **Weak fingerprint** (`ModelArtifactRef.fingerprint`) — cheap, content-stable
+  correlation for diagnostics and local cache reasoning. Identical artifacts on
+  different nodes produce the identical fingerprint (no mtime, no path), but
+  the converse does not hold: same-sized different weights collide. A weak
+  fingerprint is therefore **never** sufficient to identify an executable
+  artifact.
+- **Strong identity** — `digest` (full-content sha256) or, for `hub` refs, an
+  immutable commit-hash `revision`. A mutable hub tag or branch name is not
+  strong identity.
+
+**Cross-node execution requires strong identity.** A consumer may correlate,
+log, and diagnose with weak fingerprints, but it must refuse to *execute* a
+traced `ResolvedModel` whose `model_ref` carries neither a `digest` nor an
+immutable hub revision — that refusal is a `ResolutionCompatibilityError`.
+In-process use never crosses this boundary: the local `ActiveModelSnapshot`
+already holds its own `LocalModelBinding`.
+
+| kind | fingerprint (weak, correlation only) |
 | --- | --- |
 | `hub` | `repo@revision` |
 | `local-file` | `sha256(JCS([name, byte_size]))` |
-| `local-dir` (Diffusers directory) | `sha256(JCS(sorted [relative_path, byte_size] pairs))` over the directory's files |
+| `local-dir` (Diffusers directory) | `sha256(JCS(manifest))` per the manifest rules below |
+
+Manifest rules for `local-dir` (deterministic by construction): walk the
+directory recursively; include regular files only; entries are
+`[relative_path, byte_size]` with POSIX `/` separators, NFC-normalized,
+relative to the model root; sort bytewise by `relative_path`. A symlink
+anywhere in the tree fails fingerprinting with an explicit error — model
+directories with links have no portable identity.
 
 Node-local freshness heuristics (mtime) belong in `LocalModelBinding` cache
-logic if ever needed, never in the ref. `digest` (full-content sha256) remains
-the strong identity and its population is deferred until a remote processor
-actually exists. The schema is stable either way.
+logic if ever needed, never in the ref. `digest` population is deferred until a
+remote processor actually exists; until then no cross-node execution is
+possible, so the strong-identity requirement is contract text with a test, not
+a live gate. The schema is stable either way.
 
 **Consumption rules.** A consumer of a traced `ResolvedModel` (diagnostics
 today, a remote processor later) validates `schema_version`, validates
@@ -706,7 +734,14 @@ Add or extend tests for:
   epoch/`resolution_id` non-interchangeability
 - fingerprint stability: identical local file/Diffusers-directory content
   yields the identical fingerprint regardless of absolute path or mtime;
-  directory manifest ordering is deterministic
+  directory manifest ordering is deterministic; a symlink in the tree fails
+  fingerprinting explicitly
+- weak/strong identity separation: consuming a traced `ResolvedModel` for
+  execution with fingerprint-only `model_ref` (no digest, no immutable hub
+  revision) raises `ResolutionCompatibilityError`; the same trace remains
+  readable for diagnostics
+- `thaw_model_info(snapshot, binding)` rehydrates `path` from the binding;
+  thawing without a binding is not offered by the API
 - profile purity: no callable reaches any `FamilyProfile` field or the wire form
 - trace consumption: schema-version, unknown-family, and profile-inequality
   inputs each raise `ResolutionCompatibilityError`; valid trace reattaches the
