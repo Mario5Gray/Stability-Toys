@@ -2,12 +2,17 @@ uv.lock
 store/*
 .codex/
 models/
-# Model fixtures are metadata-only: track *.json under the fixture tree and
-# nothing else (no weights, tokenizers, GGUF, spiece.model, etc.).
+# Model fixtures are metadata-only: allowlist architecture-bearing JSON and
+# nothing else -- no weights, tokenizer files, GGUF, spiece.model, etc.
 !tests/fixtures/models/
 tests/fixtures/models/**/*
 !tests/fixtures/models/**/
-!tests/fixtures/models/**/*.json
+!tests/fixtures/models/**/model_index.json
+!tests/fixtures/models/**/unet/config.json
+!tests/fixtures/models/**/transformer/config.json
+!tests/fixtures/models/**/text_encoder/config.json
+!tests/fixtures/models/**/text_encoder_2/config.json
+!tests/fixtures/models/**/vae/config.json
 AGENTS.md
 CLAUDE.md
 FP_CLAUDE.md
