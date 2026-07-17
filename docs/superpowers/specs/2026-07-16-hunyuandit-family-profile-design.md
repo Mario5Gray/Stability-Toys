@@ -841,3 +841,9 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - unused VRAM estimator cleanup or a future consumed resource contract
 - sha256 `ModelArtifactRef.digest` population (with digest cache) and actual
   remote-processor consumption of traced `ResolvedModel` values
+- runtime liveness policy: detection/load timeouts, a job-execution watchdog,
+  and an observable pool health state (e.g. `LOADING`/`STUCK`). The snapshot
+  lifecycle is fail-closed under a hung load (old snapshot invalidated first,
+  so admission rejects rather than executing against a half-world), but nothing
+  bounds time: a hang in `detect_model` I/O, `from_pretrained`, or `run_job` is
+  currently unbounded — exceptions are handled, hangs are not
