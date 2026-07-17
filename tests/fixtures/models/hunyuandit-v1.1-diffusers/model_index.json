@@ -1,10 +1,5 @@
 {
   "_class_name": "HunyuanDiTPipeline",
-  "_diffusers_version": "0.30.0",
-  "scheduler": [
-    "diffusers",
-    "DDPMScheduler"
-  ],
   "text_encoder": [
     "transformers",
     "BertModel"
@@ -16,9 +11,5 @@
   "transformer": [
     "diffusers",
     "HunyuanDiT2DModel"
-  ],
-  "vae": [
-    "diffusers",
-    "AutoencoderKL"
   ]
 }
