@@ -251,8 +251,10 @@ class SafetensorsDetector(BaseDetector):
             self._extract_cross_attention(keys, f, info)
             self._extract_text_encoder_info(keys, f, info)
             self._extract_unet_info(keys, f, info)
-            # A single-file SD/SDXL base checkpoint is a UNet family.
-            info.base_arch = "unet"
+            # Only assert a UNet family when UNet keys were actually found;
+            # without evidence the architecture stays unknown.
+            if info.unet_in_channels is not None or info.cross_attention_dim is not None:
+                info.base_arch = "unet"
 
         self._mark_detection(info)
         return info
@@ -349,10 +351,13 @@ class DiffusersDetector(BaseDetector):
             info.metadata["has_dual_text_encoders"] = True
 
         # Architecture facts from declared components. A declared UNet is a UNet
-        # family; a declared transformer is a DiT family. Never guess.
-        if "unet" in model_index:
+        # family; a declared transformer is a DiT family. Ambiguous (both) or
+        # absent (neither) leaves the fact unknown — never guess.
+        has_unet = "unet" in model_index
+        has_transformer = "transformer" in model_index
+        if has_unet and not has_transformer:
             info.base_arch = "unet"
-        elif "transformer" in model_index:
+        elif has_transformer and not has_unet:
             info.base_arch = "transformer"
             transformer_config_path = path_obj / "transformer" / "config.json"
             if transformer_config_path.exists():
@@ -432,8 +437,13 @@ class CheckpointDetector(BaseDetector):
                 has_te2 = any("text_encoder_2" in k or "conditioner.embedders.1" in k for k in keys_list)
                 info.metadata["has_dual_text_encoders"] = has_te2
 
-                # A single-file SD/SDXL base checkpoint is a UNet family.
-                info.base_arch = "unet"
+                # Only assert a UNet family with actual UNet/diffusion evidence.
+                has_unet_keys = any(
+                    "input_blocks" in k or "conv_in" in k or "diffusion_model" in k
+                    for k in keys_list
+                )
+                if has_unet_keys:
+                    info.base_arch = "unet"
 
                 # Infer cross-attention from presence of te2
                 if has_te2:

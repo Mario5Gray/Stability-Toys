@@ -126,3 +126,47 @@ def test_sd_checkpoint_reports_unet_base_arch(tmp_path: Path):
     torch.save({"conv_in.weight": torch.zeros(320, 4, 3, 3)}, str(path))
     info = detect_model(str(path))
     assert info.base_arch == "unet"
+
+
+# --- base_arch requires evidence; ambiguity stays unknown ------------------
+
+def test_non_unet_safetensors_is_not_marked_unet(tmp_path: Path):
+    # Only a text-encoder tensor, no UNet keys: architecture is not provable.
+    path = tmp_path / "encoder_only.safetensors"
+    save_file(
+        {"text_model.encoder.layers.0.self_attn.k_proj.weight": np.zeros((768, 768), dtype=np.float32)},
+        str(path),
+    )
+    info = detect_model(str(path))
+    assert info.base_arch == "unknown"
+
+
+def test_non_unet_checkpoint_is_not_marked_unet(tmp_path: Path):
+    # No UNet/diffusion keys: must not be asserted as a UNet family.
+    path = tmp_path / "misc.ckpt"
+    torch.save({"some_projection.weight": torch.zeros(16, 16)}, str(path))
+    info = detect_model(str(path))
+    assert info.base_arch == "unknown"
+
+
+def test_ambiguous_unet_and_transformer_stays_unknown(tmp_path: Path):
+    # A directory declaring BOTH a UNet and a transformer is ambiguous; the
+    # detector must not guess an architecture.
+    root = _write_diffusers_dir(
+        tmp_path / "ambiguous",
+        model_index={
+            "_class_name": "SomePipeline",
+            "unet": ["diffusers", "UNet2DConditionModel"],
+            "transformer": ["diffusers", "HunyuanDiT2DModel"],
+            "text_encoder": ["transformers", "BertModel"],
+            "vae": ["diffusers", "AutoencoderKL"],
+        },
+        component_configs={
+            "unet": {"cross_attention_dim": 2048, "in_channels": 4},
+            "transformer": {"_class_name": "HunyuanDiT2DModel"},
+            "text_encoder": {"hidden_size": 1024},
+        },
+    )
+    info = detect_model(str(root))
+    assert info.base_arch == "unknown"
+    assert info.transformer_kind is None
