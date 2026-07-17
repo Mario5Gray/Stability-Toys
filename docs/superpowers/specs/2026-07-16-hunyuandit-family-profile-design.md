@@ -4,7 +4,7 @@
 
 **Brainstorm:** `ewgzdmdnfumoczdfyergbyghcwsggdij` v7
 
-**Status:** Written specification, awaiting human review
+**Status:** Approved for implementation planning at `f22e336` (2026-07-17)
 
 **Runtime proof:** merged spike PR #16
 
