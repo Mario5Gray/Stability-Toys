@@ -480,6 +480,15 @@ class VariantClassifier(BaseDetector):
             self._mark_detection(info)
             return info
 
+        # Variant classification is a UNet-family concern. A transformer (DiT)
+        # or an ambiguous/unknown architecture is left UNKNOWN here so family
+        # resolution owns it — and so a UNet cross_attention_dim read from an
+        # ambiguous UNet+transformer directory cannot produce a dispatchable
+        # SDXL variant.
+        if info.base_arch != "unet":
+            self._mark_detection(info)
+            return info
+
         # Classify based on cross-attention dimension
         if info.cross_attention_dim == 2048:
             # SDXL

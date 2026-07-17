@@ -97,18 +97,63 @@ def test_hunyuandit_directory_reports_transformer_architecture_facts(hunyuandit_
 
 # --- Additive-only delta for existing SD forms -----------------------------
 
-def test_sdxl_diffusers_still_sdxl_with_unet_base_arch(tmp_path: Path):
+# Classification and dispatch fields whose values must not change: proving the
+# architecture facts (base_arch / transformer_kind) are the ONLY behavior delta.
+_SNAPSHOT_FIELDS = (
+    "variant",
+    "cross_attention_dim",
+    "text_encoder_hidden_size",
+    "text_encoder_2_hidden_size",
+    "unet_in_channels",
+    "is_lora",
+    "format",
+    "loader_format",
+    "compatible_worker",
+    "required_cross_attention_dim",
+    "base_arch",
+    "transformer_kind",
+)
+
+
+def _snapshot(info) -> dict:
+    d = info.to_dict()
+    return {k: d[k] for k in _SNAPSHOT_FIELDS}
+
+
+def test_sdxl_diffusers_snapshot_delta_is_only_architecture_facts(tmp_path: Path):
     info = detect_model(str(_sdxl_diffusers_dir(tmp_path)))
-    assert info.variant == ModelVariant.SDXL_BASE
-    assert info.base_arch == "unet"
-    assert info.transformer_kind is None
+    assert _snapshot(info) == {
+        "variant": "sdxl-base",
+        "cross_attention_dim": 2048,
+        "text_encoder_hidden_size": 768,
+        "text_encoder_2_hidden_size": 1280,
+        "unet_in_channels": 4,
+        "is_lora": False,
+        "format": "diffusers",
+        "loader_format": "diffusers_dir",
+        "compatible_worker": "backends.cuda_worker.DiffusersSDXLCudaWorker",
+        "required_cross_attention_dim": 2048,
+        "base_arch": "unet",          # additive fact
+        "transformer_kind": None,     # additive fact
+    }
 
 
-def test_sd15_diffusers_still_sd15_with_unet_base_arch(tmp_path: Path):
+def test_sd15_diffusers_snapshot_delta_is_only_architecture_facts(tmp_path: Path):
     info = detect_model(str(_sd15_diffusers_dir(tmp_path)))
-    assert info.variant == ModelVariant.SD15
-    assert info.base_arch == "unet"
-    assert info.transformer_kind is None
+    assert _snapshot(info) == {
+        "variant": "sd15",
+        "cross_attention_dim": 768,
+        "text_encoder_hidden_size": 768,
+        "text_encoder_2_hidden_size": None,
+        "unet_in_channels": 4,
+        "is_lora": False,
+        "format": "diffusers",
+        "loader_format": "diffusers_dir",
+        "compatible_worker": "backends.cuda_worker.DiffusersCudaWorker",
+        "required_cross_attention_dim": 768,
+        "base_arch": "unet",          # additive fact
+        "transformer_kind": None,     # additive fact
+    }
 
 
 def test_sd_safetensors_reports_unet_base_arch(tmp_path: Path):
@@ -170,3 +215,14 @@ def test_ambiguous_unet_and_transformer_stays_unknown(tmp_path: Path):
     info = detect_model(str(root))
     assert info.base_arch == "unknown"
     assert info.transformer_kind is None
+    # Ambiguous architecture must not become a dispatchable SDXL via the UNet
+    # cross_attention_dim: it stays UNKNOWN with no compatible worker.
+    assert info.variant == ModelVariant.UNKNOWN
+    assert info.compatible_worker is None
+
+
+def test_hunyuandit_directory_has_no_compatible_worker(hunyuandit_dir: Path):
+    # A transformer family is not dispatchable through the UNet worker path.
+    info = detect_model(str(hunyuandit_dir))
+    assert info.variant == ModelVariant.UNKNOWN
+    assert info.compatible_worker is None
