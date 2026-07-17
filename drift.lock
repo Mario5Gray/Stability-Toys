@@ -95,4 +95,4 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/lcm_sr_server.py sig:aafc9ce51c161607
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/ws_routes.py sig:53dd58b0a889cb0f
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/model_detector.py sig:3ac57a56a01324fa
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/model_detector.py sig:650da1ca313821e8
