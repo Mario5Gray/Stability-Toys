@@ -74,9 +74,10 @@ This delivery includes:
 - Remote processors are not implemented. This delivery ships the wire contract,
   codec, and consumption rules only; no node ever receives a traced
   `ResolvedModel` over a network in this delivery.
-- Full content addressing is deferred: local-file `ModelArtifactRef.digest`
-  (sha256) stays unpopulated until a remote processor exists. Hub refs carry
-  `repo@revision`; local refs carry a size+mtime fingerprint.
+- Full content addressing is deferred: local `ModelArtifactRef.digest`
+  (sha256 of content) stays unpopulated until a remote processor exists. Hub
+  refs carry `repo@revision`; local refs carry the content-stable name/size
+  manifest fingerprint defined in §3 (no mtime, no path).
 
 ## Current Failure Model
 
@@ -231,16 +232,18 @@ class ModelInfoSnapshot:
     # Frozen, JSON-safe capture of detector output at resolution time.
     # Includes every architecture fact (base_arch, transformer_kind, CAD,
     # encoder hidden sizes, variant by value) plus loader/policy facts.
+    # Contains NO host path: `ModelInfo.path` is stripped at freeze time.
     ...
 
 
 @dataclass(frozen=True)
 class ModelArtifactRef:
-    # Location-neutral model identity. Never a bare host path.
-    kind: str            # "hub" | "local"
+    # Location-neutral model identity. Never a bare host path, and no field
+    # may vary between nodes holding the identical artifact (no mtime).
+    kind: str            # "hub" | "local-file" | "local-dir"
     name: str            # hub: repo id; local: basename
     revision: str | None # hub revision when known
-    fingerprint: str     # hub: repo@revision; local: size+mtime fingerprint
+    fingerprint: str     # content-stable weak identity (see below)
     digest: str | None   # sha256 when computed; population deferred (see below)
 
 
@@ -296,17 +299,36 @@ round-trip codec: every architecture field survives (including `base_arch` and
 `transformer_kind`), `ModelVariant` is restored by value, and non-JSON-safe
 metadata entries fail at freeze time — at resolution, not later at trace time.
 The existing lossy `ModelInfo.to_dict()` is not the codec and is not extended
-into one. `ModelInfoSnapshot` retains the detection `path` as a detector fact;
-load authority lives only in `LocalModelBinding`.
+into one. The codec **strips `ModelInfo.path`**: a host path is node-local
+state, so it may appear nowhere in the wire form — snapshots are hashed, and a
+path would make the identical resolution hash differently on different nodes.
+The detection path lives only in `LocalModelBinding`, which never serializes.
 
-**Identity, staged.** `resolution_id` is a canonical content hash (sorted-key
-canonical JSON) over `schema_version`, `model_ref`, `raw_info`, `family_id`,
-and `info`. It is portable identity for traces and cross-node reproduction; the
-§5 `resolution_epoch` remains the in-process TOCTOU guard, and the two are
-never interchangeable. `ModelArtifactRef` population is staged: hub models
-carry `repo@revision`; local files carry a cheap size+mtime fingerprint now,
-with `digest` (sha256) population deferred until a remote processor actually
-exists. The schema is stable either way.
+**Identity, staged.** `resolution_id = sha256(JCS(payload))` where `JCS` is
+RFC 8785 JSON Canonicalization and `payload` covers `schema_version`,
+`model_ref`, `raw_info`, **the complete embedded `profile` (every field, not
+just `family_id` — two resolutions differing only in profile data must never
+share an ID)**, and `info`. A committed golden vector (fixed payload → exact
+canonical bytes → exact hash) pins the encoding; any codec change that breaks
+the vector is a schema change and must bump `schema_version`. `resolution_id`
+is portable identity for traces and cross-node reproduction; the §5
+`resolution_epoch` remains the in-process TOCTOU guard, and the two are never
+interchangeable.
+
+`ModelArtifactRef.fingerprint` is content-stable weak identity — identical
+artifacts on different nodes must produce the identical fingerprint, so no
+mtime and no path may enter it:
+
+| kind | fingerprint |
+| --- | --- |
+| `hub` | `repo@revision` |
+| `local-file` | `sha256(JCS([name, byte_size]))` |
+| `local-dir` (Diffusers directory) | `sha256(JCS(sorted [relative_path, byte_size] pairs))` over the directory's files |
+
+Node-local freshness heuristics (mtime) belong in `LocalModelBinding` cache
+logic if ever needed, never in the ref. `digest` (full-content sha256) remains
+the strong identity and its population is deferred until a remote processor
+actually exists. The schema is stable either way.
 
 **Consumption rules.** A consumer of a traced `ResolvedModel` (diagnostics
 today, a remote processor later) validates `schema_version`, validates
@@ -675,9 +697,16 @@ Add or extend tests for:
 - `ResolvedModel` carrying distinct raw and enriched values
 - snapshot codec round-trip: every architecture field (incl. `base_arch`,
   `transformer_kind`), `ModelVariant` by value; non-JSON-safe metadata rejected
-  at freeze
-- `resolution_id` determinism (same inputs → same hash; any field change →
-  different hash) and epoch/`resolution_id` non-interchangeability
+  at freeze; `path` stripped — asserted absent from the frozen form and the
+  serialized bytes
+- `resolution_id` golden vector: committed fixed payload → exact RFC 8785
+  canonical bytes → exact sha256; encoding drift fails the vector
+- `resolution_id` determinism (same inputs → same hash; any field change —
+  including any single profile field — → different hash) and
+  epoch/`resolution_id` non-interchangeability
+- fingerprint stability: identical local file/Diffusers-directory content
+  yields the identical fingerprint regardless of absolute path or mtime;
+  directory manifest ordering is deterministic
 - profile purity: no callable reaches any `FamilyProfile` field or the wire form
 - trace consumption: schema-version, unknown-family, and profile-inequality
   inputs each raise `ResolutionCompatibilityError`; valid trace reattaches the
