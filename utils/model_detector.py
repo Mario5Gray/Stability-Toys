@@ -108,6 +108,11 @@ class ModelInfo:
     compatible_worker: Optional[str] = None
     required_cross_attention_dim: Optional[int] = None
 
+    # Detector-owned architecture facts (not dispatch decisions). "unet" for the
+    # SD/SDXL UNet families, "transformer" for DiT families such as HunyuanDiT.
+    base_arch: str = "unknown"
+    transformer_kind: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         result = {
@@ -123,6 +128,8 @@ class ModelInfo:
             "detected_by": self.detected_by,
             "compatible_worker": self.compatible_worker,
             "required_cross_attention_dim": self.required_cross_attention_dim,
+            "base_arch": self.base_arch,
+            "transformer_kind": self.transformer_kind,
             "metadata": self.metadata,
             "loader_format": self.loader_format,
             "checkpoint_precision": self.checkpoint_precision,
@@ -244,6 +251,8 @@ class SafetensorsDetector(BaseDetector):
             self._extract_cross_attention(keys, f, info)
             self._extract_text_encoder_info(keys, f, info)
             self._extract_unet_info(keys, f, info)
+            # A single-file SD/SDXL base checkpoint is a UNet family.
+            info.base_arch = "unet"
 
         self._mark_detection(info)
         return info
@@ -339,6 +348,21 @@ class DiffusersDetector(BaseDetector):
         if "text_encoder_2" in model_index:
             info.metadata["has_dual_text_encoders"] = True
 
+        # Architecture facts from declared components. A declared UNet is a UNet
+        # family; a declared transformer is a DiT family. Never guess.
+        if "unet" in model_index:
+            info.base_arch = "unet"
+        elif "transformer" in model_index:
+            info.base_arch = "transformer"
+            transformer_config_path = path_obj / "transformer" / "config.json"
+            if transformer_config_path.exists():
+                with open(transformer_config_path, "r") as f:
+                    transformer_config = json.load(f)
+                # Transformer attention dims stay on the transformer; they must
+                # never populate the UNet cross_attention_dim field.
+                if transformer_config.get("_class_name") == "HunyuanDiT2DModel":
+                    info.transformer_kind = "hunyuandit"
+
         # Read UNet config
         unet_config_path = path_obj / "unet" / "config.json"
         if unet_config_path.exists():
@@ -408,6 +432,9 @@ class CheckpointDetector(BaseDetector):
                 has_te2 = any("text_encoder_2" in k or "conditioner.embedders.1" in k for k in keys_list)
                 info.metadata["has_dual_text_encoders"] = has_te2
 
+                # A single-file SD/SDXL base checkpoint is a UNet family.
+                info.base_arch = "unet"
+
                 # Infer cross-attention from presence of te2
                 if has_te2:
                     info.cross_attention_dim = 2048
@@ -470,8 +497,12 @@ class VariantClassifier(BaseDetector):
             info.variant = ModelVariant.SD20
             info.confidence = max(info.confidence, 0.95)
 
-        else:
-            # Unknown - try to infer from other features
+        elif info.base_arch == "unet":
+            # No cross-attention dim resolved: infer from encoder features, but
+            # only for a UNet family. A transformer (DiT) family such as
+            # HunyuanDiT also has two text encoders; without this gate its
+            # BERT+T5 pair reads as SDXL. Leave non-UNet architectures UNKNOWN
+            # here — family resolution owns them once a profile exists.
             if info.text_encoder_2_hidden_size or info.metadata.get("has_dual_text_encoders"):
                 info.variant = ModelVariant.SDXL_BASE
                 info.confidence = max(info.confidence, 0.6)

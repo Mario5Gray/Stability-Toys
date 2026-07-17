@@ -2,6 +2,17 @@ uv.lock
 store/*
 .codex/
 models/
+# Metadata-only model fixtures are tracked; real weight files stay ignored.
+!tests/fixtures/models/
+!tests/fixtures/models/**
+tests/fixtures/models/**/*.safetensors
+tests/fixtures/models/**/*.bin
+tests/fixtures/models/**/*.ckpt
+tests/fixtures/models/**/*.pt
+tests/fixtures/models/**/*.pth
+tests/fixtures/models/**/*.onnx
+tests/fixtures/models/**/*.msgpack
+tests/fixtures/models/**/*.h5
 AGENTS.md
 CLAUDE.md
 FP_CLAUDE.md

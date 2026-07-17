@@ -1,0 +1,7 @@
+{
+  "architectures": [
+    "T5EncoderModel"
+  ],
+  "d_model": 2048,
+  "model_type": "t5"
+}
