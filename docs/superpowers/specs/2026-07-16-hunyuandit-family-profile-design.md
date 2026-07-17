@@ -680,7 +680,8 @@ class paths as family authority.
 
 1. Commit the minimal real-metadata Hunyuan fixture.
 2. Add `base_arch` and `transformer_kind` facts.
-3. Gate the dual-encoder SDXL heuristic on UNet architecture.
+3. Gate the entire variant classification on `base_arch == "unet"` so a
+   transformer or ambiguous architecture stays `UNKNOWN` with no worker.
 4. Prove Hunyuan is not SDXL, then classify its transformer kind.
 5. Prove all existing SD detector outputs are unchanged except additive facts.
 
