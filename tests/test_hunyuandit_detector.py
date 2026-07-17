@@ -156,21 +156,53 @@ def test_sd15_diffusers_snapshot_delta_is_only_architecture_facts(tmp_path: Path
     }
 
 
-def test_sd_safetensors_reports_unet_base_arch(tmp_path: Path):
-    path = tmp_path / "sd_model.safetensors"
+def test_sd_safetensors_snapshot_delta_is_only_architecture_facts(tmp_path: Path):
+    path = tmp_path / "sd15.safetensors"
     save_file(
-        {"conv_in.weight": np.zeros((320, 4, 3, 3), dtype=np.float32)},
+        {
+            "model.diffusion_model.input_blocks.0.0.weight": np.zeros((320, 4, 3, 3), dtype=np.float32),
+            "model.diffusion_model.middle_block.1.transformer_blocks.0.attn2.to_k.weight": np.zeros((768, 320), dtype=np.float32),
+        },
         str(path),
     )
     info = detect_model(str(path))
-    assert info.base_arch == "unet"
+    assert _snapshot(info) == {
+        "variant": "sd15",
+        "cross_attention_dim": 768,
+        "text_encoder_hidden_size": None,
+        "text_encoder_2_hidden_size": None,
+        "unet_in_channels": 4,
+        "is_lora": False,
+        "format": "safetensors",
+        "loader_format": "single_file",
+        "compatible_worker": "backends.cuda_worker.DiffusersCudaWorker",
+        "required_cross_attention_dim": 768,
+        "base_arch": "unet",          # additive fact
+        "transformer_kind": None,     # additive fact
+    }
 
 
-def test_sd_checkpoint_reports_unet_base_arch(tmp_path: Path):
-    path = tmp_path / "sd_model.ckpt"
-    torch.save({"conv_in.weight": torch.zeros(320, 4, 3, 3)}, str(path))
+def test_sd_checkpoint_snapshot_delta_is_only_architecture_facts(tmp_path: Path):
+    path = tmp_path / "sd15.ckpt"
+    torch.save(
+        {"model.diffusion_model.input_blocks.0.0.weight": torch.zeros(320, 4, 3, 3)},
+        str(path),
+    )
     info = detect_model(str(path))
-    assert info.base_arch == "unet"
+    assert _snapshot(info) == {
+        "variant": "sd15",
+        "cross_attention_dim": 768,
+        "text_encoder_hidden_size": None,
+        "text_encoder_2_hidden_size": None,
+        "unet_in_channels": None,
+        "is_lora": False,
+        "format": "checkpoint",
+        "loader_format": "single_file",
+        "compatible_worker": "backends.cuda_worker.DiffusersCudaWorker",
+        "required_cross_attention_dim": 768,
+        "base_arch": "unet",          # additive fact
+        "transformer_kind": None,     # additive fact
+    }
 
 
 # --- base_arch requires evidence; ambiguity stays unknown ------------------

@@ -130,15 +130,23 @@ In `DiffusersDetector`, read `model_index.json` before component configs. Set
 `HunyuanDiT2DModel`. Never copy transformer attention dimensions into the UNet
 `cross_attention_dim` field.
 
-Gate the dual-encoder fallback:
+Gate the entire variant classification on architecture, not only the
+dual-encoder fallback. Classification runs only for a UNet family; a transformer
+or ambiguous/unknown architecture returns early as `UNKNOWN`:
 
 ```python
-if info.base_arch == "unet" and has_dual_text_encoders(info):
-    return ModelVariant.SDXL_BASE, 0.6
+if info.base_arch != "unet":
+    return info  # variant stays UNKNOWN; family resolution owns non-UNet arches
 ```
 
-When existing Safetensors/Checkpoint UNet extraction succeeds, set only
-`base_arch="unet"`; do not add a new lineage heuristic.
+Gating only the dual-encoder heuristic is insufficient: an ambiguous
+`unet`+`transformer` directory still carries the declared UNet
+`cross_attention_dim` (e.g. 2048) into the CAD branch and would classify as a
+dispatchable SDXL. Set `base_arch="unet"` from `SafetensorsDetector` /
+`CheckpointDetector` only when their UNet key/config extraction actually
+succeeds (evidence-gated); ambiguous `model_index.json` declaring both a UNet
+and a transformer leaves `base_arch="unknown"`. Do not add a new lineage
+heuristic.
 
 - [ ] **Step 4: Run focused and detector regressions**
 

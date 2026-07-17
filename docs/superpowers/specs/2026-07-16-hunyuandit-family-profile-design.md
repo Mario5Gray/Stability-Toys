@@ -141,8 +141,13 @@ CAD must not populate or masquerade as the existing UNet CAD field. Hunyuan's
 `pooled_projection_dim=1024` is internal transformer configuration; it does not
 mean the pipeline accepts an SDXL-style pooled prompt embedding.
 
-`VariantClassifier` gates the dual-encoder SDXL heuristic on
-`base_arch == "unet"`. Existing SD fixture outputs remain byte-for-byte equal
+`VariantClassifier` gates its entire variant classification on
+`base_arch == "unet"`: a transformer (DiT) or an ambiguous/unknown architecture
+is left `variant=UNKNOWN` with no compatible worker, and family resolution owns
+it. Gating only the dual-encoder SDXL heuristic is insufficient — an ambiguous
+`unet`+`transformer` directory would otherwise reach the cross-attention-dim
+branch (`cross_attention_dim == 2048` from the declared UNet config) and become
+a dispatchable SDXL. Existing SD fixture outputs remain byte-for-byte equal
 except for the additive `base_arch="unet"` field. The first Hunyuan RED test
 asserts that the fixture is not SDXL before the Hunyuan classification turns
 green.
