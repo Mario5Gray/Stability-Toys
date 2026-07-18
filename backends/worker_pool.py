@@ -16,8 +16,6 @@ import queue
 import threading
 import time
 import uuid
-from collections.abc import Mapping
-from copy import deepcopy
 import torch
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Callable, Protocol
@@ -25,10 +23,11 @@ from dataclasses import dataclass, field
 from concurrent.futures import Future, CancelledError
 from enum import Enum
 
-from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
+from server.mode_config import get_mode_config, ModeConfigManager
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
+from backends.model_resolution import merge_mode_capabilities
 from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
@@ -47,42 +46,6 @@ class WorkerFactory(Protocol):
     ) -> PipelineWorker:
         """Create a worker with the given ID and resolved model path."""
         ...
-
-
-def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInfo:
-    """Overlay authoritative mode-level capability overrides onto detected model info."""
-    resolved = deepcopy(model_info)
-    for field in (
-        "loader_format",
-        "checkpoint_precision",
-        "checkpoint_variant",
-        "scheduler_profile",
-        "recommended_size",
-        "runtime_quantize",
-        "runtime_offload",
-        "runtime_attention_slicing",
-        "runtime_enable_xformers",
-        "negative_prompt_templates",
-        "default_negative_prompt_template",
-        "allow_custom_negative_prompt",
-        "allowed_scheduler_ids",
-        "default_scheduler_id",
-    ):
-        value = getattr(mode, field, None)
-        if value is not None:
-            setattr(resolved, field, value)
-    existing_metadata = getattr(resolved, "metadata", None)
-    if not isinstance(existing_metadata, Mapping):
-        existing_metadata = {}
-    mode_metadata = getattr(mode, "metadata", None)
-    if isinstance(mode_metadata, Mapping) and mode_metadata:
-        resolved.metadata = {
-            **dict(existing_metadata),
-            **dict(mode_metadata),
-        }
-    elif existing_metadata:
-        resolved.metadata = dict(existing_metadata)
-    return resolved
 
 
 class JobType(Enum):
