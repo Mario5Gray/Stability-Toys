@@ -41,6 +41,12 @@ for _mod, _orig in _saved_modules.items():
         sys.modules[_mod] = _orig
 
 
+def _gen_job(pool, req=None, **kw):
+    """Build a GenerationJob stamped with the pool's current resolution epoch."""
+    kw.setdefault("resolution_epoch", pool.current_resolution_epoch())
+    return GenerationJob(req=req if req is not None else Mock(), **kw)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -239,7 +245,7 @@ class TestBasicLifecycle:
         assert pool._current_mode == "mode-a"
         assert pool._worker is not None
 
-        job = GenerationJob(req=Mock())
+        job = _gen_job(pool, req=Mock())
         result = pool.submit_job(job).result(timeout=5.0)
 
         assert result == b"\x89PNG_fake_image_data"
@@ -250,10 +256,11 @@ class TestBasicLifecycle:
         _current_mode is cleared so demand-reload doesn't silently succeed.
         """
         pool._unload_current_worker()
-        pool._current_mode = None  # prevent demand-reload masking the failure
+        pool._active_snapshot = None  # fully unload: drop demand-reload authority
+        pool._current_mode = None
         assert pool._worker is None
 
-        job = GenerationJob(req=Mock())
+        job = _gen_job(pool, req=Mock())
         future = pool.submit_job(job)
 
         with pytest.raises(RuntimeError, match="No worker available"):
@@ -280,7 +287,7 @@ class TestModeSwitchingLifecycle:
         assert pool._current_mode == "mode-b"
         assert pool._worker is not None
 
-        job = GenerationJob(req=Mock())
+        job = _gen_job(pool, req=Mock())
         result = pool.submit_job(job).result(timeout=5.0)
         assert result == b"\x89PNG_fake_image_data"
 
@@ -297,14 +304,15 @@ class TestModeSwitchingLifecycle:
         """Switch → generate → unload → generate fails."""
         pool.switch_mode("mode-b").result(timeout=5.0)
 
-        job1 = GenerationJob(req=Mock())
+        job1 = _gen_job(pool, req=Mock())
         result = pool.submit_job(job1).result(timeout=5.0)
         assert result == b"\x89PNG_fake_image_data"
 
         pool._unload_current_worker()
+        pool._active_snapshot = None
         pool._current_mode = None
 
-        job2 = GenerationJob(req=Mock())
+        job2 = _gen_job(pool, req=Mock())
         with pytest.raises(RuntimeError, match="No worker available"):
             pool.submit_job(job2).result(timeout=5.0)
 
@@ -316,7 +324,7 @@ class TestNoModeScenarios:
         """Empty pool → generate fails."""
         assert empty_pool._worker is None
 
-        job = GenerationJob(req=Mock())
+        job = _gen_job(empty_pool, req=Mock())
         future = empty_pool.submit_job(job)
 
         with pytest.raises(RuntimeError, match="No worker available"):
@@ -329,7 +337,7 @@ class TestNoModeScenarios:
         assert empty_pool._current_mode == "mode-b"
         assert empty_pool._worker is not None
 
-        job = GenerationJob(req=Mock())
+        job = _gen_job(empty_pool, req=Mock())
         result = empty_pool.submit_job(job).result(timeout=5.0)
         assert result == b"\x89PNG_fake_image_data"
 
@@ -391,7 +399,7 @@ class TestEdgeCases:
 
     def test_generation_job_execute_none(self):
         """GenerationJob.execute(None) raises RuntimeError."""
-        job = GenerationJob(req=Mock())
+        job = GenerationJob(req=Mock(), resolution_epoch=0)
         with pytest.raises(RuntimeError, match="No worker available"):
             job.execute(None)
 
@@ -427,33 +435,35 @@ class TestFullLifecycleMatrix:
         try:
             # Step 1: Load model → generate (success)
             assert pool._current_mode == "mode-a"
-            job1 = GenerationJob(req=Mock())
+            job1 = _gen_job(pool, req=Mock())
             result1 = pool.submit_job(job1).result(timeout=5.0)
             assert result1 == b"\x89PNG_fake_image_data"
 
             # Step 2: Unload model → generate (fail)
             pool._unload_current_worker()
+            pool._active_snapshot = None
             pool._current_mode = None
-            job2 = GenerationJob(req=Mock())
+            job2 = _gen_job(pool, req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job2).result(timeout=5.0)
 
             # Step 3: Load new mode → generate (success)
             pool.switch_mode("mode-b").result(timeout=5.0)
             assert pool._current_mode == "mode-b"
-            job3 = GenerationJob(req=Mock())
+            job3 = _gen_job(pool, req=Mock())
             result3 = pool.submit_job(job3).result(timeout=5.0)
             assert result3 == b"\x89PNG_fake_image_data"
 
             # Step 4: Unload mode → generate (fail)
             pool._unload_current_worker()
+            pool._active_snapshot = None
             pool._current_mode = None
-            job4 = GenerationJob(req=Mock())
+            job4 = _gen_job(pool, req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job4).result(timeout=5.0)
 
             # Step 5: No mode → generate (fail) [still unloaded]
-            job5 = GenerationJob(req=Mock())
+            job5 = _gen_job(pool, req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job5).result(timeout=5.0)
 

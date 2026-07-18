@@ -236,7 +236,12 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 return
 
         if pre_submit_job_error is None:
-            job = GenerationJob(req=req, init_image=init_image_bytes, controlnet_bindings=controlnet_bindings)
+            job = GenerationJob(
+                req=req,
+                init_image=init_image_bytes,
+                controlnet_bindings=controlnet_bindings,
+                resolution_epoch=state.worker_pool.current_resolution_epoch(),
+            )
             try:
                 fut = state.worker_pool.submit_job(job)
             except queue.Full:
@@ -605,7 +610,11 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
         if getattr(state, "use_mode_system", False):
             from backends.worker_pool import GenerationJob
             pool = state.worker_pool
-            job = GenerationJob(req=req, init_image=init_image_bytes)
+            job = GenerationJob(
+                req=req,
+                init_image=init_image_bytes,
+                resolution_epoch=pool.current_resolution_epoch(),
+            )
             try:
                 fut = pool.submit_job(job)
             except queue.Full:

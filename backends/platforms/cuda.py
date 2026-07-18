@@ -46,7 +46,11 @@ class CudaGenerationRuntime:
                 active_family=family,
             )
 
-        job = GenerationJob(req=req, controlnet_bindings=bindings)
+        job = GenerationJob(
+            req=req,
+            controlnet_bindings=bindings,
+            resolution_epoch=self._pool.current_resolution_epoch(),
+        )
         return self._pool.submit_job(job, timeout_s=timeout_s)
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Any:

@@ -321,7 +321,7 @@ class TestJobSubmission:
     def test_submit_generation_job(self, worker_pool):
         """Test submitting a generation job."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = _gen_job(worker_pool, req=req)
 
         future = worker_pool.submit_job(job)
 
@@ -363,7 +363,7 @@ class TestJobSubmission:
         for i in range(5):
             req = Mock()
             req.id = i
-            job = GenerationJob(req=req)
+            job = _gen_job(worker_pool, req=req)
             future = worker_pool.submit_job(job)
             jobs.append(future)
 
@@ -374,7 +374,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_clears_record_after_success(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-success")
+        job = _gen_job(worker_pool, req=req, job_id="job-success")
         fut = worker_pool.submit_job(job)
 
         assert fut.result(timeout=5.0) == "test_result"
@@ -389,7 +389,7 @@ class TestJobSubmission:
         worker.run_job.side_effect = ValueError("boom")
 
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-fail")
+        job = _gen_job(worker_pool, req=req, job_id="job-fail")
         fut = worker_pool.submit_job(job)
 
         with pytest.raises(ValueError):
@@ -399,7 +399,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_clears_record_on_queue_full(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-full")
+        job = _gen_job(worker_pool, req=req, job_id="job-full")
 
         with patch.object(worker_pool.q, "put", side_effect=queue.Full):
             with pytest.raises(queue.Full):
@@ -409,7 +409,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_uses_blocking_queue_put_when_timeout_requested(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-timeout")
+        job = _gen_job(worker_pool, req=req, job_id="job-timeout")
 
         with patch.object(worker_pool.q, "put") as put, \
              patch.object(worker_pool.q, "put_nowait") as put_nowait:
@@ -436,7 +436,7 @@ class TestJobSubmission:
         )
 
         try:
-            job = GenerationJob(req=Mock(), job_id="job-default-timeout")
+            job = _gen_job(pool, req=Mock(), job_id="job-default-timeout")
             with patch.object(pool.q, "put") as put, \
                  patch.object(pool.q, "put_nowait") as put_nowait:
                 pool.submit_job(job)
@@ -448,7 +448,7 @@ class TestJobSubmission:
             reset_worker_pool()
 
     def test_submit_generation_job_uses_put_nowait_when_timeout_override_zero(self, worker_pool):
-        job = GenerationJob(req=Mock(), job_id="job-nowait")
+        job = _gen_job(worker_pool, req=Mock(), job_id="job-nowait")
 
         with patch.object(worker_pool.q, "put") as put, \
              patch.object(worker_pool.q, "put_nowait") as put_nowait:
@@ -468,8 +468,8 @@ class TestJobSubmission:
         worker = mock_worker_factory.return_value
         worker.run_job.side_effect = fake_oom("CUDA out of memory")
 
-        first_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-1"))
-        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-2"))
+        first_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-1"))
+        queued_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-2"))
 
         with pytest.raises(fake_oom):
             first_future.result(timeout=1.0)
@@ -493,10 +493,10 @@ class TestJobSubmission:
         worker = mock_worker_factory.return_value
         worker.run_job.side_effect = blocking_run_job
 
-        running_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-running"))
+        running_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-running"))
         assert started.wait(timeout=1.0)
 
-        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-queued"))
+        queued_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-queued"))
         status = worker_pool.free_vram("manual_free_vram")
 
         assert status["status"] == "ok"
@@ -532,7 +532,7 @@ class TestJobSubmission:
         worker.run_job.reset_mock()
 
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-1")
+        job = _gen_job(worker_pool, req=req, job_id="job-1")
         fut = worker_pool.submit_job(job)
         assert worker_pool.cancel_job("job-1") is True
         assert fut.cancelled()
@@ -558,7 +558,7 @@ class TestJobSubmission:
 
         worker.run_job.side_effect = run_job
         req = Mock()
-        fut = worker_pool.submit_job(GenerationJob(req=req, job_id="job-2"))
+        fut = worker_pool.submit_job(_gen_job(worker_pool, req=req, job_id="job-2"))
         assert started.wait(timeout=1.0)
         assert worker_pool.cancel_job("job-2") is True
         release.set()
@@ -615,16 +615,18 @@ class TestModeSwitching:
         job1 = CustomJob(handler=slow_job)
         fut1 = worker_pool.submit_job(job1)
 
-        # Submit mode switch
+        # Submit mode switch (queues behind the slow job)
         switch_fut = worker_pool.switch_mode("sd15-fast")
 
-        # Submit another job after switch
-        job2 = GenerationJob(req=Mock())
-        fut2 = worker_pool.submit_job(job2)
-
-        # All should complete
+        # Job1 then the switch drain in order; the switch installs a new epoch.
         results.append(fut1.result(timeout=5.0))
         switch_fut.result(timeout=5.0)
+
+        # A generation job submitted AFTER the switch is stamped with the new
+        # epoch and runs on the new mode. (A job stamped before the switch would
+        # be correctly rejected as stale — see TestActiveModelSnapshot.)
+        job2 = _gen_job(worker_pool, req=Mock())
+        fut2 = worker_pool.submit_job(job2)
         results.append(fut2.result(timeout=5.0))
 
         assert results[0] == "slow_done"
@@ -985,13 +987,13 @@ class TestJobTypes:
     def test_generation_job_type(self):
         """Test GenerationJob has correct type."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = GenerationJob(req=req, resolution_epoch=0)
         assert job.job_type == JobType.GENERATION
 
     def test_generation_job_controlnet_bindings_default_empty_list(self):
         """Generation jobs should always expose a controlnet binding list."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = GenerationJob(req=req, resolution_epoch=0)
         assert job.controlnet_bindings == []
 
     def test_mode_switch_job_type(self):
@@ -1219,7 +1221,7 @@ class TestConcurrency:
         results = []
 
         # Submit generation job
-        job1 = GenerationJob(req=Mock())
+        job1 = _gen_job(worker_pool, req=Mock())
         fut1 = worker_pool.submit_job(job1)
 
         # Switch mode
@@ -1251,14 +1253,14 @@ class TestOomRecovery:
         )
 
         try:
-            fut1 = pool.submit_job(GenerationJob(req=Mock()))
+            fut1 = pool.submit_job(_gen_job(pool, req=Mock()))
             with pytest.raises(fake_oom):
                 fut1.result(timeout=10.0)
 
             assert pool._worker is None
             assert pool._current_mode == "sdxl-general"
 
-            fut2 = pool.submit_job(GenerationJob(req=Mock()))
+            fut2 = pool.submit_job(_gen_job(pool, req=Mock()))
             assert fut2.result(timeout=10.0) == "recovered"
             assert worker_factory.call_count == 2
             assert pool._worker is second_worker
@@ -1311,3 +1313,96 @@ class TestModeDefaults:
 
         assert sdxl_mode.default_size != sd15_mode.default_size
         assert sdxl_mode.default_steps != sd15_mode.default_steps
+
+
+def _gen_job(pool, req=None, **kw):
+    """Build a GenerationJob stamped with the pool's current resolution epoch."""
+    kw.setdefault("resolution_epoch", pool.current_resolution_epoch())
+    return GenerationJob(req=req if req is not None else Mock(), **kw)
+
+
+class TestActiveModelSnapshot:
+    """Atomic snapshot publication, epoch discipline, and the stale-job barrier."""
+
+    def test_successful_load_publishes_snapshot_atomically(self, worker_pool):
+        snap = worker_pool.get_active_model_snapshot()
+        assert snap is not None
+        assert snap.mode_name == "sdxl-general"
+        assert snap.resolved.profile.family_id == "sdxl"
+        assert snap.binding.model_path == "/models/sdxl.safetensors"
+        assert snap.resolution_epoch >= 1
+        assert worker_pool.current_resolution_epoch() == snap.resolution_epoch
+        assert worker_pool._worker is not None
+
+    def test_snapshot_mode_is_isolated_from_source(self, worker_pool, mock_mode_config):
+        snap = worker_pool.get_active_model_snapshot()
+        # The published mode is a deep copy: mutating the source cannot reach it.
+        assert snap.mode is not mock_mode_config.get_mode("sdxl-general")
+
+    def test_failed_load_leaves_no_snapshot_and_no_worker(
+        self, mock_mode_config, mock_registry
+    ):
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        failing_factory = Mock(side_effect=RuntimeError("worker boom"))
+        with patch("backends.worker_pool.torch.cuda.is_available", return_value=True), \
+             patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
+             patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
+             patch("backends.worker_pool.torch.cuda.empty_cache"):
+            pool = WorkerPool(
+                queue_max=10,
+                worker_factory=failing_factory,
+                mode_config=mock_mode_config,
+                registry=mock_registry,
+            )
+        assert pool.get_active_model_snapshot() is None
+        assert pool._worker is None
+        pool.shutdown()
+        reset_worker_pool()
+
+    def test_idle_eviction_retains_snapshot_and_epoch(self, worker_pool):
+        before = worker_pool.get_active_model_snapshot()
+        worker_pool._last_activity = time.monotonic() - 10_000  # force idle
+        worker_pool._evict_if_idle()
+        assert worker_pool._worker is None
+        after = worker_pool.get_active_model_snapshot()
+        assert after is before
+        assert after.resolution_epoch == before.resolution_epoch
+
+    def test_demand_reload_reuses_resolved_without_redetection(self, worker_pool):
+        epoch = worker_pool.current_resolution_epoch()
+        worker_pool._last_activity = time.monotonic() - 10_000
+        worker_pool._evict_if_idle()
+        assert worker_pool._worker is None
+
+        # If demand reload re-detected, this patched resolve_model would explode.
+        with patch("backends.worker_pool.resolve_model",
+                   side_effect=AssertionError("demand reload re-detected")):
+            fut = worker_pool.submit_job(_gen_job(worker_pool, resolution_epoch=epoch))
+            assert fut.result(timeout=5) == "test_result"
+
+        assert worker_pool._worker is not None
+        assert worker_pool.current_resolution_epoch() == epoch  # retained, not bumped
+
+    def test_reresolve_installs_new_epoch(self, worker_pool):
+        e1 = worker_pool.current_resolution_epoch()
+        worker_pool._load_mode("sd15-fast")
+        e2 = worker_pool.current_resolution_epoch()
+        assert e2 == e1 + 1
+        assert worker_pool.get_active_model_snapshot().mode_name == "sd15-fast"
+
+    def test_stale_generation_job_raises_before_run_job(self, worker_pool):
+        from backends.worker_pool import StaleResolutionError
+
+        old_epoch = worker_pool.current_resolution_epoch()
+        worker = worker_pool._worker
+        worker.run_job.reset_mock()
+
+        worker_pool._load_mode("sd15-fast")  # epoch advances
+
+        stale = _gen_job(worker_pool, resolution_epoch=old_epoch)
+        fut = worker_pool.submit_job(stale)
+        with pytest.raises(StaleResolutionError):
+            fut.result(timeout=5)
+        worker.run_job.assert_not_called()

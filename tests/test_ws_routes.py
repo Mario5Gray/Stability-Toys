@@ -322,10 +322,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -411,10 +413,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -634,10 +638,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -894,10 +900,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -966,10 +974,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
@@ -1051,10 +1061,12 @@ class TestJobSubmit:
         fake_worker_pool_module = types.ModuleType("backends.worker_pool")
 
         class _FakeGenerationJob:
-            def __init__(self, req, init_image=None, controlnet_bindings=None):
+            def __init__(self, req, init_image=None, controlnet_bindings=None,
+                         resolution_epoch=None):
                 self.req = req
                 self.init_image = init_image
                 self.controlnet_bindings = controlnet_bindings or []
+                self.resolution_epoch = resolution_epoch
                 self.job_id = "backend-job-123"
 
         fake_worker_pool_module.GenerationJob = _FakeGenerationJob
