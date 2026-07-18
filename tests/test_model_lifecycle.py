@@ -255,9 +255,7 @@ class TestBasicLifecycle:
 
         _current_mode is cleared so demand-reload doesn't silently succeed.
         """
-        pool._unload_current_worker()
-        pool._active_snapshot = None  # fully unload: drop demand-reload authority
-        pool._current_mode = None
+        pool.unload_current_model()  # public full unload
         assert pool._worker is None
 
         job = _gen_job(pool, req=Mock())
@@ -308,9 +306,7 @@ class TestModeSwitchingLifecycle:
         result = pool.submit_job(job1).result(timeout=5.0)
         assert result == b"\x89PNG_fake_image_data"
 
-        pool._unload_current_worker()
-        pool._active_snapshot = None
-        pool._current_mode = None
+        pool.unload_current_model()
 
         job2 = _gen_job(pool, req=Mock())
         with pytest.raises(RuntimeError, match="No worker available"):
@@ -440,9 +436,7 @@ class TestFullLifecycleMatrix:
             assert result1 == b"\x89PNG_fake_image_data"
 
             # Step 2: Unload model → generate (fail)
-            pool._unload_current_worker()
-            pool._active_snapshot = None
-            pool._current_mode = None
+            pool.unload_current_model()
             job2 = _gen_job(pool, req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job2).result(timeout=5.0)
@@ -455,9 +449,7 @@ class TestFullLifecycleMatrix:
             assert result3 == b"\x89PNG_fake_image_data"
 
             # Step 4: Unload mode → generate (fail)
-            pool._unload_current_worker()
-            pool._active_snapshot = None
-            pool._current_mode = None
+            pool.unload_current_model()
             job4 = _gen_job(pool, req=Mock())
             with pytest.raises(RuntimeError, match="No worker available"):
                 pool.submit_job(job4).result(timeout=5.0)

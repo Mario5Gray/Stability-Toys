@@ -918,13 +918,14 @@ class TestWorkerLifecycle:
         # Should clear CUDA cache
         mock_empty_cache.assert_called()
 
-    def test_unload_current_model_does_not_cancel_queued_jobs(self, worker_pool):
-        """Test that explicit unload only drops the worker."""
+    def test_unload_current_model_fully_drops_authority(self, worker_pool):
+        """Explicit unload drops the worker AND the model authority."""
         result = worker_pool.unload_current_model()
 
         assert result["status"] == "unloaded"
         assert worker_pool.is_model_loaded() is False
-        assert worker_pool.get_current_mode() == "sdxl-general"
+        assert worker_pool.get_current_mode() is None
+        assert worker_pool.get_active_model_snapshot() is None
 
 
 class TestCustomJobExecution:
@@ -1391,6 +1392,19 @@ class TestActiveModelSnapshot:
         e2 = worker_pool.current_resolution_epoch()
         assert e2 == e1 + 1
         assert worker_pool.get_active_model_snapshot().mode_name == "sd15-fast"
+
+    def test_explicit_unload_fully_clears_authority(self, worker_pool):
+        # /models/unload must be a FULL unload: generation fails until a new mode
+        # is loaded, never a silent demand-reload from a retained snapshot.
+        worker_pool.unload_current_model()
+
+        assert worker_pool.get_active_model_snapshot() is None
+        assert worker_pool.get_current_mode() is None
+        assert worker_pool.is_model_loaded() is False
+
+        fut = worker_pool.submit_job(_gen_job(worker_pool, req=Mock()))
+        with pytest.raises(RuntimeError, match="No worker available"):
+            fut.result(timeout=5)
 
     def test_stale_generation_job_raises_before_run_job(self, worker_pool):
         from backends.worker_pool import StaleResolutionError

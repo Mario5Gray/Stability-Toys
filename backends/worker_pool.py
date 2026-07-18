@@ -866,8 +866,17 @@ class WorkerPool:
         return self._build_runtime_status(cancelled_jobs=cancelled)
 
     def unload_current_model(self) -> dict:
-        """Unload the live worker without canceling queued or running jobs."""
+        """Fully unload the model without canceling queued or running jobs.
+
+        Unlike idle eviction (which retains the snapshot so a demand reload can
+        rebuild the worker), this drops the model authority entirely: generation
+        fails until a new mode is loaded. Clearing the snapshot is what prevents
+        the worker loop from silently re-arming the same model on the next job.
+        """
         self._unload_current_worker()
+        with self._job_lock:
+            self._active_snapshot = None
+            self._current_mode = None
         gc.collect()
         torch.cuda.empty_cache()
         return {
