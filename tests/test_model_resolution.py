@@ -5,7 +5,9 @@ weak/strong artifact identity, and the single pre-overlay resolver entrypoint.
 """
 
 import hashlib
+import math
 import os
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -20,6 +22,7 @@ from backends.model_resolution import (
     ModelInfoSnapshot,
     ResolutionCompatibilityError,
     ResolvedModel,
+    build_resolved,
     canonical_resolution_bytes,
     consume_resolved_model,
     freeze_model_info,
@@ -215,25 +218,21 @@ def test_weak_fingerprint_traces_but_fails_execution_without_strong_identity(tmp
         validate_resolved_model_trace(resolved, for_execution=True)
 
 
-def test_hub_immutable_commit_is_strong_but_tag_is_weak(tmp_path):
+def test_hub_immutable_commit_is_strong_but_tag_is_weak():
     commit = "a" * 40
-    strong = ResolvedModel(
-        schema_version=RESOLVED_MODEL_SCHEMA_VERSION,
-        resolution_id="deadbeef",
+    strong = build_resolved(
         model_ref=hub_ref("org/repo", commit),
-        raw_info=freeze_model_info(_info()),
+        raw_info=_info(),
         profile=SD15_PROFILE,
-        info=freeze_model_info(_info()),
+        info=_info(),
     )
     validate_resolved_model_trace(strong, for_execution=True)
 
-    weak = ResolvedModel(
-        schema_version=RESOLVED_MODEL_SCHEMA_VERSION,
-        resolution_id="deadbeef",
+    weak = build_resolved(
         model_ref=hub_ref("org/repo", "v1.0"),  # mutable tag
-        raw_info=freeze_model_info(_info()),
+        raw_info=_info(),
         profile=SD15_PROFILE,
-        info=freeze_model_info(_info()),
+        info=_info(),
     )
     with pytest.raises(ResolutionCompatibilityError):
         validate_resolved_model_trace(weak, for_execution=True)
@@ -294,6 +293,34 @@ def test_resolve_model_orders_detect_family_overlay(tmp_path, monkeypatch):
     # raw_info is pre-overlay, info is post-overlay (mode wins).
     assert resolved.raw_info.scheduler_profile == "unknown"
     assert resolved.info.scheduler_profile == "karras"
+
+
+def test_tampered_resolution_id_is_rejected_on_consume(tmp_path):
+    resolved = _resolved(tmp_path)
+    tampered = replace(resolved, resolution_id="0" * 64)
+    with pytest.raises(ResolutionCompatibilityError):
+        consume_resolved_model(tampered, {"sd15": SD15_PROFILE})
+
+
+def test_tampered_resolution_id_is_rejected_on_wire_load(tmp_path):
+    resolved = _resolved(tmp_path)
+    wire = resolved_model_to_json_dict(resolved)
+    wire["resolution_id"] = "0" * 64
+    with pytest.raises(ResolutionCompatibilityError):
+        resolved_model_from_json_dict(wire)
+
+
+def test_validate_trace_rejects_tampered_resolution_id(tmp_path):
+    resolved = _resolved(tmp_path)
+    tampered = replace(resolved, resolution_id="deadbeef")
+    with pytest.raises(ResolutionCompatibilityError):
+        validate_resolved_model_trace(tampered, for_execution=False)
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+def test_non_finite_metadata_floats_fail_at_freeze(bad):
+    with pytest.raises((TypeError, ValueError)):
+        freeze_model_info(_info(metadata={"score": bad}))
 
 
 def test_merge_mode_capabilities_is_importable_from_resolution_and_pool():

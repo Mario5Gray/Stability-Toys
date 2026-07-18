@@ -20,6 +20,7 @@ Codec discipline (per design §3):
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import unicodedata
 from copy import deepcopy
@@ -46,11 +47,14 @@ class ResolutionCompatibilityError(Exception):
 # JSON-safety
 # ---------------------------------------------------------------------------
 
-_JSON_SCALARS = (str, int, float, bool, type(None))
-
-
 def _assert_json_safe(value: Any, where: str) -> None:
-    if isinstance(value, bool) or isinstance(value, _JSON_SCALARS):
+    if isinstance(value, bool) or value is None or isinstance(value, (int, str)):
+        return
+    if isinstance(value, float):
+        # RFC 8785 (and JSON) cannot represent NaN/Inf; reject at freeze time so
+        # invalid detector data fails now, not later when canonical bytes build.
+        if not math.isfinite(value):
+            raise ValueError(f"{where}: non-finite float {value!r} is not JSON-safe")
         return
     if isinstance(value, Mapping):
         for key, item in value.items():
@@ -414,8 +418,28 @@ def resolved_model_to_json_dict(resolved: ResolvedModel) -> dict[str, Any]:
     }
 
 
+def expected_resolution_id(resolved: ResolvedModel) -> str:
+    return hashlib.sha256(canonical_resolution_bytes(resolved)).hexdigest()
+
+
+def verify_resolution_id(resolved: ResolvedModel) -> None:
+    """Recompute the content hash and reject a trace whose id has drifted.
+
+    ``resolution_id`` is integrity-bearing portable identity, so a consumer must
+    never trust the incoming value — a tampered or stale id is a compatibility
+    failure, not silently canonical.
+    """
+
+    expected = expected_resolution_id(resolved)
+    if resolved.resolution_id != expected:
+        raise ResolutionCompatibilityError(
+            "resolution_id integrity check failed: "
+            f"traced {resolved.resolution_id!r} != recomputed {expected!r}"
+        )
+
+
 def resolved_model_from_json_dict(wire: Mapping[str, Any]) -> ResolvedModel:
-    return ResolvedModel(
+    resolved = ResolvedModel(
         schema_version=wire["schema_version"],
         resolution_id=wire["resolution_id"],
         model_ref=model_ref_from_json_dict(wire["model_ref"]),
@@ -423,6 +447,8 @@ def resolved_model_from_json_dict(wire: Mapping[str, Any]) -> ResolvedModel:
         profile=profile_from_json_dict(wire["profile"]),
         info=snapshot_from_json_dict(wire["info"]),
     )
+    verify_resolution_id(resolved)
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +469,7 @@ def validate_resolved_model_trace(
         raise ResolutionCompatibilityError(
             f"unsupported resolved-model schema version {resolved.schema_version}"
         )
+    verify_resolution_id(resolved)
     if for_execution and not has_strong_identity(resolved.model_ref):
         raise ResolutionCompatibilityError(
             "cross-node execution requires strong identity (digest or immutable "
