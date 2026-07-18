@@ -15,32 +15,31 @@ backends/
 
 ## Worker Factory
 
-The `worker_factory.py` module provides automatic worker selection:
+The `worker_factory.py` module builds a CUDA worker from an already-resolved model:
 
 ```python
 from backends.worker_factory import create_cuda_worker
+from backends.model_resolution import resolve_model
 
-# Automatically detects model type and returns correct worker
-worker = create_cuda_worker(worker_id=0)
+resolved, binding = resolve_model(model_path, mode)
+worker = create_cuda_worker(worker_id=0, resolved=resolved, binding=binding)
 ```
 
 ### How It Works
 
-1. **Detection**: `detect_worker_type()` reads `MODEL_ROOT` and `MODEL` env vars
-2. **Inspection**: Uses `utils.model_detector` to inspect the model file
-3. **Selection**: Returns `"sd15"` or `"sdxl"` based on `cross_attention_dim`
-4. **Creation**: `create_cuda_worker()` instantiates the appropriate worker class
+1. **Resolution**: `resolve_model()` detects the model once, resolves its neutral
+   family (`backends.family_profiles`), overlays mode capabilities, and emits a
+   portable `ResolvedModel` plus a node-local `LocalModelBinding`.
+2. **Dispatch**: `create_cuda_worker()` looks up the canonical CUDA cell from
+   `resolved.profile.family_id` in `CUDA_FAMILY_BINDINGS`
+   (`backends/platforms/cuda_bindings.py`).
+3. **Lazy import**: it resolves the cell's dotted `worker_ref` with `importlib`
+   only inside the factory, so status reads and rejected requests never import
+   Torch/Diffusers worker code.
+4. **Creation**: instantiates the worker from `binding.model_path` and the thawed
+   `resolved.info`. A known family with no CUDA cell raises `UnsupportedFamilyError`.
 
-### Environment Variables
-
-Both SD1.5 and SDXL use the same variables:
-
-```bash
-MODEL_ROOT=/path/to/models
-MODEL=model.safetensors
-```
-
-The factory automatically detects which worker to use.
+`WorkerPool._load_mode` performs this resolution once per mode load.
 
 ## Workers
 
@@ -77,16 +76,8 @@ LoRAs are defined in `styles.py` using the `StyleDef` dataclass.
 
 ## Usage in Server
 
-The server uses the factory for automatic worker creation:
-
-```python
-# server/lcm_sr_server.py
-from backends.worker_factory import create_cuda_worker
-
-if use_cuda:
-    w = create_cuda_worker(worker_id=i)
-else:
-    w = RKNNPipelineWorker(...)
-```
-
-All model detection and selection logic is encapsulated in the backends package.
+CUDA generation is served by `WorkerPool` (via `CudaGenerationRuntime`), which
+calls `resolve_model()` once per mode load and passes the resulting
+`ResolvedModel` + `LocalModelBinding` to `create_cuda_worker()`. The RKNN path
+uses `backends.rknn_runtime.PipelineService` directly. All family resolution and
+worker selection is encapsulated in the backends package.

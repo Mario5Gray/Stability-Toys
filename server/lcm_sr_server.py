@@ -241,8 +241,15 @@ class PipelineService:
         # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
             if use_cuda:
-                from backends.worker_factory import create_cuda_worker
-                w = create_cuda_worker(worker_id=i)  # type: ignore[call-arg]
+                # CUDA generation runs through WorkerPool via CudaGenerationRuntime;
+                # this legacy direct-worker path predates family resolution and
+                # cannot build a worker without a ResolvedModel + LocalModelBinding.
+                # (create_cuda_worker now takes (worker_id, resolved, binding).)
+                raise RuntimeError(
+                    "PipelineService no longer serves CUDA; use the WorkerPool "
+                    "path (CudaGenerationRuntime). This legacy direct-worker path "
+                    "cannot construct a CUDA worker without a resolved model."
+                )
             else:
                 from backends.rknn_worker import RKNNPipelineWorker
                 w = RKNNPipelineWorker(
