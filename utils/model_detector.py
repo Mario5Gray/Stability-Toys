@@ -268,7 +268,8 @@ class SafetensorsDetector(BaseDetector):
             if "middle_block" in key and "transformer_blocks" in key and "attn2.to_k.weight" in key:
                 try:
                     tensor = f.get_tensor(key)
-                    info.cross_attention_dim = tensor.shape[0]
+                    # LDM-format attn2.to_k.weight is (hidden_dim, cross_attn_dim).
+                    info.cross_attention_dim = tensor.shape[1]
                     return
                 except Exception:
                     pass
@@ -278,7 +279,8 @@ class SafetensorsDetector(BaseDetector):
             if "input_blocks" in key and "transformer_blocks" in key and "attn2.to_k.weight" in key:
                 try:
                     tensor = f.get_tensor(key)
-                    info.cross_attention_dim = tensor.shape[0]
+                    # LDM-format attn2.to_k.weight is (hidden_dim, cross_attn_dim).
+                    info.cross_attention_dim = tensor.shape[1]
                     return
                 except Exception:
                     pass
