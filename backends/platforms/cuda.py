@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
+from backends.platforms.base import (
+    BackendCapabilities,
+    FamilyPlatformBinding,
+    GenerationRuntimeProtocol,
+    ModelRegistryProtocol,
+)
 
 
 class CudaGenerationRuntime:
@@ -64,7 +69,12 @@ class CUDAProvider:
     backend_id: str = "cuda"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(True, True, True, True, True, True, True)
+        return BackendCapabilities(True, True, True, True)
+
+    def family_binding(self, family_id: str) -> FamilyPlatformBinding | None:
+        from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+
+        return CUDA_FAMILY_BINDINGS.get(family_id)
 
     def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         from backends.worker_factory import create_cuda_worker

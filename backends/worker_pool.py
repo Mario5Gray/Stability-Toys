@@ -27,7 +27,11 @@ from server.mode_config import get_mode_config, ModeConfigManager
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
-from backends.model_resolution import merge_mode_capabilities
+from backends.model_resolution import (
+    LocalModelBinding,
+    ResolvedModel,
+    merge_mode_capabilities,
+)
 from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
@@ -37,14 +41,21 @@ DEFAULT_QUEUE_TIMEOUT_S: float = float(os.environ.get("WORKER_QUEUE_TIMEOUT_S", 
 
 # Type hints for dependency injection
 class WorkerFactory(Protocol):
-    """Protocol for worker creation functions."""
+    """Protocol for worker creation functions.
+
+    The final contract takes a portable ``ResolvedModel`` plus a node-local
+    ``LocalModelBinding``. Threading these through ``_load_mode`` (via
+    ``resolve_model``) and the default factory lands with the active snapshot in
+    Task 5; this task establishes the protocol shape only.
+    """
+
     def __call__(
         self,
         worker_id: int,
-        model_path: str,
-        model_info: Optional[ModelInfo] = None,
+        resolved: ResolvedModel,
+        binding: LocalModelBinding,
     ) -> PipelineWorker:
-        """Create a worker with the given ID and resolved model path."""
+        """Create a worker from a resolved model and its local binding."""
         ...
 
 

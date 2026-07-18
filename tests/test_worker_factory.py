@@ -1,230 +1,143 @@
-"""
-Functional tests for worker_factory.
+"""Functional tests for worker_factory.
 
-Tests automatic worker type detection and capability-aware worker creation.
+The factory dispatches by neutral family: it looks up the canonical CUDA cell
+from ``resolved.profile.family_id``, imports ``worker_ref`` lazily, and builds the
+worker from ``binding.model_path`` + thawed ``resolved.info``. It never re-detects.
 """
 
 import sys
-import types
-from unittest.mock import Mock, MagicMock, patch
 
 import pytest
 
+from backends.family_profiles import SD15_PROFILE, SDXL_PROFILE, FamilyProfile
+from backends.model_resolution import (
+    LocalModelBinding,
+    build_resolved,
+    hub_ref,
+)
+from backends.platforms.base import UnsupportedFamilyError
 from utils.model_detector import ModelInfo, ModelVariant
 
-# Mock heavyweight dependencies just long enough to import the module under test,
-# then restore sys.modules immediately so other test files aren't poisoned.
-_MOCKED_MODULES = ["torch", "torch.cuda", "safetensors", "safetensors.torch", "diffusers"]
-_saved_modules = {k: sys.modules.get(k) for k in _MOCKED_MODULES}
 
-for _mod in _MOCKED_MODULES:
-    sys.modules[_mod] = MagicMock()
-
-from backends.worker_factory import detect_worker_type, create_cuda_worker
-
-for _mod, _orig in _saved_modules.items():
-    if _orig is None:
-        sys.modules.pop(_mod, None)
-    else:
-        sys.modules[_mod] = _orig
-
-
-class TestDetectWorkerType:
-    """Test automatic worker type detection."""
-
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_detect_sdxl_base_2048(self, mock_exists, mock_detect):
-        """SDXL Base uses the SDXL worker."""
-        mock_detect.return_value = ModelInfo(
-            path="/models/sdxl-base.safetensors",
-            variant=ModelVariant.SDXL_BASE,
-            cross_attention_dim=2048,
-            confidence=0.95,
-        )
-
-        worker_type = detect_worker_type("/models/sdxl-base.safetensors")
-
-        assert worker_type == "sdxl"
-        mock_detect.assert_called_once_with("/models/sdxl-base.safetensors")
-
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_detect_sd21_1024(self, mock_exists, mock_detect):
-        """SD2.x continues to use the SD1.5 worker implementation."""
-        mock_detect.return_value = ModelInfo(
-            path="/models/sd21.safetensors",
-            variant=ModelVariant.SD21,
-            cross_attention_dim=1024,
-            confidence=0.95,
-        )
-
-        worker_type = detect_worker_type("/models/sd21.safetensors")
-
-        assert worker_type == "sd15"
-
-    @patch("os.path.exists", return_value=False)
-    def test_detect_model_not_found(self, mock_exists):
-        """Missing model path fails before detection."""
-        with pytest.raises(RuntimeError, match="Model not found"):
-            detect_worker_type("/models/missing.safetensors")
-
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_detect_unsupported_dim(self, mock_exists, mock_detect):
-        """Unsupported cross-attention dims remain a hard error."""
-        mock_detect.return_value = ModelInfo(
-            path="/models/unknown.safetensors",
-            variant=ModelVariant.UNKNOWN,
-            cross_attention_dim=512,
-            confidence=0.95,
-        )
-
-        with pytest.raises(RuntimeError, match="Unsupported cross_attention_dim: 512"):
-            detect_worker_type("/models/unknown.safetensors")
+def _resolved(profile, *, variant=ModelVariant.SD15, cad=768, checkpoint_variant="sd15"):
+    info = ModelInfo(
+        path="/host/only",
+        variant=variant,
+        cross_attention_dim=cad,
+        base_arch="unet",
+        loader_format="single_file",
+        checkpoint_variant=checkpoint_variant,
+        scheduler_profile="native",
+    )
+    return build_resolved(
+        model_ref=hub_ref("org/repo", None),
+        raw_info=info,
+        profile=profile,
+        info=info,
+    )
 
 
-class TestCreateCudaWorker:
-    """Test CUDA worker creation."""
+class _RecordingWorker:
+    instances: list["_RecordingWorker"] = []
 
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_create_sdxl_worker_passes_detected_capabilities(self, mock_exists, mock_detect):
-        """Detected model capabilities must be forwarded into the SDXL worker."""
-        model_info = ModelInfo(
-            path="/models/checkpoints/sdxl-base.safetensors",
-            variant=ModelVariant.SDXL_BASE,
-            cross_attention_dim=2048,
-            confidence=0.95,
-            loader_format="single_file",
-            checkpoint_precision="fp8",
-            checkpoint_variant="sdxl-base",
-        )
-        model_info.scheduler_profile = "native"
-        mock_detect.return_value = model_info
-        mock_worker = Mock()
-        fake_cuda_worker = types.SimpleNamespace(
-            DiffusersSDXLCudaWorker=Mock(return_value=mock_worker)
-        )
+    def __init__(self, worker_id, model_path, model_info=None):
+        self.worker_id = worker_id
+        self.model_path = model_path
+        self.model_info = model_info
+        self.cls_name = type(self).__name__
+        _RecordingWorker.instances.append(self)
 
-        with patch.dict(sys.modules, {"backends.cuda_worker": fake_cuda_worker}):
-            worker = create_cuda_worker(
-                worker_id=3,
-                model_path="/models/checkpoints/sdxl-base.safetensors",
-            )
 
-        assert worker == mock_worker
-        kwargs = fake_cuda_worker.DiffusersSDXLCudaWorker.call_args.kwargs
-        assert kwargs["worker_id"] == 3
-        assert kwargs["model_path"] == "/models/checkpoints/sdxl-base.safetensors"
-        assert kwargs["model_info"] is model_info
+class _FakeCudaWorkerModule:
+    def __init__(self):
+        self.DiffusersCudaWorker = self._factory("DiffusersCudaWorker")
+        self.DiffusersSDXLCudaWorker = self._factory("DiffusersSDXLCudaWorker")
 
-    @patch("backends.worker_factory.detect_model")
-    def test_create_worker_uses_supplied_model_info(self, mock_detect):
-        """WorkerPool can pass authoritative merged capabilities without re-detecting."""
-        model_info = ModelInfo(
-            path="/models/checkpoints/sdxl-base.safetensors",
-            variant=ModelVariant.SDXL_BASE,
-            cross_attention_dim=2048,
-            confidence=0.95,
-            loader_format="single_file",
-            checkpoint_precision="fp8",
-            checkpoint_variant="sdxl-base",
-        )
-        model_info.scheduler_profile = "native"
-        fake_cuda_worker = types.SimpleNamespace(
-            DiffusersSDXLCudaWorker=Mock(return_value=Mock())
-        )
+    @staticmethod
+    def _factory(name):
+        def make(worker_id, model_path, model_info=None):
+            worker = _RecordingWorker(worker_id, model_path, model_info)
+            worker.cls_name = name
+            return worker
 
-        with patch.dict(sys.modules, {"backends.cuda_worker": fake_cuda_worker}):
-            create_cuda_worker(
-                worker_id=5,
-                model_path="/models/checkpoints/sdxl-base.safetensors",
-                model_info=model_info,
-            )
+        return make
 
-        mock_detect.assert_not_called()
-        assert fake_cuda_worker.DiffusersSDXLCudaWorker.call_args.kwargs["model_info"] is model_info
 
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_create_sd15_worker_passes_model_info(self, mock_exists, mock_detect):
-        """The SD1.5 worker also receives the resolved ModelInfo."""
-        model_info = ModelInfo(
-            path="/models/checkpoints/sd15.safetensors",
-            variant=ModelVariant.SD15,
-            cross_attention_dim=768,
-            confidence=0.95,
-            loader_format="single_file",
-            checkpoint_precision="unknown",
-            checkpoint_variant="sd15",
-        )
-        model_info.scheduler_profile = "lcm"
-        mock_detect.return_value = model_info
-        fake_cuda_worker = types.SimpleNamespace(
-            DiffusersCudaWorker=Mock(return_value=Mock())
-        )
+@pytest.fixture
+def fake_cuda_worker(monkeypatch):
+    _RecordingWorker.instances = []
+    module = _FakeCudaWorkerModule()
+    monkeypatch.setitem(sys.modules, "backends.cuda_worker", module)
+    return module
 
-        with patch.dict(sys.modules, {"backends.cuda_worker": fake_cuda_worker}):
-            create_cuda_worker(
-                worker_id=2,
-                model_path="/models/checkpoints/sd15.safetensors",
-            )
 
-        assert fake_cuda_worker.DiffusersCudaWorker.call_args.kwargs["model_info"] is model_info
+def test_sd15_family_builds_the_sd15_worker(fake_cuda_worker):
+    from backends.worker_factory import create_cuda_worker
 
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=True)
-    def test_create_worker_detection_fails(self, mock_exists, mock_detect):
-        """Detection failures still surface as runtime errors."""
-        mock_detect.side_effect = RuntimeError("Detection failed")
+    resolved = _resolved(SD15_PROFILE)
+    binding = LocalModelBinding("/node/local/sd15")
+    worker = create_cuda_worker(0, resolved, binding)
 
-        with pytest.raises(RuntimeError, match="Detection failed"):
-            create_cuda_worker(worker_id=1, model_path="/models/broken.safetensors")
+    assert worker.cls_name == "DiffusersCudaWorker"
+    assert worker.model_path == "/node/local/sd15"
+    # model_info is thawed from the snapshot, rebinding the node-local path.
+    assert worker.model_info.path == "/node/local/sd15"
+    assert worker.model_info.base_arch == "unet"
 
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=False)
-    def test_create_worker_missing_path_reports_clear_error(self, mock_exists, mock_detect):
-        """A missing path fails with the same clear message as detect_worker_type,
-        before reaching detection, when no pre-resolved model_info is supplied."""
-        with pytest.raises(RuntimeError, match="Model not found at:"):
-            create_cuda_worker(worker_id=1, model_path="/models/missing.safetensors")
 
-        mock_detect.assert_not_called()
+def test_sdxl_family_builds_the_sdxl_worker(fake_cuda_worker):
+    from backends.worker_factory import create_cuda_worker
 
-    @patch("backends.worker_factory.detect_model")
-    @patch("os.path.exists", return_value=False)
-    def test_create_worker_supplied_model_info_skips_path_check(self, mock_exists, mock_detect):
-        """A pool-resolved model_info already passed detection, so the guard must not
-        re-stat the path (the model may no longer be present as a local file)."""
-        model_info = ModelInfo(
-            path="/models/checkpoints/sdxl-base.safetensors",
-            variant=ModelVariant.SDXL_BASE,
-            cross_attention_dim=2048,
-            confidence=0.95,
-        )
-        model_info.scheduler_profile = "native"
-        fake_cuda_worker = types.SimpleNamespace(
-            DiffusersSDXLCudaWorker=Mock(return_value=Mock())
-        )
+    resolved = _resolved(SDXL_PROFILE, variant=ModelVariant.SDXL_BASE, cad=2048,
+                         checkpoint_variant="sdxl-base")
+    worker = create_cuda_worker(3, resolved, LocalModelBinding("/node/local/sdxl"))
 
-        with patch.dict(sys.modules, {"backends.cuda_worker": fake_cuda_worker}):
-            create_cuda_worker(
-                worker_id=7,
-                model_path="/models/checkpoints/sdxl-base.safetensors",
-                model_info=model_info,
-            )
+    assert worker.cls_name == "DiffusersSDXLCudaWorker"
+    assert worker.worker_id == 3
 
-        mock_detect.assert_not_called()
-        assert fake_cuda_worker.DiffusersSDXLCudaWorker.called
+
+def test_factory_never_calls_detect_model(fake_cuda_worker, monkeypatch):
+    import utils.model_detector as detector
+
+    monkeypatch.setattr(
+        detector, "detect_model",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("factory re-detected")),
+    )
+    from backends.worker_factory import create_cuda_worker
+
+    create_cuda_worker(0, _resolved(SD15_PROFILE), LocalModelBinding("/node/x"))
+
+
+def test_worker_ref_resolves_only_inside_create_cuda_worker(monkeypatch):
+    # Importing the bindings table must not import the CUDA worker module.
+    monkeypatch.delitem(sys.modules, "backends.cuda_worker", raising=False)
+    import importlib
+
+    import backends.platforms.cuda_bindings as cb
+    importlib.reload(cb)
+    assert "backends.cuda_worker" not in sys.modules
+
+
+def test_known_family_without_platform_binding_is_unsupported(fake_cuda_worker):
+    from backends.worker_factory import create_cuda_worker
+
+    orphan = FamilyProfile(
+        family_id="hunyuandit",  # valid-looking family, but no CUDA cell yet
+        encoder_roles=("text_encoder", "text_encoder_2"),
+        pooled_required=False,
+        pooled_projection_role=None,
+        control_image_kwarg="control_image",
+    )
+    resolved = _resolved(orphan, variant=ModelVariant.UNKNOWN, cad=None,
+                         checkpoint_variant="unknown")
+    with pytest.raises(UnsupportedFamilyError):
+        create_cuda_worker(0, resolved, LocalModelBinding("/node/x"))
 
 
 def test_model_info_to_dict_includes_recommended_size():
-    """Recommended size should serialize with the rest of the top-level capabilities."""
     model_info = ModelInfo(
         path="/models/checkpoints/sdxl-base.safetensors",
         variant=ModelVariant.SDXL_BASE,
         recommended_size="896x1152",
     )
-
     assert model_info.to_dict()["recommended_size"] == "896x1152"

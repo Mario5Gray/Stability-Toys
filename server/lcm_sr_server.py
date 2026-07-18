@@ -589,10 +589,13 @@ def generate(req: GenerateRequest):
     try:
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         provider = getattr(app.state, "backend_provider", None)
+        # Execution claims moved to per-family platform bindings; until the
+        # active-snapshot binding lookup lands (Task 5), degrade gracefully to
+        # unsupported rather than AttributeError on the slimmed platform caps.
         supports_controlnet = bool(
             current_mode is not None
             and provider is not None
-            and provider.capabilities().supports_controlnet
+            and getattr(provider.capabilities(), "supports_controlnet", False)
         )
         ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
     except NotImplementedError as e:

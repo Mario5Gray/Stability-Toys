@@ -1077,14 +1077,18 @@ class TestControlNetRuntime:
         pool.submit_job.assert_not_called()
 
     def test_backend_capabilities_only_cuda_supports_controlnet(self):
-        """Only the CUDA backend should report ControlNet runtime support."""
+        """Only the CUDA backend binds a family whose execution cell supports
+        ControlNet. Execution claims now live on the family-platform binding,
+        not on platform-wide BackendCapabilities."""
         from backends.platforms.cpu import CPUProvider
         from backends.platforms.cuda import CUDAProvider
         from backends.platforms.rknn import RKNNProvider
 
-        assert CUDAProvider().capabilities().supports_controlnet is True
-        assert CPUProvider().capabilities().supports_controlnet is False
-        assert RKNNProvider().capabilities().supports_controlnet is False
+        cuda_binding = CUDAProvider().family_binding("sd15")
+        assert cuda_binding is not None
+        assert cuda_binding.execution_capabilities.supports_controlnet is True
+        assert CPUProvider().family_binding("sd15") is None
+        assert RKNNProvider().family_binding("sd15") is None
 
 
 class TestDefaultFactory:

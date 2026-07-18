@@ -1,3 +1,4 @@
+import sys
 from concurrent.futures import Future
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -144,8 +145,66 @@ def test_mlx_generation_runtime_raises_clear_error():
         runtime.submit_generate({"prompt": "owl"})
 
 
-def test_cuda_provider_reports_supports_img2img_and_controlnet():
+def test_platform_capabilities_no_longer_carry_execution_claims():
+    from backends.platforms.base import BackendCapabilities
     from backends.platforms.cuda import CUDAProvider
 
+    field_names = {f.name for f in __import__("dataclasses").fields(BackendCapabilities)}
+    assert "supports_img2img" not in field_names
+    assert "supports_controlnet" not in field_names
+    assert "supports_img2img_and_controlnet" not in field_names
+
     caps = CUDAProvider().capabilities()
-    assert caps.supports_img2img_and_controlnet is True
+    assert caps.supports_generation is True
+    assert caps.supports_superres is True
+
+
+def test_cuda_binding_reads_do_not_import_torch_diffusers_or_cuda_worker():
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS; "
+            "assert 'torch' not in sys.modules and 'diffusers' not in sys.modules "
+            "and 'backends.cuda_worker' not in sys.modules",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_every_neutral_family_has_one_cuda_binding():
+    from backends.family_profiles import family_ids
+    from backends.platforms.cuda import CUDAProvider
+    from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+
+    provider = CUDAProvider()
+    for family_id in family_ids():
+        binding = provider.family_binding(family_id)
+        assert binding is CUDA_FAMILY_BINDINGS[family_id]
+        assert isinstance(binding.worker_ref, str) and "." in binding.worker_ref
+
+
+def test_phase2_cuda_execution_capabilities_are_all_true():
+    from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+
+    for family_id in ("sd15", "sdxl"):
+        caps = CUDA_FAMILY_BINDINGS[family_id].execution_capabilities
+        assert caps.supports_img2img is True
+        assert caps.supports_controlnet is True
+        assert caps.supports_img2img_and_controlnet is True
+    # Task 9 adds the Hunyuan (false, true, false) row after the no-op gate.
+    assert "hunyuandit" not in CUDA_FAMILY_BINDINGS
+
+
+def test_cpu_mlx_rknn_return_no_family_binding():
+    from backends.platforms.cpu import CPUProvider
+    from backends.platforms.mlx import MLXProvider
+    from backends.platforms.rknn import RKNNProvider
+
+    for provider in (CPUProvider(), MLXProvider(), RKNNProvider()):
+        assert provider.family_binding("sd15") is None
+        assert provider.family_binding("sdxl") is None
