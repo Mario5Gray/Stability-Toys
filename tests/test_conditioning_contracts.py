@@ -71,6 +71,43 @@ class RecordingNativeService:
         return CompletedInvocation.success(self.artifact)
 
 
+def test_unknown_conditioning_family_fails_at_construction():
+    from backends.family_profiles import UnknownFamilyError
+
+    with pytest.raises(UnknownFamilyError):
+        ModelContextDescriptor(
+            model_family="hunyuandit",
+            tokenizer_max_length=77,
+            encoder_identities=("clip-l",),
+            hidden_dimensions=(768,),
+            pooled_required=False,
+            encode_dtype_name="float16",
+            device="cuda:0",
+        )
+
+    with pytest.raises(UnknownFamilyError):
+        ConditioningCompatibility(
+            model_family="nope",
+            encoder_identities=("clip-l",),
+            hidden_dimensions=(768,),
+            pooled_required=False,
+            dtype_name="float16",
+        )
+
+
+def test_open_conditioning_family_strings_still_accept_known_ids():
+    descriptor = ModelContextDescriptor(
+        model_family="sdxl",
+        tokenizer_max_length=77,
+        encoder_identities=("clip-l", "clip-g"),
+        hidden_dimensions=(768, 1280),
+        pooled_required=True,
+        encode_dtype_name="float16",
+        device="cuda:0",
+    )
+    assert descriptor.model_family == "sdxl"
+
+
 def test_conditioning_request_preserves_optional_negative_prompt():
     request = ConditioningRequest(prompt="cat", negative_prompt=None)
     assert request.prompt == "cat"
