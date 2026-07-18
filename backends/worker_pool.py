@@ -30,9 +30,9 @@ from backends.platforms.base import ModelRegistryProtocol
 from backends.model_resolution import (
     LocalModelBinding,
     ResolvedModel,
-    merge_mode_capabilities,
+    merge_mode_capabilities,  # re-exported for callers/tests; overlay lives in model_resolution
+    resolve_model,
 )
-from utils.model_detector import ModelInfo, detect_model
 
 logger = logging.getLogger(__name__)
 
@@ -247,25 +247,16 @@ class WorkerPool:
     @staticmethod
     def _default_worker_factory(
         worker_id: int,
-        model_path: str,
-        model_info: Optional[ModelInfo] = None,
+        resolved: ResolvedModel,
+        binding: LocalModelBinding,
     ) -> PipelineWorker:
-        """
-        Default worker factory.
+        """Default worker factory: build the CUDA worker for a resolved model.
 
-        Imports and calls create_cuda_worker from worker_factory module.
-        This is the default behavior when no factory is injected.
-
-        Args:
-            worker_id: Worker ID to assign
-            model_path: Resolved absolute path to the model
-            model_info: Optional pre-resolved model capabilities
-
-        Returns:
-            Created PipelineWorker instance
+        Imports and calls create_cuda_worker from worker_factory module. This is
+        the default behavior when no factory is injected.
         """
         from backends.worker_factory import create_cuda_worker
-        return create_cuda_worker(worker_id, model_path, model_info=model_info)
+        return create_cuda_worker(worker_id, resolved, binding)
 
     def _load_mode(self, mode_name: str):
         """
@@ -293,12 +284,14 @@ class WorkerPool:
 
         assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
         try:
-            model_info = merge_mode_capabilities(detect_model(mode.model_path), mode)
-            # Create worker using injected factory, passing fully-resolved model path
+            # Detect once, resolve family (pre-overlay), then overlay mode
+            # capabilities, emitting a portable ResolvedModel + node-local binding.
+            # (Task 5 wraps this in an atomic ActiveModelSnapshot with epochs.)
+            resolved, binding = resolve_model(mode.model_path, mode)
             self._worker = self._worker_factory(
                 worker_id=0,
-                model_path=mode.model_path,
-                model_info=model_info,
+                resolved=resolved,
+                binding=binding,
             )
             configure_conditioning = getattr(
                 self._worker, "configure_conditioning", None

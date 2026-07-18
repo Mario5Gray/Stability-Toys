@@ -147,46 +147,64 @@ def mock_cuda_runtime():
         yield
 
 
-@pytest.fixture(autouse=True)
-def mock_model_detection():
-    """Provide lightweight detected model info for worker-pool tests."""
+def _detected_info(path: str):
+    """Lightweight detector output for worker-pool tests (base_arch set so the
+    neutral family resolver matches sd15/sdxl)."""
     from utils.model_detector import ModelInfo, ModelVariant
 
-    def _detect(path: str):
-        if "sdxl" in path:
-            info = ModelInfo(
-                path=path,
-                variant=ModelVariant.SDXL_BASE,
-                cross_attention_dim=2048,
-                confidence=0.95,
-                loader_format="single_file",
-                checkpoint_precision="unknown",
-                checkpoint_variant="sdxl-base",
-                scheduler_profile="native",
-                negative_prompt_templates={},
-                default_negative_prompt_template=None,
-                allow_custom_negative_prompt=False,
-                allowed_scheduler_ids=None,
-                default_scheduler_id=None,
-            )
-            return info
+    if "sdxl" in path:
         return ModelInfo(
             path=path,
-            variant=ModelVariant.SD15,
-            cross_attention_dim=768,
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            base_arch="unet",
             confidence=0.95,
             loader_format="single_file",
             checkpoint_precision="unknown",
-            checkpoint_variant="sd15",
-            scheduler_profile="lcm",
-            negative_prompt_templates={},
-            default_negative_prompt_template=None,
-            allow_custom_negative_prompt=False,
-            allowed_scheduler_ids=None,
-            default_scheduler_id=None,
+            checkpoint_variant="sdxl-base",
+            scheduler_profile="native",
         )
+    return ModelInfo(
+        path=path,
+        variant=ModelVariant.SD15,
+        cross_attention_dim=768,
+        base_arch="unet",
+        confidence=0.95,
+        loader_format="single_file",
+        checkpoint_precision="unknown",
+        checkpoint_variant="sd15",
+        scheduler_profile="lcm",
+    )
 
-    with patch("backends.worker_pool.detect_model", side_effect=_detect):
+
+@pytest.fixture(autouse=True)
+def mock_model_detection():
+    """Patch the pool's single resolve_model seam.
+
+    The pool now resolves once via resolve_model; patching that keeps tests off
+    the filesystem (no real artifact-ref fingerprinting) while still exercising
+    real family resolution and the mode-capability overlay.
+    """
+    from backends.family_profiles import resolve_family
+    from backends.model_resolution import (
+        LocalModelBinding,
+        build_resolved,
+        hub_ref,
+        merge_mode_capabilities,
+    )
+
+    def _resolve(model_path: str, mode):
+        raw = _detected_info(model_path)
+        enriched = merge_mode_capabilities(raw, mode)
+        resolved = build_resolved(
+            model_ref=hub_ref("test/repo", None),
+            raw_info=raw,
+            profile=resolve_family(raw),
+            info=enriched,
+        )
+        return resolved, LocalModelBinding(model_path)
+
+    with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
         yield
 
 
@@ -228,15 +246,15 @@ class TestWorkerPoolInit:
 
         assert pool._current_mode == "sdxl-general"
         assert pool._worker is not None
-        mock_worker_factory.assert_called_once_with(
-            worker_id=0,
-            model_path="/models/sdxl.safetensors",
-            model_info=mock_worker_factory.call_args.kwargs["model_info"],
-        )
-        model_info = mock_worker_factory.call_args.kwargs["model_info"]
-        assert model_info.loader_format == "single_file"
-        assert model_info.checkpoint_precision == "fp8"
-        assert model_info.scheduler_profile == "native"
+        kwargs = mock_worker_factory.call_args.kwargs
+        assert kwargs["worker_id"] == 0
+        assert kwargs["binding"].model_path == "/models/sdxl.safetensors"
+        resolved = kwargs["resolved"]
+        assert resolved.profile.family_id == "sdxl"
+        # info is the mode-overlaid snapshot (mode wins).
+        assert resolved.info.loader_format == "single_file"
+        assert resolved.info.checkpoint_precision == "fp8"
+        assert resolved.info.scheduler_profile == "native"
 
         pool.shutdown()
         reset_worker_pool()
@@ -278,27 +296,23 @@ class TestWorkerPoolInit:
         pool.shutdown()
         reset_worker_pool()
 
-    def test_init_ignores_non_mapping_detected_metadata(self, mock_mode_config, mock_registry, mock_worker_factory):
-        """Non-mapping metadata from mocked model detection should not break initialization."""
-        from backends.worker_pool import reset_worker_pool
+    def test_overlay_ignores_non_mapping_detected_metadata(self, mock_mode_config):
+        """Non-mapping detected metadata must not break the mode overlay; the
+        mode's metadata wins. (The pool resolves via merge_mode_capabilities.)"""
+        from backends.model_resolution import merge_mode_capabilities
+        from utils.model_detector import ModelInfo, ModelVariant
 
-        reset_worker_pool()
-        detected = Mock()
-        detected.metadata = Mock()
+        detected = ModelInfo(
+            path="/models/sdxl.safetensors",
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            base_arch="unet",
+        )
+        detected.metadata = Mock()  # non-mapping
 
-        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
-            pool = WorkerPool(
-                queue_max=10,
-                worker_factory=mock_worker_factory,
-                mode_config=mock_mode_config,
-                registry=mock_registry,
-            )
+        resolved = merge_mode_capabilities(detected, mock_mode_config.get_mode("sdxl-general"))
 
-        model_info = mock_worker_factory.call_args.kwargs["model_info"]
-        assert model_info.metadata == {"single_file_config": "configs/sdxl-base"}
-
-        pool.shutdown()
-        reset_worker_pool()
+        assert resolved.metadata == {"single_file_config": "configs/sdxl-base"}
 
 
 class TestJobSubmission:
@@ -759,12 +773,10 @@ class TestWorkerLifecycle:
         assert pool._worker is not None
         assert pool._current_mode == "sdxl-general"
         # Called once during init for default mode
-        mock_worker_factory.assert_called_once_with(
-            worker_id=0,
-            model_path="/models/sdxl.safetensors",
-            model_info=mock_worker_factory.call_args.kwargs["model_info"],
-        )
-        assert mock_worker_factory.call_args.kwargs["model_info"].checkpoint_variant == "sdxl-base"
+        kwargs = mock_worker_factory.call_args.kwargs
+        assert kwargs["worker_id"] == 0
+        assert kwargs["binding"].model_path == "/models/sdxl.safetensors"
+        assert kwargs["resolved"].info.checkpoint_variant == "sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()
@@ -825,24 +837,42 @@ class TestWorkerLifecycle:
         from backends.worker_pool import reset_worker_pool
         from utils.model_detector import ModelInfo, ModelVariant
 
+        from backends.family_profiles import resolve_family
+        from backends.model_resolution import (
+            LocalModelBinding,
+            build_resolved,
+            hub_ref,
+            merge_mode_capabilities,
+        )
+
         reset_worker_pool()
+        # Detected values deliberately differ from the mode so the overlay
+        # precedence (mode wins) is observable in resolved.info.
         detected = ModelInfo(
             path="/models/sdxl.safetensors",
             variant=ModelVariant.SDXL_BASE,
             cross_attention_dim=2048,
+            base_arch="unet",
             confidence=0.95,
             loader_format="unknown",
             checkpoint_precision="unknown",
             checkpoint_variant="unknown",
+            scheduler_profile="lcm",
         )
-        detected.scheduler_profile = "lcm"
-        detected.negative_prompt_templates = {}
-        detected.default_negative_prompt_template = None
-        detected.allow_custom_negative_prompt = False
-        detected.allowed_scheduler_ids = None
-        detected.default_scheduler_id = None
 
-        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
+        def _resolve(model_path, mode):
+            enriched = merge_mode_capabilities(detected, mode)
+            return (
+                build_resolved(
+                    model_ref=hub_ref("test/repo", None),
+                    raw_info=detected,
+                    profile=resolve_family(detected),
+                    info=enriched,
+                ),
+                LocalModelBinding(model_path),
+            )
+
+        with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
             pool = WorkerPool(
                 queue_max=10,
                 worker_factory=mock_worker_factory,
@@ -850,19 +880,18 @@ class TestWorkerLifecycle:
                 registry=mock_registry,
             )
 
-        kwargs = mock_worker_factory.call_args.kwargs
-        model_info = kwargs["model_info"]
-        assert model_info.loader_format == "single_file"
-        assert model_info.checkpoint_precision == "fp8"
-        assert model_info.checkpoint_variant == "sdxl-base"
-        assert model_info.scheduler_profile == "native"
-        assert model_info.recommended_size == "512x512"
-        assert model_info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
-        assert model_info.default_negative_prompt_template == "safe_photo"
-        assert model_info.allow_custom_negative_prompt is True
-        assert model_info.allowed_scheduler_ids == ["euler", "dpmpp_2m"]
-        assert model_info.default_scheduler_id == "euler"
-        assert model_info.metadata["single_file_config"] == "configs/sdxl-base"
+        info = mock_worker_factory.call_args.kwargs["resolved"].info
+        assert info.loader_format == "single_file"
+        assert info.checkpoint_precision == "fp8"
+        assert info.checkpoint_variant == "sdxl-base"
+        assert info.scheduler_profile == "native"
+        assert info.recommended_size == "512x512"
+        assert info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
+        assert info.default_negative_prompt_template == "safe_photo"
+        assert info.allow_custom_negative_prompt is True
+        assert list(info.allowed_scheduler_ids) == ["euler", "dpmpp_2m"]
+        assert info.default_scheduler_id == "euler"
+        assert info.metadata["single_file_config"] == "configs/sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()
@@ -1094,24 +1123,17 @@ class TestControlNetRuntime:
 class TestDefaultFactory:
     """Test the built-in worker factory used in production."""
 
-    def test_default_worker_factory_forwards_model_info(self):
-        """Default factory must accept and forward resolved model_info."""
+    def test_default_worker_factory_forwards_resolved_and_binding(self):
+        """Default factory forwards the resolved model and its local binding."""
         from backends.worker_pool import WorkerPool
 
-        model_info = Mock()
+        resolved = Mock()
+        binding = Mock()
 
         with patch("backends.worker_factory.create_cuda_worker") as mock_create:
-            WorkerPool._default_worker_factory(
-                worker_id=0,
-                model_path="/models/checkpoints/test.safetensors",
-                model_info=model_info,
-            )
+            WorkerPool._default_worker_factory(0, resolved, binding)
 
-        mock_create.assert_called_once_with(
-            0,
-            "/models/checkpoints/test.safetensors",
-            model_info=model_info,
-        )
+        mock_create.assert_called_once_with(0, resolved, binding)
 
 
 class TestShutdown:

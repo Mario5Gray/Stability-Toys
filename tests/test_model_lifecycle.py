@@ -70,6 +70,21 @@ def mock_mode_config():
     mode_b.default_steps = 4
     mode_b.default_guidance = 1.0
 
+    # These tests don't exercise mode overlays; leave capability fields JSON-safe
+    # (None -> skipped by the overlay) so the resolved snapshot freezes cleanly.
+    for _mode in (mode_a, mode_b):
+        for _field in (
+            "loader_format", "checkpoint_precision", "checkpoint_variant",
+            "scheduler_profile", "recommended_size", "runtime_quantize",
+            "runtime_offload", "runtime_attention_slicing", "runtime_enable_xformers",
+            "default_negative_prompt_template", "allowed_scheduler_ids",
+            "default_scheduler_id",
+        ):
+            setattr(_mode, _field, None)
+        _mode.negative_prompt_templates = {}
+        _mode.allow_custom_negative_prompt = False
+        _mode.metadata = {}
+
     config.get_mode.side_effect = lambda name: {
         "mode-a": mode_a,
         "mode-b": mode_b,
@@ -99,7 +114,7 @@ def mock_worker_factory():
     """Returns Mock workers with run_job returning fake PNG bytes."""
     fake_png = b"\x89PNG_fake_image_data"
 
-    def factory(worker_id: int, model_path: str, model_info=None):
+    def factory(worker_id, resolved, binding):
         worker = Mock()
         worker.run_job = Mock(return_value=fake_png)
         return worker
@@ -121,7 +136,14 @@ def mock_cuda_runtime():
 
 @pytest.fixture(autouse=True)
 def mock_model_detection():
-    """Return cheap detected model info for lifecycle tests."""
+    """Patch the pool's resolve_model seam (off the filesystem) for lifecycle tests."""
+    from backends.family_profiles import resolve_family
+    from backends.model_resolution import (
+        LocalModelBinding,
+        build_resolved,
+        hub_ref,
+        merge_mode_capabilities,
+    )
     from utils.model_detector import ModelInfo, ModelVariant
 
     def _detect(path: str):
@@ -130,6 +152,7 @@ def mock_model_detection():
                 path=path,
                 variant=ModelVariant.SDXL_BASE,
                 cross_attention_dim=2048,
+                base_arch="unet",
                 confidence=0.95,
                 loader_format="single_file",
                 checkpoint_precision="unknown",
@@ -140,6 +163,7 @@ def mock_model_detection():
             path=path,
             variant=ModelVariant.SD15,
             cross_attention_dim=768,
+            base_arch="unet",
             confidence=0.95,
             loader_format="single_file",
             checkpoint_precision="unknown",
@@ -147,7 +171,19 @@ def mock_model_detection():
             scheduler_profile="lcm",
         )
 
-    with patch("backends.worker_pool.detect_model", side_effect=_detect):
+    def _resolve(model_path: str, mode):
+        raw = _detect(model_path)
+        return (
+            build_resolved(
+                model_ref=hub_ref("test/repo", None),
+                raw_info=raw,
+                profile=resolve_family(raw),
+                info=merge_mode_capabilities(raw, mode),
+            ),
+            LocalModelBinding(model_path),
+        )
+
+    with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
         yield
 
 
