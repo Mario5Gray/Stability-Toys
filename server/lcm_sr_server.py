@@ -625,6 +625,15 @@ def generate(req: GenerateRequest):
                 )
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
+    elif getattr(req, "controlnets", None):
+        # Non-mode-system backend (e.g. RKNN) publishes no snapshot, so there is
+        # no family binding to admit ControlNet — stub it exactly as the WS
+        # _run_generate path does, rather than silently dropping the attachments.
+        from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+        try:
+            ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e))
 
     try:
         if snapshot is not None:

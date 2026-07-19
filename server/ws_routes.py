@@ -217,6 +217,12 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                         store=get_store(),
                         active_family=snapshot.resolved.profile.family_id,
                     )
+            elif getattr(req, "controlnets", None):
+                # No active snapshot (no model loaded / non-CUDA family): there is
+                # no family binding to admit ControlNet — stub it exactly as the
+                # non-mode-system _run_generate path does.
+                from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+                ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
