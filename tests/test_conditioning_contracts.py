@@ -76,7 +76,7 @@ def test_unknown_conditioning_family_fails_at_construction():
 
     with pytest.raises(UnknownFamilyError):
         ModelContextDescriptor(
-            model_family="hunyuandit",
+            model_family="pixart",
             tokenizer_max_length=77,
             encoder_identities=("clip-l",),
             hidden_dimensions=(768,),
@@ -106,6 +106,21 @@ def test_open_conditioning_family_strings_still_accept_known_ids():
         device="cuda:0",
     )
     assert descriptor.model_family == "sdxl"
+
+
+def test_conditioning_family_accepts_registered_hunyuandit():
+    # HunyuanDiT is a registered neutral family (Task 9): its native-conditioning
+    # worker stamps model_family="hunyuandit", so the contract must accept it.
+    descriptor = ModelContextDescriptor(
+        model_family="hunyuandit",
+        tokenizer_max_length=0,
+        encoder_identities=(),
+        hidden_dimensions=(),
+        pooled_required=False,
+        encode_dtype_name="float16",
+        device="cuda:0",
+    )
+    assert descriptor.model_family == "hunyuandit"
 
 
 def test_conditioning_request_preserves_optional_negative_prompt():
