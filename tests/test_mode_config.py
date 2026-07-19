@@ -1274,10 +1274,10 @@ modes:
     assert policy.allowed_control_types == {}
 
 
-def test_production_hunyuandit_mode_is_native_canny_txt2img_1024():
-    """The first HunyuanDiT production mode (Task 10): local Diffusers base dir,
-    1024x1024 default, native scheduler, empty/native conditioning, Canny-only
-    with a single attachment, bound to the Hunyuan Canny registry id."""
+def test_production_hunyuandit_mode_is_native_controlnet_txt2img_1024():
+    """The production HunyuanDiT mode uses the mounted distilled base dir,
+    keeps native txt2img defaults, and advertises the three mounted
+    ControlNet families via the production registry ids."""
     from pathlib import Path
 
     from server.mode_config import ModeConfigManager
@@ -1285,8 +1285,8 @@ def test_production_hunyuandit_mode_is_native_canny_txt2img_1024():
     conf_dir = Path(__file__).resolve().parents[1] / "conf"
     mode = ModeConfigManager(str(conf_dir)).get_mode("HunyuanDiT")
 
-    # References the local Hunyuan Diffusers base directory.
-    assert "HunyuanDiT-v1.1-Diffusers" in mode.model_path
+    # References the local Hunyuan distilled base directory.
+    assert "HunyuanDiT-v1.1-Distilled" in mode.model_path
 
     # Defaults to 1024x1024, and that size is present in its resolution set.
     assert mode.default_size == "1024x1024"
@@ -1298,9 +1298,11 @@ def test_production_hunyuandit_mode_is_native_canny_txt2img_1024():
     assert mode.conditioning.service is None
     assert mode.conditioning.fallback.native_when_unconfigured is True
 
-    # Canny only, exactly one attachment, wired to the Hunyuan Canny registry id.
+    # One control attachment, wired to the mounted Hunyuan registry ids.
     policy = mode.controlnet_policy
     assert policy.enabled is True
     assert policy.max_attachments == 1
-    assert tuple(policy.allowed_control_types.keys()) == ("canny",)
+    assert tuple(policy.allowed_control_types.keys()) == ("canny", "depth", "pose")
     assert policy.allowed_control_types["canny"].default_model_id == "hunyuandit-canny"
+    assert policy.allowed_control_types["depth"].default_model_id == "hunyuandit-depth"
+    assert policy.allowed_control_types["pose"].default_model_id == "hunyuandit-pose"

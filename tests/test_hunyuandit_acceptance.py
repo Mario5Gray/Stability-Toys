@@ -115,7 +115,7 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
     hunyuan_mode = mode_config.get_mode("HunyuanDiT")
     _require_runtime_path(Path(hunyuan_mode.model_path), "HunyuanDiT base model")
     _require_runtime_path(
-        Path("/models/controlnets/HunyuanDiT-v1.1-ControlNet-Diffusers-Canny"),
+        Path("/models/controlnets/HunyuanDiT-v1.1-ControlNet-Canny"),
         "HunyuanDiT Canny ControlNet",
     )
 

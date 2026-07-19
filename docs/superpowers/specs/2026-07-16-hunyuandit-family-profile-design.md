@@ -786,6 +786,16 @@ or output behavior changes.
 
 ### Hunyuan CUDA Acceptance
 
+The current production mode mounts
+`/models/diffusers/HunyuanDiT-v1.1-Distilled` as the base directory and
+advertises three Hunyuan ControlNet registry ids:
+`hunyuandit-canny`, `hunyuandit-depth`, and `hunyuandit-pose`, pointing at
+`/models/controlnets/HunyuanDiT-v1.1-ControlNet-{Canny,Depth,Pose}`. The live
+acceptance gate remains Canny-first: it proves the threaded production mode,
+family binding, admission matrix, and native execution path on one mounted
+ControlNet while Depth and Pose share the same family- and registry-governed
+admission path.
+
 The production acceptance test uses the rendered CUDA Compose service and:
 
 1. verifies the dependency preflight and installed versions
@@ -826,6 +836,8 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 - Hunyuan quantizes only the transformer and loads the family-specific ControlNet
   class.
 - The Hunyuan mode advertises and executes ControlNet txt2img only.
+- The production Hunyuan mode points at the mounted distilled base directory and
+  advertises Canny, Depth, and Pose via family-scoped registry ids.
 - Missing SentencePiece/T5 support fails before model download.
 - Safety-checker, known ignored-config, and dtype warnings follow the explicit
   dispositions in this specification.
@@ -836,7 +848,8 @@ material regression or OOM on the same host/dependency matrix blocks delivery.
 
 - materialized Hunyuan BERT+mT5 conditioning delegate
 - Hunyuan img2img and combined pipelines
-- Hunyuan Depth and Pose live checkpoint enablement
+- Hunyuan Depth and Pose dedicated live acceptance coverage beyond the
+  canny-first production gate
 - authoritative family/capability exposure in `/models/status`
 - scheduler fallback normalization
 - `ResolutionDetector` architecture-before-policy ordering and consolidation of

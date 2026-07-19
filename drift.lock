@@ -45,7 +45,7 @@ docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md -> server/w
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:db90031007f4917c
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> server/superres_service.py sig:004663565e4c9756
-docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:ed122bcc685865ef
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:345a22ee7c3d245a
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:884f1ee959bcb41b
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:e2ad1f72894d3e7b
@@ -87,8 +87,8 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backend
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/cuda.py sig:a6729f72c235e335
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_pool.py sig:39867e22ba9dab04
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/controlnets.yaml sig:d828a0dd152a71e3
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/modes.yml sig:a3451d2883741bb5
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/controlnets.yaml sig:cd074e2ac578485f
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/modes.yml sig:345a22ee7c3d245a
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> docker-compose.test.yml sig:ff02ccbcf1ad7e20
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/controlnet_execution.py sig:c127b64df5c82bad

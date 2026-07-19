@@ -301,10 +301,10 @@ def test_registry_defaults_to_mode_config_path(monkeypatch, tmp_path):
     assert registry.get_required("sdxl-canny").path == str(model_dir)
 
 
-def test_production_registry_has_hunyuandit_canny_compatible_only_with_hunyuandit():
-    """Task 10: the production controlnets.yaml carries one Hunyuan Canny entry,
-    resolvable as compatible only with the hunyuandit family (never the SD
-    families). Loaded lazily so local /models paths are not required here."""
+def test_production_registry_has_hunyuandit_models_compatible_only_with_hunyuandit():
+    """Task 10: the production controlnets.yaml carries the mounted Hunyuan
+    ControlNet entries, each resolvable only for the hunyuandit family.
+    Loaded lazily so local /models paths are not required here."""
     from pathlib import Path
 
     from server.controlnet_registry import load_controlnet_registry
@@ -312,10 +312,17 @@ def test_production_registry_has_hunyuandit_canny_compatible_only_with_hunyuandi
     conf_path = Path(__file__).resolve().parents[1] / "conf" / "controlnets.yaml"
     registry = load_controlnet_registry(config_path=str(conf_path), validation_mode="lazy")
 
-    spec = registry.get("hunyuandit-canny")
-    assert spec is not None
-    assert spec.control_types == ("canny",)
-    assert spec.compatible_with == ("hunyuandit",)
-    # Compatible only with hunyuandit — never advertised for the SD families.
-    assert "sd15" not in spec.compatible_with
-    assert "sdxl" not in spec.compatible_with
+    expected = {
+        "hunyuandit-canny": ("canny",),
+        "hunyuandit-depth": ("depth",),
+        "hunyuandit-pose": ("pose",),
+    }
+
+    for model_id, control_types in expected.items():
+        spec = registry.get(model_id)
+        assert spec is not None
+        assert spec.control_types == control_types
+        assert spec.compatible_with == ("hunyuandit",)
+        # Compatible only with hunyuandit — never advertised for the SD families.
+        assert "sd15" not in spec.compatible_with
+        assert "sdxl" not in spec.compatible_with

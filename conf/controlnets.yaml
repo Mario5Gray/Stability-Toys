@@ -24,7 +24,15 @@ models:
     control_types: [pose]
     compatible_with: [sd15]
   hunyuandit-canny:
-    path: /models/controlnets/HunyuanDiT-v1.1-ControlNet-Diffusers-Canny
+    path: /models/controlnets/HunyuanDiT-v1.1-ControlNet-Canny
     control_types: [canny]
+    compatible_with: [hunyuandit]
+  hunyuandit-depth:
+    path: /models/controlnets/HunyuanDiT-v1.1-ControlNet-Depth
+    control_types: [depth]
+    compatible_with: [hunyuandit]
+  hunyuandit-pose:
+    path: /models/controlnets/HunyuanDiT-v1.1-ControlNet-Pose
+    control_types: [pose]
     compatible_with: [hunyuandit]
   
