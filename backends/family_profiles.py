@@ -61,8 +61,8 @@ class UnknownFamilyError(Exception):
 
 # --- Canonical profiles ------------------------------------------------------
 # `sd15` is an execution family fronting SD1.5, SD2.0, and SD2.1. `sdxl` fronts
-# SDXL Base and Refiner. Lineage remains in ModelInfo.variant, never here.
-# Task 9 adds HUNYUANDIT_PROFILE after the Phase 2 gate.
+# SDXL Base and Refiner. `hunyuandit` fronts the HunyuanDiT DiT-transformer
+# family. Lineage remains in ModelInfo.variant, never here.
 
 SD15_PROFILE = FamilyProfile(
     family_id="sd15",
@@ -80,6 +80,17 @@ SDXL_PROFILE = FamilyProfile(
     control_image_kwarg="image",
 )
 
+# HunyuanDiT carries two encoders (BERT + mT5) but delegates conditioning
+# natively: no pooled requirement, no projection role. Its control-map kwarg is
+# `control_image`, the single per-family divergence from SD's `image`.
+HUNYUANDIT_PROFILE = FamilyProfile(
+    family_id="hunyuandit",
+    encoder_roles=("text_encoder", "text_encoder_2"),
+    pooled_required=False,
+    pooled_projection_role=None,
+    control_image_kwarg="control_image",
+)
+
 
 # --- Predicates --------------------------------------------------------------
 # Predicates read only detector-owned architecture facts. `checkpoint_variant`
@@ -94,9 +105,17 @@ def _is_sdxl(info: ModelInfo) -> bool:
     return info.base_arch == "unet" and info.cross_attention_dim in (1280, 2048)
 
 
+def _is_hunyuandit(info: ModelInfo) -> bool:
+    # Keyed on the transformer kind, never on the UNet cross_attention_dim: a
+    # transformer CAD (1024) must not be read here or the sd15 predicate could
+    # masquerade. base_arch is "transformer" for this family.
+    return info.transformer_kind == "hunyuandit"
+
+
 FAMILY_REGISTRY: tuple[FamilyRegistration, ...] = (
     FamilyRegistration(SD15_PROFILE, _is_sd15),
     FamilyRegistration(SDXL_PROFILE, _is_sdxl),
+    FamilyRegistration(HUNYUANDIT_PROFILE, _is_hunyuandit),
 )
 
 

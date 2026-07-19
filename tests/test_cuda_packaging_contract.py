@@ -66,6 +66,27 @@ def test_runtime_requirements_include_sentencepiece_for_t5_tokenizers():
     assert any(line.startswith("sentencepiece") for line in lines)
 
 
+def test_diffusers_floor_supports_hunyuandit_pipelines():
+    """HunyuanDiTPipeline / HunyuanDiTControlNetPipeline / HunyuanDiT2DControlNetModel
+    require Diffusers >= 0.39.0 (the spike-proven floor). Guard the floor here so a
+    lower pin cannot silently ship a Diffusers without the Hunyuan family classes."""
+    import re
+
+    lines = _requirements_lines()
+    diffusers_lines = [line for line in lines if line.startswith("diffusers")]
+
+    assert diffusers_lines, "expected a 'diffusers' requirement in requirements.txt"
+
+    line = diffusers_lines[0]
+    match = re.search(r">=\s*(\d+)\.(\d+)", line)
+    assert match, f"diffusers requirement '{line}' must carry a >= floor"
+    major, minor = int(match.group(1)), int(match.group(2))
+    assert (major, minor) >= (0, 39), (
+        f"diffusers floor '{line}' is below 0.39.0, which lacks the HunyuanDiT "
+        "family pipeline classes"
+    )
+
+
 def test_dockerfile_verifies_torch_and_xformers_after_cuda_install():
     dockerfile = (REPO_ROOT / "docker/platform/python-cuda.Dockerfile").read_text(
         encoding="utf-8"

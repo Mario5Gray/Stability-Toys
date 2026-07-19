@@ -22,7 +22,12 @@ from backends.conditioning.artifacts import (
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
-from backends.family_profiles import FamilyProfile, SD15_PROFILE, SDXL_PROFILE
+from backends.family_profiles import (
+    FamilyProfile,
+    HUNYUANDIT_PROFILE,
+    SD15_PROFILE,
+    SDXL_PROFILE,
+)
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
@@ -63,6 +68,86 @@ def _sdxl_img2img_pipeline_cls() -> Any:
         "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img",
         "StableDiffusionXLImg2ImgPipeline",
     )
+
+
+# --- HunyuanDiT family (lazy) ------------------------------------------------
+# These resolvers keep the Hunyuan pipeline/tokenizer stack out of module import:
+# they only touch diffusers/transformers when the Hunyuan worker is constructed,
+# so selecting an SD family or booting a non-CUDA provider never imports them.
+
+
+def _hunyuandit_pipeline_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiTPipeline")
+
+
+def _hunyuandit_controlnet_pipeline_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiTControlNetPipeline")
+
+
+def _hunyuandit_controlnet_model_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiT2DControlNetModel")
+
+
+def _t5_tokenizer_cls() -> Any:
+    return _import_attr("transformers", "T5Tokenizer")
+
+
+class HunyuanDiTDependencyError(RuntimeError):
+    """The HunyuanDiT-family runtime stack is missing or non-functional.
+
+    Raised at worker construction — before any model download — when a required
+    Diffusers pipeline class is absent or the T5 tokenizer loader is a
+    SentencePiece-less placeholder.
+    """
+
+
+def _hunyuandit_dependency_versions() -> dict[str, str]:
+    """Installed versions of the Hunyuan runtime stack, read from package
+    metadata so this works even when the imports themselves are failing."""
+    from importlib import metadata
+
+    def _v(package: str) -> str:
+        try:
+            return metadata.version(package)
+        except Exception:
+            return "not installed"
+
+    return {
+        "diffusers": _v("diffusers"),
+        "transformers": _v("transformers"),
+        "sentencepiece": _v("sentencepiece"),
+    }
+
+
+def _hunyuandit_dependency_preflight() -> None:
+    """Validate the family-specific Diffusers classes and a callable
+    ``T5Tokenizer.from_pretrained`` before any model download.
+
+    Failure raises :class:`HunyuanDiTDependencyError` carrying the installed
+    Diffusers, Transformers, and SentencePiece versions without masking the
+    original missing/placeholder failure.
+    """
+    try:
+        _hunyuandit_pipeline_cls()
+        _hunyuandit_controlnet_pipeline_cls()
+        _hunyuandit_controlnet_model_cls()
+        tokenizer_cls = _t5_tokenizer_cls()
+        loader = getattr(tokenizer_cls, "from_pretrained", None)
+        if not callable(loader):
+            raise ImportError(
+                "T5Tokenizer.from_pretrained is not callable; install the "
+                "SentencePiece dependency"
+            )
+    except HunyuanDiTDependencyError:
+        raise
+    except Exception as exc:
+        versions = _hunyuandit_dependency_versions()
+        raise HunyuanDiTDependencyError(
+            "HunyuanDiT runtime dependencies are unavailable "
+            f"(diffusers={versions['diffusers']}, "
+            f"transformers={versions['transformers']}, "
+            f"sentencepiece={versions['sentencepiece']}): {exc}"
+        ) from exc
 
 
 def _bool_env(name: str, default: str = "0") -> bool:
@@ -1446,3 +1531,169 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         del lat, decoded
         torch.cuda.empty_cache()
         return png_bytes, seed, lat_8.tobytes(order="C")
+
+
+class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
+    """CUDA Diffusers worker for the HunyuanDiT DiT-transformer family.
+
+    Native-conditioning only: BERT + mT5 tokenization/embedding stay inside
+    Diffusers (no SDXL-style pooled materialization). First delivery supports
+    txt2img with zero or one Canny ControlNet binding; img2img and combined
+    img2img+ControlNet are unsupported.
+
+    Unlike SD/SDXL this worker does not inherit the SDXL worker — the two only
+    share a two-encoder count; their denoisers, prompt contracts, pooled
+    behavior, schedulers, and img2img capabilities all differ.
+    """
+
+    family_profile: FamilyProfile = HUNYUANDIT_PROFILE
+
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        # Quantize only the DiT transformer. The mT5 encoder is intentionally
+        # excluded in the first delivery (not validated by the spike).
+        return (pipe.transformer,)
+
+    def _controlnet_model_cls(self) -> type[Any]:
+        return _hunyuandit_controlnet_model_cls()
+
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
+
+        # Family-specific dependency preflight, before any model download.
+        _hunyuandit_dependency_preflight()
+
+        ckpt_path = model_path
+        print(f"[hunyuandit-cuda] ckpt_path={ckpt_path}")
+
+        format_hint = self._loader_format
+        is_diffusers_dir = format_hint == "diffusers_dir" or (
+            format_hint == "unknown"
+            and os.path.isdir(ckpt_path)
+            and os.path.exists(os.path.join(ckpt_path, "model_index.json"))
+        )
+        if not is_diffusers_dir:
+            raise RuntimeError(
+                "HunyuanDiT requires a Diffusers directory (model_index.json); "
+                f"got {ckpt_path!r}"
+            )
+
+        pipe = _hunyuandit_pipeline_cls().from_pretrained(
+            ckpt_path,
+            torch_dtype=self.dtype,
+        )
+        # Keep the native scheduler (DDPMScheduler) unless mode policy selects a
+        # tested compatible scheduler at request time via _apply_request_scheduler.
+        pipe = self._setup_pipe_memory_opts(pipe)
+
+        self.pipe = pipe
+        self._capture_baseline_scheduler(self.pipe)
+        # HunyuanDiT does not load SD/SDXL style LoRAs (different denoiser + CAD).
+        self._style_api = "none"
+
+        print(
+            f"[hunyuandit-cuda] worker {self.worker_id} loaded: "
+            f"{os.path.basename(ckpt_path)} on {self.device} dtype={self.dtype_str} "
+            f"quantize={self._quantize} offload={self._offload}"
+        )
+
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        # Compose via from_pipe (shares the base components at zero extra VRAM).
+        # No torch_dtype: base and ControlNet are already loaded at self.dtype and
+        # placed before composition, so the composed pipe must not be recast.
+        return _hunyuandit_controlnet_pipeline_cls().from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+        )
+
+    # ---------------------------
+    # Job execution
+    # ---------------------------
+    def run_job(self, job) -> tuple[bytes, int]:
+        req = job.req
+        init_image = getattr(job, "init_image", None)
+        if init_image is not None:
+            raise RuntimeError(
+                "HunyuanDiT worker does not accept an init image; img2img is "
+                "unsupported for this family"
+            )
+
+        try:
+            w_str, h_str = str(req.size).lower().split("x")
+            width, height = int(w_str), int(h_str)
+        except Exception:
+            raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
+
+        seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(seed)
+
+        scheduler_id = self._apply_request_scheduler(req)
+
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        loaded_ids: list[str] = []
+        controlnet_kwargs: dict[str, Any] = {}
+
+        out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            if bindings:
+                # control-map key resolves to "control_image" via the family profile.
+                controlnet_kwargs = self._build_controlnet_kwargs(
+                    bindings, (width, height), loaded_ids
+                )
+            pipe_kwargs = {
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "use_resolution_binning": True,
+                "generator": gen,
+                **controlnet_kwargs,
+            }
+            pipe = self.pipe
+            controlnet_obj = pipe_kwargs.pop("controlnet", None)
+            if controlnet_obj is not None:
+                pipe = self._build_controlnet_pipe(controlnet_obj)
+            conditioning_kwargs = self._accept_conditioning_artifact(
+                pipe,
+                conditioning_artifact,
+            )
+            with torch.inference_mode():
+                out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
+
+            img: Image.Image = out.images[0]  # type: ignore[union-attr]
+            out = None
+
+            pnginfo = PngImagePlugin.PngInfo()
+            pnginfo.add_text("lcm", json.dumps({
+                "prompt": req.prompt,
+                "seed": seed,
+                "size": req.size,
+                "steps": int(req.num_inference_steps),
+                "cfg": float(req.guidance_scale),
+                "negative_prompt": getattr(req, "negative_prompt", None),
+                "scheduler_id": scheduler_id,
+            }))
+            if bindings:
+                pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", pnginfo=pnginfo)
+            return buf.getvalue(), seed
+        finally:
+            out = None
+            conditioning_artifact = None
+            pipe_kwargs = None
+            if loaded_ids:
+                from backends.controlnet_cache import get_controlnet_cache
+                cache = get_controlnet_cache()
+                for model_id in loaded_ids:
+                    cache.release(model_id)
+            torch.cuda.empty_cache()

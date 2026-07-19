@@ -53,6 +53,7 @@ class _FakeCudaWorkerModule:
     def __init__(self):
         self.DiffusersCudaWorker = self._factory("DiffusersCudaWorker")
         self.DiffusersSDXLCudaWorker = self._factory("DiffusersSDXLCudaWorker")
+        self.DiffusersHunyuanDiTCudaWorker = self._factory("DiffusersHunyuanDiTCudaWorker")
 
     @staticmethod
     def _factory(name):
@@ -116,6 +117,20 @@ def test_factory_threads_resolved_profile_not_subclass_default(fake_cuda_worker)
     assert worker.family_profile is resolved.profile
 
 
+def test_hunyuandit_family_builds_the_hunyuandit_worker(fake_cuda_worker):
+    from backends.worker_factory import create_cuda_worker
+    from backends.family_profiles import HUNYUANDIT_PROFILE
+
+    resolved = _resolved(HUNYUANDIT_PROFILE, variant=ModelVariant.UNKNOWN, cad=None,
+                         checkpoint_variant="hunyuandit")
+    worker = create_cuda_worker(1, resolved, LocalModelBinding("/node/local/hunyuan"))
+
+    assert worker.cls_name == "DiffusersHunyuanDiTCudaWorker"
+    assert worker.model_path == "/node/local/hunyuan"
+    # The Hunyuan family flows from the resolved model, not a subclass default.
+    assert worker.family_profile is HUNYUANDIT_PROFILE
+
+
 def test_factory_never_calls_detect_model(fake_cuda_worker, monkeypatch):
     import utils.model_detector as detector
 
@@ -142,8 +157,8 @@ def test_known_family_without_platform_binding_is_unsupported(fake_cuda_worker):
     from backends.worker_factory import create_cuda_worker
 
     orphan = FamilyProfile(
-        family_id="hunyuandit",  # valid-looking family, but no CUDA cell yet
-        encoder_roles=("text_encoder", "text_encoder_2"),
+        family_id="pixart",  # valid-looking family, but no CUDA cell
+        encoder_roles=("text_encoder",),
         pooled_required=False,
         pooled_projection_role=None,
         control_image_kwarg="control_image",
