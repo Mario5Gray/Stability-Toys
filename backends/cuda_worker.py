@@ -22,6 +22,7 @@ from backends.conditioning.artifacts import (
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
+from backends.family_profiles import FamilyProfile, SD15_PROFILE, SDXL_PROFILE
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
@@ -147,15 +148,23 @@ class CudaWorkerBase:
 
     pipe: Any  # set by subclass __init__ after pipeline load
 
-    # Name of the pipeline kwarg that carries the ControlNet conditioning map.
-    # StableDiffusion(XL)ControlNetPipeline takes it as `image`; a transformer
-    # family like HunyuanDiTControlNetPipeline overrides this to `control_image`.
-    _CONTROL_IMAGE_KWARG: str = "image"
-    _conditioning_model_family: str = "sd15"
+    # Pure family data driving conditioning, quantization, and control-map
+    # variance. The class default is the canonical SD15 registry object; the SDXL
+    # worker overrides it, and the factory passes the resolved profile explicitly.
+    family_profile: FamilyProfile = SD15_PROFILE
 
-    def __init__(self, worker_id: int, model_info: Any | None = None) -> None:
+    def __init__(
+        self,
+        worker_id: int,
+        model_info: Any | None = None,
+        family_profile: FamilyProfile | None = None,
+    ) -> None:
         self.worker_id = worker_id
         self.model_info = model_info
+        # Assign the profile before native-conditioning defaults read it. A None
+        # argument falls back to the class default (canonical SD15/SDXL profile).
+        if family_profile is not None:
+            self.family_profile = family_profile
         self._style_loaded: dict[str, bool] = {}
         self._style_api: str = "unknown"
         self._img2img_pipe = None
@@ -167,11 +176,11 @@ class CudaWorkerBase:
     def _set_native_conditioning_defaults(self) -> None:
         context = ModelContext(
             descriptor=ModelContextDescriptor(
-                model_family=self._conditioning_model_family,
+                model_family=self.family_profile.family_id,
                 tokenizer_max_length=0,
                 encoder_identities=(),
                 hidden_dimensions=(),
-                pooled_required=self._conditioning_model_family == "sdxl",
+                pooled_required=self.family_profile.pooled_required,
                 encode_dtype_name=_dtype_name(getattr(self, "dtype", "unknown")),
                 device=str(getattr(self, "device", "")),
             ),
@@ -270,11 +279,9 @@ class CudaWorkerBase:
             freeze = _import_attr("optimum.quanto", "freeze")
             quantize = _import_attr("optimum.quanto", "quantize")
             qfloat8 = _import_attr("optimum.quanto", "qfloat8")
-            quantize(pipe.unet, weights=qfloat8)
-            freeze(pipe.unet)
-            if hasattr(pipe, "text_encoder_2"):  # SDXL only (~1.4 GB)
-                quantize(pipe.text_encoder_2, weights=qfloat8)
-                freeze(pipe.text_encoder_2)
+            for target in self._quantization_targets(pipe):
+                quantize(target, weights=qfloat8)
+                freeze(target)
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
@@ -295,6 +302,16 @@ class CudaWorkerBase:
             pipe = pipe.to(self.device)
         return pipe
 
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        """Modules to fp8-quantize at runtime. SD quantizes only the UNet; the
+        SDXL worker also targets the second text encoder (~1.4 GB)."""
+        return (pipe.unet,)
+
+    def _controlnet_model_cls(self) -> type[Any]:
+        """The ControlNet model class for this family's control-map loading.
+        Generic SD/SDXL workers use Diffusers' ControlNetModel."""
+        return _import_attr("diffusers", "ControlNetModel")
+
     def _device_index(self) -> int:
         """Parse the integer device index from self.device (e.g. 'cuda:1' → 1)."""
         if ":" in self.device:
@@ -313,8 +330,7 @@ class CudaWorkerBase:
         return self.dtype
 
     def _conditioning_components(self, pipe: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
-        family = self._conditioning_model_family
-        if family == "sdxl":
+        if len(self.family_profile.encoder_roles) > 1:
             tokenizers = (getattr(pipe, "tokenizer", None), getattr(pipe, "tokenizer_2", None))
             encoders = (getattr(pipe, "text_encoder", None), getattr(pipe, "text_encoder_2", None))
         else:
@@ -349,20 +365,21 @@ class CudaWorkerBase:
         return int(hidden_size)
 
     def _pooled_projection_dimension(self, pipe: Any) -> int | None:
-        if self._conditioning_model_family != "sdxl":
+        role = self.family_profile.pooled_projection_role
+        if not self.family_profile.pooled_required or role is None:
             return None
-        config = getattr(getattr(pipe, "text_encoder_2", None), "config", None)
+        config = getattr(getattr(pipe, role, None), "config", None)
         projection_dim = getattr(config, "projection_dim", None)
         if projection_dim is None:
             projection_dim = getattr(config, "hidden_size", None)
         if projection_dim is None:
-            raise ValueError("conditioning text_encoder_2 missing projection_dim")
+            raise ValueError(f"conditioning {role} missing projection_dim")
         return int(projection_dim)
 
     def _describe_conditioning_consumer(self, pipe: Any) -> _ConditioningConsumerDescription:
-        family = self._conditioning_model_family
+        family = self.family_profile.family_id
         _tokenizers, encoders = self._conditioning_components(pipe)
-        roles = ("text_encoder", "text_encoder_2") if family == "sdxl" else ("text_encoder",)
+        roles = self.family_profile.encoder_roles
         hidden_dimensions = tuple(
             self._encoder_hidden_size(role, encoder)
             for role, encoder in zip(roles, encoders, strict=True)
@@ -374,7 +391,7 @@ class CudaWorkerBase:
                 for role, encoder in zip(roles, encoders, strict=True)
             ),
             hidden_dimensions=hidden_dimensions,
-            pooled_required=family == "sdxl",
+            pooled_required=self.family_profile.pooled_required,
             dtype_name=_dtype_name(self._pipeline_encode_dtype(pipe)),
         )
         return _ConditioningConsumerDescription(
@@ -385,7 +402,7 @@ class CudaWorkerBase:
 
     def _build_conditioning_context(self) -> ModelContext:
         pipe = self.pipe
-        family = self._conditioning_model_family
+        family = self.family_profile.family_id
         tokenizers, encoders = self._conditioning_components(pipe)
         consumer = self._describe_conditioning_consumer(pipe)
         max_length = getattr(tokenizers[0], "model_max_length", None)
@@ -421,14 +438,14 @@ class CudaWorkerBase:
             raise ValueError("conditioning compatibility does not match live pipeline")
 
         required = (
-            {"prompt_embeds", "negative_prompt_embeds"}
-            if live.model_family == "sd15"
-            else {
+            {
                 "prompt_embeds",
                 "negative_prompt_embeds",
                 "pooled_prompt_embeds",
                 "negative_pooled_prompt_embeds",
             }
+            if self.family_profile.pooled_required
+            else {"prompt_embeds", "negative_prompt_embeds"}
         )
         if set(artifact.slots) != required:
             raise ValueError("conditioning slots do not match live pipeline")
@@ -452,14 +469,14 @@ class CudaWorkerBase:
             raise ValueError("conditioning prompt hidden width does not match negative hidden width")
 
         expected_hidden = (
-            live.compatibility.hidden_dimensions[0]
-            if live.model_family == "sd15"
-            else sum(live.compatibility.hidden_dimensions)
+            sum(live.compatibility.hidden_dimensions)
+            if self.family_profile.pooled_required
+            else live.compatibility.hidden_dimensions[0]
         )
         if prompt_embeds.shape[2] != expected_hidden:
             raise ValueError("conditioning hidden width does not match live pipeline")
 
-        if live.model_family == "sdxl":
+        if self.family_profile.pooled_required:
             pooled_prompt = slots["pooled_prompt_embeds"]
             negative_pooled = slots["negative_pooled_prompt_embeds"]
             if len(pooled_prompt.shape) != 2 or len(negative_pooled.shape) != 2:
@@ -632,7 +649,7 @@ class CudaWorkerBase:
         from backends.controlnet_cache import get_controlnet_cache
 
         cache = get_controlnet_cache()
-        controlnet_model = _import_attr("diffusers", "ControlNetModel")
+        controlnet_model = self._controlnet_model_cls()
         return cache.acquire(
             binding.model_id,
             binding.model_path,
@@ -659,16 +676,16 @@ class CudaWorkerBase:
         """Assemble the ControlNet pipeline kwargs from resolved bindings.
 
         Shared across families: the only per-family variance is the control-map
-        kwarg name (self._CONTROL_IMAGE_KWARG, or the `image_kwarg` override below).
-        Each value is single-or-list to match diffusers' single-vs-multi-ControlNet
-        signature.
+        kwarg name (self.family_profile.control_image_kwarg, or the `image_kwarg`
+        override below). Each value is single-or-list to match diffusers'
+        single-vs-multi-ControlNet signature.
 
-        `image_kwarg` overrides `self._CONTROL_IMAGE_KWARG` for the control-map dict
-        key. The combined img2img+ControlNet path passes `image_kwarg="control_image"`
-        because the combined pipeline's `image=` kwarg is the init image, not the
-        control map — reusing `_CONTROL_IMAGE_KWARG` unchanged there would silently
-        overwrite the init image with the control map (or vice versa, depending on
-        kwarg merge order).
+        `image_kwarg` overrides `self.family_profile.control_image_kwarg` for the
+        control-map dict key. The combined img2img+ControlNet path passes
+        `image_kwarg="control_image"` because the combined pipeline's `image=` kwarg
+        is the init image, not the control map — reusing the profile kwarg unchanged
+        there would silently overwrite the init image with the control map (or vice
+        versa, depending on kwarg merge order).
 
         Appends each loaded model_id to the caller's `loaded_ids` *as it pins*,
         so a mid-loop load failure still leaves the already-pinned models visible
@@ -686,7 +703,7 @@ class CudaWorkerBase:
             scales.append(binding.strength)
             starts.append(binding.start_percent)
             ends.append(binding.end_percent)
-        key = image_kwarg if image_kwarg is not None else self._CONTROL_IMAGE_KWARG
+        key = image_kwarg if image_kwarg is not None else self.family_profile.control_image_kwarg
         return {
             "controlnet": controlnets[0] if len(controlnets) == 1 else controlnets,
             key: images[0] if len(images) == 1 else images,
@@ -710,8 +727,14 @@ class DiffusersCudaWorker(CudaWorkerBase):
       CUDA_ENABLE_XFORMERS=1     (default 0)
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
-    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id, model_info=model_info)
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
@@ -1059,10 +1082,20 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
       - Latent space: 128x128 (vs 64x64 for SD1.5)
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
-    _conditioning_model_family: str = "sdxl"
+    family_profile: FamilyProfile = SDXL_PROFILE
 
-    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id, model_info=model_info)
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        # SDXL fp8 also quantizes the second (OpenCLIP-G) text encoder (~1.4 GB).
+        return (pipe.unet, pipe.text_encoder_2)
+
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")

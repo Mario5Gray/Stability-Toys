@@ -416,3 +416,56 @@ class TestConditioningContextAndAcceptance:
             worker._accept_conditioning_artifact(target_pipe, artifact_factory(worker))
 
         target_pipe.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Task 7: family-profile-driven behavior + narrow hooks
+# ---------------------------------------------------------------------------
+
+def test_base_worker_carries_canonical_sd15_profile_before_native_defaults():
+    from backends.family_profiles import SD15_PROFILE
+
+    worker = _make_base()
+    assert worker.family_profile is SD15_PROFILE
+    # native conditioning defaults were built from the profile (assigned first)
+    assert worker._conditioning_context.descriptor.model_family == "sd15"
+    assert worker._conditioning_context.descriptor.pooled_required is False
+
+
+def test_worker_subclass_profile_defaults_are_canonical_registry_objects():
+    from backends.family_profiles import SD15_PROFILE, SDXL_PROFILE
+    from backends.cuda_worker import DiffusersCudaWorker, DiffusersSDXLCudaWorker
+
+    assert DiffusersCudaWorker.family_profile is SD15_PROFILE
+    assert DiffusersSDXLCudaWorker.family_profile is SDXL_PROFILE
+
+
+def test_describe_conditioning_consumer_reads_profile_roles_and_pooled():
+    worker = _make_sd15_worker_with_fake_pipe()
+    desc = worker._describe_conditioning_consumer(worker.pipe)
+    assert desc.model_family == "sd15"
+    assert desc.compatibility.pooled_required is False
+    assert desc.compatibility.encoder_identities == ("local/sd15-text-encoder",)
+
+
+def test_sd_quantization_targets_only_unet():
+    worker = _make_sd15_worker_with_fake_pipe()
+    pipe = SimpleNamespace(unet=object(), text_encoder_2=object())
+    assert worker._quantization_targets(pipe) == (pipe.unet,)
+
+
+def test_sdxl_quantization_targets_unet_and_text_encoder_2():
+    from backends.cuda_worker import DiffusersSDXLCudaWorker
+
+    worker = DiffusersSDXLCudaWorker.__new__(DiffusersSDXLCudaWorker)
+    pipe = SimpleNamespace(unet=object(), text_encoder_2=object())
+    assert worker._quantization_targets(pipe) == (pipe.unet, pipe.text_encoder_2)
+
+
+def test_controlnet_model_cls_hook_imports_diffusers_controlnet_model():
+    import backends.cuda_worker as cw
+
+    worker = _make_sd15_worker_with_fake_pipe()
+    with patch.object(cw, "_import_attr", return_value="CN_CLS") as imp:
+        assert worker._controlnet_model_cls() == "CN_CLS"
+    imp.assert_called_once_with("diffusers", "ControlNetModel")
