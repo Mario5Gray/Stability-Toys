@@ -334,6 +334,47 @@ def test_controlnet_composition_uses_from_pipe_without_dtype_recast():
 
 
 # --------------------------------------------------------------------------
+# ControlNet kwargs: only what HunyuanDiTControlNetPipeline.__call__ accepts
+# --------------------------------------------------------------------------
+
+
+def test_controlnet_kwargs_omit_unsupported_guidance_window():
+    """HunyuanDiTControlNetPipeline.__call__ accepts control_image and
+    controlnet_conditioning_scale but has NO control_guidance_start/end (no
+    per-step guidance window). The worker's control kwargs must not emit those
+    keys or the live pipe(**kwargs) raises TypeError. Regression: the T10 CUDA
+    acceptance failed with 'unexpected keyword argument control_guidance_start'.
+
+    Exercises the REAL _build_controlnet_kwargs (earlier run_job tests mocked it,
+    which is exactly what hid this incompatibility)."""
+    import backends.cuda_worker as cw
+
+    worker = cw.DiffusersHunyuanDiTCudaWorker.__new__(cw.DiffusersHunyuanDiTCudaWorker)
+    worker.family_profile = __import__(
+        "backends.family_profiles", fromlist=["HUNYUANDIT_PROFILE"]
+    ).HUNYUANDIT_PROFILE
+    worker._load_controlnet_model = Mock(return_value=object())
+
+    binding = SimpleNamespace(
+        model_id="hunyuandit-canny",
+        control_image_bytes=b"\x89PNG-canny",
+        strength=0.8,
+        start_percent=0.0,
+        end_percent=1.0,
+    )
+    with patch("backends.cuda_worker._decode_control_image", return_value=MagicMock()):
+        kwargs = worker._build_controlnet_kwargs([binding], (1024, 1024), [])
+
+    # Accepted by the HunyuanDiTControlNetPipeline signature.
+    assert "controlnet" in kwargs  # popped in run_job before the call
+    assert "control_image" in kwargs
+    assert "controlnet_conditioning_scale" in kwargs
+    # Not accepted — presence would TypeError at pipe(**kwargs).
+    assert "control_guidance_start" not in kwargs
+    assert "control_guidance_end" not in kwargs
+
+
+# --------------------------------------------------------------------------
 # run_job: control_image kwarg, resolution binning, init-image rejection
 # --------------------------------------------------------------------------
 

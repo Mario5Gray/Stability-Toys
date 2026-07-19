@@ -1611,6 +1611,25 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
             controlnet=controlnet_obj,
         )
 
+    def _build_controlnet_kwargs(
+        self,
+        bindings: list[Any],
+        size: tuple[int, int],
+        loaded_ids: list[str],
+        image_kwarg: str | None = None,
+    ) -> dict[str, Any]:
+        # HunyuanDiTControlNetPipeline.__call__ accepts control_image and
+        # controlnet_conditioning_scale but has no per-step guidance window
+        # (no control_guidance_start / control_guidance_end, unlike the SD/SDXL
+        # ControlNet pipelines). Emitting those keys raises TypeError at the pipe
+        # call, so drop them from the shared SD/SDXL-shaped kwargs.
+        kwargs = super()._build_controlnet_kwargs(
+            bindings, size, loaded_ids, image_kwarg=image_kwarg
+        )
+        kwargs.pop("control_guidance_start", None)
+        kwargs.pop("control_guidance_end", None)
+        return kwargs
+
     # ---------------------------
     # Job execution
     # ---------------------------
