@@ -40,10 +40,11 @@ def _resolved(profile, *, variant=ModelVariant.SD15, cad=768, checkpoint_variant
 class _RecordingWorker:
     instances: list["_RecordingWorker"] = []
 
-    def __init__(self, worker_id, model_path, model_info=None):
+    def __init__(self, worker_id, model_path, model_info=None, family_profile=None):
         self.worker_id = worker_id
         self.model_path = model_path
         self.model_info = model_info
+        self.family_profile = family_profile
         self.cls_name = type(self).__name__
         _RecordingWorker.instances.append(self)
 
@@ -55,8 +56,8 @@ class _FakeCudaWorkerModule:
 
     @staticmethod
     def _factory(name):
-        def make(worker_id, model_path, model_info=None):
-            worker = _RecordingWorker(worker_id, model_path, model_info)
+        def make(worker_id, model_path, model_info=None, family_profile=None):
+            worker = _RecordingWorker(worker_id, model_path, model_info, family_profile)
             worker.cls_name = name
             return worker
 
@@ -94,6 +95,25 @@ def test_sdxl_family_builds_the_sdxl_worker(fake_cuda_worker):
 
     assert worker.cls_name == "DiffusersSDXLCudaWorker"
     assert worker.worker_id == 3
+
+
+def test_factory_threads_resolved_profile_not_subclass_default(fake_cuda_worker):
+    from backends.worker_factory import create_cuda_worker
+
+    # A distinct profile object (still the sd15 family so it maps to the sd15 cell).
+    # If the factory relied on the subclass default it would NOT be this object.
+    custom = FamilyProfile(
+        family_id="sd15",
+        encoder_roles=("text_encoder",),
+        pooled_required=False,
+        pooled_projection_role=None,
+        control_image_kwarg="image",
+    )
+    resolved = _resolved(custom)
+    worker = create_cuda_worker(0, resolved, LocalModelBinding("/node/x"))
+
+    assert worker.family_profile is custom
+    assert worker.family_profile is resolved.profile
 
 
 def test_factory_never_calls_detect_model(fake_cuda_worker, monkeypatch):

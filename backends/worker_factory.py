@@ -46,10 +46,13 @@ def create_cuda_worker(
 
     worker_class = _resolve_worker_class(cell.worker_ref)
     model_info = thaw_model_info(resolved.info, binding)
+    # The resolved model is the single source of truth for the family: pass its
+    # profile explicitly rather than relying on the worker subclass default.
     worker = worker_class(
         worker_id=worker_id,
         model_path=binding.model_path,
         model_info=model_info,
+        family_profile=resolved.profile,
     )
     logger.info(
         f"[WorkerFactory] Created {cell.worker_ref} for family {family_id!r} "
