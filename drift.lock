@@ -52,9 +52,10 @@ docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/server/ws_routes.py sig:59cceadfffb6cefc
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/yume/dream_worker.py sig:74951856580f16bc
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> backends/cuda_worker.py sig:d22df1b05b5fa832
-docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:5480fb383bb72cc3
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/model_routes.py sig:ce2a33555ac49209
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/upload_routes.py sig:7ceb203839ca71f8
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> backends/chat_client.py#ChatCompletionsClient sig:2ca36e410b8bbad9
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> lcm-sr-ui/src/components/chat/MessageComposer.jsx sig:4fe444f9d067469e
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/mode_config.py#ChatDelegateConfig sig:c6f0b42056d1ff7f
@@ -92,7 +93,7 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> docker-
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> requirements.txt sig:3c671c319054dead
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/controlnet_execution.py sig:c127b64df5c82bad
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/controlnet_registry.py sig:0ab019ab9374e785
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/lcm_sr_server.py sig:57340595e16b7802
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/ws_routes.py sig:6b2e8597c497d6a2
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/model_detector.py sig:650da1ca313821e8
