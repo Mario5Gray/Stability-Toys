@@ -40,7 +40,7 @@ docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> docs/super
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements-test.txt sig:58601e37ede01cd6
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> server/mode_config.py sig:884f1ee959bcb41b
-docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md -> docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md sig:cfc576bb658bd13b
+docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md -> docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md sig:262242e63bcf4412
 docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md -> server/ws_routes.py sig:e2ad1f72894d3e7b
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:db90031007f4917c
