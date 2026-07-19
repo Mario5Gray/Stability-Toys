@@ -186,3 +186,26 @@ modes:
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
+  HunyuanDiT:
+    model: diffusers/HunyuanDiT-v1.1-Diffusers
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 30
+    default_guidance: 5.0
+    negative_prompt_templates:
+      safe_photo: "blurry, watermark, text, low quality"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    chat_delegate: sdxl_advisor
+    controlnet_policy:
+      enabled: true
+      max_attachments: 1
+      allowed_control_types:
+        canny:
+          default_model_id: hunyuandit-canny
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0

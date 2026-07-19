@@ -1272,3 +1272,35 @@ modes:
     assert policy.max_attachments == 2
     assert policy.allow_reuse_emitted_maps is True
     assert policy.allowed_control_types == {}
+
+
+def test_production_hunyuandit_mode_is_native_canny_txt2img_1024():
+    """The first HunyuanDiT production mode (Task 10): local Diffusers base dir,
+    1024x1024 default, native scheduler, empty/native conditioning, Canny-only
+    with a single attachment, bound to the Hunyuan Canny registry id."""
+    from pathlib import Path
+
+    from server.mode_config import ModeConfigManager
+
+    conf_dir = Path(__file__).resolve().parents[1] / "conf"
+    mode = ModeConfigManager(str(conf_dir)).get_mode("HunyuanDiT")
+
+    # References the local Hunyuan Diffusers base directory.
+    assert "HunyuanDiT-v1.1-Diffusers" in mode.model_path
+
+    # Defaults to 1024x1024, and that size is present in its resolution set.
+    assert mode.default_size == "1024x1024"
+    assert any(entry["size"] == "1024x1024" for entry in mode.resolution_options)
+
+    # Native scheduler; empty/native conditioning (no compel service configured,
+    # so native delegation applies).
+    assert mode.scheduler_profile == "native"
+    assert mode.conditioning.service is None
+    assert mode.conditioning.fallback.native_when_unconfigured is True
+
+    # Canny only, exactly one attachment, wired to the Hunyuan Canny registry id.
+    policy = mode.controlnet_policy
+    assert policy.enabled is True
+    assert policy.max_attachments == 1
+    assert tuple(policy.allowed_control_types.keys()) == ("canny",)
+    assert policy.allowed_control_types["canny"].default_model_id == "hunyuandit-canny"

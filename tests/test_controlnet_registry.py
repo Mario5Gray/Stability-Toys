@@ -299,3 +299,23 @@ def test_registry_defaults_to_mode_config_path(monkeypatch, tmp_path):
     registry = get_controlnet_registry()
 
     assert registry.get_required("sdxl-canny").path == str(model_dir)
+
+
+def test_production_registry_has_hunyuandit_canny_compatible_only_with_hunyuandit():
+    """Task 10: the production controlnets.yaml carries one Hunyuan Canny entry,
+    resolvable as compatible only with the hunyuandit family (never the SD
+    families). Loaded lazily so local /models paths are not required here."""
+    from pathlib import Path
+
+    from server.controlnet_registry import load_controlnet_registry
+
+    conf_path = Path(__file__).resolve().parents[1] / "conf" / "controlnets.yaml"
+    registry = load_controlnet_registry(config_path=str(conf_path), validation_mode="lazy")
+
+    spec = registry.get("hunyuandit-canny")
+    assert spec is not None
+    assert spec.control_types == ("canny",)
+    assert spec.compatible_with == ("hunyuandit",)
+    # Compatible only with hunyuandit — never advertised for the SD families.
+    assert "sd15" not in spec.compatible_with
+    assert "sdxl" not in spec.compatible_with

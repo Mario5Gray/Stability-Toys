@@ -23,4 +23,8 @@ models:
     path: /models/controlnets/control_v11p_sd15_openpose_diffusers
     control_types: [pose]
     compatible_with: [sd15]
+  hunyuandit-canny:
+    path: /models/controlnets/HunyuanDiT-v1.1-ControlNet-Diffusers-Canny
+    control_types: [canny]
+    compatible_with: [hunyuandit]
   

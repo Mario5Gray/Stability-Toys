@@ -188,7 +188,7 @@ def test_every_neutral_family_has_one_cuda_binding():
         assert isinstance(binding.worker_ref, str) and "." in binding.worker_ref
 
 
-def test_phase2_cuda_execution_capabilities_are_all_true():
+def test_cuda_execution_capabilities_per_family():
     from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
 
     for family_id in ("sd15", "sdxl"):
@@ -196,8 +196,12 @@ def test_phase2_cuda_execution_capabilities_are_all_true():
         assert caps.supports_img2img is True
         assert caps.supports_controlnet is True
         assert caps.supports_img2img_and_controlnet is True
-    # Task 9 adds the Hunyuan (false, true, false) row after the no-op gate.
-    assert "hunyuandit" not in CUDA_FAMILY_BINDINGS
+    # Phase 3: HunyuanDiT ships ControlNet txt2img only — it must not advertise
+    # img2img or combined img2img+ControlNet execution.
+    hunyuan = CUDA_FAMILY_BINDINGS["hunyuandit"].execution_capabilities
+    assert hunyuan.supports_img2img is False
+    assert hunyuan.supports_controlnet is True
+    assert hunyuan.supports_img2img_and_controlnet is False
 
 
 def test_cpu_mlx_rknn_return_no_family_binding():
