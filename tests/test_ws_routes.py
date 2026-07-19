@@ -16,6 +16,8 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from tests.snapshot_test_helpers import install_mode_backed
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -303,6 +305,11 @@ class TestJobSubmit:
         pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
+        install_mode_backed(app.state, pool, SimpleNamespace(
+            name="sdxl-general", default_size="512x512", default_steps=4,
+            default_guidance=1.0,
+            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+        ))
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
@@ -394,6 +401,11 @@ class TestJobSubmit:
         pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
+        install_mode_backed(app.state, pool, SimpleNamespace(
+            name="sdxl-general", default_size="512x512", default_steps=4,
+            default_guidance=1.0,
+            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+        ))
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
@@ -471,20 +483,19 @@ class TestJobSubmit:
             app.state.worker_pool = None
 
     def test_generate_mode_system_job_error_includes_controlnet_artifacts_after_preprocessing(self):
+        # Admitted-then-dispatch-fails: the family cell supports ControlNet, so the
+        # request passes the matrix, preprocessing emits a control map, and only the
+        # backend future fails — the emitted map must still surface on job:error.
         app.state.use_mode_system = True
         pool = MagicMock()
-        pool.get_current_mode.return_value = "sdxl-general"
+        fut = MagicMock()
+        fut.result.side_effect = RuntimeError("backend controlnet execution failed")
+        pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
 
         source_ref = get_store().write("upload", _solid_png_bytes())
         fake_registry = _fake_preprocessor_registry("canny")
-        captured = {}
-
-        def _fake_dispatch_guard(req, *, supports_controlnet):
-            assert supports_controlnet is False
-            captured["attachment"] = req.controlnets[0]
-            raise NotImplementedError("ControlNet provider not yet implemented on this backend (Track 3 delivers execution)")
 
         policy = ControlNetPolicy(
             enabled=True,
@@ -501,6 +512,14 @@ class TestJobSubmit:
                 )
             },
         )
+        install_mode_backed(
+            app.state, pool,
+            SimpleNamespace(name="sdxl-general", default_size="512x512", default_steps=4,
+                            default_guidance=1.0,
+                            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                            controlnet_policy=policy),
+            supports_controlnet=True,
+        )
 
         try:
             with patch("server.ws_routes.get_mode_config") as get_mode_config:
@@ -515,7 +534,9 @@ class TestJobSubmit:
                     )
                 )
                 with patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", fake_registry):
-                    with patch("server.controlnet_constraints.ensure_controlnet_dispatch_supported", side_effect=_fake_dispatch_guard):
+                    # Bindings resolution is exercised elsewhere; here we only need the
+                    # emitted map to reach the dispatch failure.
+                    with patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]):
                         with client.websocket_connect("/v1/ws") as ws:
                             ws.receive_json()  # consume status
                             ws.send_json({
@@ -550,53 +571,53 @@ class TestJobSubmit:
 
             emitted_ref = err["controlnet_artifacts"][0]["asset_ref"]
             assert get_store().resolve(emitted_ref).bucket == "control_map"
-            assert captured["attachment"].map_asset_ref == emitted_ref
-            assert captured["attachment"].source_asset_ref is None
-            assert captured["attachment"].preprocess is None
-            pool.submit_job.assert_not_called()
+            # Admitted: the job was dispatched (submit_job called); the failure came
+            # from the backend future, after preprocessing had emitted the map.
+            pool.submit_job.assert_called_once()
         finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None
 
-    def test_generate_mode_system_forwards_supports_controlnet_true_when_backend_capability_set(self):
-        """T6.3 regression: when an active mode is loaded and the backend provider
-        reports supports_controlnet=True, the dispatch guard must receive True
-        rather than the legacy False stub."""
+    def test_generate_mode_system_controlnet_request_admitted_when_cell_supports_it(self):
+        """A mode-backed ControlNet request reaches submit when the captured family
+        cell supports ControlNet (the old provider-wide dispatch guard is gone;
+        admission is the family-cell matrix)."""
+        from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+
         app.state.use_mode_system = True
         pool = MagicMock()
-        pool.get_current_mode.return_value = "sdxl-general"
         finished_fut: concurrent.futures.Future = concurrent.futures.Future()
         finished_fut.set_exception(RuntimeError("test stub: skip backend execution"))
         pool.submit_job.return_value = finished_fut
         app.state.worker_pool = pool
         app.state.storage = None
-        app.state.backend_provider = SimpleNamespace(
-            capabilities=lambda: SimpleNamespace(supports_controlnet=True)
+        policy = ControlNetPolicy(
+            enabled=True, max_attachments=1, allow_reuse_emitted_maps=True,
+            allowed_control_types={
+                "canny": ControlNetControlTypePolicy(
+                    default_model_id="sdxl-canny", allowed_model_ids=["sdxl-canny"],
+                    allow_preprocess=False, default_strength=1.0,
+                    min_strength=0.0, max_strength=2.0,
+                )
+            },
+        )
+        install_mode_backed(
+            app.state, pool,
+            SimpleNamespace(name="sdxl-general", default_size="512x512", default_steps=4,
+                            default_guidance=1.0,
+                            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+                            controlnet_policy=policy),
+            supports_controlnet=True,
         )
 
-        captured: dict = {}
-
-        def _capture_guard(req, *, supports_controlnet):
-            captured["supports_controlnet"] = supports_controlnet
-
         try:
-            with patch("server.ws_routes.get_mode_config") as get_mode_config:
-                get_mode_config.return_value = SimpleNamespace(
-                    get_mode=lambda name: SimpleNamespace(
-                        name=name,
-                        default_size="512x512",
-                        default_steps=4,
-                        default_guidance=1.0,
-                        resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
-                        controlnet_policy=None,
-                    )
-                )
-                with patch("server.controlnet_constraints.ensure_controlnet_dispatch_supported", side_effect=_capture_guard):
+            with patch("server.controlnet_preprocessing.preprocess_controlnet_attachments", return_value=[]):
+                with patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]):
                     with client.websocket_connect("/v1/ws") as ws:
                         ws.receive_json()  # consume status
                         ws.send_json({
                             "type": "job:submit",
-                            "id": "t-cn-true",
+                            "id": "t-cn-admit",
                             "jobType": "generate",
                             "params": {
                                 "prompt": "a cat",
@@ -604,11 +625,15 @@ class TestJobSubmit:
                                 "num_inference_steps": 4,
                                 "guidance_scale": 1.0,
                                 "seed": 12345678,
+                                "controlnets": [
+                                    {"attachment_id": "cn_1", "control_type": "canny",
+                                     "map_asset_ref": "ref1", "model_id": "sdxl-canny"}
+                                ],
                             },
                         })
                         ws.receive_json()  # ack
 
-            assert captured["supports_controlnet"] is True
+            pool.submit_job.assert_called_once()
         finally:
             app.state.use_mode_system = False
             app.state.worker_pool = None
@@ -620,6 +645,11 @@ class TestJobSubmit:
         pool.get_current_mode.return_value = "SDXL"
         app.state.worker_pool = pool
         app.state.storage = None
+        install_mode_backed(app.state, pool, SimpleNamespace(
+            name="SDXL", default_size="1024x1024", default_steps=4,
+            default_guidance=1.0,
+            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        ))
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
@@ -705,6 +735,15 @@ class TestJobSubmit:
         pool.get_current_mode.return_value = "SDXL"
         app.state.worker_pool = pool
         app.state.storage = None
+        # Family cell does NOT support the combined operation -> reject at the
+        # matrix, before preprocessing.
+        install_mode_backed(
+            app.state, pool,
+            SimpleNamespace(name="SDXL", default_size="1024x1024", default_steps=4,
+                            default_guidance=1.0,
+                            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}]),
+            supports_combined=False,
+        )
 
         init_ref = get_store().write("upload", _solid_png_bytes())
 
@@ -774,11 +813,6 @@ class TestJobSubmit:
         pool.get_current_mode.return_value = "SDXL"
         app.state.worker_pool = pool
         app.state.storage = None
-        app.state.backend_provider = SimpleNamespace(
-            capabilities=lambda: SimpleNamespace(
-                supports_controlnet=True, supports_img2img_and_controlnet=True
-            )
-        )
 
         init_ref = get_store().write("upload", _solid_png_bytes())
 
@@ -824,6 +858,15 @@ class TestJobSubmit:
                     max_strength=2.0,
                 )
             },
+        )
+        # Family cell supports the combined operation -> admitted, reaches preprocess.
+        install_mode_backed(
+            app.state, pool,
+            SimpleNamespace(name="SDXL", default_size="1024x1024", default_steps=4,
+                            default_guidance=1.0,
+                            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+                            controlnet_policy=controlnet_policy, model_path=None),
+            supports_combined=True,
         )
 
         try:
@@ -878,10 +921,13 @@ class TestJobSubmit:
             app.state.worker_pool = None
             app.state.backend_provider = None
 
-    def test_generate_mode_system_mode_lookup_failure_reports_ack_then_job_error(self):
+    def test_generate_mode_system_admission_failure_reports_ack_then_job_error(self):
+        """A snapshot/admission failure returns job:error after the ack without
+        crashing the WS loop (the retired path was a get_mode_config lookup)."""
         app.state.use_mode_system = True
         pool = MagicMock()
-        pool.get_current_mode.return_value = "SDXL"
+        pool.get_current_mode.return_value = "SDXL"  # display-only status frame
+        pool.get_active_model_snapshot.side_effect = RuntimeError("snapshot unavailable")
         app.state.worker_pool = pool
         app.state.storage = None
 
@@ -913,32 +959,31 @@ class TestJobSubmit:
         sys.modules["backends.worker_pool"] = fake_worker_pool_module
 
         try:
-            with patch("server.ws_routes.get_mode_config", side_effect=RuntimeError("mode config unavailable")):
-                with client.websocket_connect("/v1/ws") as ws:
-                    ws.receive_json()  # consume status
-                    ws.send_json({
-                        "type": "job:submit",
-                        "id": "t-mode-config",
-                        "jobType": "generate",
-                        "params": {
-                            "prompt": "a cat",
-                            "size": "512x512",
-                            "num_inference_steps": 4,
-                            "guidance_scale": 1.0,
-                            "seed": 12345678,
-                        },
-                    })
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({
+                    "type": "job:submit",
+                    "id": "t-admission-fail",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "size": "512x512",
+                        "num_inference_steps": 4,
+                        "guidance_scale": 1.0,
+                        "seed": 12345678,
+                    },
+                })
 
-                    ack = ws.receive_json()
-                    assert ack["type"] == "job:ack"
-                    assert ack["id"] == "t-mode-config"
+                ack = ws.receive_json()
+                assert ack["type"] == "job:ack"
+                assert ack["id"] == "t-admission-fail"
 
-                    err = ws.receive_json()
-                    assert err["type"] == "job:error"
-                    assert err["jobId"] == ack["jobId"]
-                    assert "mode config unavailable" in err["error"]
+                err = ws.receive_json()
+                assert err["type"] == "job:error"
+                assert err["jobId"] == ack["jobId"]
+                assert "snapshot unavailable" in err["error"]
 
-                pool.submit_job.assert_not_called()
+            pool.submit_job.assert_not_called()
         finally:
             if original_lcm_module is None:
                 sys.modules.pop("server.lcm_sr_server", None)
@@ -958,6 +1003,10 @@ class TestJobSubmit:
         pool.submit_job.side_effect = queue.Full()
         app.state.worker_pool = pool
         app.state.storage = None
+        install_mode_backed(app.state, pool, SimpleNamespace(
+            name="SDXL", default_size="512x512", default_steps=4, default_guidance=1.0,
+            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+        ))
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 
@@ -1042,6 +1091,11 @@ class TestJobSubmit:
         pool.submit_job.return_value = fut
         app.state.worker_pool = pool
         app.state.storage = None
+        install_mode_backed(app.state, pool, SimpleNamespace(
+            name="sdxl-general", default_size="512x512", default_steps=4,
+            default_guidance=1.0,
+            resolution_options=[{"size": "512x512", "aspect_ratio": "1:1"}],
+        ))
 
         fake_lcm_module = types.ModuleType("server.lcm_sr_server")
 

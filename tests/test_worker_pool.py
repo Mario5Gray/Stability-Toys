@@ -1036,28 +1036,31 @@ class TestErrorHandling:
 class TestControlNetRuntime:
     """Test the CUDA runtime seam for ControlNet binding resolution."""
 
-    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self, mock_mode_config):
-        """CUDA runtime should resolve ordered bindings before queueing work."""
+    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self):
+        """CUDA runtime resolves bindings from the captured snapshot's mode/family
+        (no detection) and stamps the snapshot epoch before queueing work."""
         from backends.platforms.cuda import CudaGenerationRuntime
 
         pool = Mock()
-        pool.get_current_mode.return_value = "sdxl-general"
         pool.submit_job.return_value = Future()
+        mode = SimpleNamespace(name="sdxl-general")
+        snapshot = SimpleNamespace(
+            mode=mode,
+            resolved=SimpleNamespace(profile=SimpleNamespace(family_id="sdxl")),
+            resolution_epoch=3,
+        )
+        pool.get_active_model_snapshot.return_value = snapshot
         req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
-        mode = mock_mode_config.get_mode("sdxl-general")
         store = Mock()
-        detected = SimpleNamespace(variant=SimpleNamespace(value="sdxl-base"))
 
-        with patch("server.mode_config.get_mode_config", return_value=mock_mode_config), \
-             patch("utils.model_detector.detect_model", return_value=detected), \
-             patch("server.asset_store.get_store", return_value=store), \
-             patch("server.controlnet_execution.active_model_family_from_variant", return_value="sdxl"), \
+        with patch("server.asset_store.get_store", return_value=store), \
              patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=["binding"]) as resolve:
             runtime = CudaGenerationRuntime(pool=pool)
             runtime.submit_generate(req)
 
         queued_job = pool.submit_job.call_args[0][0]
         assert queued_job.controlnet_bindings == ["binding"]
+        assert queued_job.resolution_epoch == 3
         resolve.assert_called_once()
         args, kwargs = resolve.call_args
         assert args == (req,)
@@ -1093,17 +1096,17 @@ class TestControlNetRuntime:
         assert queued_job.req is req
         assert pool.submit_job.call_args.kwargs == {"timeout_s": None}
 
-    def test_cuda_runtime_requires_active_mode_for_controlnet_requests(self):
-        """ControlNet requests should fail clearly if no mode is loaded."""
+    def test_cuda_runtime_requires_active_snapshot_for_generation(self):
+        """Generation fails clearly when no active model snapshot is published."""
         from backends.platforms.cuda import CudaGenerationRuntime
 
         pool = Mock()
-        pool.get_current_mode.return_value = None
+        pool.get_active_model_snapshot.return_value = None
         req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
 
         runtime = CudaGenerationRuntime(pool=pool)
 
-        with pytest.raises(RuntimeError, match="before any mode was loaded"):
+        with pytest.raises(RuntimeError, match="active model snapshot"):
             runtime.submit_generate(req)
 
         pool.submit_job.assert_not_called()

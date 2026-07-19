@@ -89,26 +89,24 @@ def test_http_generate_success_exposes_controlnet_artifacts_header():
     fut = concurrent.futures.Future()
     fut.set_result((b"png-bytes", 1234))
 
-    mock_runtime = MagicMock(spec=["switch_mode", "get_current_mode", "submit_generate"])
-    mock_runtime.get_current_mode.return_value = "sdxl-cn-test"
-    mock_runtime.submit_generate.return_value = fut
+    from tests.snapshot_test_helpers import make_family_provider, make_mode_backed_runtime
 
-    mock_mode_config = MagicMock()
-    mock_mode_config.get_mode.return_value = _make_mode_with_canny()
+    mock_runtime = make_mode_backed_runtime(_make_mode_with_canny(), family_id="sdxl")
+    mock_runtime.submit_generate.return_value = fut
 
     original_runtime = getattr(lcm_sr_server.app.state, "generation_runtime", None)
     original_provider = getattr(lcm_sr_server.app.state, "backend_provider", None)
     original_storage = getattr(lcm_sr_server.app.state, "storage", None)
     original_sr = getattr(lcm_sr_server.app.state, "sr_service", None)
     lcm_sr_server.app.state.generation_runtime = mock_runtime
-    lcm_sr_server.app.state.backend_provider = _controlnet_provider()
+    lcm_sr_server.app.state.backend_provider = make_family_provider(family_id="sdxl")
     lcm_sr_server.app.state.storage = None
     lcm_sr_server.app.state.sr_service = None
     try:
         with (
-            patch("server.lcm_sr_server.get_mode_config", return_value=mock_mode_config),
             patch("server.asset_store.get_store", return_value=store),
             patch("server.controlnet_preprocessing.DEFAULT_REGISTRY", _make_registry()),
+            patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]),
         ):
             req = lcm_sr_server.GenerateRequest(**_valid_controlnet_request(source_ref))
             resp = lcm_sr_server.generate(req)
