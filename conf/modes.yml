@@ -187,7 +187,7 @@ modes:
           min_strength: 0.0
           max_strength: 2.0
   HunyuanDiT:
-    model: diffusers/HunyuanDiT-Diffusers
+    model: diffusers/HunyuanDiT-v1.1-Diffusers
     scheduler_profile: native
     resolution_set: sdxl
     default_size: 1024x1024
