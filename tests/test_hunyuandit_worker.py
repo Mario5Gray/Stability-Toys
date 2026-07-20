@@ -459,3 +459,59 @@ def test_worker_rejects_init_image_explicitly():
 
     with pytest.raises(RuntimeError, match="init image|img2img"):
         worker.run_job(job)
+
+
+def _memory_opt_probe_pipe():
+    """Pipe stub recording which attention-processor swaps were requested."""
+    pipe = MagicMock()
+    pipe.to.return_value = pipe
+    return pipe
+
+
+def _worker_for_memory_opts(cls, *, enable_xformers=True, attention_slicing=True):
+    worker = cls.__new__(cls)
+    worker.worker_id = 0
+    worker._enable_xformers = enable_xformers
+    worker._attention_slicing = attention_slicing
+    worker._quantize = "none"
+    worker._checkpoint_precision = "fp16"
+    worker._offload = "none"
+    worker.device = "cuda:0"
+    return worker
+
+
+def test_hunyuandit_worker_declares_attention_processor_swap_unsafe():
+    import backends.cuda_worker as cw
+
+    # HunyuanDiT2DModel routes rotary positional embeddings through
+    # cross_attention_kwargs["image_rotary_emb"]. Swapped-in processors
+    # (XFormersAttnProcessor / SlicedAttnProcessor) silently drop that kwarg.
+    assert cw.CudaWorkerBase.supports_attention_processor_swap is True
+    assert cw.DiffusersHunyuanDiTCudaWorker.supports_attention_processor_swap is False
+
+
+def test_hunyuandit_memory_opts_skip_processor_swaps():
+    import backends.cuda_worker as cw
+
+    worker = _worker_for_memory_opts(cw.DiffusersHunyuanDiTCudaWorker)
+    pipe = _memory_opt_probe_pipe()
+
+    worker._setup_pipe_memory_opts(pipe)
+
+    pipe.enable_xformers_memory_efficient_attention.assert_not_called()
+    pipe.enable_attention_slicing.assert_not_called()
+    # VAE-level memory opts do not touch attention processors and stay on.
+    pipe.vae.enable_tiling.assert_called_once()
+    pipe.vae.enable_slicing.assert_called_once()
+
+
+def test_sd_memory_opts_still_apply_processor_swaps():
+    import backends.cuda_worker as cw
+
+    worker = _worker_for_memory_opts(cw.DiffusersCudaWorker)
+    pipe = _memory_opt_probe_pipe()
+
+    worker._setup_pipe_memory_opts(pipe)
+
+    pipe.enable_xformers_memory_efficient_attention.assert_called_once()
+    pipe.enable_attention_slicing.assert_called_once_with(1)

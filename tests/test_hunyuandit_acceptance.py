@@ -8,7 +8,9 @@ at /conf/modes.yml.
 
 from __future__ import annotations
 
+import contextlib
 import io
+import logging
 import os
 import time
 from pathlib import Path
@@ -83,6 +85,36 @@ def _write_png(path: Path, png_bytes: bytes) -> None:
     for key, value in img.text.items():
         pnginfo.add_text(key, value)
     img.save(path, format="PNG", pnginfo=pnginfo)
+
+
+class _RecordingHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
+@contextlib.contextmanager
+def _captured_diffusers_warnings():
+    """Collect diffusers warnings raised anywhere, including worker threads.
+
+    The diffusers library root logger sets propagate=False, so caplog does not
+    see these records; attach directly. Spec section 8 requires acceptance to
+    fail on new config incompatibilities, and the ones that matter most here
+    are warn-and-continue, not raise.
+    """
+    handler = _RecordingHandler()
+    logger = logging.getLogger("diffusers")
+    previous_level = logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+    try:
+        yield handler
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
 
 
 def _pick_switch_target(mode_config: ModeConfigManager) -> str:
@@ -194,13 +226,15 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         epoch = snapshot.resolution_epoch
         torch.cuda.reset_peak_memory_stats()
         started = time.monotonic()
-        png_bytes, seed = pool.submit_job(
-            _job(req, bindings=bindings, epoch=epoch)
-        ).result(timeout=900.0)
+        with _captured_diffusers_warnings() as diffusers_warnings:
+            png_bytes, seed = pool.submit_job(
+                _job(req, bindings=bindings, epoch=epoch)
+            ).result(timeout=900.0)
         elapsed_s = time.monotonic() - started
         peak_allocated = int(torch.cuda.max_memory_allocated())
 
-        output_path = tmp_path / "hunyuandit-canny-1024.png"
+        out_dir = Path(os.environ.get("ACCEPTANCE_OUT_DIR", tmp_path))
+        output_path = out_dir / "hunyuandit-canny-1024.png"
         _write_png(output_path, png_bytes)
 
         img = Image.open(io.BytesIO(png_bytes))
@@ -209,6 +243,16 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         assert seed == 1337
         assert "lcm" in img.text
         assert "controlnet" in img.text
+
+        # A dropped cross_attention_kwarg is warn-and-continue in diffusers: the
+        # run stays green while the transformer silently loses its rotary
+        # positional embeddings and emits noise. Nothing else in this test can
+        # see that, so treat any ignored-kwarg warning as a failure.
+        ignored_kwargs = [m for m in diffusers_warnings.messages if "will be ignored" in m]
+        assert not ignored_kwargs, (
+            "diffusers ignored pipeline kwargs during generation "
+            f"({len(ignored_kwargs)} warnings); first: {ignored_kwargs[0]}"
+        )
 
         print(
             "[acceptance] "

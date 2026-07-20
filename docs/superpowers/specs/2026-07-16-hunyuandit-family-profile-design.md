@@ -546,15 +546,16 @@ The CUDA base gains narrow behavioral hooks:
 ```python
 def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]: ...
 def _controlnet_model_cls(self) -> type[Any]: ...
+supports_attention_processor_swap: bool  # class attribute
 ```
 
 Required behavior:
 
-| Worker | Quantization targets | ControlNet class |
-| --- | --- | --- |
-| SD1.5/SD2.x | `pipe.unet` | `ControlNetModel` |
-| SDXL | `pipe.unet`, `pipe.text_encoder_2` | `ControlNetModel` |
-| HunyuanDiT | `pipe.transformer` only | `HunyuanDiT2DControlNetModel` |
+| Worker | Quantization targets | ControlNet class | Attention processor swap |
+| --- | --- | --- | --- |
+| SD1.5/SD2.x | `pipe.unet` | `ControlNetModel` | allowed |
+| SDXL | `pipe.unet`, `pipe.text_encoder_2` | `ControlNetModel` | allowed |
+| HunyuanDiT | `pipe.transformer` only | `HunyuanDiT2DControlNetModel` | forbidden |
 
 The SD rows preserve current fp8 behavior. Hunyuan does not quantize mT5 in the
 first delivery because that target was not validated by the spike.
@@ -569,6 +570,13 @@ Add `DiffusersHunyuanDiTCudaWorker` with these responsibilities:
 - load Hunyuan ControlNet through the family hook and existing cache
 - compose `HunyuanDiTControlNetPipeline.from_pipe()`
 - use `control_image` through `FamilyProfile.control_image_kwarg`
+- omit the SD/SDXL per-step guidance window: `HunyuanDiTControlNetPipeline.__call__`
+  accepts `controlnet_conditioning_scale` but has no `control_guidance_start` or
+  `control_guidance_end`, so the shared ControlNet kwargs are filtered before the
+  call rather than passed through
+- keep the family's native attention processors: `_setup_pipe_memory_opts` skips
+  both `enable_attention_slicing` and `enable_xformers_memory_efficient_attention`
+  when `supports_attention_processor_swap` is false
 - pass `use_resolution_binning=True` on pipeline calls
 - support txt2img with zero or one ControlNet binding in the first mode
 - reject every request with an init image
@@ -601,6 +609,7 @@ The spike warnings have these production dispositions:
 | --- | --- |
 | Safety checker absent | Preserve the repository's existing unfiltered-server posture; do not claim filtered output and do not hide the Diffusers warning. Public exposure policy remains an operator concern outside this family refactor. |
 | `learn_sigma` and `norm_type` ignored by the ControlNet class | Allow exactly these two known checkpoint extras for the validated Tencent Canny artifact; keep the warning visible and fail tests if new unexpected config incompatibilities or missing weights appear. |
+| `cross_attention_kwargs ['image_rotary_emb'] ... will be ignored` | Treat as a failure, never as noise. `HunyuanDiT2DModel` delivers rotary positional embeddings through `cross_attention_kwargs`, and a substituted processor drops them silently, so the run stays green while output degrades to noise. The worker prevents it by declining processor swaps; the CUDA acceptance additionally fails on any `will be ignored` warning captured from the `diffusers` logger during generation. |
 | dtype advisory after `from_pipe`/`.to()` | Load base and ControlNet with `torch_dtype`; place components before composition; do not recast the composed pipeline or call `.to(dtype=...)` after `from_pipe`. Device-only movement remains allowed where required. |
 
 The measured 21.37 GiB is a generation observation, not a dispatch field. The
@@ -804,11 +813,20 @@ The production acceptance test uses the rendered CUDA Compose service and:
 4. rejects img2img and combined requests before preprocessing
 5. runs Canny ControlNet txt2img at 1024x1024 with resolution binning
 6. verifies a coherent output and the `control_image` call shape
-7. records peak allocated VRAM and compares it with the 21.37 GiB spike baseline
-8. verifies cache release, mode switch, and stale-epoch behavior
+7. fails on any diffusers `will be ignored` warning captured during generation
+8. records peak allocated VRAM and compares it with the 21.37 GiB spike baseline
+9. verifies cache release, mode switch, and stale-epoch behavior
+
+Step 7 exists because the assertions available to step 6 — size, seed, and PNG
+text chunks — all hold for pure noise. A dropped pipeline kwarg is the one
+failure mode that degrades the image without changing anything else the test can
+observe, so the warning stream is the only signal.
 
 Small variance above the spike VRAM observation is recorded, not hidden. A
 material regression or OOM on the same host/dependency matrix blocks delivery.
+The Hunyuan baseline is measured with attention slicing and xformers off, since
+this family declines processor swaps; measurements taken with either enabled
+understate the requirement and do not support the 24 GiB floor claim.
 
 ## Acceptance Criteria
 

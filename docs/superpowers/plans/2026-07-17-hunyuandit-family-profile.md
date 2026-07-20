@@ -1101,11 +1101,19 @@ cell, reject img2img/combined before preprocessing, generate one coherent Canny
 txt2img result at 1024x1024 with resolution binning, and verify cache release,
 mode switch, and stale-epoch behavior.
 
+Coherence needs its own assertion. Size, seed, and PNG text chunks all pass on
+pure noise, so the acceptance also captures `diffusers` logger warnings during
+generation and fails on any `will be ignored` message — the signature of a
+dropped pipeline kwarg. Write the artifact to `ACCEPTANCE_OUT_DIR` when set so
+the image survives the container and can be inspected directly.
+
 Record installed dependency versions, generated artifact path, elapsed time,
 and `torch.cuda.max_memory_allocated()`. Compare peak allocated VRAM to the
 21.37 GiB spike observation; small variance is recorded, while OOM or material
 regression on the same host/matrix blocks delivery. The supported non-offloaded
-fp16 operator baseline is a tested 24 GiB GPU.
+fp16 operator baseline is a tested 24 GiB GPU. Measure with attention slicing
+and xformers off, matching how this family actually runs — the worker declines
+processor swaps, so any figure taken with them enabled is not comparable.
 
 - [ ] **Step 5: Review docs and drift before relinking**
 

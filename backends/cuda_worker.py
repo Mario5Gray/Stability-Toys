@@ -238,6 +238,12 @@ class CudaWorkerBase:
     # worker overrides it, and the factory passes the resolved profile explicitly.
     family_profile: FamilyProfile = SD15_PROFILE
 
+    # Whether this family's denoiser tolerates having its attention processors
+    # replaced. UNet families (SD1.5/SDXL) do. HunyuanDiT does not: it passes
+    # rotary positional embeddings through cross_attention_kwargs, which the
+    # swapped-in xformers/sliced processors silently discard, producing noise.
+    supports_attention_processor_swap: bool = True
+
     def __init__(
         self,
         worker_id: int,
@@ -370,14 +376,23 @@ class CudaWorkerBase:
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
-        if self._attention_slicing:
-            pipe.enable_attention_slicing(1)
-        if self._enable_xformers:
-            try:
-                pipe.enable_xformers_memory_efficient_attention()
-                print(f"[cuda] worker {self.worker_id}: xformers enabled")
-            except Exception as e:
-                print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+        if not self.supports_attention_processor_swap:
+            # Correctness beats the memory saving: a replaced processor drops
+            # this family's positional-embedding kwarg without erroring.
+            if self._attention_slicing or self._enable_xformers:
+                print(
+                    f"[cuda] worker {self.worker_id}: attention processor swaps skipped "
+                    f"(family {self.family_profile.family_id} requires its native processor)"
+                )
+        else:
+            if self._attention_slicing:
+                pipe.enable_attention_slicing(1)
+            if self._enable_xformers:
+                try:
+                    pipe.enable_xformers_memory_efficient_attention()
+                    print(f"[cuda] worker {self.worker_id}: xformers enabled")
+                except Exception as e:
+                    print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
         gpu_id = self._device_index()
         if self._offload == "sequential":
             pipe.enable_sequential_cpu_offload(gpu_id=gpu_id)
@@ -1547,6 +1562,13 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     """
 
     family_profile: FamilyProfile = HUNYUANDIT_PROFILE
+
+    # HunyuanDiT2DModel feeds rotary positional embeddings to its attention
+    # processor via cross_attention_kwargs["image_rotary_emb"]. Neither
+    # XFormersAttnProcessor nor SlicedAttnProcessor accepts that kwarg; both
+    # warn and ignore it, so the transformer denoises without positional
+    # information and returns noise. Keep the native processor.
+    supports_attention_processor_swap: bool = False
 
     def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
         # Quantize only the DiT transformer. The mT5 encoder is intentionally
