@@ -40,12 +40,12 @@ docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> docs/super
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements-test.txt sig:58601e37ede01cd6
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> server/mode_config.py sig:884f1ee959bcb41b
-docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md -> docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md sig:64aeea27f3f70027
+docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md -> docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md sig:39eec5ba748979f0
 docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md -> server/ws_routes.py sig:e2ad1f72894d3e7b
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:db90031007f4917c
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> server/superres_service.py sig:004663565e4c9756
-docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:345a22ee7c3d245a
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:0bda34d717434328
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:884f1ee959bcb41b
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:e2ad1f72894d3e7b

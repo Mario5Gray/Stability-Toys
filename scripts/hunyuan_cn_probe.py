@@ -26,17 +26,25 @@ convicts the image path:
 """
 
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
 
 import torch
-from PIL import Image, ImageDraw
+from PIL import Image
 from diffusers import (
     HunyuanDiT2DControlNetModel,
     HunyuanDiTControlNetPipeline,
     HunyuanDiTPipeline,
 )
+
+# The probe must exercise the acceptance's exact control map. Keeping a private
+# copy here is what let the two diverge: the probe validated its own fixture
+# while the acceptance ran an unvalidated border-to-border map that this
+# ControlNet turns into noise. One fixture, imported by both.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
+from hunyuan_control_map import control_map_image  # noqa: E402
 
 MODEL = os.getenv("HUNYUAN_MODEL", "/models/diffusers/HunyuanDiT-v1.1-Diffusers")
 CONTROLNET = os.getenv(
@@ -58,12 +66,7 @@ negative_prompt = os.getenv("NEGATIVE_PROMPT", "blurry, noisy, low quality")
 
 
 def synthetic_canny():
-    img = Image.new("RGB", (width, height), "black")
-    d = ImageDraw.Draw(img)
-    d.rectangle((160, 180, 864, 850), outline="white", width=8)
-    d.line((160, 850, 512, 180, 864, 850), fill="white", width=8)
-    d.line((250, 720, 760, 720), fill="white", width=5)
-    return img
+    return control_map_image(width)
 
 
 if CONTROL_IMAGE:

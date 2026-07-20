@@ -17,8 +17,9 @@ from pathlib import Path
 
 import pytest
 import torch
+from hunyuan_control_map import control_map_png
 from hunyuan_warning_policy import blocking_ignored_warnings
-from PIL import Image, ImageDraw, PngImagePlugin
+from PIL import Image, PngImagePlugin
 
 from backends.model_registry import ModelRegistry
 from backends.platforms.cuda import CUDAProvider
@@ -66,17 +67,6 @@ def _production_conf_dir() -> Path:
 def _require_runtime_path(path: Path, label: str) -> None:
     if not path.exists():
         pytest.skip(f"{label} not mounted at {path}")
-
-
-def _control_map_png(size: int = 1024) -> bytes:
-    img = Image.new("RGB", (size, size), color="black")
-    draw = ImageDraw.Draw(img)
-    draw.rectangle((96, 96, size - 96, size - 96), outline="white", width=18)
-    draw.line((0, 0, size, size), fill="white", width=12)
-    draw.line((0, size, size, 0), fill="white", width=12)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
 
 
 def _write_png(path: Path, png_bytes: bytes) -> None:
@@ -190,7 +180,7 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
             )
 
         store = InMemoryAssetStore()
-        map_ref = store.write("control_map", _control_map_png())
+        map_ref = store.write("control_map", control_map_png())
         attachment = ControlNetAttachment(
             attachment_id="cn-map",
             control_type="canny",

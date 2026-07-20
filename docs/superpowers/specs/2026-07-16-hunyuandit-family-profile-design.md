@@ -796,8 +796,9 @@ or output behavior changes.
 ### Hunyuan CUDA Acceptance
 
 The current production mode mounts
-`/models/diffusers/HunyuanDiT-v1.1-Distilled` as the base directory and
-advertises three Hunyuan ControlNet registry ids:
+`/models/diffusers/HunyuanDiT-v1.1-Diffusers` as the base directory — the same
+standard v1.1 base the spike validated, restored after a distilled base was
+briefly configured — and advertises three Hunyuan ControlNet registry ids:
 `hunyuandit-canny`, `hunyuandit-depth`, and `hunyuandit-pose`, pointing at
 `/models/controlnets/HunyuanDiT-v1.1-ControlNet-{Canny,Depth,Pose}`. The live
 acceptance gate remains Canny-first: it proves the threaded production mode,

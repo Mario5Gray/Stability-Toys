@@ -1285,8 +1285,10 @@ def test_production_hunyuandit_mode_is_native_controlnet_txt2img_1024():
     conf_dir = Path(__file__).resolve().parents[1] / "conf"
     mode = ModeConfigManager(str(conf_dir)).get_mode("HunyuanDiT")
 
-    # References the local Hunyuan distilled base directory.
-    assert "HunyuanDiT-v1.1-Distilled" in mode.model_path
+    # References the standard v1.1 base directory — the pairing the spike
+    # validated against the Tencent Canny ControlNet (077ad09 reverted the
+    # distilled base).
+    assert "HunyuanDiT-v1.1-Diffusers" in mode.model_path
 
     # Defaults to 1024x1024, and that size is present in its resolution set.
     assert mode.default_size == "1024x1024"
