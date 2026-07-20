@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from hunyuan_warning_policy import blocking_ignored_warnings
 from PIL import Image, ImageDraw, PngImagePlugin
 
 from backends.model_registry import ModelRegistry
@@ -237,6 +238,16 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         output_path = out_dir / "hunyuandit-canny-1024.png"
         _write_png(output_path, png_bytes)
 
+        # Printed before any assertion: a failing run must still surrender its
+        # measurement, since the re-baselined VRAM figure is itself a Task 10
+        # deliverable.
+        print(
+            "[acceptance] "
+            f"artifact={output_path} elapsed_s={elapsed_s:.2f} "
+            f"peak_allocated_bytes={peak_allocated} "
+            f"torch={torch.__version__} cuda={torch.version.cuda}"
+        )
+
         img = Image.open(io.BytesIO(png_bytes))
         img.load()
         assert img.size == (1024, 1024)
@@ -244,21 +255,15 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         assert "lcm" in img.text
         assert "controlnet" in img.text
 
-        # A dropped cross_attention_kwarg is warn-and-continue in diffusers: the
-        # run stays green while the transformer silently loses its rotary
-        # positional embeddings and emits noise. Nothing else in this test can
-        # see that, so treat any ignored-kwarg warning as a failure.
-        ignored_kwargs = [m for m in diffusers_warnings.messages if "will be ignored" in m]
-        assert not ignored_kwargs, (
-            "diffusers ignored pipeline kwargs during generation "
-            f"({len(ignored_kwargs)} warnings); first: {ignored_kwargs[0]}"
-        )
-
-        print(
-            "[acceptance] "
-            f"artifact={output_path} elapsed_s={elapsed_s:.2f} "
-            f"peak_allocated_bytes={peak_allocated} "
-            f"torch={torch.__version__} cuda={torch.version.cuda}"
+        # Size, seed, and PNG text chunks all hold for pure noise, so the
+        # warning stream is the only in-test signal for a silently dropped
+        # denoiser input. Policy (spec section 8) lives in hunyuan_warning_policy
+        # so it stays unit-testable off-GPU: the known learn_sigma/norm_type
+        # config notice is allowed, a dropped cross_attention_kwarg never is.
+        blocking = blocking_ignored_warnings(diffusers_warnings.messages)
+        assert not blocking, (
+            f"diffusers reported {len(blocking)} blocking ignored-input "
+            f"warning(s); first: {blocking[0]}"
         )
 
         status = pool.free_vram("hunyuandit-acceptance")
