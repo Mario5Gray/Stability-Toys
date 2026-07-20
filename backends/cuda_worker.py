@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import import_module
+from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -152,6 +153,95 @@ def _hunyuandit_dependency_preflight() -> None:
 
 def _bool_env(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).lower() in ("1", "true", "yes", "on")
+
+
+# ---------------------------------------------------------------------------
+# HunyuanDiT diagnostic dump (STABL-ichgkgno)
+#
+# Strictly read-only: enabled by HUNYUAN_DEBUG_DUMP=1, it records the exact
+# control image, call kwargs, and pipe state so a live worker job can be
+# replayed through the standalone probe and compared field by field. Nothing
+# here may mutate the pipeline, the kwargs, or the scheduler, and every writer
+# swallows its own exceptions — a diagnostic must never be able to fail a job.
+# ---------------------------------------------------------------------------
+
+
+def _hunyuan_debug_enabled() -> bool:
+    return _bool_env("HUNYUAN_DEBUG_DUMP", "0")
+
+
+def _hunyuan_debug_dir(job_id: str) -> Path | None:
+    """Per-job dump directory, or None when diagnostics are off.
+
+    Creates nothing unless explicitly enabled.
+    """
+    if not _hunyuan_debug_enabled():
+        return None
+    try:
+        root = Path(os.environ.get("HUNYUAN_DEBUG_ROOT", "/app/logs/hunyuan_debug"))
+        target = root / str(job_id)
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump dir failed: {e!r}")
+        return None
+
+
+def _hunyuan_pipe_state(pipe: Any, controlnet: Any = None) -> dict[str, Any]:
+    """Read-only snapshot of the pipeline state that could affect output.
+
+    Each field is captured independently so one missing attribute cannot
+    suppress the rest of the report.
+    """
+    state: dict[str, Any] = {}
+
+    def _capture(key: str, fn) -> None:
+        try:
+            state[key] = fn()
+        except Exception as e:
+            state[key] = f"<unavailable: {e!r}>"
+
+    def _param_dtype(module):
+        return str(next(module.parameters()).dtype)
+
+    def _param_device(module):
+        return str(next(module.parameters()).device)
+
+    _capture("scheduler_class", lambda: type(pipe.scheduler).__name__)
+    _capture("scheduler_config", lambda: dict(pipe.scheduler.config))
+    _capture("vae_tiling", lambda: getattr(pipe.vae, "use_tiling", None))
+    _capture("vae_slicing", lambda: getattr(pipe.vae, "use_slicing", None))
+    _capture("transformer_dtype", lambda: _param_dtype(pipe.transformer))
+    _capture("transformer_device", lambda: _param_device(pipe.transformer))
+    _capture("vae_dtype", lambda: _param_dtype(pipe.vae))
+    _capture("vae_device", lambda: _param_device(pipe.vae))
+    _capture(
+        "attention_processor_classes",
+        lambda: sorted({type(p).__name__ for p in pipe.transformer.attn_processors.values()}),
+    )
+    if controlnet is not None:
+        _capture("controlnet_class", lambda: type(controlnet).__name__)
+        _capture("controlnet_dtype", lambda: _param_dtype(controlnet))
+        _capture("controlnet_device", lambda: _param_device(controlnet))
+    return state
+
+
+def _hunyuan_debug_write_json(target: Path | None, name: str, payload: Any) -> None:
+    if target is None:
+        return
+    try:
+        (target / name).write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
+
+
+def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> None:
+    if target is None:
+        return
+    try:
+        image.save(target / name, format="PNG")
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
 
 
 def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:
@@ -1674,7 +1764,23 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         gen = torch.Generator(device=self.device)
         gen.manual_seed(seed)
 
+        # Read-only diagnostics (HUNYUAN_DEBUG_DUMP=1). Captured around the
+        # scheduler application because that is one of the few places the app
+        # path diverges from the standalone probe.
+        # Guarded, not passed as an argument: _hunyuan_pipe_state must not run
+        # at all on the production path.
+        debug_dir = _hunyuan_debug_dir(getattr(job, "job_id", "unknown"))
+        if debug_dir is not None:
+            _hunyuan_debug_write_json(
+                debug_dir, "pipe_state_before_scheduler.json", _hunyuan_pipe_state(self.pipe)
+            )
+
         scheduler_id = self._apply_request_scheduler(req)
+
+        if debug_dir is not None:
+            _hunyuan_debug_write_json(
+                debug_dir, "pipe_state_after_scheduler.json", _hunyuan_pipe_state(self.pipe)
+            )
 
         bindings = getattr(job, "controlnet_bindings", []) or []
         loaded_ids: list[str] = []
@@ -1707,6 +1813,34 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                 pipe,
                 conditioning_artifact,
             )
+
+            if debug_dir is not None:
+                # The exact PIL object handed to diffusers, so the probe can
+                # replay these bytes unchanged.
+                _hunyuan_debug_write_image(
+                    debug_dir, "control_image.png", pipe_kwargs.get("control_image")
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "call_kwargs.json",
+                    {k: v for k, v in pipe_kwargs.items() if k != "control_image"},
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "conditioning_keys.json",
+                    {
+                        "conditioning_keys": sorted(conditioning_kwargs.keys()),
+                        "scheduler_id": scheduler_id,
+                        "seed": seed,
+                    },
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "pipe_state_at_call.json",
+                    _hunyuan_pipe_state(pipe, controlnet=controlnet_obj),
+                )
+                print(f"[hunyuandit-cuda] debug dump written to {debug_dir}")
+
             with torch.inference_mode():
                 out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 

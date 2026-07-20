@@ -805,6 +805,22 @@ family binding, admission matrix, and native execution path on one mounted
 ControlNet while Depth and Pose share the same family- and registry-governed
 admission path.
 
+A standalone probe, `scripts/hunyuan_cn_probe.py`, exercises only base load,
+ControlNet load, `from_pipe`, call kwargs, and output — no WorkerPool, admission,
+registry, or asset store. It is the reference point for isolating app plumbing
+from family execution, and it deliberately enables VAE tiling and slicing so
+those options stay inside the tested configuration rather than becoming an
+unexamined difference from the worker.
+
+`HUNYUAN_DEBUG_DUMP=1` makes the worker record, per job, the exact control image
+handed to Diffusers plus pipe state before and after scheduler application, the
+call kwargs, and the conditioning keys, under `HUNYUAN_DEBUG_ROOT`. The dump is
+strictly read-only: it mutates no pipeline, kwarg, or scheduler state, it does
+not execute at all when the flag is unset, and every writer swallows its own
+exceptions so a diagnostic can never fail a job. Feeding a dumped
+`control_image.png` back through the probe via `CONTROL_IMAGE` splits an
+output-quality failure into image-bytes versus pipe-state causes in one run.
+
 The production acceptance test uses the rendered CUDA Compose service and:
 
 1. verifies the dependency preflight and installed versions

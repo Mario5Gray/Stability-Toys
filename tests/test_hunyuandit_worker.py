@@ -18,6 +18,7 @@ construction and request-shaping contract:
   - every init image fails explicitly in the worker
 """
 
+import json
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
@@ -515,3 +516,142 @@ def test_sd_memory_opts_still_apply_processor_swaps():
 
     pipe.enable_xformers_memory_efficient_attention.assert_called_once()
     pipe.enable_attention_slicing.assert_called_once_with(1)
+
+
+def _fake_pipe_for_state():
+    """Pipe stand-in exposing the attributes the state snapshot reads."""
+    pipe = MagicMock()
+    class DDPMScheduler:
+        config = {"beta_schedule": "scaled_linear", "num_train_timesteps": 1000}
+
+    pipe.scheduler = DDPMScheduler()
+    pipe.vae.use_tiling = True
+    pipe.vae.use_slicing = True
+    param = SimpleNamespace(dtype="torch.float16", device="cuda:0")
+    # Fresh iterator per call: each captured field calls parameters() again.
+    pipe.transformer.parameters.side_effect = lambda: iter([param])
+    pipe.vae.parameters.side_effect = lambda: iter([param])
+    pipe.transformer.attn_processors = {"blk.0": object()}
+    return pipe
+
+
+def test_debug_dump_disabled_by_default(monkeypatch, tmp_path):
+    import backends.cuda_worker as cw
+
+    monkeypatch.delenv("HUNYUAN_DEBUG_DUMP", raising=False)
+    assert cw._hunyuan_debug_enabled() is False
+    # Disabled must not create the directory at all.
+    monkeypatch.setenv("HUNYUAN_DEBUG_ROOT", str(tmp_path / "dumps"))
+    assert cw._hunyuan_debug_dir("job123") is None
+    assert not (tmp_path / "dumps").exists()
+
+
+def test_debug_dump_enabled_creates_job_directory(monkeypatch, tmp_path):
+    import backends.cuda_worker as cw
+
+    monkeypatch.setenv("HUNYUAN_DEBUG_DUMP", "1")
+    monkeypatch.setenv("HUNYUAN_DEBUG_ROOT", str(tmp_path / "dumps"))
+    target = cw._hunyuan_debug_dir("job123")
+    assert target is not None
+    assert target.is_dir()
+    assert target.name == "job123"
+
+
+def test_pipe_state_snapshot_reports_required_fields():
+    import backends.cuda_worker as cw
+
+    state = cw._hunyuan_pipe_state(_fake_pipe_for_state(), controlnet=None)
+
+    assert state["scheduler_class"] == "DDPMScheduler"
+    assert state["scheduler_config"]["beta_schedule"] == "scaled_linear"
+    assert state["vae_tiling"] is True
+    assert state["vae_slicing"] is True
+    assert state["transformer_dtype"] == "torch.float16"
+    assert state["transformer_device"] == "cuda:0"
+    assert state["attention_processor_classes"] == ["object"]
+
+
+def test_pipe_state_snapshot_never_raises_on_broken_pipe():
+    import backends.cuda_worker as cw
+
+    # Diagnostics must never be able to fail a job.
+    broken = SimpleNamespace()
+    state = cw._hunyuan_pipe_state(broken, controlnet=None)
+    assert isinstance(state, dict)
+
+
+def test_debug_dump_json_survives_unserializable_values(monkeypatch, tmp_path):
+    import backends.cuda_worker as cw
+
+    monkeypatch.setenv("HUNYUAN_DEBUG_DUMP", "1")
+    monkeypatch.setenv("HUNYUAN_DEBUG_ROOT", str(tmp_path / "dumps"))
+    target = cw._hunyuan_debug_dir("job456")
+    cw._hunyuan_debug_write_json(target, "call_kwargs.json", {"generator": object(), "width": 1024})
+
+    written = json.loads((target / "call_kwargs.json").read_text())
+    assert written["width"] == 1024
+    assert isinstance(written["generator"], str)
+
+
+def test_run_job_writes_no_diagnostics_when_flag_unset(monkeypatch, tmp_path):
+    """Disabled diagnostics must be fully inert on the production path.
+
+    Not just "writes no files" — _hunyuan_pipe_state must never be invoked,
+    since arguments evaluate eagerly and it walks the pipeline on every call.
+    """
+    import backends.cuda_worker as cw
+
+    monkeypatch.delenv("HUNYUAN_DEBUG_DUMP", raising=False)
+    root = tmp_path / "dumps"
+    monkeypatch.setenv("HUNYUAN_DEBUG_ROOT", str(root))
+
+    state_calls: list[int] = []
+    monkeypatch.setattr(
+        cw, "_hunyuan_pipe_state", lambda *a, **k: (state_calls.append(1), {})[1]
+    )
+
+    worker = _run_new_worker()
+    pipe = _FakePipelineBase()
+    worker.pipe = pipe
+    job = SimpleNamespace(
+        req=_make_req(), init_image=None, controlnet_bindings=[], job_id="jobX"
+    )
+
+    with patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        worker.run_job(job)
+
+    assert pipe.calls, "the job must still run normally"
+    assert state_calls == [], "pipe state must not be read when diagnostics are off"
+    assert not root.exists(), "no dump directory may be created"
+
+
+def test_run_job_dumps_control_image_and_state_when_enabled(monkeypatch, tmp_path):
+    import backends.cuda_worker as cw
+
+    monkeypatch.setenv("HUNYUAN_DEBUG_DUMP", "1")
+    monkeypatch.setenv("HUNYUAN_DEBUG_ROOT", str(tmp_path / "dumps"))
+
+    worker = _run_new_worker()
+    pipe = _FakePipelineBase()
+    worker.pipe = pipe
+    job = SimpleNamespace(
+        req=_make_req(), init_image=None, controlnet_bindings=[], job_id="jobY"
+    )
+
+    with patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        worker.run_job(job)
+
+    target = tmp_path / "dumps" / "jobY"
+    assert (target / "pipe_state_before_scheduler.json").exists()
+    assert (target / "pipe_state_after_scheduler.json").exists()
+    assert (target / "call_kwargs.json").exists()
+    assert (target / "conditioning_keys.json").exists()
+    assert (target / "pipe_state_at_call.json").exists()
+
+    kwargs = json.loads((target / "call_kwargs.json").read_text())
+    assert kwargs["width"] == 1024
+    assert kwargs["use_resolution_binning"] is True
+
+    cond = json.loads((target / "conditioning_keys.json").read_text())
+    assert cond["conditioning_keys"] == ["prompt"]
+    assert cond["seed"] == 7
