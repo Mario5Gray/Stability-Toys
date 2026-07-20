@@ -43,7 +43,7 @@ CONTROLNET = os.getenv(
     "HUNYUAN_CONTROLNET", "/models/controlnets/HunyuanDiT-v1.1-ControlNet-Canny"
 )
 CONTROL_IMAGE = os.getenv("CONTROL_IMAGE")
-OUT = Path(os.getenv("OUT_DIR", "/app/logs/hunyuan_probe"))
+OUT = Path(os.getenv("OUT_DIR", "/store"))
 OUT.mkdir(parents=True, exist_ok=True)
 
 device = "cuda:0"
@@ -53,7 +53,7 @@ width = height = 1024
 steps = int(os.getenv("STEPS", "30"))
 guidance = float(os.getenv("GUIDANCE", "5.0"))
 scale = float(os.getenv("CONTROL_SCALE", "1.0"))
-prompt = os.getenv("PROMPT", "architectural study, crisp edges, daylight")
+prompt = os.getenv("PROMPT", "person grinning wearing mesh cap, profile view")
 negative_prompt = os.getenv("NEGATIVE_PROMPT", "blurry, noisy, low quality")
 
 

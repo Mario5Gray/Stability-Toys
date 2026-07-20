@@ -235,7 +235,7 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         peak_allocated = int(torch.cuda.max_memory_allocated())
 
         out_dir = Path(os.environ.get("ACCEPTANCE_OUT_DIR", tmp_path))
-        output_path = out_dir / "hunyuandit-canny-1024.png"
+        output_path = out_dir / "hunyuandit-canny-1024-acceptance.png"
         _write_png(output_path, png_bytes)
 
         # Printed before any assertion: a failing run must still surrender its
