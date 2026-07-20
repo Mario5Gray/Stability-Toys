@@ -166,14 +166,14 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         )
         with pytest.raises(ValueError, match="img2img operation"):
             admit_generation_operation(
-                GenerateRequest(prompt="owl"),
+                GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap."),
                 snapshot=snapshot,
                 provider=provider,
                 has_init_image=True,
             )
         with pytest.raises(ValueError, match="img2img\\+controlnet operation"):
             admit_generation_operation(
-                GenerateRequest(prompt="owl", controlnets=[source_control]),
+                GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap.", controlnets=[source_control]),
                 snapshot=snapshot,
                 provider=provider,
                 has_init_image=True,
