@@ -74,12 +74,19 @@ COPY requirements-conditioning.txt /app/requirements-conditioning.txt
 COPY requirements-test.txt /app/requirements-test.txt
 COPY conf/ /app/conf/
 COPY docker/ /app/docker/
+# tests/test_cuda_packaging_contract.py asserts on these build files by reading
+# them from REPO_ROOT, which is /app inside the image. Every path that test
+# opens must be copied here or it fails with FileNotFoundError rather than a
+# contract violation.
 COPY docker-cuda.yml /app/docker-cuda.yml
 COPY docker-rknn.yml /app/docker-rknn.yml
 COPY docker-compose.live-test.yml /app/docker-compose.live-test.yml
+COPY docker-compose.test.yml /app/docker-compose.test.yml
+COPY docker-compose.dev.yml /app/docker-compose.dev.yml
 COPY Dockerfile /app/Dockerfile
 COPY Dockerfile.test /app/Dockerfile.test
 COPY Dockerfile.live-test /app/Dockerfile.live-test
+COPY Dockerfile.quick /app/Dockerfile.quick
 COPY Makefile /app/Makefile
 COPY Makefile.test /app/Makefile.test
 

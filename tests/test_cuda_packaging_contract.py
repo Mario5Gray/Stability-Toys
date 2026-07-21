@@ -401,3 +401,28 @@ def test_makefile_dev_down_target_uses_dev_compose():
 
     assert result.returncode == 0, result.stderr
     assert "docker compose -f docker-compose.dev.yml down" in result.stdout
+
+
+def test_every_repo_file_this_module_reads_is_present():
+    """Guard the image's COPY list against this module's REPO_ROOT reads.
+
+    When a path here is missing from Dockerfile.test, the owning test fails with
+    FileNotFoundError, which reads as a broken test rather than the packaging
+    gap it actually is. Failing here names the missing files directly.
+    """
+    import re
+
+    source = Path(__file__).read_text(encoding="utf-8")
+    # Split at the marker so the pattern's own literal never appears
+    # contiguously in this file. Otherwise the regex matches itself and reports
+    # a fragment of its own source as a missing path.
+    marker = "REPO_ROOT" + " / "
+    pattern = marker + r'"([^"]+)"'
+    referenced = sorted(set(re.findall(pattern, source)))
+    assert referenced, "expected this module to read repo files via REPO_ROOT"
+
+    missing = [name for name in referenced if not (REPO_ROOT / name).exists()]
+    assert not missing, (
+        "these paths are read by this module but absent from REPO_ROOT "
+        f"({REPO_ROOT}); add them to Dockerfile.test's COPY list: {missing}"
+    )
