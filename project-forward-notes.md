@@ -7,21 +7,28 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ## Active work
 
-HunyuanDiT family profile is in final review under `STABL-ichgkgno`; the live
-CUDA acceptance is green and Task 10 closeout is complete.
-
 Prompt-conditioning closeout is in flight under `STABL-hvalobvn`; implementation
 children through CUDA wiring are complete, with docs/container/live verification
 remaining in `STABL-dxxgoevd`.
+
+Open, unowned, filed during the HunyuanDiT track:
+
+| Issue | What |
+|---|---|
+| `STABL-vwcwmiku` | `.github/workflows/ci.yml` has never run — `.gitignore:21`'s bare `workflows` pattern means it was never committed. The Concourse pipeline in `../continuous` is already fully configured for this repo and is one `fly login` away. |
+| `STABL-bclnlnzd` | `tests/test_model_registry.py` stubs `torch` only long enough to import `backends.model_registry`, so it passes alone and errors in a full run; its `mock_cuda` fixture also patches `torch.cuda.get_available_vram`, which is a `ModelRegistry` method. |
+| `STABL-zisphapv` | Miniforge base runs transformers 5.10.2 against a `<5.0` pin, aborting full pytest collection. Container unaffected. |
 
 ---
 
 ## Recently landed
 
-### HunyuanDiT family profile — Canny-first, live-verified
+### HunyuanDiT family profile — merged (PR #17)
 
 **FP:** STABL-ichgkgno | **Spec:** `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md`
+**Merge:** `a62bfb1` — also carried `STABL-fdurqnnn` (`drift check` now exits 0,
+down from 12 stale anchors) and `STABL-svpnjbjh` (`make drift` targets).
 
 Family dispatch is now a neutral registry (`FamilyProfile` + exact-one
 `resolve_family`) resolved before mode policy, with CUDA workers selected from
