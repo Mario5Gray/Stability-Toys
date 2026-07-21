@@ -3,6 +3,13 @@
 # Prerequisite: base image must exist (built once via full compose build):
 #   docker compose -f docker-cuda.yml build
 #
+# The base image owns every Python dependency; the dev image is
+# docker/runtime/live-test.Dockerfile, which is FROM ${BASE_IMAGE} and only
+# COPYs source — it runs no pip install. So any change to requirements*.txt
+# invalidates the base and `make dev-build` cannot pick it up. Symptom is a
+# ModuleNotFoundError at container start, deep in an import chain, for a package
+# that is present in requirements.txt. Rebuild the base, not just the overlay.
+#
 # Prerequisite: pre-built UI dist (for serving the frontend):
 #   cd lcm-sr-ui && yarn build
 #
