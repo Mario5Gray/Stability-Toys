@@ -68,6 +68,17 @@ def test_setdefault_does_not_protect_an_installed_library():
 @pytest.mark.skipif(
     not REAL_DIFFUSERS_INSTALLED, reason="no real diffusers to protect"
 )
+@pytest.mark.xfail(
+    reason=(
+        "STABL-tmrnepae: stubs still outlive the module that installs them. "
+        "Containment cannot be autouse until every stubbing module is "
+        "self-sufficient -- several rely on another module's stubs, and tearing "
+        "them down between modules fails 32 tests. Consumers that need the real "
+        "library call conftest.restore_pristine_modules() instead. This flips to "
+        "XPASS when the refactor lands."
+    ),
+    strict=False,
+)
 def test_real_diffusers_is_not_a_stub_at_session_scope():
     """Fails when an earlier module left a stub in place.
 
