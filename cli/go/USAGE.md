@@ -209,15 +209,25 @@ History state is global and stored under `$XDG_STATE_HOME/st/`, or
 `~/.local/state/st/` when `XDG_STATE_HOME` is unset. Files are
 `history.jsonl`, `conflate-policy.json`, `next-id`, and `state.lock`.
 
-Until a first-class `st history` command exists, jq helpers are available:
+Use `st hist` to inspect command history. Results are newest first and include
+successful and failed commands.
 
 ```bash
-# Human summary, newest first:
-jq -Rrs 'include "st-history"; st_history_human(20)' \
-  -L cli/go/jq ~/.local/state/st/history.jsonl
+st hist              # all history, human-readable
+st hist 100          # last 100 entries
+st hist 1            # last entry
+st hist 100 --json   # last 100 entries as JSON
+```
 
-# JSON summary array, newest first:
-jq -Rrs 'include "st-history"; st_history_json(20)' \
+The JSON form emits a summary array with `id`, `exit_code`, `family`,
+timestamps, `command`, raw/effective command views, lineage ids, conflation
+policy snapshot, and error text when present.
+
+The lower-level jq helpers remain available for direct `history.jsonl`
+inspection:
+
+```bash
+jq -Rrs 'include "st-history"; st_history_human(20)' \
   -L cli/go/jq ~/.local/state/st/history.jsonl
 ```
 

@@ -168,6 +168,14 @@ func (s *FSStore) Latest(_ context.Context, filter Filter) (Entry, error) {
 	return *best, nil
 }
 
+func (s *FSStore) List(_ context.Context) ([]Entry, error) {
+	entries, err := s.readAll()
+	if err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
 func (s *FSStore) LoadPolicy(_ context.Context) (Policy, error) {
 	data, err := os.ReadFile(s.policyPath())
 	if os.IsNotExist(err) {

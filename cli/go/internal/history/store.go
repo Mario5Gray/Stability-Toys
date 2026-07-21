@@ -22,6 +22,7 @@ type HistoryStore interface {
 	Append(context.Context, Entry) error
 	Get(context.Context, int64) (Entry, error)
 	Latest(context.Context, Filter) (Entry, error)
+	List(context.Context) ([]Entry, error)
 }
 
 type PolicyStore interface {
