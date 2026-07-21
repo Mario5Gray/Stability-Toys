@@ -25,7 +25,7 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py s
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:39867e22ba9dab04
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:a11bbce0858c92a8
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:98df580f3b4e15b1
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:004663565e4c9756
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/advisor_service.py sig:500553cfaa2bb61c
