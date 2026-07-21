@@ -40,10 +40,11 @@ workflows
 /.env
 /.venv
 /venv
-dist
-build
 /localbuild
 /model
+/scripts/build/
+/lcm-sr-ui/dist/
+
 
 .envrc
 .claude
