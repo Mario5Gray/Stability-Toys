@@ -126,14 +126,20 @@ class BackendProvider(Protocol):
 
 This lets routes and status payloads remain backend-agnostic without lying about capabilities.
 
-Since `STABL-ichgkgno`, provider-level capabilities are no longer the whole
-truth: execution capability is resolved per *family* through
-`CUDA_FAMILY_BINDINGS` in `backends/platforms/cuda_bindings.py`, where each cell
-carries its own `ExecutionCapabilities`. A CUDA provider can support img2img
-while the active family does not — HunyuanDiT is `(supports_img2img=False,
-supports_controlnet=True, supports_img2img_and_controlnet=False)`. Read the
-family cell for admission decisions; the provider-level flags above describe the
-backend, not the loaded model. See
+`supports_img2img` in that list did not survive. `STABL-ichgkgno` **removed it
+from `BackendCapabilities`** rather than leaving it alongside a family-level
+flag, because one value cannot answer the question for two different loaded
+models. The shipped dataclass carries platform-wide services only —
+`supports_generation`, `supports_modes`, `supports_superres`,
+`supports_model_registry_stats`.
+
+Execution capability now resolves per *family*: `ExecutionCapabilities`
+(`supports_img2img`, `supports_controlnet`, `supports_img2img_and_controlnet`)
+hangs off `FamilyPlatformBinding`, reached via
+`BackendProvider.family_binding(family_id)` and populated for CUDA by
+`CUDA_FAMILY_BINDINGS` in `backends/platforms/cuda_bindings.py`. HunyuanDiT is
+`(False, True, False)` on a CUDA provider that otherwise supports img2img, so
+admission must read the family cell, never the provider. See
 `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`.
 
 ### 3. Generation boundary

@@ -46,7 +46,7 @@ The v1 object model is intentionally small:
 - [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py:31) builds the current advisor completion from a weak user prompt that embeds raw `evidence_json`.
 - [`conf/modes.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes.yml:35) currently supplies a generic chat delegate prompt that is too weak for reliable advisor behavior.
 - [`lcm-sr-ui/src/hooks/useGalleryAdvisor.js`](/Users/darkbit1001/workspace/Stability-Toys/lcm-sr-ui/src/hooks/useGalleryAdvisor.js#L102) expects `response.meta.evidence_fingerprint`, but [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) currently returns `evidence_fingerprint` at the top level.
-- Chat transport is already backend-owned through [`backends/chat_client.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/chat_client.py:18), which talks to an OpenAI-compatible `/chat/completions` endpoint.
+- Chat transport is already backend-owned through [`backends/chat_client.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/chat_client.py:30), which talks to an OpenAI-compatible `/chat/completions` endpoint.
 - Gallery state and advisor workflow are already Stability Toys concepts and should remain local to this repo.
 
 The current boundary is close to correct, but the ownership is wrong. Stability Toys owns too much prompt behavior today while still not owning enough structure to make the advisor robust.

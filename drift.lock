@@ -23,11 +23,11 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/lcm_sr_server.py 
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:6ac83d56b26d8bce
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:de16c23fcee99570
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:7e75d402fe28fd85
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:39867e22ba9dab04
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:98df580f3b4e15b1
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:e49b18156e6ce238
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:004663565e4c9756
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:74e4aca779ef6bff
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/ws_routes.py sig:de16c23fcee99570
@@ -61,7 +61,7 @@ docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/mode_config.py
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_build_chat_messages sig:bbbfbc7422f5f3ef
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_resolve_chat_config sig:0c4b52fbde3479c9
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_run_chat sig:44540cfdc2703728
-docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> backends/chat_client.py sig:fa99d66f0d8725ea
+docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> backends/chat_client.py sig:a351234f15bc6e73
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> lcm-sr-ui/src/hooks/useGalleryAdvisor.js sig:35320eb672b8a6a7
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> Dockerfile sig:ed6c832394651a45
@@ -78,7 +78,7 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/cuda_
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/worker_pool.py sig:39867e22ba9dab04
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> scripts/st-dtype-live-verify.sh sig:651c210852625d71
-docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> server/mode_config.py sig:c48816472ffe89b8
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/conditioning/artifacts.py sig:215b4c0a445b307c
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/conditioning/contracts.py sig:4be6c0d92c5fd702
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/cuda_worker.py sig:2f958ee2c50fdc77
