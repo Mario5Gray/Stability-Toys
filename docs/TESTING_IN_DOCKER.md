@@ -243,3 +243,17 @@ Those warnings are expected when the repo-local `./models` directory does not co
 If the local test container fails to start on macOS with a mount error, check whether a test command is still inheriting non-local host paths. The resolved compose config should mount repo-local `models`, `store`, and `workflows` unless you explicitly set `TEST_*` overrides.
 
 If the CUDA path fails on Apple Silicon, that is expected. Use the local CPU path on the laptop and reserve `test-cuda` for an amd64/NVIDIA environment.
+
+### `PermissionError` on `/app/tests` under SELinux
+
+On an SELinux host (`getenforce` returns `Enforcing`), a failure like
+
+```text
+PermissionError: [Errno 13] Permission denied: '/app/tests/pytest.toml'
+```
+
+is a mount-label problem, not a file-permission problem. Two tells: `pytest.toml` does not exist in this repo — pytest probes that name first when locating config, and probing a missing name in a readable directory returns `ENOENT`, not `EACCES` — and the test image sets no `USER`, so the container is already root.
+
+The bind mounts use lowercase `:z`, the **shared** SELinux label, because every service in `docker-compose.test.yml` extends `test` and therefore mounts the same host paths. Uppercase `:Z` applies a **private** label with a unique MCS category per container; with `compose up` starting six services at once, each relabels the same directory and invalidates the others, so all but one lose access. Keep these mounts on `:z`.
+
+Running a single service with `run --rm test` never exercises this, which is why the failure only appears under `up`.

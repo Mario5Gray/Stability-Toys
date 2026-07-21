@@ -1,0 +1,23 @@
+{
+  "estimated_tokens": 43638,
+  "budget_min": 64000,
+  "budget_max": 192000,
+  "fit": "under",
+  "confidence": "low",
+  "drivers": [
+    "10 referenced files",
+    "0 imported local packages",
+    "file not found: tests/test_hunyuandit_acceptance.py",
+    "unknown extension: drift.lock (10909 bytes)"
+  ],
+  "recommendation": "keep",
+  "missing_files": [
+    "tests/test_hunyuandit_acceptance.py"
+  ],
+  "missing_sections": [],
+  "unknown_files": [
+    "drift.lock"
+  ],
+  "split_candidates": [],
+  "merge_candidates": []
+}

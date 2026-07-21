@@ -1,0 +1,26 @@
+{
+  "estimated_tokens": 48969,
+  "budget_min": 64000,
+  "budget_max": 192000,
+  "fit": "under",
+  "confidence": "low",
+  "drivers": [
+    "6 referenced files",
+    "0 imported local packages",
+    "file not found: backends/family_profiles.py",
+    "file not found: backends/platforms/cuda_bindings.py",
+    "file not found: tests/test_family_profiles.py",
+    "file not found: tests/test_hunyuandit_worker.py"
+  ],
+  "recommendation": "keep",
+  "missing_files": [
+    "backends/family_profiles.py",
+    "backends/platforms/cuda_bindings.py",
+    "tests/test_family_profiles.py",
+    "tests/test_hunyuandit_worker.py"
+  ],
+  "missing_sections": [],
+  "unknown_files": [],
+  "split_candidates": [],
+  "merge_candidates": []
+}

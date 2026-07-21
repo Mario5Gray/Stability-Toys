@@ -1,0 +1,20 @@
+{
+  "estimated_tokens": 62383,
+  "budget_min": 64000,
+  "budget_max": 192000,
+  "fit": "under",
+  "confidence": "low",
+  "drivers": [
+    "13 referenced files",
+    "0 imported local packages",
+    "file not found: backends/platforms/cuda_bindings.py"
+  ],
+  "recommendation": "keep",
+  "missing_files": [
+    "backends/platforms/cuda_bindings.py"
+  ],
+  "missing_sections": [],
+  "unknown_files": [],
+  "split_candidates": [],
+  "merge_candidates": []
+}

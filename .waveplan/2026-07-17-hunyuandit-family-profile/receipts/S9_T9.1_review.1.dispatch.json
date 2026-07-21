@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "mode": "local",
+  "active": false,
+  "step_id": "S9_T9.1_review",
+  "task_id": "T9.1",
+  "action": "review",
+  "attempt": 1,
+  "claimed_at": "2026-07-19T06:27:14Z",
+  "completed_at": "2026-07-19T06:27:25Z",
+  "outcome": "applied",
+  "summary": "Reviewed T9.1 commits a53ef61, 6c740a5, and 156e5d9; no findings. Verified the missed conditioning-contract sentinel was corrected and the Hunyuan family contract/tests are now aligned.",
+  "evidence": [
+    "source /Users/darkbit1001/miniforge3/bin/activate base \u0026\u0026 python -m pytest tests/test_conditioning_contracts.py -q =\u003e 13 passed",
+    "source /Users/darkbit1001/miniforge3/bin/activate base \u0026\u0026 python -m pytest tests/test_conditioning_contracts.py tests/test_hunyuandit_worker.py tests/test_family_profiles.py tests/test_worker_factory.py tests/test_cuda_packaging_contract.py -q =\u003e 84 passed",
+    "rg -n \"hunyuandit.*(unknown|UnknownFamilyError|FamilyResolutionError|no_compatible|zero-match|zero match|raises)|UnknownFamilyError.*hunyuandit|FamilyResolutionError.*hunyuandit\" tests =\u003e only tests/test_hunyuandit_detector.py legacy compatible_worker assertion remains"
+  ]
+}

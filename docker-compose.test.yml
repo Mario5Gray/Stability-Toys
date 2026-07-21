@@ -14,20 +14,26 @@ services:
     environment:
       BACKEND: cpu
       MODE_CONFIG_PATH: /conf
+    # SELinux: lowercase :z applies a SHARED label. Every service below
+    # extends this one, so these host paths are mounted into six containers.
+    # Uppercase :Z applies a PRIVATE label per container, and concurrent
+    # `compose up` makes each container relabel the same directory with its own
+    # MCS category, invalidating the others — the losers then get EACCES on
+    # traversal even as root. Do not change these back to :Z.
     volumes:
-      - ./server:/app/server:ro,Z
-      - ./backends:/app/backends:ro,Z
-      - ./utils:/app/utils:ro,Z
-      - ./persistence:/app/persistence:ro,Z
-      - ./tests:/app/tests:ro,Z
-      - ./spikes:/app/spikes:ro,Z
-      - ./invokers:/app/invokers:ro,Z
-      - ${TEST_MODELS_HOST_PATH:-./models}:/models:ro,Z
-      - ${TEST_FS_HOST_PATH:-./store}:/store:rw,Z
-      - ${TEST_WORKFLOW_HOST_PATH:-./workflows}:/workflows:rw,Z
-      - ./conf/modes-test.yml:/conf/modes.yml:ro,Z
-      - ./logs:/app/logs:rw,Z
-      - ./htmlcov:/app/htmlcov:rw,Z
+      - ./server:/app/server:ro,z
+      - ./backends:/app/backends:ro,z
+      - ./utils:/app/utils:ro,z
+      - ./persistence:/app/persistence:ro,z
+      - ./tests:/app/tests:ro,z
+      - ./spikes:/app/spikes:ro,z
+      - ./invokers:/app/invokers:ro,z
+      - ${TEST_MODELS_HOST_PATH:-./models}:/models:ro,z
+      - ${TEST_FS_HOST_PATH:-./store}:/store:rw,z
+      - ${TEST_WORKFLOW_HOST_PATH:-./workflows}:/workflows:rw,z
+      - ./conf/modes-test.yml:/conf/modes.yml:ro,z
+      - ./logs:/app/logs:rw,z
+      - ./htmlcov:/app/htmlcov:rw,z
     command: pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 
   test-cuda:

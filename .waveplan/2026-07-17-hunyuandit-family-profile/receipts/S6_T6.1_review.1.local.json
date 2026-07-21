@@ -1,0 +1,12 @@
+{
+  "mode": "local",
+  "active": false,
+  "step_id": "S6_T6.1_review",
+  "task_id": "T6.1",
+  "action": "review",
+  "attempt": 1,
+  "claimed_at": "2026-07-19T00:38:28Z",
+  "completed_at": "2026-07-19T00:42:54Z",
+  "outcome": "failed",
+  "reason": "Review blocker: drift check fails on T6.1-touched bound docs (docs/WORKER_SELECTION.md, docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md). Code/tests clean; prose/provenance refresh required before approval."
+}

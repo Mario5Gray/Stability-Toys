@@ -1,0 +1,7 @@
+{
+  "agents": [
+    {"name": "theta", "provider": "claude"},
+    {"name": "sigma", "provider": "codex"}
+  ],
+  "schedule": ["theta", "sigma"]
+}

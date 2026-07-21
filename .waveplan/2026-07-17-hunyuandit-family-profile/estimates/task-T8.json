@@ -1,0 +1,17 @@
+{
+  "estimated_tokens": 83193,
+  "budget_min": 64000,
+  "budget_max": 192000,
+  "fit": "within",
+  "confidence": "medium",
+  "drivers": [
+    "8 referenced files",
+    "0 imported local packages"
+  ],
+  "recommendation": "keep",
+  "missing_files": [],
+  "missing_sections": [],
+  "unknown_files": [],
+  "split_candidates": [],
+  "merge_candidates": []
+}
