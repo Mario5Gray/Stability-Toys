@@ -110,6 +110,13 @@ BACKEND = (os.environ.get("BACKEND") or "").lower().strip()
 COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
 
 logger = logging.getLogger(__name__)
+
+# Prefix for generated storage keys ("<prefix>:<uuid>"). Visible in /storage/<key>
+# URLs, in `storage_key` on generation responses, and in `st read` output, so it
+# carries the product name. Retired prefixes are not migrated and do not need to
+# be: providers resolve a key by exact match and shard on the UUID segment, so
+# nothing parses the prefix and previously stored artifacts stay retrievable.
+IMAGE_KEY_PREFIX = "st_image"
 #logging.basicConfig(filename='myapp.log', level=logging.INFO)
 
 # Backend Worker Wrapper
@@ -519,7 +526,7 @@ def _store_image_blob(
     if storage is None:
         return None
 
-    image_key = StorageProvider._new_key("lcm_image")
+    image_key = StorageProvider._new_key(IMAGE_KEY_PREFIX)
     storage.put(
         image_key,
         out_bytes,
@@ -794,7 +801,7 @@ async def superres(
     image_key = None
 
     if storage is not None:
-        image_key = StorageProvider._new_key("lcm_image")
+        image_key = StorageProvider._new_key(IMAGE_KEY_PREFIX)
         storage.put(
             image_key,
             out_bytes,

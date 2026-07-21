@@ -69,8 +69,8 @@ st gen "an owl" --json
 # {
 #   "output": "images/out-0001.png",
 #   "seed": 3847291,
-#   "storage_key": "lcm_image:b1bfdd15-...",
-#   "storage_url": "/storage/lcm_image:b1bfdd15-..."
+#   "storage_key": "st_image:b1bfdd15-...",
+#   "storage_url": "/storage/st_image:b1bfdd15-..."
 # }
 
 # NDJSON stream — one object per line as events arrive:
@@ -80,7 +80,7 @@ st gen "an owl" --stream
 # {"delta":"node 2/8 (25%)","event":"progress"}
 # {"delta":"node 3/8 (37%)","event":"progress"}
 # ...
-# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"lcm_image:...","storage_url":"/storage/lcm_image:..."}
+# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"st_image:...","storage_url":"/storage/st_image:..."}
 
 # Quiet — suppress stderr progress, only write the output line:
 st gen "an owl" --quiet
@@ -88,7 +88,7 @@ st gen "an owl" --quiet
 
 # --stream --quiet — emit only the final complete NDJSON line (no ack, no progress lines):
 st gen "an owl" --stream --quiet
-# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"lcm_image:...","storage_url":"/storage/lcm_image:..."}
+# {"event":"complete","output":"images/out-0001.png","seed":3847291,"storage_key":"st_image:...","storage_url":"/storage/st_image:..."}
 ```
 
 By default, `job_id` and progress text are printed to stderr as they arrive.

@@ -20,14 +20,14 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useG
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useGalleryAdvisor.test.jsx sig:f2bb758ca53e8f09
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.js sig:76799f8c6bc6ecc8
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.test.mjs sig:2d38aff9ea412869
-docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/lcm_sr_server.py sig:656c62530054600e
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:6ac83d56b26d8bce
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:7e75d402fe28fd85
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:39867e22ba9dab04
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:e49b18156e6ce238
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:656c62530054600e
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:74e4aca779ef6bff
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/advisor_service.py sig:500553cfaa2bb61c
@@ -53,7 +53,7 @@ docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/server/ws_routes.py sig:59cceadfffb6cefc
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> backends/cuda_worker.py sig:2f958ee2c50fdc77
-docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:656c62530054600e
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/model_routes.py sig:6ac83d56b26d8bce
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/upload_routes.py sig:7ceb203839ca71f8
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/ws_routes.py sig:de16c23fcee99570
@@ -96,7 +96,7 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> docker-
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/controlnet_execution.py sig:c127b64df5c82bad
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/controlnet_registry.py sig:0ab019ab9374e785
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/lcm_sr_server.py sig:656c62530054600e
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/model_detector.py sig:3cd1411fddd0be3a

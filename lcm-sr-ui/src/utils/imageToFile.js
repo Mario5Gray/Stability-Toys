@@ -35,7 +35,7 @@ async function dataUrlToBlob(dataUrl) {
  *
  * Optional opts:
  *  - signal: AbortSignal
- *  - resolveBlob: async (url, signal) => Blob | null   // for custom schemes like lcm_image:
+ *  - resolveBlob: async (url, signal) => Blob | null   // for custom schemes like st_image:
  */
 export async function urlToFile(url, filename = "chat.png", opts = {}) {
   const key = `${url}::${filename}`;
@@ -53,7 +53,7 @@ export async function urlToFile(url, filename = "chat.png", opts = {}) {
       return new File([blob], ensureExt(filename, ext), { type: blob.type || "image/png" });
     }
 
-    // Custom scheme hook (IMPORTANT for lcm_image:)
+    // Custom scheme hook (IMPORTANT for st_image:)
     if (opts.resolveBlob) {
       const maybe = await opts.resolveBlob(url, opts.signal);
       if (maybe instanceof Blob) {
