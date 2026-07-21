@@ -105,11 +105,17 @@ backends. Design decisions: `denoise_strength` × `start/end_percent` pass throu
 without renormalization (low strength + narrow window can yield no visible
 conditioning — documented caveat, not a bug); combined results stay uncached.
 HTTP `/generate` intentionally cannot express img2img (no `init_image_ref`) —
-adding it would be a separate API decision. Known pre-existing issue surfaced
-during this track (reproduced on unmodified main, candidate FP issue): running
-`test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py` in one
-pytest session fails 3-4 tests from cross-file `sys.modules`/`lru_cache`
-diffusers-stub pollution; each file is green in isolation.
+adding it would be a separate API decision. This track also recorded a
+cross-file `sys.modules`/`lru_cache` diffusers-stub pollution failure between
+`test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py`; that
+no longer reproduces (2026-07-20: 34 passed in one session, and both files are
+clean in the full suite), most likely resolved when `STABL-ichgkgno` removed the
+family-string branching those stubs interacted with. No FP issue was filed.
+
+Two related test-hygiene problems that *do* still reproduce are tracked
+separately: `STABL-bclnlnzd` (import-order-dependent torch stubbing in
+`test_model_registry.py`) and `STABL-zisphapv` (Miniforge base violating the
+`transformers<5.0` pin, which aborts full pytest collection).
 
 ### AssetStore bucketed interface — merged (PR #3)
 
