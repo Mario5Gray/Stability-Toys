@@ -30,11 +30,16 @@ This keeps connection ownership in mode config, avoids introducing a profile abs
 - Expanding chat transport beyond the existing OpenAI-compatible backend client
 - Generalizing mode config into a larger provider registry beyond chat
 
-## Current State
+## Prior State (before this design landed)
 
-- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:85) defines `ModesYAML.chat` as a mapping of mode name to `ChatBackendConfig`.
-- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:476) exposes `get_chat_config(mode_name)`, which resolves chat by mode name rather than by reusable transport id.
-- [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) both depend on that mode-name lookup shape.
+This design is implemented. The shape described below no longer exists — it is
+retained because it is the motivation for the change. `ModesYAML.chat` is now
+`ModesYAML.chat_connections`, and `get_chat_config(mode_name)` was replaced by
+`ModeConfigManager.resolve_chat_config(mode_name, overrides)`.
+
+- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:85) defined `ModesYAML.chat` as a mapping of mode name to `ChatBackendConfig`.
+- [`server/mode_config.py`](/Users/darkbit1001/workspace/Stability-Toys/server/mode_config.py:476) exposed `get_chat_config(mode_name)`, which resolved chat by mode name rather than by reusable transport id.
+- [`server/advisor_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/advisor_service.py) and [`server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/server/ws_routes.py) both depended on that mode-name lookup shape; both now call `resolve_chat_config`.
 - [`conf/modes.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes.yml:1) already keeps most mode fields flat and snake_case, so nested `chat` reintroduction would move against the current YAML style.
 
 The current shape works for one-off mode-specific chat config, but it encodes the wrong boundary. A mode should choose a connection. It should not implicitly be the connection namespace.

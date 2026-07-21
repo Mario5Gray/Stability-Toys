@@ -3,13 +3,13 @@ cli/go/USAGE.md -> cli/go/jq/test-st-history.sh sig:bfe46e913bac3613
 docs/CUDA_VERIFICATION.md -> Dockerfile.test sig:2671a7caac12921c
 docs/PRIVILEGED_MODE.md -> Dockerfile.test sig:2671a7caac12921c
 docs/TESTING_IN_DOCKER.md -> Dockerfile.test sig:2671a7caac12921c
-docs/TESTING_IN_DOCKER.md -> Makefile sig:81a39c76dc904ef6
+docs/TESTING_IN_DOCKER.md -> Makefile sig:8f0a8c2bc23b5c70
 docs/TESTING_IN_DOCKER.md -> Makefile.test sig:8a91483b36a4777b
 docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:ff02ccbcf1ad7e20
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:a6729f72c235e335
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
-docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:fa99d66f0d8725ea
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:a351234f15bc6e73
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/AdvisorPanel.jsx sig:1f2760883985be21
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/OptionsPanel.jsx sig:321b8758ad7c8561
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useAdvisorState.js sig:eaa645f0220de1d7
@@ -20,7 +20,7 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useG
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.js sig:76799f8c6bc6ecc8
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/utils/advisorEvidence.test.mjs sig:2d38aff9ea412869
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
-docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:884f1ee959bcb41b
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:6ac83d56b26d8bce
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:abdf4aca5c9a25b8
@@ -29,7 +29,7 @@ docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowe
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:f5a807a32bd47fa2
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:004663565e4c9756
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/advisor_service.py sig:500553cfaa2bb61c
-docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/mode_config.py sig:884f1ee959bcb41b
+docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile sig:b497fc64c7ac720d
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile.test sig:2671a7caac12921c
@@ -47,7 +47,7 @@ docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backend
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> server/superres_service.py sig:74e4aca779ef6bff
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:0bda34d717434328
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
-docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:884f1ee959bcb41b
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/server/ws_routes.py sig:59cceadfffb6cefc
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/yume/dream_worker.py sig:74951856580f16bc
