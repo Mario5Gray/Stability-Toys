@@ -188,57 +188,37 @@ modes:
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
-  MXCP:
-    model: checkpoints/MXCP.safetensors
-    loader_format: single_file
-    checkpoint_precision: fp16
-    checkpoint_variant: sd15
+  HunyuanDiT:
+    model: diffusers/HunyuanDiT-v1.1-Diffusers
     scheduler_profile: native
-    runtime_quantize: none
-    runtime_offload: model
-    runtime_attention_slicing: true
-    runtime_enable_xformers: true
-    resolution_set: default
-    default_size: 768x768
-    recommended_size: 768x768
-    default_steps: 14
-    default_guidance: 2.5
-    conditioning:
-      service: compel    
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 30
+    default_guidance: 5.0
     negative_prompt_templates:
-      safe_photo: "blurry, compression artifacts, bad anatomy, watermark, text, low quality"
-      portrait: "bad anatomy, extra fingers, deformed"
+      safe_photo: "blurry, watermark, text, low quality"
     default_negative_prompt_template: safe_photo
     allow_custom_negative_prompt: true
-    allowed_scheduler_ids:
-      - ddim
-      - dpmpp_2m
-      - dpmpp_2m_karras
-      - dpmpp_sde
-      - dpmpp_sde_karras
-      - euler
-      - lcm
-    default_scheduler_id: dpmpp_2m_karras
     chat_delegate: sdxl_advisor
     controlnet_policy:
-      enabled: false
-      max_attachments: 2
-      allow_reuse_emitted_maps: true
+      enabled: true
+      max_attachments: 1
       allowed_control_types:
         canny:
-          default_model_id: sdxl-canny
+          default_model_id: hunyuandit-canny
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
         depth:
-          default_model_id: sdxl-depth
+          default_model_id: hunyuandit-depth
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0
-          max_strength: 2.0    
+          max_strength: 2.0
         pose:
-          default_model_id: sdxl-openpose
+          default_model_id: hunyuandit-pose
           allow_preprocess: true
           default_strength: 1.0
           min_strength: 0.0

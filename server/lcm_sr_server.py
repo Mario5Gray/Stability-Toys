@@ -241,8 +241,15 @@ class PipelineService:
         # 3) create exactly one worker for cuda, N for rknn
         for i in range(self.num_workers):
             if use_cuda:
-                from backends.worker_factory import create_cuda_worker
-                w = create_cuda_worker(worker_id=i)  # type: ignore[call-arg]
+                # CUDA generation runs through WorkerPool via CudaGenerationRuntime;
+                # this legacy direct-worker path predates family resolution and
+                # cannot build a worker without a ResolvedModel + LocalModelBinding.
+                # (create_cuda_worker now takes (worker_id, resolved, binding).)
+                raise RuntimeError(
+                    "PipelineService no longer serves CUDA; use the WorkerPool "
+                    "path (CudaGenerationRuntime). This legacy direct-worker path "
+                    "cannot construct a CUDA worker without a resolved model."
+                )
             else:
                 from backends.rknn_worker import RKNNPipelineWorker
                 w = RKNNPipelineWorker(
@@ -554,12 +561,20 @@ def generate(req: GenerateRequest):
                     detail=f"Mode switch failed: {e}"
                 )
 
-    current_mode = runtime.get_current_mode() if supports_modes else None
+    # Capture the active-model authority exactly once; everything below (mode
+    # defaults, family-cell admission, ControlNet compatibility, job epoch) reads
+    # this object — no get_current_mode/get_mode_config/detect_model afterward.
+    snapshot = (
+        runtime.get_active_model_snapshot()
+        if supports_modes and hasattr(runtime, "get_active_model_snapshot")
+        else None
+    )
     emitted_artifacts: list = []
+    controlnet_bindings: list = []
 
-    if current_mode:
-        mode_config = get_mode_config()
-        mode = mode_config.get_mode(current_mode)
+    if snapshot is not None:
+        mode = snapshot.mode
+        provider = getattr(app.state, "backend_provider", None)
 
         try:
             finalize_mode_generate_request(
@@ -569,6 +584,18 @@ def generate(req: GenerateRequest):
                 env_default_steps=int(os.environ.get("DEFAULT_STEPS", "4")),
                 env_default_guidance=float(os.environ.get("DEFAULT_GUIDANCE", "1.0")),
             )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # Family-cell operation matrix, before any ControlNet preprocessing.
+        # HTTP /generate cannot express img2img (no init_image), so has_init=False.
+        try:
+            from server.controlnet_execution import admit_generation_operation
+            admit_generation_operation(
+                req, snapshot=snapshot, provider=provider, has_init_image=False
+            )
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -586,26 +613,45 @@ def generate(req: GenerateRequest):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    try:
+        if getattr(req, "controlnets", None):
+            from server.controlnet_execution import resolve_controlnet_bindings
+            from server.asset_store import get_store
+            try:
+                controlnet_bindings = resolve_controlnet_bindings(
+                    req,
+                    mode=mode,
+                    store=get_store(),
+                    active_family=snapshot.resolved.profile.family_id,
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+    elif getattr(req, "controlnets", None):
+        # Non-mode-system backend (e.g. RKNN) publishes no snapshot, so there is
+        # no family binding to admit ControlNet — stub it exactly as the WS
+        # _run_generate path does, rather than silently dropping the attachments.
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-        provider = getattr(app.state, "backend_provider", None)
-        supports_controlnet = bool(
-            current_mode is not None
-            and provider is not None
-            and provider.capabilities().supports_controlnet
-        )
-        ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
+        try:
+            ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+
+    try:
+        if snapshot is not None:
+            fut = runtime.submit_generate(
+                req, snapshot=snapshot, controlnet_bindings=controlnet_bindings
+            )
+        else:
+            fut = runtime.submit_generate(req)
+    except queue.Full:
+        raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
     except NotImplementedError as e:
+        # Admission already passed (family cell supports the operation); a dispatch
+        # failure here still returns any control maps emitted during preprocessing.
         artifact_dicts = [a.model_dump() for a in emitted_artifacts]
         detail = str(e) if not artifact_dicts else {"error": str(e), "controlnet_artifacts": artifact_dicts}
         raise HTTPException(status_code=501, detail=detail)
 
-    try:
-        fut = runtime.submit_generate(req)
-    except queue.Full:
-        raise HTTPException(status_code=429, detail="Too many requests (queue full). Try again.")
-
-    mode_used = current_mode
+    mode_used = snapshot.mode_name if snapshot is not None else None
 
     # Wait for generation result
     try:
@@ -797,8 +843,16 @@ def _run_generate_from_dict(gen_req: dict):
 
     runtime = app.state.generation_runtime
 
-    # ---- base SD generation ----
-    fut = runtime.submit_generate(req)
+    # ---- base SD generation (capture the snapshot once) ----
+    snapshot = (
+        runtime.get_active_model_snapshot()
+        if hasattr(runtime, "get_active_model_snapshot")
+        else None
+    )
+    if snapshot is not None:
+        fut = runtime.submit_generate(req, snapshot=snapshot)
+    else:
+        fut = runtime.submit_generate(req)
     png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
 
     # ---- optional SR postprocess ----

@@ -1063,6 +1063,13 @@ For SDXL instantiate low-level Compel with the two tokenizer/encoder tuples,
 `requires_pooled=[False, True]`. Encode positive and negative strings separately,
 pad their sequence tensors to equal length, and preserve both pooled outputs.
 
+Padding SDXL is not symmetric with SD1.5. Live verification found that Compel
+2.3.1 routes SDXL through its multi-provider path, whose padding helper does not
+expose `empty_z`, so the service must hand
+`pad_conditioning_tensors_to_same_length` an explicit empty-string prompt
+embedding as `precomputed_padding` rather than letting Compel derive it. See the
+spec's materialization section.
+
 Read `live_dtype = bundle.live_dtype()` immediately before normalization. Convert
 all four/two tensors to that dtype, then stamp `dtype_name` derived from that same
 object into `ConditioningCompatibility`. Copy family, identities, hidden dimensions,

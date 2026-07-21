@@ -56,3 +56,28 @@ dev-build: ## Rebuild dev image (source-only overlay, seconds)
 .PHONY: dev-down
 dev-down: ## Stop dev container
 	docker compose -f docker-compose.dev.yml down
+
+define REQUIRE_DRIFT
+	@command -v drift >/dev/null 2>&1 || { \
+	  echo "drift not found on PATH. It binds markdown docs to code and lints for staleness."; \
+	  echo "Without it these targets cannot run; see .claude/skills/drift/SKILL.md."; \
+	  exit 127; \
+	}
+endef
+
+.PHONY: drift
+drift: ## Check doc<->code anchors (exit 1 = a bound doc describes code that has since changed)
+	$(REQUIRE_DRIFT)
+	drift check
+
+.PHONY: drift-refs
+drift-refs: ## Show which docs are bound to a file: make drift-refs FILE=backends/cuda_worker.py
+	$(REQUIRE_DRIFT)
+	@test -n "$(FILE)" || { echo "usage: make drift-refs FILE=<path>"; exit 2; }
+	drift refs $(FILE)
+
+.PHONY: drift-changed
+drift-changed: ## Scope the check to docs bound to one path: make drift-changed FILE=server/mode_config.py
+	$(REQUIRE_DRIFT)
+	@test -n "$(FILE)" || { echo "usage: make drift-changed FILE=<path>"; exit 2; }
+	drift check --changed $(FILE)

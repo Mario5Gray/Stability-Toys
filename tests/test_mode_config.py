@@ -1272,3 +1272,39 @@ modes:
     assert policy.max_attachments == 2
     assert policy.allow_reuse_emitted_maps is True
     assert policy.allowed_control_types == {}
+
+
+def test_production_hunyuandit_mode_is_native_controlnet_txt2img_1024():
+    """The production HunyuanDiT mode uses the mounted distilled base dir,
+    keeps native txt2img defaults, and advertises the three mounted
+    ControlNet families via the production registry ids."""
+    from pathlib import Path
+
+    from server.mode_config import ModeConfigManager
+
+    conf_dir = Path(__file__).resolve().parents[1] / "conf"
+    mode = ModeConfigManager(str(conf_dir)).get_mode("HunyuanDiT")
+
+    # References the standard v1.1 base directory — the pairing the spike
+    # validated against the Tencent Canny ControlNet (077ad09 reverted the
+    # distilled base).
+    assert "HunyuanDiT-v1.1-Diffusers" in mode.model_path
+
+    # Defaults to 1024x1024, and that size is present in its resolution set.
+    assert mode.default_size == "1024x1024"
+    assert any(entry["size"] == "1024x1024" for entry in mode.resolution_options)
+
+    # Native scheduler; empty/native conditioning (no compel service configured,
+    # so native delegation applies).
+    assert mode.scheduler_profile == "native"
+    assert mode.conditioning.service is None
+    assert mode.conditioning.fallback.native_when_unconfigured is True
+
+    # One control attachment, wired to the mounted Hunyuan registry ids.
+    policy = mode.controlnet_policy
+    assert policy.enabled is True
+    assert policy.max_attachments == 1
+    assert tuple(policy.allowed_control_types.keys()) == ("canny", "depth", "pose")
+    assert policy.allowed_control_types["canny"].default_model_id == "hunyuandit-canny"
+    assert policy.allowed_control_types["depth"].default_model_id == "hunyuandit-depth"
+    assert policy.allowed_control_types["pose"].default_model_id == "hunyuandit-pose"

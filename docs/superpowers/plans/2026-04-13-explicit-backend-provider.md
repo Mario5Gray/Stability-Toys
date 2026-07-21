@@ -184,6 +184,20 @@ class BackendProvider(Protocol):
     def create_superres_runtime(self, *args, **kwargs): ...
 ```
 
+> **The shipped shape has moved on.** `backends/platforms/base.py` is the
+> authority; the block above is the original target. Differences that matter:
+>
+> - `BackendCapabilities` **no longer carries `supports_img2img`**. `STABL-ichgkgno`
+>   removed it: per-family execution claims (img2img, ControlNet, and the
+>   combination) now live on `ExecutionCapabilities`, reached through
+>   `BackendProvider.family_binding(family_id)`. A CUDA provider can be capable
+>   while the loaded family is not, so admission must read the family cell.
+> - `ModelRegistryProtocol` also declares `list_models`, `get_used_vram`, and
+>   `get_allocated_vram`.
+> - `GenerationRuntimeProtocol.submit_generate` takes `timeout_s: float | None = None`,
+>   not `float = 0.25`.
+> - `BackendProvider` also declares `family_binding` and `create_worker_factory`.
+
 ```python
 # backends/platform_registry.py
 from __future__ import annotations

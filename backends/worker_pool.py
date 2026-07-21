@@ -16,10 +16,9 @@ import queue
 import threading
 import time
 import uuid
-from collections.abc import Mapping
-from copy import deepcopy
 import torch
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Optional, Any, Callable, Protocol
 from dataclasses import dataclass, field
 from concurrent.futures import Future, CancelledError
@@ -29,60 +28,55 @@ from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
-from utils.model_detector import ModelInfo, detect_model
+from backends.model_resolution import (
+    LocalModelBinding,
+    ResolvedModel,
+    merge_mode_capabilities,  # re-exported for callers/tests; overlay lives in model_resolution
+    resolve_model,
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE_TIMEOUT_S: float = float(os.environ.get("WORKER_QUEUE_TIMEOUT_S", "0.25"))
 
 
+class StaleResolutionError(RuntimeError):
+    """A queued job was resolved against a superseded model authority."""
+
+
+@dataclass(frozen=True)
+class ActiveModelSnapshot:
+    """The pool's single immutable model authority, published atomically with the
+    worker under the state lock. Carries the deep-copied mode, the portable
+    resolved value + node-local binding, and the resolution epoch it was minted
+    at. Idle eviction retains this so a demand reload can reconstruct the worker
+    without re-detecting."""
+
+    mode_name: str
+    mode: ModeConfig
+    resolved: ResolvedModel
+    binding: LocalModelBinding
+    resolution_epoch: int
+
+
 # Type hints for dependency injection
 class WorkerFactory(Protocol):
-    """Protocol for worker creation functions."""
+    """Protocol for worker creation functions.
+
+    The final contract takes a portable ``ResolvedModel`` plus a node-local
+    ``LocalModelBinding``. Threading these through ``_load_mode`` (via
+    ``resolve_model``) and the default factory lands with the active snapshot in
+    Task 5; this task establishes the protocol shape only.
+    """
+
     def __call__(
         self,
         worker_id: int,
-        model_path: str,
-        model_info: Optional[ModelInfo] = None,
+        resolved: ResolvedModel,
+        binding: LocalModelBinding,
     ) -> PipelineWorker:
-        """Create a worker with the given ID and resolved model path."""
+        """Create a worker from a resolved model and its local binding."""
         ...
-
-
-def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInfo:
-    """Overlay authoritative mode-level capability overrides onto detected model info."""
-    resolved = deepcopy(model_info)
-    for field in (
-        "loader_format",
-        "checkpoint_precision",
-        "checkpoint_variant",
-        "scheduler_profile",
-        "recommended_size",
-        "runtime_quantize",
-        "runtime_offload",
-        "runtime_attention_slicing",
-        "runtime_enable_xformers",
-        "negative_prompt_templates",
-        "default_negative_prompt_template",
-        "allow_custom_negative_prompt",
-        "allowed_scheduler_ids",
-        "default_scheduler_id",
-    ):
-        value = getattr(mode, field, None)
-        if value is not None:
-            setattr(resolved, field, value)
-    existing_metadata = getattr(resolved, "metadata", None)
-    if not isinstance(existing_metadata, Mapping):
-        existing_metadata = {}
-    mode_metadata = getattr(mode, "metadata", None)
-    if isinstance(mode_metadata, Mapping) and mode_metadata:
-        resolved.metadata = {
-            **dict(existing_metadata),
-            **dict(mode_metadata),
-        }
-    elif existing_metadata:
-        resolved.metadata = dict(existing_metadata)
-    return resolved
 
 
 class JobType(Enum):
@@ -129,6 +123,10 @@ class GenerationJob(Job):
     init_image: Optional[bytes] = None  # Optional init image bytes for img2img
     controlnet_bindings: list[Any] = field(default_factory=list)  # Resolved ControlNetBinding list (T3 — populated by CudaGenerationRuntime.submit_generate)
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    # Required, keyword-only: the resolution epoch this job was admitted against.
+    # Stamped from the active snapshot at submission; enforced at the last safe
+    # boundary before run_job. No implicit default — unstamped jobs never queue.
+    resolution_epoch: int = field(kw_only=True)
 
     def __post_init__(self):
         super().__post_init__()
@@ -240,6 +238,9 @@ class WorkerPool:
         self._worker_thread: Optional[threading.Thread] = None
         self._watchdog_thread: Optional[threading.Thread] = None
         self._current_mode: Optional[str] = None
+        # One immutable model authority, published atomically with the worker.
+        self._active_snapshot: Optional[ActiveModelSnapshot] = None
+        self._resolution_epoch: int = 0
         self._job_records: dict[str, JobRecord] = {}
         self._job_lock = threading.RLock()
         # Idle eviction config — 0 disables eviction
@@ -273,45 +274,38 @@ class WorkerPool:
     @staticmethod
     def _default_worker_factory(
         worker_id: int,
-        model_path: str,
-        model_info: Optional[ModelInfo] = None,
+        resolved: ResolvedModel,
+        binding: LocalModelBinding,
     ) -> PipelineWorker:
-        """
-        Default worker factory.
+        """Default worker factory: build the CUDA worker for a resolved model.
 
-        Imports and calls create_cuda_worker from worker_factory module.
-        This is the default behavior when no factory is injected.
-
-        Args:
-            worker_id: Worker ID to assign
-            model_path: Resolved absolute path to the model
-            model_info: Optional pre-resolved model capabilities
-
-        Returns:
-            Created PipelineWorker instance
+        Imports and calls create_cuda_worker from worker_factory module. This is
+        the default behavior when no factory is injected.
         """
         from backends.worker_factory import create_cuda_worker
-        return create_cuda_worker(worker_id, model_path, model_info=model_info)
+        return create_cuda_worker(worker_id, resolved, binding)
 
     def _load_mode(self, mode_name: str):
         """
-        Load a mode by creating appropriate worker.
+        Load a mode: detect once, resolve, and publish one active snapshot.
 
-        Args:
-            mode_name: Name of mode to load
-
-        Raises:
-            Exception: Re-raises any load failure after cleaning up partial state.
-                       On failure, worker is None and current_mode is None.
+        Deep-copies the selected mode, resolves it into a portable value, builds
+        the worker, then — under the state lock — increments the resolution epoch
+        and publishes worker, mode, and snapshot together. An explicit load
+        invalidates any prior authority first; on failure it leaves no worker and
+        no snapshot.
         """
         logger.info(f"[WorkerPool] Loading mode: {mode_name}")
 
-        # Get mode configuration
-        mode = self._mode_config.get_mode(mode_name)
+        # Deep copy so later mutation of the source ModeConfig cannot reach the
+        # published snapshot.
+        mode = deepcopy(self._mode_config.get_mode(mode_name))
 
-        # Unload current worker if exists
+        # Explicit replacement invalidates the old authority before re-resolving.
         if self._worker is not None:
             self._unload_current_worker()
+        with self._job_lock:
+            self._active_snapshot = None
 
         # Track VRAM before worker creation
         self._registry.get_used_vram()
@@ -319,31 +313,35 @@ class WorkerPool:
 
         assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
         try:
-            model_info = merge_mode_capabilities(detect_model(mode.model_path), mode)
-            # Create worker using injected factory, passing fully-resolved model path
-            self._worker = self._worker_factory(
+            # Detect once, resolve family (pre-overlay), then overlay mode
+            # capabilities, emitting a portable ResolvedModel + node-local binding.
+            resolved, binding = resolve_model(mode.model_path, mode)
+            worker = self._worker_factory(
                 worker_id=0,
-                model_path=mode.model_path,
-                model_info=model_info,
+                resolved=resolved,
+                binding=binding,
             )
-            configure_conditioning = getattr(
-                self._worker, "configure_conditioning", None
-            )
+            configure_conditioning = getattr(worker, "configure_conditioning", None)
             if callable(configure_conditioning):
                 configure_conditioning(mode.conditioning)
             elif mode.conditioning.requires_configurable_worker():
                 raise RuntimeError(
                     f"mode '{mode_name}' configures conditioning but worker "
-                    f"{type(self._worker).__name__} does not support conditioning"
+                    f"{type(worker).__name__} does not support conditioning"
                 )
         except Exception as e:
             logger.error(
                 f"[WorkerPool] Failed to load mode '{mode_name}': {e}",
                 exc_info=True,
             )
-            # Clean up any partially allocated GPU memory
+            # Clean up any partially allocated GPU memory and clear all authority.
             self._free_worker()
-            self._current_mode = None
+            with self._job_lock:
+                self._current_mode = None
+                self._active_snapshot = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             raise
 
         vram_reserved = self._registry.get_used_vram()
@@ -373,15 +371,75 @@ class WorkerPool:
             loras=[lora.path for lora in mode.loras],
         )
 
-        self._current_mode = mode_name
+        # Atomic publish: new epoch + worker + mode + snapshot together.
+        with self._job_lock:
+            self._resolution_epoch += 1
+            self._worker = worker
+            self._current_mode = mode_name
+            self._active_snapshot = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
 
         # Start worker thread
         self._start_worker_thread()
 
         logger.info(
             f"[WorkerPool] Mode '{mode_name}' loaded successfully "
-            f"(VRAM: {vram_used / 1024**3:.2f} GB)"
+            f"(VRAM: {vram_used / 1024**3:.2f} GB, epoch={self._resolution_epoch})"
         )
+
+    def get_active_model_snapshot(self) -> Optional[ActiveModelSnapshot]:
+        """Return the single coherent model authority under the state lock."""
+        with self._job_lock:
+            return self._active_snapshot
+
+    def current_resolution_epoch(self) -> int:
+        """The epoch a job submitted now must be stamped with."""
+        with self._job_lock:
+            if self._active_snapshot is not None:
+                return self._active_snapshot.resolution_epoch
+            return self._resolution_epoch
+
+    def _reload_from_snapshot(self) -> None:
+        """Reconstruct the worker from the retained snapshot after idle eviction.
+
+        Reuses the already-resolved value and binding — no detection, no new
+        epoch. The snapshot remains the same authority the evicted worker served.
+        """
+        snapshot = self._active_snapshot
+        if snapshot is None:
+            raise RuntimeError("demand reload requested with no retained snapshot")
+
+        logger.info(
+            f"[WorkerPool] Demand-reloading mode '{snapshot.mode_name}' from "
+            f"retained snapshot (epoch={snapshot.resolution_epoch})"
+        )
+        worker = self._worker_factory(
+            worker_id=0,
+            resolved=snapshot.resolved,
+            binding=snapshot.binding,
+        )
+        configure_conditioning = getattr(worker, "configure_conditioning", None)
+        if callable(configure_conditioning):
+            configure_conditioning(snapshot.mode.conditioning)
+        elif snapshot.mode.conditioning.requires_configurable_worker():
+            raise RuntimeError(
+                f"mode '{snapshot.mode_name}' configures conditioning but worker "
+                f"{type(worker).__name__} does not support conditioning"
+            )
+        self._registry.register_model(
+            name=snapshot.mode_name,
+            model_path=snapshot.binding.model_path,
+            vram_bytes=0,
+            worker_id=0,
+            loras=[lora.path for lora in snapshot.mode.loras],
+        )
+        with self._job_lock:
+            self._worker = worker
 
     def _free_worker(self):
         """Drop the worker reference and flush the GPU allocator cache."""
@@ -654,18 +712,33 @@ class WorkerPool:
                     if job_record is not None:
                         job_record.state = "running"
 
-                    # Demand reload: worker may have been evicted since last job
-                    if self._worker is None and self._current_mode is not None:
-                        logger.info(
-                            f"[WorkerPool] Worker was evicted; "
-                            f"demand-reloading mode '{self._current_mode}'"
-                        )
+                    # Demand reload: worker may have been evicted since last job.
+                    # Reconstruct from the retained snapshot — no re-detection,
+                    # same epoch — so a job stamped before eviction stays valid.
+                    if self._worker is None and self._active_snapshot is not None:
                         try:
-                            self._load_mode(self._current_mode)
+                            self._reload_from_snapshot()
                         except Exception as load_err:
                             raise RuntimeError(
                                 f"Demand reload of '{self._current_mode}' failed: {load_err}"
                             ) from load_err
+
+                    # Stale-job barrier at the last safe boundary: a job resolved
+                    # against a superseded authority must never reach the worker.
+                    # Only fires when a model is loaded — a no-model pool falls
+                    # through to the worker's own "No worker available" error.
+                    if generation_job is not None:
+                        with self._job_lock:
+                            snapshot = self._active_snapshot
+                        if (
+                            snapshot is not None
+                            and snapshot.resolution_epoch != generation_job.resolution_epoch
+                        ):
+                            raise StaleResolutionError(
+                                f"job {generation_job.job_id} stamped epoch "
+                                f"{generation_job.resolution_epoch} != active epoch "
+                                f"{snapshot.resolution_epoch}"
+                            )
 
                     result = job.execute(self._worker)
 
@@ -793,8 +866,17 @@ class WorkerPool:
         return self._build_runtime_status(cancelled_jobs=cancelled)
 
     def unload_current_model(self) -> dict:
-        """Unload the live worker without canceling queued or running jobs."""
+        """Fully unload the model without canceling queued or running jobs.
+
+        Unlike idle eviction (which retains the snapshot so a demand reload can
+        rebuild the worker), this drops the model authority entirely: generation
+        fails until a new mode is loaded. Clearing the snapshot is what prevents
+        the worker loop from silently re-arming the same model on the next job.
+        """
         self._unload_current_worker()
+        with self._job_lock:
+            self._active_snapshot = None
+            self._current_mode = None
         gc.collect()
         torch.cuda.empty_cache()
         return {

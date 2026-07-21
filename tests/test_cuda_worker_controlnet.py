@@ -306,18 +306,29 @@ def test_sd15_worker_passes_single_controlnet_kwargs():
     assert kwargs["control_guidance_end"] == 0.8
 
 
-# A future family (HunyuanDiT) declares its control-map kwarg by overriding the
-# class constant, not the instance — model the real override surface here.
+# A future family (HunyuanDiT) declares its control-map kwarg through its family
+# profile, not a hardcoded constant — model the real override surface here.
+from backends.family_profiles import FamilyProfile as _FamilyProfile  # noqa: E402
+
+_CONTROL_IMAGE_PROFILE = _FamilyProfile(
+    family_id="sd15",
+    encoder_roles=("text_encoder",),
+    pooled_required=False,
+    pooled_projection_role=None,
+    control_image_kwarg="control_image",
+)
+
+
 class _ControlImageKwargWorker(DiffusersCudaWorker):
-    _CONTROL_IMAGE_KWARG = "control_image"
+    family_profile = _CONTROL_IMAGE_PROFILE
 
 
-def test_control_image_kwarg_follows_worker_constant():
+def test_control_image_kwarg_follows_worker_profile():
     """The control map must be routed under the kwarg named by the worker's
-    _CONTROL_IMAGE_KWARG, so a future family (HunyuanDiT) can declare
-    'control_image' via a class-level override without re-hardcoding the assembly."""
+    family_profile.control_image_kwarg, so a future family (HunyuanDiT) can declare
+    'control_image' via its profile without re-hardcoding the assembly."""
     worker = _make_worker(_ControlImageKwargWorker)
-    assert type(worker)._CONTROL_IMAGE_KWARG == "control_image"  # class-level, not instance
+    assert type(worker).family_profile.control_image_kwarg == "control_image"
     req = _make_req()
     job = SimpleNamespace(
         req=req,
@@ -355,8 +366,8 @@ def test_control_image_kwarg_follows_worker_constant():
 
 def test_build_controlnet_kwargs_image_kwarg_override_routes_to_control_image():
     """The combined img2img+ControlNet path needs the control map under
-    control_image (image= is the init image there), not under
-    _CONTROL_IMAGE_KWARG unchanged — the image_kwarg override is the seam."""
+    control_image (image= is the init image there), not under the profile's
+    control_image_kwarg unchanged — the image_kwarg override is the seam."""
     worker = _make_worker(DiffusersCudaWorker)
     binding = _make_binding("canny", 0.4, 0.0, 0.8)
     cache = _fake_cache()

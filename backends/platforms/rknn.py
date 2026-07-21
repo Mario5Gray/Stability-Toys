@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
+from backends.platforms.base import (
+    BackendCapabilities,
+    FamilyPlatformBinding,
+    GenerationRuntimeProtocol,
+    ModelRegistryProtocol,
+)
 
 
 def _bool_arg(value: object, default: bool = True) -> bool:
@@ -57,7 +62,10 @@ class RKNNProvider:
     backend_id: str = "rknn"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(True, False, True, False, False)
+        return BackendCapabilities(True, False, True, False)
+
+    def family_binding(self, family_id: str) -> FamilyPlatformBinding | None:
+        return None
 
     def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("RKNN worker-factory wiring lands in a later task")

@@ -16,8 +16,10 @@ def test_http_generate_rejects_controlnets_when_no_current_mode():
         map_asset_ref="asset_a",
     )
 
-    mock_runtime = MagicMock()
-    mock_runtime.get_current_mode.return_value = None  # RKNN returns None
+    # RKNN-style runtime: no switch_mode / get_active_model_snapshot, so no
+    # active-model snapshot is published and there is no family binding to admit
+    # ControlNet.
+    mock_runtime = MagicMock(spec=["submit_generate"])
     mock_app = MagicMock()
     mock_app.state.generation_runtime = mock_runtime
 
@@ -107,7 +109,7 @@ def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_curren
     mock_ws = MagicMock()
     mock_state = MagicMock()
     mock_state.use_mode_system = True
-    mock_state.worker_pool.get_current_mode.return_value = None
+    mock_state.worker_pool.get_active_model_snapshot.return_value = None  # no model loaded
     mock_ws.app.state = mock_state
 
     sent_messages = []
@@ -143,21 +145,20 @@ def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_curren
     assert "ControlNet provider not yet implemented" in errors[0]["error"]
 
 
-def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_current_mode():
-    """Mode-system WS pre-submit path should return the stub error, not TypeError."""
+def test_ws_handle_job_submit_admits_controlnets_on_loaded_controlnet_capable_family():
+    """With a loaded ControlNet-capable family (sdxl), the WS pre-submit path
+    admits the request through the family-cell matrix — the pre-Track-3
+    'not yet implemented' stub no longer fires (Track 3 delivered execution)."""
+    from types import SimpleNamespace
+
     import server.ws_routes as ws
     from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+    from tests.snapshot_test_helpers import install_mode_backed
 
     mock_ws = MagicMock()
     mock_state = MagicMock()
     mock_state.use_mode_system = True
-    mock_state.worker_pool.get_current_mode.return_value = "sdxl-general"
     mock_ws.app.state = mock_state
-
-    sent_messages = []
-
-    async def fake_send(client_id, msg):
-        sent_messages.append(msg)
 
     policy = ControlNetPolicy(
         enabled=True,
@@ -174,44 +175,47 @@ def test_ws_handle_job_submit_rejects_controlnets_on_mode_system_with_current_mo
             )
         },
     )
+    mode = SimpleNamespace(
+        name="sdxl-general",
+        default_size="1024x1024",
+        default_steps=30,
+        default_guidance=7.0,
+        resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+        controlnet_policy=policy,
+    )
+    install_mode_backed(mock_state, mock_state.worker_pool, mode, family_id="sdxl")
 
-    with patch.object(ws.hub, "send", side_effect=fake_send):
-        with patch("server.ws_routes._get_app_state", return_value=mock_state):
-            with patch("server.ws_routes.get_mode_config") as get_mode_config:
-                get_mode_config.return_value = MagicMock(
-                    get_mode=MagicMock(
-                        return_value=MagicMock(
-                            name="sdxl-general",
-                            default_size="1024x1024",
-                            default_steps=30,
-                            default_guidance=7.0,
-                            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
-                            controlnet_policy=policy,
-                        )
-                    )
-                )
-                _run(
-                    ws.handle_job_submit(
-                        mock_ws,
-                        {
-                            "id": "corr2",
-                            "jobType": "generate",
-                            "params": {
-                                "prompt": "a cat",
-                                "controlnets": [
-                                    {
-                                        "attachment_id": "cn_1",
-                                        "control_type": "canny",
-                                        "map_asset_ref": "asset_a",
-                                    }
-                                ],
-                            },
-                        },
-                        "client1",
-                    )
-                )
+    sent_messages = []
 
+    async def fake_send(client_id, msg):
+        sent_messages.append(msg)
+
+    with patch.object(ws.hub, "send", side_effect=fake_send), \
+         patch("server.ws_routes._get_app_state", return_value=mock_state), \
+         patch("server.controlnet_preprocessing.preprocess_controlnet_attachments", return_value=[]), \
+         patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]):
+        _run(
+            ws.handle_job_submit(
+                mock_ws,
+                {
+                    "id": "corr2",
+                    "jobType": "generate",
+                    "params": {
+                        "prompt": "a cat",
+                        "controlnets": [
+                            {
+                                "attachment_id": "cn_1",
+                                "control_type": "canny",
+                                "map_asset_ref": "asset_a",
+                            }
+                        ],
+                    },
+                },
+                "client1",
+            )
+        )
+
+    # Admitted: acked, and never stubbed with the obsolete "not yet implemented".
+    assert any(m.get("type") == "job:ack" for m in sent_messages)
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
-    assert errors, "expected a job:error message"
-    assert "ControlNet provider not yet implemented" in errors[0]["error"]
-    assert "missing 1 required keyword-only argument" not in errors[0]["error"]
+    assert all("ControlNet provider not yet implemented" not in m.get("error", "") for m in errors)

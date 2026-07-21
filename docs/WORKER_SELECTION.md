@@ -4,131 +4,92 @@ This guide covers CUDA worker selection after you have already chosen `BACKEND=c
 
 Backend selection itself is explicit. The server does not infer CUDA vs RKNN vs MLX vs CPU from local hardware.
 
-Once `BACKEND=cuda` is selected, the server **automatically detects** the model type and selects the correct worker (SD1.5 or SDXL).
+Once `BACKEND=cuda` is selected, the correct worker (SD1.5 or SDXL) is chosen from
+the model's **neutral family**, resolved from detector architecture facts.
 
 ## How It Works
 
-When the server starts with CUDA backend, it:
+Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
+`MODEL`/`MODEL_ROOT` environment variables. When the pool loads a mode:
 
-1. Calls `backends.worker_factory.create_cuda_worker()`
-2. Factory reads `MODEL_ROOT` and `MODEL` environment variables
-3. Factory inspects the model file using the detection system
-4. Factory automatically creates and returns:
-   - `DiffusersCudaWorker` if cross_attention_dim = 768 (SD1.5)
-   - `DiffusersSDXLCudaWorker` if cross_attention_dim = 2048 (SDXL)
+1. `WorkerPool._load_mode` calls `backends.model_resolution.resolve_model(model_path, mode)`,
+   which detects the model **once**, resolves its neutral family with
+   `backends.family_profiles.resolve_family(...)`, overlays the mode's capability
+   fields, and emits a portable `ResolvedModel` plus a node-local
+   `LocalModelBinding`.
+2. The family is resolved from detector-owned architecture facts — `base_arch == "unet"`
+   and `cross_attention_dim` (`{768, 1024}` → `sd15`, `{1280, 2048}` → `sdxl`).
+   It is **not** taken from `checkpoint_variant`, which mode policy can overlay.
+3. `backends.worker_factory.create_cuda_worker(worker_id, resolved, binding)` looks up
+   the canonical CUDA cell for `resolved.profile.family_id` in
+   `backends/platforms/cuda_bindings.py::CUDA_FAMILY_BINDINGS`, imports the cell's
+   `worker_ref` lazily with `importlib` (only inside the factory), and instantiates:
+   - `DiffusersCudaWorker` for family `sd15` (SD1.5, SD2.0, SD2.1)
+   - `DiffusersSDXLCudaWorker` for family `sdxl` (SDXL Base, Refiner)
 
-**No manual configuration needed!**
+A known family with no CUDA cell raises `UnsupportedFamilyError`; an unresolvable
+model raises `FamilyResolutionError`. Neither path imports Torch/Diffusers worker
+code until `create_cuda_worker` runs, so server boot, status reads, and rejected
+requests stay import-clean.
 
-The detection logic lives in `backends/worker_factory.py`, keeping all model-related logic in the backends package.
+Family resolution and worker selection are encapsulated in the `backends` package
+(`family_profiles`, `model_resolution`, `platforms/cuda_bindings`, `worker_factory`).
 
-## Environment Variables
+## Configuration
 
-Same variables for both SD1.5 and SDXL:
+Models are declared per mode in `conf/modes.yml` under `model_root` + each mode's
+`model:` path. Select the backend and mode-config location via environment:
 
 ```bash
 export BACKEND=cuda
-export MODEL_ROOT=/path/to/models
-export MODEL=model.safetensors
+export MODE_CONFIG_PATH=conf        # directory containing modes.yml
 ```
 
-The server will automatically detect which worker to use.
+Switch modes at runtime through the mode API (`/api/modes/switch`); the pool
+re-resolves and republishes one active snapshot per load.
 
-## Example Configurations
+## Example Configuration
 
-### Docker with Any Model (SD1.5 or SDXL)
+### Docker with the mode config mounted
 
 ```bash
 docker run --rm --gpus all --privileged \
   -v /models:/models:ro \
+  -v $(pwd)/conf:/app/conf:ro \
   -e BACKEND=cuda \
-  -e MODEL_ROOT=/models \
-  -e MODEL=your-model.safetensors \
   -p 4200:4200 \
   lcm-sd:latest
 ```
 
-The server logs will show which worker was selected:
-```
-[ModelDetection] Detecting model type for: /models/your-model.safetensors
-[ModelDetection] Detected variant: sdxl-base
-[ModelDetection] Cross-attention dim: 2048
-[ModelDetection] Using SDXL worker
-[PipelineService] Initialized DiffusersSDXLCudaWorker (worker 0)
-```
+The server logs show the resolved family and selected worker on mode load:
 
-### Environment File (.env)
-
-```bash
-BACKEND=cuda
-MODEL_ROOT=/models
-MODEL=my-model.safetensors    # Auto-detected as SD1.5 or SDXL
-CUDA_DEVICE=cuda:0
-CUDA_DTYPE=fp16
-DEFAULT_SIZE=1024x1024
-DEFAULT_STEPS=4
-DEFAULT_GUIDANCE=7.5
 ```
-
-## Startup Logs
-
-Check the logs to see detection results:
-
-**SD1.5 Model:**
-```
-[ModelDetection] Detecting model type for: /models/dreamshaper-sd15.safetensors
-[ModelDetection] Detected variant: sd15
-[ModelDetection] Cross-attention dim: 768
-[ModelDetection] Using SD1.5 worker
-[PipelineService] Initialized DiffusersCudaWorker (worker 0)
-```
-
-**SDXL Model:**
-```
-[ModelDetection] Detecting model type for: /models/sdxl-base.safetensors
-[ModelDetection] Detected variant: sdxl-base
-[ModelDetection] Cross-attention dim: 2048
-[ModelDetection] Using SDXL worker
-[PipelineService] Initialized DiffusersSDXLCudaWorker (worker 0)
+[WorkerPool] Loading mode: SDXL
+[WorkerFactory] Created backends.cuda_worker.DiffusersSDXLCudaWorker for family 'sdxl' (worker 0)
+[WorkerPool] Mode 'SDXL' loaded successfully (VRAM: 6.10 GB, epoch=1)
 ```
 
 ## Troubleshooting
 
-### Error: "RuntimeError: Model not found at: /models/..."
+### `FamilyResolutionError` on load
 
-**Problem**: MODEL_ROOT or MODEL is incorrect.
+**Problem**: the model's detector facts do not match exactly one neutral family
+(e.g. a transformer/DiT checkpoint, or an ambiguous cross-attention dim).
 
-**Solution**: Verify the paths are correct:
-
-```bash
-export MODEL_ROOT=/correct/path
-export MODEL=correct-filename.safetensors
-```
-
-### Error: "RuntimeError: Model detection failed: ..."
-
-**Problem**: The model file is corrupted or unsupported format.
-
-**Solution**:
-1. Check the file exists: `ls -la $MODEL_ROOT/$MODEL`
-2. Test detection manually: `python model_detector.py $MODEL_ROOT/$MODEL`
-3. Verify it's a supported format (.safetensors, .ckpt, or diffusers directory)
-
-### Manual Model Detection
-
-You can test detection before starting the server:
+**Solution**: confirm the model is a supported SD1.5/SD2.x/SDXL UNet checkpoint.
+Inspect detector facts directly:
 
 ```bash
 python -m utils.model_detector /models/your-model.safetensors
 ```
 
-Output:
-```
-Variant: sdxl-base
-Cross-Attention Dim: 2048
-Format: safetensors
-Is LoRA: False
-Confidence: 0.95
-Compatible Worker: backends.cuda_worker.DiffusersSDXLCudaWorker
-```
+### `UnsupportedFamilyError` on load
 
-See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for more details on the detection system.
+**Problem**: the family resolved, but no CUDA cell is registered for it in
+`CUDA_FAMILY_BINDINGS`.
+
+**Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`).
+
+See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
+system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
+for the neutral-family resolution and platform-binding design.

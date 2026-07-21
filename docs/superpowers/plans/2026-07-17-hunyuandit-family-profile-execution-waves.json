@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "generated_on": "2026-07-17",
+  "plan": {
+    "id": "hunyuandit-family-profile",
+    "title": "HunyuanDiT Family-Profile Architecture",
+    "plan_doc": {
+      "path": "docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md",
+      "line": 1
+    },
+    "spec_doc": {
+      "path": "docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md",
+      "line": 1
+    },
+    "notes": [
+      "Tasks are sequential because each changes the authority consumed by the next load or request seam.",
+      "Task 8 is a hard SD and SDXL CUDA behavior-preservation gate; Task 9 cannot begin until its review is accepted.",
+      "Each task stops for human review before waveplan advances."
+    ]
+  },
+  "tasks": {
+    "T1": {
+      "plan_line": 69,
+      "title": "Correct detector architecture facts",
+      "files": [
+        "utils/model_detector.py",
+        "tests/fixtures/models/hunyuandit-v1.1-diffusers",
+        "tests/test_hunyuandit_detector.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T2": {
+      "plan_line": 167,
+      "title": "Add the neutral family registry and open family contracts",
+      "files": [
+        "backends/family_profiles.py",
+        "backends/conditioning/contracts.py",
+        "backends/conditioning/artifacts.py",
+        "tests/test_family_profiles.py",
+        "tests/test_conditioning_contracts.py",
+        "tests/test_conditioning_registry.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T3": {
+      "plan_line": 270,
+      "title": "Emit a portable ResolvedModel and local binding",
+      "files": [
+        "backends/model_resolution.py",
+        "backends/worker_pool.py",
+        "requirements.txt",
+        "tests/test_model_resolution.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T4": {
+      "plan_line": 401,
+      "title": "Add family-platform bindings and migrate the factory",
+      "files": [
+        "backends/platforms/base.py",
+        "backends/platforms/cuda_bindings.py",
+        "backends/platforms/cuda.py",
+        "backends/platforms/cpu.py",
+        "backends/platforms/mlx.py",
+        "backends/platforms/rknn.py",
+        "backends/worker_factory.py",
+        "backends/worker_pool.py",
+        "server/model_routes.py",
+        "tests/test_worker_factory.py",
+        "tests/test_backend_runtimes.py",
+        "tests/test_model_routes.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T5": {
+      "plan_line": 528,
+      "title": "Publish one active snapshot and enforce resolution epochs",
+      "files": [
+        "backends/worker_pool.py",
+        "tests/test_worker_pool.py",
+        "tests/test_model_lifecycle.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T6": {
+      "plan_line": 622,
+      "title": "Make request admission and ControlNet consume the snapshot",
+      "files": [
+        "backends/platforms/cuda.py",
+        "server/ws_routes.py",
+        "server/lcm_sr_server.py",
+        "server/controlnet_execution.py",
+        "server/controlnet_registry.py",
+        "tests/test_backend_runtimes.py",
+        "tests/test_ws_routes.py",
+        "tests/test_controlnet_http_contract.py",
+        "tests/test_controlnet_success_contract.py",
+        "tests/test_controlnet_execution.py",
+        "tests/test_controlnet_registry.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T7": {
+      "plan_line": 732,
+      "title": "Refactor SD workers onto profile data and behavioral hooks",
+      "files": [
+        "backends/cuda_worker.py",
+        "tests/test_cuda_worker_base.py",
+        "tests/test_cuda_worker_capabilities.py",
+        "tests/test_cuda_worker_controlnet.py",
+        "tests/test_conditioning_compel.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T8": {
+      "plan_line": 824,
+      "title": "Pass the unchanged SD1.5/SD2.x and SDXL CUDA no-op gate",
+      "files": [
+        "backends/cuda_worker.py",
+        "backends/worker_factory.py",
+        "backends/worker_pool.py",
+        "tests/test_cuda_worker_base.py",
+        "tests/test_cuda_worker_capabilities.py",
+        "tests/test_cuda_worker_controlnet.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T9": {
+      "plan_line": 881,
+      "title": "Add the lazy HunyuanDiT CUDA worker and dependency preflight",
+      "files": [
+        "requirements.txt",
+        "backends/family_profiles.py",
+        "backends/platforms/cuda_bindings.py",
+        "backends/cuda_worker.py",
+        "tests/test_family_profiles.py",
+        "tests/test_hunyuandit_worker.py",
+        "tests/test_worker_factory.py",
+        "tests/test_cuda_packaging_contract.py"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    },
+    "T10": {
+      "plan_line": 1014,
+      "title": "Add Canny-first production configuration and live acceptance",
+      "files": [
+        "conf/modes.yml",
+        "conf/controlnets.yaml",
+        "tests/test_mode_config.py",
+        "tests/test_controlnet_registry.py",
+        "tests/test_backend_runtimes.py",
+        "tests/test_hunyuandit_acceptance.py",
+        "docs/TESTING_IN_DOCKER.md",
+        "project-forward-notes.md",
+        "drift.lock"
+      ],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"]
+    }
+  },
+  "units": {
+    "T1.1": {
+      "task": "T1",
+      "title": "Correct detector architecture facts",
+      "kind": "impl",
+      "wave": 1,
+      "plan_line": 69,
+      "node_id": "T1",
+      "depends_on": [],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_hunyuandit_detector.py tests/test_worker_factory.py tests/test_model_lifecycle.py -q"
+    },
+    "T2.1": {
+      "task": "T2",
+      "title": "Add the neutral family registry and open family contracts",
+      "kind": "impl",
+      "wave": 2,
+      "plan_line": 167,
+      "node_id": "T2",
+      "depends_on": ["T1.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_family_profiles.py tests/test_conditioning_contracts.py tests/test_conditioning_registry.py tests/test_conditioning_compel.py -q"
+    },
+    "T3.1": {
+      "task": "T3",
+      "title": "Emit a portable ResolvedModel and local binding",
+      "kind": "impl",
+      "wave": 3,
+      "plan_line": 270,
+      "node_id": "T3",
+      "depends_on": ["T2.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_model_resolution.py tests/test_worker_pool.py tests/test_model_lifecycle.py -q"
+    },
+    "T4.1": {
+      "task": "T4",
+      "title": "Add family-platform bindings and migrate the factory",
+      "kind": "impl",
+      "wave": 4,
+      "plan_line": 401,
+      "node_id": "T4",
+      "depends_on": ["T3.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_worker_factory.py tests/test_backend_runtimes.py tests/test_model_routes.py tests/test_cuda_packaging_contract.py -q"
+    },
+    "T5.1": {
+      "task": "T5",
+      "title": "Publish one active snapshot and enforce resolution epochs",
+      "kind": "impl",
+      "wave": 5,
+      "plan_line": 528,
+      "node_id": "T5",
+      "depends_on": ["T4.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_worker_pool.py tests/test_model_lifecycle.py tests/test_worker_factory.py -q"
+    },
+    "T6.1": {
+      "task": "T6",
+      "title": "Make request admission and ControlNet consume the snapshot",
+      "kind": "impl",
+      "wave": 6,
+      "plan_line": 622,
+      "node_id": "T6",
+      "depends_on": ["T5.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_ws_routes.py tests/test_backend_runtimes.py tests/test_controlnet_http_contract.py tests/test_controlnet_success_contract.py tests/test_controlnet_execution.py tests/test_controlnet_registry.py tests/test_model_routes.py -q"
+    },
+    "T7.1": {
+      "task": "T7",
+      "title": "Refactor SD workers onto profile data and behavioral hooks",
+      "kind": "impl",
+      "wave": 7,
+      "plan_line": 732,
+      "node_id": "T7",
+      "depends_on": ["T6.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py tests/test_cuda_worker_controlnet.py tests/test_conditioning_contracts.py tests/test_conditioning_registry.py tests/test_conditioning_compel.py -q"
+    },
+    "T8.1": {
+      "task": "T8",
+      "title": "Pass the unchanged SD1.5/SD2.x and SDXL CUDA no-op gate",
+      "kind": "impl",
+      "wave": 8,
+      "plan_line": 824,
+      "node_id": "T8",
+      "depends_on": ["T7.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "docker compose -f docker-compose.test.yml run --rm test-cuda python -m pytest tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py tests/test_cuda_worker_controlnet.py tests/test_conditioning_compel.py tests/test_worker_factory.py tests/test_worker_pool.py -q"
+    },
+    "T9.1": {
+      "task": "T9",
+      "title": "Add the lazy HunyuanDiT CUDA worker and dependency preflight",
+      "kind": "impl",
+      "wave": 9,
+      "plan_line": 881,
+      "node_id": "T9",
+      "depends_on": ["T8.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_hunyuandit_worker.py tests/test_worker_factory.py tests/test_cuda_packaging_contract.py tests/test_cuda_worker_controlnet.py -q"
+    },
+    "T10.1": {
+      "task": "T10",
+      "title": "Add Canny-first production configuration and live acceptance",
+      "kind": "impl",
+      "wave": 10,
+      "plan_line": 1014,
+      "node_id": "T10",
+      "depends_on": ["T9.1"],
+      "doc_refs": ["plan_md", "spec_md"],
+      "fp_refs": ["family_profile_issue"],
+      "command": "docker compose -f docker-compose.test.yml run --rm test-cuda python -m pytest tests/test_hunyuandit_acceptance.py -q -m cuda"
+    }
+  },
+  "doc_index": {
+    "plan_md": {
+      "path": "docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md",
+      "line": 1,
+      "kind": "plan"
+    },
+    "spec_md": {
+      "path": "docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md",
+      "line": 1,
+      "kind": "spec"
+    }
+  },
+  "fp_index": {
+    "family_profile_issue": "STABL-ichgkgno"
+  },
+  "waves": [
+    {"wave": 1, "units": ["T1.1"]},
+    {"wave": 2, "units": ["T2.1"]},
+    {"wave": 3, "units": ["T3.1"]},
+    {"wave": 4, "units": ["T4.1"]},
+    {"wave": 5, "units": ["T5.1"]},
+    {"wave": 6, "units": ["T6.1"]},
+    {"wave": 7, "units": ["T7.1"]},
+    {"wave": 8, "units": ["T8.1"]},
+    {"wave": 9, "units": ["T9.1"]},
+    {"wave": 10, "units": ["T10.1"]}
+  ]
+}

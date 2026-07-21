@@ -1,0 +1,5 @@
+{
+  "_class_name": "HunyuanDiT2DModel",
+  "cross_attention_dim": 1024,
+  "cross_attention_dim_t5": 2048
+}

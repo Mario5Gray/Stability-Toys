@@ -3,7 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from backends.model_registry import PlaceholderModelRegistry
-from backends.platforms.base import BackendCapabilities, GenerationRuntimeProtocol, ModelRegistryProtocol
+from backends.platforms.base import (
+    BackendCapabilities,
+    FamilyPlatformBinding,
+    GenerationRuntimeProtocol,
+    ModelRegistryProtocol,
+)
 
 
 class PlaceholderGenerationRuntime:
@@ -44,7 +49,10 @@ class CPUProvider:
     backend_id: str = "cpu"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(False, True, False, False, False)
+        return BackendCapabilities(False, True, False, False)
+
+    def family_binding(self, family_id: str) -> FamilyPlatformBinding | None:
+        return None
 
     def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError("BACKEND=cpu worker factory is not implemented")

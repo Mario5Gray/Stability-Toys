@@ -138,7 +138,11 @@ async def get_models_status(request: Request):
             "supports_modes": caps.supports_modes,
             "supports_superres": caps.supports_superres,
             "supports_model_registry_stats": caps.supports_model_registry_stats,
-            "supports_img2img": caps.supports_img2img,
+            # Execution capabilities moved to per-family platform bindings.
+            # Until the active-snapshot binding lookup lands (Task 5), the status
+            # route reports them from the (now absent) platform caps, defaulting
+            # to False when no source is available.
+            "supports_img2img": getattr(caps, "supports_img2img", False),
             "supports_img2img_and_controlnet": getattr(
                 caps,
                 "supports_img2img_and_controlnet",

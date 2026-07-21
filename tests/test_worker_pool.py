@@ -147,46 +147,64 @@ def mock_cuda_runtime():
         yield
 
 
-@pytest.fixture(autouse=True)
-def mock_model_detection():
-    """Provide lightweight detected model info for worker-pool tests."""
+def _detected_info(path: str):
+    """Lightweight detector output for worker-pool tests (base_arch set so the
+    neutral family resolver matches sd15/sdxl)."""
     from utils.model_detector import ModelInfo, ModelVariant
 
-    def _detect(path: str):
-        if "sdxl" in path:
-            info = ModelInfo(
-                path=path,
-                variant=ModelVariant.SDXL_BASE,
-                cross_attention_dim=2048,
-                confidence=0.95,
-                loader_format="single_file",
-                checkpoint_precision="unknown",
-                checkpoint_variant="sdxl-base",
-                scheduler_profile="native",
-                negative_prompt_templates={},
-                default_negative_prompt_template=None,
-                allow_custom_negative_prompt=False,
-                allowed_scheduler_ids=None,
-                default_scheduler_id=None,
-            )
-            return info
+    if "sdxl" in path:
         return ModelInfo(
             path=path,
-            variant=ModelVariant.SD15,
-            cross_attention_dim=768,
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            base_arch="unet",
             confidence=0.95,
             loader_format="single_file",
             checkpoint_precision="unknown",
-            checkpoint_variant="sd15",
-            scheduler_profile="lcm",
-            negative_prompt_templates={},
-            default_negative_prompt_template=None,
-            allow_custom_negative_prompt=False,
-            allowed_scheduler_ids=None,
-            default_scheduler_id=None,
+            checkpoint_variant="sdxl-base",
+            scheduler_profile="native",
         )
+    return ModelInfo(
+        path=path,
+        variant=ModelVariant.SD15,
+        cross_attention_dim=768,
+        base_arch="unet",
+        confidence=0.95,
+        loader_format="single_file",
+        checkpoint_precision="unknown",
+        checkpoint_variant="sd15",
+        scheduler_profile="lcm",
+    )
 
-    with patch("backends.worker_pool.detect_model", side_effect=_detect):
+
+@pytest.fixture(autouse=True)
+def mock_model_detection():
+    """Patch the pool's single resolve_model seam.
+
+    The pool now resolves once via resolve_model; patching that keeps tests off
+    the filesystem (no real artifact-ref fingerprinting) while still exercising
+    real family resolution and the mode-capability overlay.
+    """
+    from backends.family_profiles import resolve_family
+    from backends.model_resolution import (
+        LocalModelBinding,
+        build_resolved,
+        hub_ref,
+        merge_mode_capabilities,
+    )
+
+    def _resolve(model_path: str, mode):
+        raw = _detected_info(model_path)
+        enriched = merge_mode_capabilities(raw, mode)
+        resolved = build_resolved(
+            model_ref=hub_ref("test/repo", None),
+            raw_info=raw,
+            profile=resolve_family(raw),
+            info=enriched,
+        )
+        return resolved, LocalModelBinding(model_path)
+
+    with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
         yield
 
 
@@ -228,15 +246,15 @@ class TestWorkerPoolInit:
 
         assert pool._current_mode == "sdxl-general"
         assert pool._worker is not None
-        mock_worker_factory.assert_called_once_with(
-            worker_id=0,
-            model_path="/models/sdxl.safetensors",
-            model_info=mock_worker_factory.call_args.kwargs["model_info"],
-        )
-        model_info = mock_worker_factory.call_args.kwargs["model_info"]
-        assert model_info.loader_format == "single_file"
-        assert model_info.checkpoint_precision == "fp8"
-        assert model_info.scheduler_profile == "native"
+        kwargs = mock_worker_factory.call_args.kwargs
+        assert kwargs["worker_id"] == 0
+        assert kwargs["binding"].model_path == "/models/sdxl.safetensors"
+        resolved = kwargs["resolved"]
+        assert resolved.profile.family_id == "sdxl"
+        # info is the mode-overlaid snapshot (mode wins).
+        assert resolved.info.loader_format == "single_file"
+        assert resolved.info.checkpoint_precision == "fp8"
+        assert resolved.info.scheduler_profile == "native"
 
         pool.shutdown()
         reset_worker_pool()
@@ -278,27 +296,23 @@ class TestWorkerPoolInit:
         pool.shutdown()
         reset_worker_pool()
 
-    def test_init_ignores_non_mapping_detected_metadata(self, mock_mode_config, mock_registry, mock_worker_factory):
-        """Non-mapping metadata from mocked model detection should not break initialization."""
-        from backends.worker_pool import reset_worker_pool
+    def test_overlay_ignores_non_mapping_detected_metadata(self, mock_mode_config):
+        """Non-mapping detected metadata must not break the mode overlay; the
+        mode's metadata wins. (The pool resolves via merge_mode_capabilities.)"""
+        from backends.model_resolution import merge_mode_capabilities
+        from utils.model_detector import ModelInfo, ModelVariant
 
-        reset_worker_pool()
-        detected = Mock()
-        detected.metadata = Mock()
+        detected = ModelInfo(
+            path="/models/sdxl.safetensors",
+            variant=ModelVariant.SDXL_BASE,
+            cross_attention_dim=2048,
+            base_arch="unet",
+        )
+        detected.metadata = Mock()  # non-mapping
 
-        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
-            pool = WorkerPool(
-                queue_max=10,
-                worker_factory=mock_worker_factory,
-                mode_config=mock_mode_config,
-                registry=mock_registry,
-            )
+        resolved = merge_mode_capabilities(detected, mock_mode_config.get_mode("sdxl-general"))
 
-        model_info = mock_worker_factory.call_args.kwargs["model_info"]
-        assert model_info.metadata == {"single_file_config": "configs/sdxl-base"}
-
-        pool.shutdown()
-        reset_worker_pool()
+        assert resolved.metadata == {"single_file_config": "configs/sdxl-base"}
 
 
 class TestJobSubmission:
@@ -307,7 +321,7 @@ class TestJobSubmission:
     def test_submit_generation_job(self, worker_pool):
         """Test submitting a generation job."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = _gen_job(worker_pool, req=req)
 
         future = worker_pool.submit_job(job)
 
@@ -349,7 +363,7 @@ class TestJobSubmission:
         for i in range(5):
             req = Mock()
             req.id = i
-            job = GenerationJob(req=req)
+            job = _gen_job(worker_pool, req=req)
             future = worker_pool.submit_job(job)
             jobs.append(future)
 
@@ -360,7 +374,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_clears_record_after_success(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-success")
+        job = _gen_job(worker_pool, req=req, job_id="job-success")
         fut = worker_pool.submit_job(job)
 
         assert fut.result(timeout=5.0) == "test_result"
@@ -375,7 +389,7 @@ class TestJobSubmission:
         worker.run_job.side_effect = ValueError("boom")
 
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-fail")
+        job = _gen_job(worker_pool, req=req, job_id="job-fail")
         fut = worker_pool.submit_job(job)
 
         with pytest.raises(ValueError):
@@ -385,7 +399,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_clears_record_on_queue_full(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-full")
+        job = _gen_job(worker_pool, req=req, job_id="job-full")
 
         with patch.object(worker_pool.q, "put", side_effect=queue.Full):
             with pytest.raises(queue.Full):
@@ -395,7 +409,7 @@ class TestJobSubmission:
 
     def test_submit_generation_job_uses_blocking_queue_put_when_timeout_requested(self, worker_pool):
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-timeout")
+        job = _gen_job(worker_pool, req=req, job_id="job-timeout")
 
         with patch.object(worker_pool.q, "put") as put, \
              patch.object(worker_pool.q, "put_nowait") as put_nowait:
@@ -422,7 +436,7 @@ class TestJobSubmission:
         )
 
         try:
-            job = GenerationJob(req=Mock(), job_id="job-default-timeout")
+            job = _gen_job(pool, req=Mock(), job_id="job-default-timeout")
             with patch.object(pool.q, "put") as put, \
                  patch.object(pool.q, "put_nowait") as put_nowait:
                 pool.submit_job(job)
@@ -434,7 +448,7 @@ class TestJobSubmission:
             reset_worker_pool()
 
     def test_submit_generation_job_uses_put_nowait_when_timeout_override_zero(self, worker_pool):
-        job = GenerationJob(req=Mock(), job_id="job-nowait")
+        job = _gen_job(worker_pool, req=Mock(), job_id="job-nowait")
 
         with patch.object(worker_pool.q, "put") as put, \
              patch.object(worker_pool.q, "put_nowait") as put_nowait:
@@ -454,8 +468,8 @@ class TestJobSubmission:
         worker = mock_worker_factory.return_value
         worker.run_job.side_effect = fake_oom("CUDA out of memory")
 
-        first_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-1"))
-        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-2"))
+        first_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-1"))
+        queued_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-2"))
 
         with pytest.raises(fake_oom):
             first_future.result(timeout=1.0)
@@ -479,10 +493,10 @@ class TestJobSubmission:
         worker = mock_worker_factory.return_value
         worker.run_job.side_effect = blocking_run_job
 
-        running_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-running"))
+        running_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-running"))
         assert started.wait(timeout=1.0)
 
-        queued_future = worker_pool.submit_job(GenerationJob(req=Mock(), job_id="job-queued"))
+        queued_future = worker_pool.submit_job(_gen_job(worker_pool, req=Mock(), job_id="job-queued"))
         status = worker_pool.free_vram("manual_free_vram")
 
         assert status["status"] == "ok"
@@ -518,7 +532,7 @@ class TestJobSubmission:
         worker.run_job.reset_mock()
 
         req = Mock()
-        job = GenerationJob(req=req, job_id="job-1")
+        job = _gen_job(worker_pool, req=req, job_id="job-1")
         fut = worker_pool.submit_job(job)
         assert worker_pool.cancel_job("job-1") is True
         assert fut.cancelled()
@@ -544,7 +558,7 @@ class TestJobSubmission:
 
         worker.run_job.side_effect = run_job
         req = Mock()
-        fut = worker_pool.submit_job(GenerationJob(req=req, job_id="job-2"))
+        fut = worker_pool.submit_job(_gen_job(worker_pool, req=req, job_id="job-2"))
         assert started.wait(timeout=1.0)
         assert worker_pool.cancel_job("job-2") is True
         release.set()
@@ -601,16 +615,18 @@ class TestModeSwitching:
         job1 = CustomJob(handler=slow_job)
         fut1 = worker_pool.submit_job(job1)
 
-        # Submit mode switch
+        # Submit mode switch (queues behind the slow job)
         switch_fut = worker_pool.switch_mode("sd15-fast")
 
-        # Submit another job after switch
-        job2 = GenerationJob(req=Mock())
-        fut2 = worker_pool.submit_job(job2)
-
-        # All should complete
+        # Job1 then the switch drain in order; the switch installs a new epoch.
         results.append(fut1.result(timeout=5.0))
         switch_fut.result(timeout=5.0)
+
+        # A generation job submitted AFTER the switch is stamped with the new
+        # epoch and runs on the new mode. (A job stamped before the switch would
+        # be correctly rejected as stale — see TestActiveModelSnapshot.)
+        job2 = _gen_job(worker_pool, req=Mock())
+        fut2 = worker_pool.submit_job(job2)
         results.append(fut2.result(timeout=5.0))
 
         assert results[0] == "slow_done"
@@ -759,12 +775,10 @@ class TestWorkerLifecycle:
         assert pool._worker is not None
         assert pool._current_mode == "sdxl-general"
         # Called once during init for default mode
-        mock_worker_factory.assert_called_once_with(
-            worker_id=0,
-            model_path="/models/sdxl.safetensors",
-            model_info=mock_worker_factory.call_args.kwargs["model_info"],
-        )
-        assert mock_worker_factory.call_args.kwargs["model_info"].checkpoint_variant == "sdxl-base"
+        kwargs = mock_worker_factory.call_args.kwargs
+        assert kwargs["worker_id"] == 0
+        assert kwargs["binding"].model_path == "/models/sdxl.safetensors"
+        assert kwargs["resolved"].info.checkpoint_variant == "sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()
@@ -825,24 +839,42 @@ class TestWorkerLifecycle:
         from backends.worker_pool import reset_worker_pool
         from utils.model_detector import ModelInfo, ModelVariant
 
+        from backends.family_profiles import resolve_family
+        from backends.model_resolution import (
+            LocalModelBinding,
+            build_resolved,
+            hub_ref,
+            merge_mode_capabilities,
+        )
+
         reset_worker_pool()
+        # Detected values deliberately differ from the mode so the overlay
+        # precedence (mode wins) is observable in resolved.info.
         detected = ModelInfo(
             path="/models/sdxl.safetensors",
             variant=ModelVariant.SDXL_BASE,
             cross_attention_dim=2048,
+            base_arch="unet",
             confidence=0.95,
             loader_format="unknown",
             checkpoint_precision="unknown",
             checkpoint_variant="unknown",
+            scheduler_profile="lcm",
         )
-        detected.scheduler_profile = "lcm"
-        detected.negative_prompt_templates = {}
-        detected.default_negative_prompt_template = None
-        detected.allow_custom_negative_prompt = False
-        detected.allowed_scheduler_ids = None
-        detected.default_scheduler_id = None
 
-        with patch("backends.worker_pool.detect_model", return_value=detected, create=True):
+        def _resolve(model_path, mode):
+            enriched = merge_mode_capabilities(detected, mode)
+            return (
+                build_resolved(
+                    model_ref=hub_ref("test/repo", None),
+                    raw_info=detected,
+                    profile=resolve_family(detected),
+                    info=enriched,
+                ),
+                LocalModelBinding(model_path),
+            )
+
+        with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
             pool = WorkerPool(
                 queue_max=10,
                 worker_factory=mock_worker_factory,
@@ -850,19 +882,18 @@ class TestWorkerLifecycle:
                 registry=mock_registry,
             )
 
-        kwargs = mock_worker_factory.call_args.kwargs
-        model_info = kwargs["model_info"]
-        assert model_info.loader_format == "single_file"
-        assert model_info.checkpoint_precision == "fp8"
-        assert model_info.checkpoint_variant == "sdxl-base"
-        assert model_info.scheduler_profile == "native"
-        assert model_info.recommended_size == "512x512"
-        assert model_info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
-        assert model_info.default_negative_prompt_template == "safe_photo"
-        assert model_info.allow_custom_negative_prompt is True
-        assert model_info.allowed_scheduler_ids == ["euler", "dpmpp_2m"]
-        assert model_info.default_scheduler_id == "euler"
-        assert model_info.metadata["single_file_config"] == "configs/sdxl-base"
+        info = mock_worker_factory.call_args.kwargs["resolved"].info
+        assert info.loader_format == "single_file"
+        assert info.checkpoint_precision == "fp8"
+        assert info.checkpoint_variant == "sdxl-base"
+        assert info.scheduler_profile == "native"
+        assert info.recommended_size == "512x512"
+        assert info.negative_prompt_templates == {"safe_photo": "blurry, watermark"}
+        assert info.default_negative_prompt_template == "safe_photo"
+        assert info.allow_custom_negative_prompt is True
+        assert list(info.allowed_scheduler_ids) == ["euler", "dpmpp_2m"]
+        assert info.default_scheduler_id == "euler"
+        assert info.metadata["single_file_config"] == "configs/sdxl-base"
 
         pool.shutdown()
         reset_worker_pool()
@@ -887,13 +918,14 @@ class TestWorkerLifecycle:
         # Should clear CUDA cache
         mock_empty_cache.assert_called()
 
-    def test_unload_current_model_does_not_cancel_queued_jobs(self, worker_pool):
-        """Test that explicit unload only drops the worker."""
+    def test_unload_current_model_fully_drops_authority(self, worker_pool):
+        """Explicit unload drops the worker AND the model authority."""
         result = worker_pool.unload_current_model()
 
         assert result["status"] == "unloaded"
         assert worker_pool.is_model_loaded() is False
-        assert worker_pool.get_current_mode() == "sdxl-general"
+        assert worker_pool.get_current_mode() is None
+        assert worker_pool.get_active_model_snapshot() is None
 
 
 class TestCustomJobExecution:
@@ -956,13 +988,13 @@ class TestJobTypes:
     def test_generation_job_type(self):
         """Test GenerationJob has correct type."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = GenerationJob(req=req, resolution_epoch=0)
         assert job.job_type == JobType.GENERATION
 
     def test_generation_job_controlnet_bindings_default_empty_list(self):
         """Generation jobs should always expose a controlnet binding list."""
         req = Mock()
-        job = GenerationJob(req=req)
+        job = GenerationJob(req=req, resolution_epoch=0)
         assert job.controlnet_bindings == []
 
     def test_mode_switch_job_type(self):
@@ -1004,28 +1036,31 @@ class TestErrorHandling:
 class TestControlNetRuntime:
     """Test the CUDA runtime seam for ControlNet binding resolution."""
 
-    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self, mock_mode_config):
-        """CUDA runtime should resolve ordered bindings before queueing work."""
+    def test_cuda_runtime_attaches_controlnet_bindings_before_submit(self):
+        """CUDA runtime resolves bindings from the captured snapshot's mode/family
+        (no detection) and stamps the snapshot epoch before queueing work."""
         from backends.platforms.cuda import CudaGenerationRuntime
 
         pool = Mock()
-        pool.get_current_mode.return_value = "sdxl-general"
         pool.submit_job.return_value = Future()
+        mode = SimpleNamespace(name="sdxl-general")
+        snapshot = SimpleNamespace(
+            mode=mode,
+            resolved=SimpleNamespace(profile=SimpleNamespace(family_id="sdxl")),
+            resolution_epoch=3,
+        )
+        pool.get_active_model_snapshot.return_value = snapshot
         req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
-        mode = mock_mode_config.get_mode("sdxl-general")
         store = Mock()
-        detected = SimpleNamespace(variant=SimpleNamespace(value="sdxl-base"))
 
-        with patch("server.mode_config.get_mode_config", return_value=mock_mode_config), \
-             patch("utils.model_detector.detect_model", return_value=detected), \
-             patch("server.asset_store.get_store", return_value=store), \
-             patch("server.controlnet_execution.active_model_family_from_variant", return_value="sdxl"), \
+        with patch("server.asset_store.get_store", return_value=store), \
              patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=["binding"]) as resolve:
             runtime = CudaGenerationRuntime(pool=pool)
             runtime.submit_generate(req)
 
         queued_job = pool.submit_job.call_args[0][0]
         assert queued_job.controlnet_bindings == ["binding"]
+        assert queued_job.resolution_epoch == 3
         resolve.assert_called_once()
         args, kwargs = resolve.call_args
         assert args == (req,)
@@ -1061,53 +1096,50 @@ class TestControlNetRuntime:
         assert queued_job.req is req
         assert pool.submit_job.call_args.kwargs == {"timeout_s": None}
 
-    def test_cuda_runtime_requires_active_mode_for_controlnet_requests(self):
-        """ControlNet requests should fail clearly if no mode is loaded."""
+    def test_cuda_runtime_requires_active_snapshot_for_generation(self):
+        """Generation fails clearly when no active model snapshot is published."""
         from backends.platforms.cuda import CudaGenerationRuntime
 
         pool = Mock()
-        pool.get_current_mode.return_value = None
+        pool.get_active_model_snapshot.return_value = None
         req = SimpleNamespace(controlnets=[SimpleNamespace(attachment_id="cn_1")])
 
         runtime = CudaGenerationRuntime(pool=pool)
 
-        with pytest.raises(RuntimeError, match="before any mode was loaded"):
+        with pytest.raises(RuntimeError, match="active model snapshot"):
             runtime.submit_generate(req)
 
         pool.submit_job.assert_not_called()
 
     def test_backend_capabilities_only_cuda_supports_controlnet(self):
-        """Only the CUDA backend should report ControlNet runtime support."""
+        """Only the CUDA backend binds a family whose execution cell supports
+        ControlNet. Execution claims now live on the family-platform binding,
+        not on platform-wide BackendCapabilities."""
         from backends.platforms.cpu import CPUProvider
         from backends.platforms.cuda import CUDAProvider
         from backends.platforms.rknn import RKNNProvider
 
-        assert CUDAProvider().capabilities().supports_controlnet is True
-        assert CPUProvider().capabilities().supports_controlnet is False
-        assert RKNNProvider().capabilities().supports_controlnet is False
+        cuda_binding = CUDAProvider().family_binding("sd15")
+        assert cuda_binding is not None
+        assert cuda_binding.execution_capabilities.supports_controlnet is True
+        assert CPUProvider().family_binding("sd15") is None
+        assert RKNNProvider().family_binding("sd15") is None
 
 
 class TestDefaultFactory:
     """Test the built-in worker factory used in production."""
 
-    def test_default_worker_factory_forwards_model_info(self):
-        """Default factory must accept and forward resolved model_info."""
+    def test_default_worker_factory_forwards_resolved_and_binding(self):
+        """Default factory forwards the resolved model and its local binding."""
         from backends.worker_pool import WorkerPool
 
-        model_info = Mock()
+        resolved = Mock()
+        binding = Mock()
 
         with patch("backends.worker_factory.create_cuda_worker") as mock_create:
-            WorkerPool._default_worker_factory(
-                worker_id=0,
-                model_path="/models/checkpoints/test.safetensors",
-                model_info=model_info,
-            )
+            WorkerPool._default_worker_factory(0, resolved, binding)
 
-        mock_create.assert_called_once_with(
-            0,
-            "/models/checkpoints/test.safetensors",
-            model_info=model_info,
-        )
+        mock_create.assert_called_once_with(0, resolved, binding)
 
 
 class TestShutdown:
@@ -1193,7 +1225,7 @@ class TestConcurrency:
         results = []
 
         # Submit generation job
-        job1 = GenerationJob(req=Mock())
+        job1 = _gen_job(worker_pool, req=Mock())
         fut1 = worker_pool.submit_job(job1)
 
         # Switch mode
@@ -1225,14 +1257,14 @@ class TestOomRecovery:
         )
 
         try:
-            fut1 = pool.submit_job(GenerationJob(req=Mock()))
+            fut1 = pool.submit_job(_gen_job(pool, req=Mock()))
             with pytest.raises(fake_oom):
                 fut1.result(timeout=10.0)
 
             assert pool._worker is None
             assert pool._current_mode == "sdxl-general"
 
-            fut2 = pool.submit_job(GenerationJob(req=Mock()))
+            fut2 = pool.submit_job(_gen_job(pool, req=Mock()))
             assert fut2.result(timeout=10.0) == "recovered"
             assert worker_factory.call_count == 2
             assert pool._worker is second_worker
@@ -1285,3 +1317,109 @@ class TestModeDefaults:
 
         assert sdxl_mode.default_size != sd15_mode.default_size
         assert sdxl_mode.default_steps != sd15_mode.default_steps
+
+
+def _gen_job(pool, req=None, **kw):
+    """Build a GenerationJob stamped with the pool's current resolution epoch."""
+    kw.setdefault("resolution_epoch", pool.current_resolution_epoch())
+    return GenerationJob(req=req if req is not None else Mock(), **kw)
+
+
+class TestActiveModelSnapshot:
+    """Atomic snapshot publication, epoch discipline, and the stale-job barrier."""
+
+    def test_successful_load_publishes_snapshot_atomically(self, worker_pool):
+        snap = worker_pool.get_active_model_snapshot()
+        assert snap is not None
+        assert snap.mode_name == "sdxl-general"
+        assert snap.resolved.profile.family_id == "sdxl"
+        assert snap.binding.model_path == "/models/sdxl.safetensors"
+        assert snap.resolution_epoch >= 1
+        assert worker_pool.current_resolution_epoch() == snap.resolution_epoch
+        assert worker_pool._worker is not None
+
+    def test_snapshot_mode_is_isolated_from_source(self, worker_pool, mock_mode_config):
+        snap = worker_pool.get_active_model_snapshot()
+        # The published mode is a deep copy: mutating the source cannot reach it.
+        assert snap.mode is not mock_mode_config.get_mode("sdxl-general")
+
+    def test_failed_load_leaves_no_snapshot_and_no_worker(
+        self, mock_mode_config, mock_registry
+    ):
+        from backends.worker_pool import reset_worker_pool
+
+        reset_worker_pool()
+        failing_factory = Mock(side_effect=RuntimeError("worker boom"))
+        with patch("backends.worker_pool.torch.cuda.is_available", return_value=True), \
+             patch("backends.worker_pool.torch.cuda.memory_allocated", return_value=0), \
+             patch("backends.worker_pool.torch.cuda.memory_reserved", return_value=0), \
+             patch("backends.worker_pool.torch.cuda.empty_cache"):
+            pool = WorkerPool(
+                queue_max=10,
+                worker_factory=failing_factory,
+                mode_config=mock_mode_config,
+                registry=mock_registry,
+            )
+        assert pool.get_active_model_snapshot() is None
+        assert pool._worker is None
+        pool.shutdown()
+        reset_worker_pool()
+
+    def test_idle_eviction_retains_snapshot_and_epoch(self, worker_pool):
+        before = worker_pool.get_active_model_snapshot()
+        worker_pool._last_activity = time.monotonic() - 10_000  # force idle
+        worker_pool._evict_if_idle()
+        assert worker_pool._worker is None
+        after = worker_pool.get_active_model_snapshot()
+        assert after is before
+        assert after.resolution_epoch == before.resolution_epoch
+
+    def test_demand_reload_reuses_resolved_without_redetection(self, worker_pool):
+        epoch = worker_pool.current_resolution_epoch()
+        worker_pool._last_activity = time.monotonic() - 10_000
+        worker_pool._evict_if_idle()
+        assert worker_pool._worker is None
+
+        # If demand reload re-detected, this patched resolve_model would explode.
+        with patch("backends.worker_pool.resolve_model",
+                   side_effect=AssertionError("demand reload re-detected")):
+            fut = worker_pool.submit_job(_gen_job(worker_pool, resolution_epoch=epoch))
+            assert fut.result(timeout=5) == "test_result"
+
+        assert worker_pool._worker is not None
+        assert worker_pool.current_resolution_epoch() == epoch  # retained, not bumped
+
+    def test_reresolve_installs_new_epoch(self, worker_pool):
+        e1 = worker_pool.current_resolution_epoch()
+        worker_pool._load_mode("sd15-fast")
+        e2 = worker_pool.current_resolution_epoch()
+        assert e2 == e1 + 1
+        assert worker_pool.get_active_model_snapshot().mode_name == "sd15-fast"
+
+    def test_explicit_unload_fully_clears_authority(self, worker_pool):
+        # /models/unload must be a FULL unload: generation fails until a new mode
+        # is loaded, never a silent demand-reload from a retained snapshot.
+        worker_pool.unload_current_model()
+
+        assert worker_pool.get_active_model_snapshot() is None
+        assert worker_pool.get_current_mode() is None
+        assert worker_pool.is_model_loaded() is False
+
+        fut = worker_pool.submit_job(_gen_job(worker_pool, req=Mock()))
+        with pytest.raises(RuntimeError, match="No worker available"):
+            fut.result(timeout=5)
+
+    def test_stale_generation_job_raises_before_run_job(self, worker_pool):
+        from backends.worker_pool import StaleResolutionError
+
+        old_epoch = worker_pool.current_resolution_epoch()
+        worker = worker_pool._worker
+        worker.run_job.reset_mock()
+
+        worker_pool._load_mode("sd15-fast")  # epoch advances
+
+        stale = _gen_job(worker_pool, resolution_epoch=old_epoch)
+        fut = worker_pool.submit_job(stale)
+        with pytest.raises(StaleResolutionError):
+            fut.result(timeout=5)
+        worker.run_job.assert_not_called()

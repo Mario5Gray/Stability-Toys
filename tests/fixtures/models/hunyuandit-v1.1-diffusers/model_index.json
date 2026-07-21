@@ -1,0 +1,15 @@
+{
+  "_class_name": "HunyuanDiTPipeline",
+  "text_encoder": [
+    "transformers",
+    "BertModel"
+  ],
+  "text_encoder_2": [
+    "transformers",
+    "T5EncoderModel"
+  ],
+  "transformer": [
+    "diffusers",
+    "HunyuanDiT2DModel"
+  ]
+}

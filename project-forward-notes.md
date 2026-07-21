@@ -7,6 +7,9 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ## Active work
 
+HunyuanDiT family profile is in final review under `STABL-ichgkgno`; the live
+CUDA acceptance is green and Task 10 closeout is complete.
+
 Prompt-conditioning closeout is in flight under `STABL-hvalobvn`; implementation
 children through CUDA wiring are complete, with docs/container/live verification
 remaining in `STABL-dxxgoevd`.
@@ -14,6 +17,50 @@ remaining in `STABL-dxxgoevd`.
 ---
 
 ## Recently landed
+
+### HunyuanDiT family profile — Canny-first, live-verified
+
+**FP:** STABL-ichgkgno | **Spec:** `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md`
+
+Family dispatch is now a neutral registry (`FamilyProfile` + exact-one
+`resolve_family`) resolved before mode policy, with CUDA workers selected from
+one family-by-platform binding table by lazy dotted reference. HunyuanDiT runs
+txt2img with zero or one Canny ControlNet through the production `WorkerPool`:
+`(supports_img2img=False, supports_controlnet=True, combined=False)`, native
+BERT+mT5 conditioning, `control_image`, `use_resolution_binning=True`, native
+DDPMScheduler. Live acceptance at 1024x1024 peaks at 18.80 GiB — 2.57 GiB under
+the spike observation, 5.2 GiB under the 24 GiB operator floor.
+
+Three family-specific traps worth carrying forward to the next family:
+
+- **Attention processor swaps are not universally safe.** `HunyuanDiT2DModel`
+  passes rotary positional embeddings through `cross_attention_kwargs`, which
+  `XFormersAttnProcessor` and `SlicedAttnProcessor` warn about and drop, so the
+  transformer denoises without positional information and returns noise.
+  `CudaWorkerBase.supports_attention_processor_swap` gates both; it costs ~10%
+  per iteration and, measurably, no VRAM at all.
+- **Shared ControlNet kwargs are not universally accepted.**
+  `HunyuanDiTControlNetPipeline.__call__` takes `controlnet_conditioning_scale`
+  but has no `control_guidance_start`/`end`, so the SD/SDXL-shaped kwargs are
+  filtered per family.
+- **Control-map fixtures are family-sensitive.** A border-to-border edge map
+  drives this Canny checkpoint into noise while an inset one is fine.
+  `tests/hunyuan_control_map.py` is the single fixture shared by the acceptance
+  and `scripts/hunyuan_cn_probe.py` — they previously held separate maps, and
+  the probe validating its own map while the acceptance ran a different one cost
+  a long investigation into worker code that was correct throughout.
+
+Diagnostics: `HUNYUAN_DEBUG_DUMP=1` dumps the exact control image, call kwargs,
+conditioning keys, and pipe state per job under `HUNYUAN_DEBUG_ROOT`, read-only
+and inert when unset. `scripts/hunyuan_cn_probe.py` runs the family with no app
+plumbing and replays a dumped control image via `CONTROL_IMAGE`. Together they
+split an output-quality failure into image-bytes versus pipe-state causes in one
+run — worth reaching for before reading worker code.
+
+Depth and Pose are registered and user-reachable but only Canny is live-verified.
+Hunyuan img2img, combined img2img+ControlNet, materialized Hunyuan conditioning,
+and `/models/status` family exposure remain deferred.
 
 ### Pluggable prompt conditioning + Compel long prompts — landing
 
@@ -58,11 +105,17 @@ backends. Design decisions: `denoise_strength` × `start/end_percent` pass throu
 without renormalization (low strength + narrow window can yield no visible
 conditioning — documented caveat, not a bug); combined results stay uncached.
 HTTP `/generate` intentionally cannot express img2img (no `init_image_ref`) —
-adding it would be a separate API decision. Known pre-existing issue surfaced
-during this track (reproduced on unmodified main, candidate FP issue): running
-`test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py` in one
-pytest session fails 3-4 tests from cross-file `sys.modules`/`lru_cache`
-diffusers-stub pollution; each file is green in isolation.
+adding it would be a separate API decision. This track also recorded a
+cross-file `sys.modules`/`lru_cache` diffusers-stub pollution failure between
+`test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py`; that
+no longer reproduces (2026-07-20: 34 passed in one session, and both files are
+clean in the full suite), most likely resolved when `STABL-ichgkgno` removed the
+family-string branching those stubs interacted with. No FP issue was filed.
+
+Two related test-hygiene problems that *do* still reproduce are tracked
+separately: `STABL-bclnlnzd` (import-order-dependent torch stubbing in
+`test_model_registry.py`) and `STABL-zisphapv` (Miniforge base violating the
+`transformers<5.0` pin, which aborts full pytest collection).
 
 ### AssetStore bucketed interface — merged (PR #3)
 

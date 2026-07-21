@@ -176,23 +176,26 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     if job_type == "generate" and getattr(state, "use_mode_system", False):
         from backends.worker_pool import GenerationJob
 
+        # One snapshot read: mode defaults, family-cell admission, ControlNet
+        # compatibility, and job epoch all originate here. No get_current_mode /
+        # get_mode_config / detect_model after this capture. Captured inside the
+        # try so a snapshot/admission failure returns job:error after ack rather
+        # than crashing the WS loop.
+        snapshot = None
         try:
-            current_mode = state.worker_pool.get_current_mode()
-            supports_controlnet = (
-                current_mode is not None
-                and _supports_controlnet(getattr(state, "backend_provider", None))
-            )
+            snapshot = state.worker_pool.get_active_model_snapshot()
             req = _build_generate_request(params)
-            from server.controlnet_constraints import reject_combined_img2img_controlnet
-            reject_combined_img2img_controlnet(
-                has_init_image=bool(params.get("init_image_ref")),
-                controlnets=req.controlnets,
-                supports_combined=_supports_img2img_and_controlnet(
-                    getattr(state, "backend_provider", None)
-                ),
-            )
-            if current_mode:
-                mode = get_mode_config().get_mode(current_mode)
+            has_init_image = bool(params.get("init_image_ref"))
+            if snapshot is not None:
+                mode = snapshot.mode
+                # Family-cell operation matrix, before any ControlNet preprocessing.
+                from server.controlnet_execution import admit_generation_operation
+                admit_generation_operation(
+                    req,
+                    snapshot=snapshot,
+                    provider=getattr(state, "backend_provider", None),
+                    has_init_image=has_init_image,
+                )
                 finalize_mode_generate_request(
                     req,
                     mode,
@@ -206,24 +209,20 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 from server.asset_store import get_store
                 pre_submit_artifacts = preprocess_controlnet_attachments(req, get_store())
                 req._controlnet_artifacts = pre_submit_artifacts
-            from server.controlnet_constraints import ensure_controlnet_dispatch_supported
-            ensure_controlnet_dispatch_supported(req, supports_controlnet=supports_controlnet)
-            if current_mode and getattr(req, "controlnets", None):
-                from server.controlnet_execution import (
-                    active_model_family_from_variant,
-                    resolve_controlnet_bindings,
-                )
-                from server.asset_store import get_store
-                from utils.model_detector import detect_model
-                if mode.model_path is None:
-                    raise RuntimeError(f"Mode '{current_mode}' does not have a resolved model_path")
-                family = active_model_family_from_variant(detect_model(mode.model_path).variant.value)
-                controlnet_bindings = resolve_controlnet_bindings(
-                    req,
-                    mode=mode,
-                    store=get_store(),
-                    active_family=family,
-                )
+                if getattr(req, "controlnets", None):
+                    from server.controlnet_execution import resolve_controlnet_bindings
+                    controlnet_bindings = resolve_controlnet_bindings(
+                        req,
+                        mode=mode,
+                        store=get_store(),
+                        active_family=snapshot.resolved.profile.family_id,
+                    )
+            elif getattr(req, "controlnets", None):
+                # No active snapshot (no model loaded / non-CUDA family): there is
+                # no family binding to admit ControlNet — stub it exactly as the
+                # non-mode-system _run_generate path does.
+                from server.controlnet_constraints import ensure_controlnet_dispatch_supported
+                ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
         except Exception as e:
             pre_submit_job_error = str(e)
         init_image_bytes = None
@@ -236,7 +235,16 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 return
 
         if pre_submit_job_error is None:
-            job = GenerationJob(req=req, init_image=init_image_bytes, controlnet_bindings=controlnet_bindings)
+            job = GenerationJob(
+                req=req,
+                init_image=init_image_bytes,
+                controlnet_bindings=controlnet_bindings,
+                resolution_epoch=(
+                    snapshot.resolution_epoch
+                    if snapshot is not None
+                    else state.worker_pool.current_resolution_epoch()
+                ),
+            )
             try:
                 fut = state.worker_pool.submit_job(job)
             except queue.Full:
@@ -499,7 +507,14 @@ async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, 
         await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": "Cancelled by backend"})
     except Exception as e:
         logger.error("Generate job %s failed: %s", job_id, e, exc_info=True)
-        await hub.send(client_id, {"type": "job:error", "jobId": job_id, "error": str(e)})
+        # Admission already passed and preprocessing may have emitted control
+        # maps; surface them on a post-admission dispatch/runtime failure (matches
+        # the HTTP contract). Matrix rejections happen earlier, before preprocess.
+        error_frame: dict = {"type": "job:error", "jobId": job_id, "error": str(e)}
+        artifacts = getattr(req, "_controlnet_artifacts", None)
+        if artifacts:
+            error_frame["controlnet_artifacts"] = [a.model_dump() for a in artifacts]
+        await hub.send(client_id, error_frame)
 
 
 def _resolve_backend_future_result(fut, timeout: float):
@@ -605,7 +620,11 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
         if getattr(state, "use_mode_system", False):
             from backends.worker_pool import GenerationJob
             pool = state.worker_pool
-            job = GenerationJob(req=req, init_image=init_image_bytes)
+            job = GenerationJob(
+                req=req,
+                init_image=init_image_bytes,
+                resolution_epoch=pool.current_resolution_epoch(),
+            )
             try:
                 fut = pool.submit_job(job)
             except queue.Full:

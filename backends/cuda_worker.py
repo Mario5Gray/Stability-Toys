@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import import_module
+from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -22,6 +23,12 @@ from backends.conditioning.artifacts import (
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
+from backends.family_profiles import (
+    FamilyProfile,
+    HUNYUANDIT_PROFILE,
+    SD15_PROFILE,
+    SDXL_PROFILE,
+)
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 
@@ -64,8 +71,177 @@ def _sdxl_img2img_pipeline_cls() -> Any:
     )
 
 
+# --- HunyuanDiT family (lazy) ------------------------------------------------
+# These resolvers keep the Hunyuan pipeline/tokenizer stack out of module import:
+# they only touch diffusers/transformers when the Hunyuan worker is constructed,
+# so selecting an SD family or booting a non-CUDA provider never imports them.
+
+
+def _hunyuandit_pipeline_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiTPipeline")
+
+
+def _hunyuandit_controlnet_pipeline_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiTControlNetPipeline")
+
+
+def _hunyuandit_controlnet_model_cls() -> Any:
+    return _import_attr("diffusers", "HunyuanDiT2DControlNetModel")
+
+
+def _t5_tokenizer_cls() -> Any:
+    return _import_attr("transformers", "T5Tokenizer")
+
+
+class HunyuanDiTDependencyError(RuntimeError):
+    """The HunyuanDiT-family runtime stack is missing or non-functional.
+
+    Raised at worker construction — before any model download — when a required
+    Diffusers pipeline class is absent or the T5 tokenizer loader is a
+    SentencePiece-less placeholder.
+    """
+
+
+def _hunyuandit_dependency_versions() -> dict[str, str]:
+    """Installed versions of the Hunyuan runtime stack, read from package
+    metadata so this works even when the imports themselves are failing."""
+    from importlib import metadata
+
+    def _v(package: str) -> str:
+        try:
+            return metadata.version(package)
+        except Exception:
+            return "not installed"
+
+    return {
+        "diffusers": _v("diffusers"),
+        "transformers": _v("transformers"),
+        "sentencepiece": _v("sentencepiece"),
+    }
+
+
+def _hunyuandit_dependency_preflight() -> None:
+    """Validate the family-specific Diffusers classes and a callable
+    ``T5Tokenizer.from_pretrained`` before any model download.
+
+    Failure raises :class:`HunyuanDiTDependencyError` carrying the installed
+    Diffusers, Transformers, and SentencePiece versions without masking the
+    original missing/placeholder failure.
+    """
+    try:
+        _hunyuandit_pipeline_cls()
+        _hunyuandit_controlnet_pipeline_cls()
+        _hunyuandit_controlnet_model_cls()
+        tokenizer_cls = _t5_tokenizer_cls()
+        loader = getattr(tokenizer_cls, "from_pretrained", None)
+        if not callable(loader):
+            raise ImportError(
+                "T5Tokenizer.from_pretrained is not callable; install the "
+                "SentencePiece dependency"
+            )
+    except HunyuanDiTDependencyError:
+        raise
+    except Exception as exc:
+        versions = _hunyuandit_dependency_versions()
+        raise HunyuanDiTDependencyError(
+            "HunyuanDiT runtime dependencies are unavailable "
+            f"(diffusers={versions['diffusers']}, "
+            f"transformers={versions['transformers']}, "
+            f"sentencepiece={versions['sentencepiece']}): {exc}"
+        ) from exc
+
+
 def _bool_env(name: str, default: str = "0") -> bool:
     return os.environ.get(name, default).lower() in ("1", "true", "yes", "on")
+
+
+# ---------------------------------------------------------------------------
+# HunyuanDiT diagnostic dump (STABL-ichgkgno)
+#
+# Strictly read-only: enabled by HUNYUAN_DEBUG_DUMP=1, it records the exact
+# control image, call kwargs, and pipe state so a live worker job can be
+# replayed through the standalone probe and compared field by field. Nothing
+# here may mutate the pipeline, the kwargs, or the scheduler, and every writer
+# swallows its own exceptions — a diagnostic must never be able to fail a job.
+# ---------------------------------------------------------------------------
+
+
+def _hunyuan_debug_enabled() -> bool:
+    return _bool_env("HUNYUAN_DEBUG_DUMP", "0")
+
+
+def _hunyuan_debug_dir(job_id: str) -> Path | None:
+    """Per-job dump directory, or None when diagnostics are off.
+
+    Creates nothing unless explicitly enabled.
+    """
+    if not _hunyuan_debug_enabled():
+        return None
+    try:
+        root = Path(os.environ.get("HUNYUAN_DEBUG_ROOT", "/app/logs/hunyuan_debug"))
+        target = root / str(job_id)
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump dir failed: {e!r}")
+        return None
+
+
+def _hunyuan_pipe_state(pipe: Any, controlnet: Any = None) -> dict[str, Any]:
+    """Read-only snapshot of the pipeline state that could affect output.
+
+    Each field is captured independently so one missing attribute cannot
+    suppress the rest of the report.
+    """
+    state: dict[str, Any] = {}
+
+    def _capture(key: str, fn) -> None:
+        try:
+            state[key] = fn()
+        except Exception as e:
+            state[key] = f"<unavailable: {e!r}>"
+
+    def _param_dtype(module):
+        return str(next(module.parameters()).dtype)
+
+    def _param_device(module):
+        return str(next(module.parameters()).device)
+
+    _capture("scheduler_class", lambda: type(pipe.scheduler).__name__)
+    _capture("scheduler_config", lambda: dict(pipe.scheduler.config))
+    _capture("vae_tiling", lambda: getattr(pipe.vae, "use_tiling", None))
+    _capture("vae_slicing", lambda: getattr(pipe.vae, "use_slicing", None))
+    _capture("transformer_dtype", lambda: _param_dtype(pipe.transformer))
+    _capture("transformer_device", lambda: _param_device(pipe.transformer))
+    _capture("vae_dtype", lambda: _param_dtype(pipe.vae))
+    _capture("vae_device", lambda: _param_device(pipe.vae))
+    _capture(
+        "attention_processor_classes",
+        lambda: sorted({type(p).__name__ for p in pipe.transformer.attn_processors.values()}),
+    )
+    if controlnet is not None:
+        _capture("controlnet_class", lambda: type(controlnet).__name__)
+        _capture("controlnet_dtype", lambda: _param_dtype(controlnet))
+        _capture("controlnet_device", lambda: _param_device(controlnet))
+    return state
+
+
+def _hunyuan_debug_write_json(target: Path | None, name: str, payload: Any) -> None:
+    if target is None:
+        return
+    try:
+        (target / name).write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
+
+
+def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> None:
+    if target is None:
+        return
+    try:
+        image.save(target / name, format="PNG")
+    except Exception as e:
+        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
 
 
 def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:
@@ -147,15 +323,29 @@ class CudaWorkerBase:
 
     pipe: Any  # set by subclass __init__ after pipeline load
 
-    # Name of the pipeline kwarg that carries the ControlNet conditioning map.
-    # StableDiffusion(XL)ControlNetPipeline takes it as `image`; a transformer
-    # family like HunyuanDiTControlNetPipeline overrides this to `control_image`.
-    _CONTROL_IMAGE_KWARG: str = "image"
-    _conditioning_model_family: str = "sd15"
+    # Pure family data driving conditioning, quantization, and control-map
+    # variance. The class default is the canonical SD15 registry object; the SDXL
+    # worker overrides it, and the factory passes the resolved profile explicitly.
+    family_profile: FamilyProfile = SD15_PROFILE
 
-    def __init__(self, worker_id: int, model_info: Any | None = None) -> None:
+    # Whether this family's denoiser tolerates having its attention processors
+    # replaced. UNet families (SD1.5/SDXL) do. HunyuanDiT does not: it passes
+    # rotary positional embeddings through cross_attention_kwargs, which the
+    # swapped-in xformers/sliced processors silently discard, producing noise.
+    supports_attention_processor_swap: bool = True
+
+    def __init__(
+        self,
+        worker_id: int,
+        model_info: Any | None = None,
+        family_profile: FamilyProfile | None = None,
+    ) -> None:
         self.worker_id = worker_id
         self.model_info = model_info
+        # Assign the profile before native-conditioning defaults read it. A None
+        # argument falls back to the class default (canonical SD15/SDXL profile).
+        if family_profile is not None:
+            self.family_profile = family_profile
         self._style_loaded: dict[str, bool] = {}
         self._style_api: str = "unknown"
         self._img2img_pipe = None
@@ -167,11 +357,11 @@ class CudaWorkerBase:
     def _set_native_conditioning_defaults(self) -> None:
         context = ModelContext(
             descriptor=ModelContextDescriptor(
-                model_family=self._conditioning_model_family,
+                model_family=self.family_profile.family_id,
                 tokenizer_max_length=0,
                 encoder_identities=(),
                 hidden_dimensions=(),
-                pooled_required=self._conditioning_model_family == "sdxl",
+                pooled_required=self.family_profile.pooled_required,
                 encode_dtype_name=_dtype_name(getattr(self, "dtype", "unknown")),
                 device=str(getattr(self, "device", "")),
             ),
@@ -270,22 +460,29 @@ class CudaWorkerBase:
             freeze = _import_attr("optimum.quanto", "freeze")
             quantize = _import_attr("optimum.quanto", "quantize")
             qfloat8 = _import_attr("optimum.quanto", "qfloat8")
-            quantize(pipe.unet, weights=qfloat8)
-            freeze(pipe.unet)
-            if hasattr(pipe, "text_encoder_2"):  # SDXL only (~1.4 GB)
-                quantize(pipe.text_encoder_2, weights=qfloat8)
-                freeze(pipe.text_encoder_2)
+            for target in self._quantization_targets(pipe):
+                quantize(target, weights=qfloat8)
+                freeze(target)
             print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
-        if self._attention_slicing:
-            pipe.enable_attention_slicing(1)
-        if self._enable_xformers:
-            try:
-                pipe.enable_xformers_memory_efficient_attention()
-                print(f"[cuda] worker {self.worker_id}: xformers enabled")
-            except Exception as e:
-                print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+        if not self.supports_attention_processor_swap:
+            # Correctness beats the memory saving: a replaced processor drops
+            # this family's positional-embedding kwarg without erroring.
+            if self._attention_slicing or self._enable_xformers:
+                print(
+                    f"[cuda] worker {self.worker_id}: attention processor swaps skipped "
+                    f"(family {self.family_profile.family_id} requires its native processor)"
+                )
+        else:
+            if self._attention_slicing:
+                pipe.enable_attention_slicing(1)
+            if self._enable_xformers:
+                try:
+                    pipe.enable_xformers_memory_efficient_attention()
+                    print(f"[cuda] worker {self.worker_id}: xformers enabled")
+                except Exception as e:
+                    print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
         gpu_id = self._device_index()
         if self._offload == "sequential":
             pipe.enable_sequential_cpu_offload(gpu_id=gpu_id)
@@ -294,6 +491,16 @@ class CudaWorkerBase:
         else:
             pipe = pipe.to(self.device)
         return pipe
+
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        """Modules to fp8-quantize at runtime. SD quantizes only the UNet; the
+        SDXL worker also targets the second text encoder (~1.4 GB)."""
+        return (pipe.unet,)
+
+    def _controlnet_model_cls(self) -> type[Any]:
+        """The ControlNet model class for this family's control-map loading.
+        Generic SD/SDXL workers use Diffusers' ControlNetModel."""
+        return _import_attr("diffusers", "ControlNetModel")
 
     def _device_index(self) -> int:
         """Parse the integer device index from self.device (e.g. 'cuda:1' → 1)."""
@@ -313,8 +520,7 @@ class CudaWorkerBase:
         return self.dtype
 
     def _conditioning_components(self, pipe: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
-        family = self._conditioning_model_family
-        if family == "sdxl":
+        if len(self.family_profile.encoder_roles) > 1:
             tokenizers = (getattr(pipe, "tokenizer", None), getattr(pipe, "tokenizer_2", None))
             encoders = (getattr(pipe, "text_encoder", None), getattr(pipe, "text_encoder_2", None))
         else:
@@ -349,20 +555,21 @@ class CudaWorkerBase:
         return int(hidden_size)
 
     def _pooled_projection_dimension(self, pipe: Any) -> int | None:
-        if self._conditioning_model_family != "sdxl":
+        role = self.family_profile.pooled_projection_role
+        if not self.family_profile.pooled_required or role is None:
             return None
-        config = getattr(getattr(pipe, "text_encoder_2", None), "config", None)
+        config = getattr(getattr(pipe, role, None), "config", None)
         projection_dim = getattr(config, "projection_dim", None)
         if projection_dim is None:
             projection_dim = getattr(config, "hidden_size", None)
         if projection_dim is None:
-            raise ValueError("conditioning text_encoder_2 missing projection_dim")
+            raise ValueError(f"conditioning {role} missing projection_dim")
         return int(projection_dim)
 
     def _describe_conditioning_consumer(self, pipe: Any) -> _ConditioningConsumerDescription:
-        family = self._conditioning_model_family
+        family = self.family_profile.family_id
         _tokenizers, encoders = self._conditioning_components(pipe)
-        roles = ("text_encoder", "text_encoder_2") if family == "sdxl" else ("text_encoder",)
+        roles = self.family_profile.encoder_roles
         hidden_dimensions = tuple(
             self._encoder_hidden_size(role, encoder)
             for role, encoder in zip(roles, encoders, strict=True)
@@ -374,7 +581,7 @@ class CudaWorkerBase:
                 for role, encoder in zip(roles, encoders, strict=True)
             ),
             hidden_dimensions=hidden_dimensions,
-            pooled_required=family == "sdxl",
+            pooled_required=self.family_profile.pooled_required,
             dtype_name=_dtype_name(self._pipeline_encode_dtype(pipe)),
         )
         return _ConditioningConsumerDescription(
@@ -385,7 +592,7 @@ class CudaWorkerBase:
 
     def _build_conditioning_context(self) -> ModelContext:
         pipe = self.pipe
-        family = self._conditioning_model_family
+        family = self.family_profile.family_id
         tokenizers, encoders = self._conditioning_components(pipe)
         consumer = self._describe_conditioning_consumer(pipe)
         max_length = getattr(tokenizers[0], "model_max_length", None)
@@ -421,14 +628,14 @@ class CudaWorkerBase:
             raise ValueError("conditioning compatibility does not match live pipeline")
 
         required = (
-            {"prompt_embeds", "negative_prompt_embeds"}
-            if live.model_family == "sd15"
-            else {
+            {
                 "prompt_embeds",
                 "negative_prompt_embeds",
                 "pooled_prompt_embeds",
                 "negative_pooled_prompt_embeds",
             }
+            if self.family_profile.pooled_required
+            else {"prompt_embeds", "negative_prompt_embeds"}
         )
         if set(artifact.slots) != required:
             raise ValueError("conditioning slots do not match live pipeline")
@@ -452,14 +659,14 @@ class CudaWorkerBase:
             raise ValueError("conditioning prompt hidden width does not match negative hidden width")
 
         expected_hidden = (
-            live.compatibility.hidden_dimensions[0]
-            if live.model_family == "sd15"
-            else sum(live.compatibility.hidden_dimensions)
+            sum(live.compatibility.hidden_dimensions)
+            if self.family_profile.pooled_required
+            else live.compatibility.hidden_dimensions[0]
         )
         if prompt_embeds.shape[2] != expected_hidden:
             raise ValueError("conditioning hidden width does not match live pipeline")
 
-        if live.model_family == "sdxl":
+        if self.family_profile.pooled_required:
             pooled_prompt = slots["pooled_prompt_embeds"]
             negative_pooled = slots["negative_pooled_prompt_embeds"]
             if len(pooled_prompt.shape) != 2 or len(negative_pooled.shape) != 2:
@@ -632,7 +839,7 @@ class CudaWorkerBase:
         from backends.controlnet_cache import get_controlnet_cache
 
         cache = get_controlnet_cache()
-        controlnet_model = _import_attr("diffusers", "ControlNetModel")
+        controlnet_model = self._controlnet_model_cls()
         return cache.acquire(
             binding.model_id,
             binding.model_path,
@@ -659,16 +866,16 @@ class CudaWorkerBase:
         """Assemble the ControlNet pipeline kwargs from resolved bindings.
 
         Shared across families: the only per-family variance is the control-map
-        kwarg name (self._CONTROL_IMAGE_KWARG, or the `image_kwarg` override below).
-        Each value is single-or-list to match diffusers' single-vs-multi-ControlNet
-        signature.
+        kwarg name (self.family_profile.control_image_kwarg, or the `image_kwarg`
+        override below). Each value is single-or-list to match diffusers'
+        single-vs-multi-ControlNet signature.
 
-        `image_kwarg` overrides `self._CONTROL_IMAGE_KWARG` for the control-map dict
-        key. The combined img2img+ControlNet path passes `image_kwarg="control_image"`
-        because the combined pipeline's `image=` kwarg is the init image, not the
-        control map — reusing `_CONTROL_IMAGE_KWARG` unchanged there would silently
-        overwrite the init image with the control map (or vice versa, depending on
-        kwarg merge order).
+        `image_kwarg` overrides `self.family_profile.control_image_kwarg` for the
+        control-map dict key. The combined img2img+ControlNet path passes
+        `image_kwarg="control_image"` because the combined pipeline's `image=` kwarg
+        is the init image, not the control map — reusing the profile kwarg unchanged
+        there would silently overwrite the init image with the control map (or vice
+        versa, depending on kwarg merge order).
 
         Appends each loaded model_id to the caller's `loaded_ids` *as it pins*,
         so a mid-loop load failure still leaves the already-pinned models visible
@@ -686,7 +893,7 @@ class CudaWorkerBase:
             scales.append(binding.strength)
             starts.append(binding.start_percent)
             ends.append(binding.end_percent)
-        key = image_kwarg if image_kwarg is not None else self._CONTROL_IMAGE_KWARG
+        key = image_kwarg if image_kwarg is not None else self.family_profile.control_image_kwarg
         return {
             "controlnet": controlnets[0] if len(controlnets) == 1 else controlnets,
             key: images[0] if len(images) == 1 else images,
@@ -710,8 +917,14 @@ class DiffusersCudaWorker(CudaWorkerBase):
       CUDA_ENABLE_XFORMERS=1     (default 0)
       CUDA_ATTENTION_SLICING=0/1 (default 0)
     """
-    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id, model_info=model_info)
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
         print(f"[cuda] ckpt_path={ckpt_path}")
@@ -1059,10 +1272,20 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
       - Latent space: 128x128 (vs 64x64 for SD1.5)
       - Cross-attention dim: 2048 (vs 768 for SD1.5)
     """
-    _conditioning_model_family: str = "sdxl"
+    family_profile: FamilyProfile = SDXL_PROFILE
 
-    def __init__(self, worker_id: int, model_path: str, model_info: Optional[Any] = None):
-        super().__init__(worker_id, model_info=model_info)
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        # SDXL fp8 also quantizes the second (OpenCLIP-G) text encoder (~1.4 GB).
+        return (pipe.unet, pipe.text_encoder_2)
+
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
         print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
@@ -1413,3 +1636,239 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         del lat, decoded
         torch.cuda.empty_cache()
         return png_bytes, seed, lat_8.tobytes(order="C")
+
+
+class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
+    """CUDA Diffusers worker for the HunyuanDiT DiT-transformer family.
+
+    Native-conditioning only: BERT + mT5 tokenization/embedding stay inside
+    Diffusers (no SDXL-style pooled materialization). First delivery supports
+    txt2img with zero or one Canny ControlNet binding; img2img and combined
+    img2img+ControlNet are unsupported.
+
+    Unlike SD/SDXL this worker does not inherit the SDXL worker — the two only
+    share a two-encoder count; their denoisers, prompt contracts, pooled
+    behavior, schedulers, and img2img capabilities all differ.
+    """
+
+    family_profile: FamilyProfile = HUNYUANDIT_PROFILE
+
+    # HunyuanDiT2DModel feeds rotary positional embeddings to its attention
+    # processor via cross_attention_kwargs["image_rotary_emb"]. Neither
+    # XFormersAttnProcessor nor SlicedAttnProcessor accepts that kwarg; both
+    # warn and ignore it, so the transformer denoises without positional
+    # information and returns noise. Keep the native processor.
+    supports_attention_processor_swap: bool = False
+
+    def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
+        # Quantize only the DiT transformer. The mT5 encoder is intentionally
+        # excluded in the first delivery (not validated by the spike).
+        return (pipe.transformer,)
+
+    def _controlnet_model_cls(self) -> type[Any]:
+        return _hunyuandit_controlnet_model_cls()
+
+    def __init__(
+        self,
+        worker_id: int,
+        model_path: str,
+        model_info: Optional[Any] = None,
+        family_profile: FamilyProfile | None = None,
+    ):
+        super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
+
+        # Family-specific dependency preflight, before any model download.
+        _hunyuandit_dependency_preflight()
+
+        ckpt_path = model_path
+        print(f"[hunyuandit-cuda] ckpt_path={ckpt_path}")
+
+        format_hint = self._loader_format
+        is_diffusers_dir = format_hint == "diffusers_dir" or (
+            format_hint == "unknown"
+            and os.path.isdir(ckpt_path)
+            and os.path.exists(os.path.join(ckpt_path, "model_index.json"))
+        )
+        if not is_diffusers_dir:
+            raise RuntimeError(
+                "HunyuanDiT requires a Diffusers directory (model_index.json); "
+                f"got {ckpt_path!r}"
+            )
+
+        pipe = _hunyuandit_pipeline_cls().from_pretrained(
+            ckpt_path,
+            torch_dtype=self.dtype,
+        )
+        # Keep the native scheduler (DDPMScheduler) unless mode policy selects a
+        # tested compatible scheduler at request time via _apply_request_scheduler.
+        pipe = self._setup_pipe_memory_opts(pipe)
+
+        self.pipe = pipe
+        self._capture_baseline_scheduler(self.pipe)
+        # HunyuanDiT does not load SD/SDXL style LoRAs (different denoiser + CAD).
+        self._style_api = "none"
+
+        print(
+            f"[hunyuandit-cuda] worker {self.worker_id} loaded: "
+            f"{os.path.basename(ckpt_path)} on {self.device} dtype={self.dtype_str} "
+            f"quantize={self._quantize} offload={self._offload}"
+        )
+
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        # Compose via from_pipe (shares the base components at zero extra VRAM).
+        # No torch_dtype: base and ControlNet are already loaded at self.dtype and
+        # placed before composition, so the composed pipe must not be recast.
+        return _hunyuandit_controlnet_pipeline_cls().from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+        )
+
+    def _build_controlnet_kwargs(
+        self,
+        bindings: list[Any],
+        size: tuple[int, int],
+        loaded_ids: list[str],
+        image_kwarg: str | None = None,
+    ) -> dict[str, Any]:
+        # HunyuanDiTControlNetPipeline.__call__ accepts control_image and
+        # controlnet_conditioning_scale but has no per-step guidance window
+        # (no control_guidance_start / control_guidance_end, unlike the SD/SDXL
+        # ControlNet pipelines). Emitting those keys raises TypeError at the pipe
+        # call, so drop them from the shared SD/SDXL-shaped kwargs.
+        kwargs = super()._build_controlnet_kwargs(
+            bindings, size, loaded_ids, image_kwarg=image_kwarg
+        )
+        kwargs.pop("control_guidance_start", None)
+        kwargs.pop("control_guidance_end", None)
+        return kwargs
+
+    # ---------------------------
+    # Job execution
+    # ---------------------------
+    def run_job(self, job) -> tuple[bytes, int]:
+        req = job.req
+        init_image = getattr(job, "init_image", None)
+        if init_image is not None:
+            raise RuntimeError(
+                "HunyuanDiT worker does not accept an init image; img2img is "
+                "unsupported for this family"
+            )
+
+        try:
+            w_str, h_str = str(req.size).lower().split("x")
+            width, height = int(w_str), int(h_str)
+        except Exception:
+            raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
+
+        seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(seed)
+
+        # Read-only diagnostics (HUNYUAN_DEBUG_DUMP=1). Captured around the
+        # scheduler application because that is one of the few places the app
+        # path diverges from the standalone probe.
+        # Guarded, not passed as an argument: _hunyuan_pipe_state must not run
+        # at all on the production path.
+        debug_dir = _hunyuan_debug_dir(getattr(job, "job_id", "unknown"))
+        if debug_dir is not None:
+            _hunyuan_debug_write_json(
+                debug_dir, "pipe_state_before_scheduler.json", _hunyuan_pipe_state(self.pipe)
+            )
+
+        scheduler_id = self._apply_request_scheduler(req)
+
+        if debug_dir is not None:
+            _hunyuan_debug_write_json(
+                debug_dir, "pipe_state_after_scheduler.json", _hunyuan_pipe_state(self.pipe)
+            )
+
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        loaded_ids: list[str] = []
+        controlnet_kwargs: dict[str, Any] = {}
+
+        out = None
+        conditioning_artifact = None
+        pipe_kwargs = None
+        try:
+            conditioning_artifact = self._conditioning_artifact_for_request(req)
+            if bindings:
+                # control-map key resolves to "control_image" via the family profile.
+                controlnet_kwargs = self._build_controlnet_kwargs(
+                    bindings, (width, height), loaded_ids
+                )
+            pipe_kwargs = {
+                "width": width,
+                "height": height,
+                "num_inference_steps": int(req.num_inference_steps),
+                "guidance_scale": float(req.guidance_scale),
+                "use_resolution_binning": True,
+                "generator": gen,
+                **controlnet_kwargs,
+            }
+            pipe = self.pipe
+            controlnet_obj = pipe_kwargs.pop("controlnet", None)
+            if controlnet_obj is not None:
+                pipe = self._build_controlnet_pipe(controlnet_obj)
+            conditioning_kwargs = self._accept_conditioning_artifact(
+                pipe,
+                conditioning_artifact,
+            )
+
+            if debug_dir is not None:
+                # The exact PIL object handed to diffusers, so the probe can
+                # replay these bytes unchanged.
+                _hunyuan_debug_write_image(
+                    debug_dir, "control_image.png", pipe_kwargs.get("control_image")
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "call_kwargs.json",
+                    {k: v for k, v in pipe_kwargs.items() if k != "control_image"},
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "conditioning_keys.json",
+                    {
+                        "conditioning_keys": sorted(conditioning_kwargs.keys()),
+                        "scheduler_id": scheduler_id,
+                        "seed": seed,
+                    },
+                )
+                _hunyuan_debug_write_json(
+                    debug_dir,
+                    "pipe_state_at_call.json",
+                    _hunyuan_pipe_state(pipe, controlnet=controlnet_obj),
+                )
+                print(f"[hunyuandit-cuda] debug dump written to {debug_dir}")
+
+            with torch.inference_mode():
+                out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
+
+            img: Image.Image = out.images[0]  # type: ignore[union-attr]
+            out = None
+
+            pnginfo = PngImagePlugin.PngInfo()
+            pnginfo.add_text("lcm", json.dumps({
+                "prompt": req.prompt,
+                "seed": seed,
+                "size": req.size,
+                "steps": int(req.num_inference_steps),
+                "cfg": float(req.guidance_scale),
+                "negative_prompt": getattr(req, "negative_prompt", None),
+                "scheduler_id": scheduler_id,
+            }))
+            if bindings:
+                pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", pnginfo=pnginfo)
+            return buf.getvalue(), seed
+        finally:
+            out = None
+            conditioning_artifact = None
+            pipe_kwargs = None
+            if loaded_ids:
+                from backends.controlnet_cache import get_controlnet_cache
+                cache = get_controlnet_cache()
+                for model_id in loaded_ids:
+                    cache.release(model_id)
+            torch.cuda.empty_cache()

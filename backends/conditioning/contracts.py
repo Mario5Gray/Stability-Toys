@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Protocol
 
+from ..family_profiles import validate_family_id
 from .invocation import ConditioningInvocation
 
 
@@ -12,13 +13,16 @@ class ConditioningRequest:
 
 @dataclass(frozen=True)
 class ModelContextDescriptor:
-    model_family: Literal["sd15", "sdxl"]
+    model_family: str
     tokenizer_max_length: int
     encoder_identities: tuple[str, ...]
     hidden_dimensions: tuple[int, ...]
     pooled_required: bool
     encode_dtype_name: str
     device: str
+
+    def __post_init__(self) -> None:
+        validate_family_id(self.model_family)
 
 
 class LocalEncoderBundle(Protocol):

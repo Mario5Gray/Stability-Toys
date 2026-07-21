@@ -1,14 +1,19 @@
 from dataclasses import dataclass
 from typing import Literal, Mapping, TypeAlias
 
+from ..family_profiles import validate_family_id
+
 
 @dataclass(frozen=True)
 class ConditioningCompatibility:
-    model_family: Literal["sd15", "sdxl"]
+    model_family: str
     encoder_identities: tuple[str, ...]
     hidden_dimensions: tuple[int, ...]
     pooled_required: bool
     dtype_name: str
+
+    def __post_init__(self) -> None:
+        validate_family_id(self.model_family)
 
 
 @dataclass(frozen=True)

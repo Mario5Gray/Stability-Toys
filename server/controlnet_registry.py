@@ -46,6 +46,8 @@ def default_controlnet_registry_path() -> str:
 def load_controlnet_registry(*, config_path: Optional[str] = None, validation_mode: str = "strict") -> ControlNetRegistry:
     if config_path is None:
         config_path = default_controlnet_registry_path()
+    from backends.family_profiles import validate_family_id
+
     raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
     models = raw.get("models") or {}
     specs: Dict[str, ControlNetModelSpec] = {}
@@ -56,6 +58,10 @@ def load_controlnet_registry(*, config_path: Optional[str] = None, validation_mo
             control_types=tuple(data["control_types"]),
             compatible_with=tuple(data["compatible_with"]),
         )
+        # Every compatible_with entry must name a known neutral family, so a typo
+        # fails at load rather than silently never matching at admission.
+        for family_id in spec.compatible_with:
+            validate_family_id(family_id)
         if validation_mode == "strict":
             _validate_local_path(spec)
         specs[model_id] = spec
@@ -76,7 +82,7 @@ def get_controlnet_registry() -> ControlNetRegistry:
 
 
 def validate_controlnet_mode_references(*, mode_config=None, registry: Optional[ControlNetRegistry] = None) -> None:
-    from server.controlnet_execution import active_model_family_from_variant
+    from backends.family_profiles import FamilyResolutionError, resolve_family
     from server.mode_config import get_mode_config
     from utils.model_detector import detect_model
 
@@ -94,14 +100,14 @@ def validate_controlnet_mode_references(*, mode_config=None, registry: Optional[
         if mode.model_path is None:
             raise ValueError(f"Mode '{mode.name}' does not have a resolved model_path")
 
-        variant = mode.checkpoint_variant
-        if not variant:
-            variant = detect_model(mode.model_path).variant.value
-
+        # Family is resolved from detector facts, never from checkpoint_variant
+        # (mode policy can overlay checkpoint_variant, so it is not authoritative).
         try:
-            active_family = active_model_family_from_variant(variant)
-        except ValueError as e:
-            raise ValueError(f"Mode '{mode.name}' has unsupported ControlNet model family '{variant}'") from e
+            active_family = resolve_family(detect_model(mode.model_path)).family_id
+        except FamilyResolutionError as e:
+            raise ValueError(
+                f"Mode '{mode.name}' model does not resolve to a supported ControlNet family"
+            ) from e
 
         for control_type, type_policy in policy.allowed_control_types.items():
             if (
