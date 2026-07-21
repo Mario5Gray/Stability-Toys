@@ -1,7 +1,18 @@
 # docker-compose.dev.yml — fast CUDA dev builds with volume-mounted source.
 #
-# Prerequisite: base image must exist (built once via full compose build):
-#   docker compose -f docker-cuda.yml build
+# Prerequisite: the base image named by BASE_IMAGE below must exist and be
+# current. Note the names differ: the full build produces harbor.lan/lcm-sd:latest,
+# while BASE_IMAGE defaults to harbor.lan/lcm-sd-ui:latest (the tag `make
+# quick-build` and the Concourse pipeline use). Building the former does not
+# refresh the latter, so run one of:
+#
+#   docker compose -f docker-cuda.yml build \
+#     && docker tag harbor.lan/lcm-sd:latest harbor.lan/lcm-sd-ui:latest
+#
+#   BASE_IMAGE=harbor.lan/lcm-sd:latest make dev-build && BASE_IMAGE=harbor.lan/lcm-sd:latest make dev
+#
+# ./Dockerfile builds the UI too, so lcm-sd:latest is complete; the -ui suffix
+# is only a tag, not a different image contract.
 #
 # The base image owns every Python dependency; the dev image is
 # docker/runtime/live-test.Dockerfile, which is FROM ${BASE_IMAGE} and only
