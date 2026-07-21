@@ -35,14 +35,14 @@ prod-build: ## Full prod image build (--no-cache; override: make prod-build BACK
 	  $(if $(CACHE),,--no-cache) \
 	  --build-arg BACKEND=$(or $(BACKEND),cuda) \
 	  --platform=linux/$(or $(PLATFORM),amd64) \
-	  -t $(or $(IMAGE),harbor.lan/lcm-sd:latest) \
+	  -t $(or $(IMAGE),harbor.lan/stability-toys:latest) \
 	  .
 
 .PHONY: quick-build
 quick-build: ## Rebuild only Python source into existing image (no deps/UI/CUDA reinstall). Override: make quick-build IMAGE=foo:tag
 	docker build -f Dockerfile.quick \
-	  --build-arg BASE_IMAGE=$(or $(IMAGE),harbor.lan/lcm-sd-ui:latest) \
-	  -t $(or $(IMAGE),harbor.lan/lcm-sd-ui:latest) \
+	  --build-arg BASE_IMAGE=$(or $(IMAGE),harbor.lan/stability-toys:latest) \
+	  -t $(or $(IMAGE),harbor.lan/stability-toys:latest) \
 	  .
 
 .PHONY: dev

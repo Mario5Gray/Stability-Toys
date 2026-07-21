@@ -7,8 +7,8 @@ services:
       args:
         BACKEND: cpu
         GIT_SHA: ${GIT_SHA:-dev}
-    image: harbor.lan/dreamlab-test:latest
-    container_name: dreamlab-test
+    image: harbor.lan/stability-toys:test
+    container_name: stability-toys-test
     env_file:
       - env.dev
     environment:
@@ -39,7 +39,7 @@ services:
   test-cuda:
     extends: test
     platform: linux/amd64
-    container_name: dreamlab-test-cuda
+    container_name: stability-toys-test-cuda
     runtime: nvidia
     build:
       context: .
@@ -63,20 +63,20 @@ services:
 
   test-unit:
     extends: test
-    container_name: dreamlab-test-not-ws
+    container_name: stability-toys-test-not-ws
     command: pytest tests/ -v -m "not ws"
 
   test-ws:
     extends: test
-    container_name: dreamlab-test-ws
+    container_name: stability-toys-test-ws
     command: pytest tests/ -m ws -v
 
   test-fast:
     extends: test
-    container_name: dreamlab-test-fast
+    container_name: stability-toys-test-fast
     command: pytest tests/ -v -m "not slow"
 
   test-watch:
     extends: test
-    container_name: dreamlab-test-watch
+    container_name: stability-toys-test-watch
     command: ptw tests/ -- -v

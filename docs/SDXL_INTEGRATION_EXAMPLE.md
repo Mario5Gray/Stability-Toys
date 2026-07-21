@@ -60,7 +60,7 @@ docker run --rm -it \
   --env-file env.custom \
   --gpus=all \
   -p 4200:4200 \
-  darkbit1001/lcm-sd-ui:latest
+  mitraframe/stability-toys:latest
 ```
 
 ## Option 2: Separate Worker Class
@@ -214,7 +214,7 @@ version: '3.8'
 services:
   # SD1.5 Service (existing)
   lcm-sd15:
-    image: darkbit1001/lcm-sd-ui:latest
+    image: mitraframe/stability-toys:latest
     ports:
       - "4200:4200"
     env_file:
@@ -237,7 +237,7 @@ services:
 
   # SDXL Service (new)
   lcm-sdxl:
-    image: darkbit1001/lcm-sd-ui:latest
+    image: mitraframe/stability-toys:latest
     ports:
       - "4201:4200"  # Different port
     env_file:
@@ -352,7 +352,7 @@ Expected performance on different GPUs:
 
 ```bash
 # Check logs
-docker logs lcm-sd-ui 2>&1 | tail -50
+docker logs stability-toys 2>&1 | tail -50
 
 # Common issues:
 # 1. Model not found -> Check SDXL_MODEL_ROOT and SDXL_MODEL

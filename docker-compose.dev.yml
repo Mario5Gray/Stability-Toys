@@ -1,18 +1,14 @@
 # docker-compose.dev.yml — fast CUDA dev builds with volume-mounted source.
 #
-# Prerequisite: the base image named by BASE_IMAGE below must exist and be
-# current. Note the names differ: the full build produces harbor.lan/lcm-sd:latest,
-# while BASE_IMAGE defaults to harbor.lan/lcm-sd-ui:latest (the tag `make
-# quick-build` and the Concourse pipeline use). Building the former does not
-# refresh the latter, so run one of:
+# Prerequisite: the base image must exist and be current:
 #
-#   docker compose -f docker-cuda.yml build \
-#     && docker tag harbor.lan/lcm-sd:latest harbor.lan/lcm-sd-ui:latest
+#   docker compose -f docker-cuda.yml build     # -> harbor.lan/stability-toys:latest
 #
-#   BASE_IMAGE=harbor.lan/lcm-sd:latest make dev-build && BASE_IMAGE=harbor.lan/lcm-sd:latest make dev
-#
-# ./Dockerfile builds the UI too, so lcm-sd:latest is complete; the -ui suffix
-# is only a tag, not a different image contract.
+# One image repository, three tags: :latest (full build), :dev (this overlay),
+# :test (Dockerfile.test). Before the rename the full build produced
+# harbor.lan/lcm-sd:latest while this file defaulted to harbor.lan/lcm-sd-ui:latest,
+# so the documented rebuild refreshed an image the overlay never read and a stale
+# base survived it. Single-repo naming removes that failure mode entirely.
 #
 # The base image owns every Python dependency; the dev image is
 # docker/runtime/live-test.Dockerfile, which is FROM ${BASE_IMAGE} and only
@@ -35,17 +31,17 @@
 #   - env/base-image/model-root changes → docker compose -f docker-compose.dev.yml restart
 
 services:
-  lcm-sd:
+  stability-toys:
     platform: linux/amd64
-    container_name: lcm-sd-dev
+    container_name: stability-toys-dev
     runtime: nvidia
     build:
       context: .
       dockerfile: docker/runtime/live-test.Dockerfile
       args:
-        BASE_IMAGE: ${BASE_IMAGE:-harbor.lan/lcm-sd-ui:latest}
+        BASE_IMAGE: ${BASE_IMAGE:-harbor.lan/stability-toys:latest}
         GIT_SHA: ${GIT_SHA:-dev}
-    image: lcm-sd-ui:dev
+    image: harbor.lan/stability-toys:dev
     ports:
       - "4200:4200"
     volumes:

@@ -6,7 +6,7 @@ Usage:
   python verify_cuda.py
 
 Or in Docker:
-  docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
+  docker run --rm --gpus all --privileged harbor.lan/stability-toys:test python verify_cuda.py
 """
 
 import sys

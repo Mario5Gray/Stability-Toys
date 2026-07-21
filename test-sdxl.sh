@@ -75,7 +75,7 @@ echo "Building test image..."
 echo "========================================="
 echo ""
 
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+docker build -f Dockerfile.test -t harbor.lan/stability-toys:test .
 
 if [ $? -ne 0 ]; then
     echo "❌ Error: Docker build failed"
@@ -92,7 +92,7 @@ echo "Verifying GPU access in container..."
 echo "========================================="
 echo ""
 
-docker run --rm --gpus all --privileged lcm-sd-test:latest python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA devices: {torch.cuda.device_count()}'); print(f'Device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+docker run --rm --gpus all --privileged harbor.lan/stability-toys:test python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA devices: {torch.cuda.device_count()}'); print(f'Device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
 
 if [ $? -ne 0 ]; then
     echo "❌ Error: GPU not accessible in container"
@@ -126,7 +126,7 @@ docker run --rm \
     -e CUDA_ENABLE_XFORMERS=1 \
     -e CUDA_DTYPE=fp16 \
     -e LOG_LEVEL=INFO \
-    lcm-sd-test:latest
+    harbor.lan/stability-toys:test
 
 TEST_EXIT_CODE=$?
 

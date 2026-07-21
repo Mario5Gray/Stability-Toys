@@ -101,7 +101,7 @@ vim backends/cuda_worker.py
 
 ```bash
 # Build test image first
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+docker build -f Dockerfile.test -t harbor.lan/stability-toys:test .
 
 # Run specific test
 docker run --rm --gpus all --privileged \
@@ -109,7 +109,7 @@ docker run --rm --gpus all --privileged \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
   -e CUDA_ENABLE_XFORMERS=1 \
-  lcm-sd-test:latest \
+  harbor.lan/stability-toys:test \
   pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
 ```
 
@@ -122,7 +122,7 @@ docker run --rm --gpus all --privileged \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
   -e LOG_LEVEL=DEBUG \
-  lcm-sd-test:latest
+  harbor.lan/stability-toys:test
 ```
 
 ### 4. Interactive Debug
@@ -133,7 +133,7 @@ docker run --rm -it --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest \
+  harbor.lan/stability-toys:test \
   bash
 
 # Inside container, run tests manually
@@ -194,7 +194,7 @@ ls -la $SDXL_MODEL_ROOT/$SDXL_MODEL
 ```bash
 # Clear cache and rebuild
 docker builder prune -a
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+docker build -f Dockerfile.test -t harbor.lan/stability-toys:test .
 ```
 
 ### GPU Not Accessible
@@ -221,7 +221,7 @@ docker run --rm --gpus all \
   -e CUDA_ENABLE_XFORMERS=1 \
   -e CUDA_ATTENTION_SLICING=1 \
   -e CUDA_DTYPE=fp16 \
-  lcm-sd-test:latest
+  harbor.lan/stability-toys:test
 
 # Or use smaller model
 export SDXL_MODEL=sdxl-turbo.safetensors
@@ -323,7 +323,7 @@ The test suite covers all critical paths:
 
 ```bash
 # Remove test image
-docker rmi lcm-sd-test:latest
+docker rmi harbor.lan/stability-toys:test
 
 # Clean up old images
 docker image prune

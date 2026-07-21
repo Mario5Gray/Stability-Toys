@@ -1,6 +1,6 @@
 # Dockerfile.test - Runtime-aligned image for containerized test execution
 # Usage:
-#   docker build -f Dockerfile.test --build-arg BACKEND=cpu -t harbor.lan/dreamlab-test:latest .
+#   docker build -f Dockerfile.test --build-arg BACKEND=cpu -t harbor.lan/stability-toys:test .
 #   docker compose -f docker-compose.test.yml build test
 #   docker compose -f docker-compose.test.yml build test-cuda
 #   docker compose -f docker-compose.test.yml run --rm test-unit

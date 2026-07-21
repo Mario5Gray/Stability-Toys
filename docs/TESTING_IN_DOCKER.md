@@ -5,7 +5,7 @@ This repo has two distinct Docker test paths:
 - Local/native path: CPU-first, intended for laptops and non-NVIDIA hosts.
 - Explicit CUDA path: `linux/amd64` + NVIDIA-only, intended for CI or real GPU builders.
 
-The shared test image name is `harbor.lan/dreamlab-test:latest`.
+The shared test image name is `harbor.lan/stability-toys:test`.
 
 ## Local vs CUDA Test Paths
 
@@ -201,7 +201,7 @@ This wrapper:
 - refreshes a branch worktree on the remote host
 - runs `docker compose -f docker-cuda.yml build`
 - runs `docker compose -f docker-compose.dev.yml up -d --build`
-- waits for `lcm-sd-dev` to report a healthy Docker health status
+- waits for `stability-toys-dev` to report a healthy Docker health status
 - prints recent container logs
 - prints the remaining manual `conf/modes.yaml` watcher check
 
@@ -215,7 +215,7 @@ Use two terminals for that final watcher check:
 # Terminal A
 ssh <host>
 cd <remote-worktree>
-docker logs -f lcm-sd-dev
+docker logs -f stability-toys-dev
 ```
 
 Leave Terminal A running, then make the reversible config edit separately:
@@ -227,7 +227,7 @@ cd <remote-worktree>
 $EDITOR conf/modes.yaml
 ```
 
-Confirm Terminal A prints the watcher reload without restarting `lcm-sd-dev`.
+Confirm Terminal A prints the watcher reload without restarting `stability-toys-dev`.
 
 ## Expected Local Warnings
 

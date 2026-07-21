@@ -76,14 +76,14 @@ docker run --rm --gpus all \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest
+  harbor.lan/stability-toys:test
 
 # Run specific test in Docker
 docker run --rm --gpus all \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
-  lcm-sd-test:latest \
+  harbor.lan/stability-toys:test \
   pytest tests/test_sdxl_worker.py::test_basic_generation -v -s -p no:cov
 ```
 

@@ -39,23 +39,23 @@ The script automatically uses `--privileged`.
 
 ```bash
 # Build CUDA image
-docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/dreamlab-test:latest .
+docker build --platform linux/amd64 -f Dockerfile.test --build-arg BACKEND=cuda -t harbor.lan/stability-toys:test .
 
 # Run tests
 docker run --rm --gpus all --privileged \
   -v /path/to/models:/models:ro \
   -e SDXL_MODEL_ROOT=/models \
   -e SDXL_MODEL=sdxl-model.safetensors \
-  harbor.lan/dreamlab-test:latest
+  harbor.lan/stability-toys:test
 
 # Verify CUDA
 docker run --rm --gpus all --privileged \
-  harbor.lan/dreamlab-test:latest python verify_cuda.py
+  harbor.lan/stability-toys:test python verify_cuda.py
 
 # Interactive debug
 docker run --rm -it --gpus all --privileged \
   -v /path/to/models:/models:ro \
-  harbor.lan/dreamlab-test:latest bash
+  harbor.lan/stability-toys:test bash
 ```
 
 ## What Changed
@@ -97,7 +97,7 @@ docker run --rm \
   --device=/dev/dri \
   --device=/dev/npu \
   -v /path/to/models:/models:ro \
-  harbor.lan/dreamlab-test:latest
+  harbor.lan/stability-toys:test
 ```
 
 However, `--privileged` is simpler and matches your production setup.
@@ -109,7 +109,7 @@ However, `--privileged` is simpler and matches your production setup.
 # Requires --privileged for NPU device access
 docker run --rm --privileged \
   -e BACKEND=rknn \
-  harbor.lan/dreamlab-test:latest
+  harbor.lan/stability-toys:test
 ```
 
 ### CUDA Backend (NVIDIA GPU)
@@ -117,7 +117,7 @@ docker run --rm --privileged \
 # Requires --privileged for full CUDA access
 docker run --rm --gpus all --privileged \
   -e BACKEND=cuda \
-  harbor.lan/dreamlab-test:latest
+  harbor.lan/stability-toys:test
 ```
 
 ## Summary
