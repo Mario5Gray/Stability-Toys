@@ -31,9 +31,17 @@ The first backend issue should deliver the protocol, the core operator boundary,
 - Solving cluster scheduling, GPU orchestration, or external runtime reconciliation in this repo change
 - Designing the final LLM-assisted UX for dream guidance in this issue
 
-## Current State
+## State When This Design Was Written
 
-- [`yume_lab/yume/dream_worker.py`](/Users/darkbit1001/workspace/Stability-Toys/yume_lab/yume/dream_worker.py:102) runs a background loop that generates one candidate, scores it, conditionally stores it, and repeats.
+> **Stale premise.** `yume_lab/yume/dream_worker.py` was deleted from this repo
+> on 2026-06-28 in `4e380ee` ("housekeeping"), 619 lines, with no successor
+> module — the remaining references to `DreamWorker` live only in `yume_lab`'s
+> own markdown. Whether this design was implemented before that removal, or the
+> component simply went away, is not recorded anywhere I can verify. Treat the
+> first bullet as history and confirm the current `yume_lab` shape before
+> building on this document. The other files cited below still exist.
+
+- `yume_lab/yume/dream_worker.py` ran a background loop that generated one candidate, scored it, conditionally stored it, and repeated. **This file no longer exists.**
 - [`yume_lab/server/ws_routes.py`](/Users/darkbit1001/workspace/Stability-Toys/yume_lab/server/ws_routes.py:29) exposes `dream:start`, `dream:stop`, `dream:top`, and `dream:guide`, but those handlers target a single mutable worker shape rather than a protocol boundary.
 - Navigator behavior is implicitly embedded in the worker. There is no manifest, no runtime contract, no session transition model, and no supported way to switch generation procedures while preserving core session state.
 - [`yume_lab/yume/strategies.py`](/Users/darkbit1001/workspace/Stability-Toys/yume_lab/yume/strategies.py:113) contains exploration strategy scaffolding, but it is not the control boundary and does not provide a plugin protocol.

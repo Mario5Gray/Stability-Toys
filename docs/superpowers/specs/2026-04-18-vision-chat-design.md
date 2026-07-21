@@ -73,6 +73,10 @@ _d = self.config.chat_delegates.get(mode.chat_delegate) if mode.chat_delegate el
 ### `backends/chat_client.py`
 
 - Broaden `messages` type annotation from `List[Dict[str, str]]` to `List[Dict[str, Any]]` in `stream()`, `complete()`, and `_request_payload()`.
+- Note that `_request_payload()` now spells this as `List[ChatMessage]`, where the
+  module-level `ChatMessage = Dict[str, str]`. Same type, different text — a
+  find/replace on `List[Dict[str, str]]` will hit `stream()` and `complete()` but
+  silently miss the third site.
 - No logic changes — list-content user messages already pass through the JSON payload untouched.
 
 ### `server/ws_routes.py`
