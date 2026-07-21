@@ -63,5 +63,12 @@ skills-lock.json
 AGENT-PSI.md
 opencode.json
 .st-shell.zsh
-st
+# The built CLI binary. Anchored: a bare `st` also matches the directory
+# cli/go/cmd/st/, which silently hid every source file under it and required
+# per-file negations to add anything new there.
+/cli/go/st
+/st
 .superpowers
+
+# Stray dir from an unexpanded ~ in an output path (cli/go/cmd/st/~/generations).
+cli/go/cmd/st/~/
