@@ -1084,7 +1084,7 @@ python -m pytest tests -q
 Fix only failures attributable to this delivery. Record unrelated baseline
 failures separately; do not weaken coverage.
 
-- [ ] **Step 4: Run live production-path CUDA acceptance**
+- [x] **Step 4: Run live production-path CUDA acceptance**
 
 On the approved NVIDIA host with both model directories mounted under
 `/models`:
@@ -1115,7 +1115,23 @@ fp16 operator baseline is a tested 24 GiB GPU. Measure with attention slicing
 and xformers off, matching how this family actually runs — the worker declines
 processor swaps, so any figure taken with them enabled is not comparable.
 
-- [ ] **Step 5: Review docs and drift before relinking**
+Measured result:
+
+```text
+artifact=/store/hunyuandit-canny-1024-acceptance.png
+elapsed_s=113.91  peak_allocated_bytes=20189025280  torch=2.10.0+cu128 cuda=12.8
+```
+
+18.80 GiB peak, 2.57 GiB below the 21.37 GiB spike observation and 5.2 GiB
+under the 24 GiB operator floor. The byte count is identical across runs taken
+with and without xformers and attention slicing, so peak allocation is set by
+weights and fixed buffers at load rather than by the attention implementation:
+declining processor swaps costs no VRAM. It costs time instead — roughly
+3.80 s/it against 3.45 s/it with xformers enabled, about 10%. That trade is not
+optional for this family, since the swapped processors silently drop the
+rotary positional embeddings.
+
+- [x] **Step 5: Review docs and drift before relinking**
 
 ```bash
 drift refs conf/modes.yml

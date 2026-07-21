@@ -126,6 +126,16 @@ class BackendProvider(Protocol):
 
 This lets routes and status payloads remain backend-agnostic without lying about capabilities.
 
+Since `STABL-ichgkgno`, provider-level capabilities are no longer the whole
+truth: execution capability is resolved per *family* through
+`CUDA_FAMILY_BINDINGS` in `backends/platforms/cuda_bindings.py`, where each cell
+carries its own `ExecutionCapabilities`. A CUDA provider can support img2img
+while the active family does not — HunyuanDiT is `(supports_img2img=False,
+supports_controlnet=True, supports_img2img_and_controlnet=False)`. Read the
+family cell for admission decisions; the provider-level flags above describe the
+backend, not the loaded model. See
+`docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`.
+
 ### 3. Generation boundary
 
 The generation worker contract already exists in [`backends/base.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/base.py) as `PipelineWorker`. That should remain the reusable execution interface.
