@@ -279,7 +279,7 @@ func currentRootFlagValues() rootFlagValues {
 
 func bindRootPersistentFlags(f *pflag.FlagSet, v *rootFlagValues) {
 	f.StringVar(&v.Server, "server", v.Server, "backend base URL (or $ST_SERVER)")
-	f.StringVar(&v.Config, "config", v.Config, "config file path (or $ST_CONFIG, then XDG default)")
+	f.StringVar(&v.Config, "config", v.Config, configFlagHelp())
 	f.StringVarP(&v.OutputDir, "output-dir", "o", v.OutputDir, "directory for generated images (overrides config)")
 	f.BoolVar(&v.JSON, "json", v.JSON, "emit machine-readable JSON")
 	f.DurationVar(&v.Timeout, "timeout", v.Timeout, "per-request timeout (0 = client default)")
