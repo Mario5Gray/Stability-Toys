@@ -37,16 +37,14 @@ workflows
 *.pyo
 *.pyd
 *.egg-info/
-.env
-.venv
-venv
+/.env
+/.venv
+/venv
 dist
 build
-localbuild
-model
+/localbuild
+/model
 
-docker pull harbor:443/rknn-lcm-sd-ui:latest
-docker tag harbor:443/rknn-lcm-sd-ui:latest darkbit1001/rknn-lcm-sd-ui:latest
 .envrc
 .claude
 env.lsp
@@ -69,6 +67,3 @@ opencode.json
 /cli/go/st
 /st
 .superpowers
-
-# Stray dir from an unexpanded ~ in an output path (cli/go/cmd/st/~/generations).
-cli/go/cmd/st/~/
