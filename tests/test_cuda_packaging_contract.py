@@ -267,7 +267,7 @@ def test_docker_cuda_yml_passes_backend_cuda_build_arg():
     compose = yaml.safe_load(
         (REPO_ROOT / "docker-cuda.yml").read_text(encoding="utf-8")
     )
-    svc = compose["services"]["lcm-sd"]
+    svc = compose["services"]["stability-toys"]
     args = svc["build"]["args"]
 
     assert args.get("BACKEND") == "cuda"
@@ -298,7 +298,7 @@ def test_docker_rknn_yml_passes_backend_rknn_build_arg():
     compose = yaml.safe_load(
         (REPO_ROOT / "docker-rknn.yml").read_text(encoding="utf-8")
     )
-    svc = compose["services"]["lcm-sd"]
+    svc = compose["services"]["stability-toys"]
     args = svc["build"]["args"]
 
     assert args.get("BACKEND") == "rknn"
@@ -360,7 +360,7 @@ def test_dev_compose_uses_dev_env_files():
     compose = yaml.safe_load(
         (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
     )
-    svc = compose["services"]["lcm-sd"]
+    svc = compose["services"]["stability-toys"]
     env_files = svc.get("env_file", [])
 
     assert "env.dev" in env_files
@@ -370,16 +370,16 @@ def test_dev_compose_uses_dev_env_files():
 def test_dev_compose_uses_dev_image_tag():
     text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
 
-    assert "lcm-sd-ui:dev" in text
+    assert "harbor.lan/stability-toys:dev" in text
     # Must NOT use the production tag
-    assert "lcm-sd-ui:latest" not in text.split("image:")[1].split("\n")[0] if "image:" in text else True
+    assert "stability-toys:latest" not in text.split("image:")[1].split("\n")[0] if "image:" in text else True
 
 
 def test_dev_compose_takes_base_image_build_arg():
     text = (REPO_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
 
     assert "BASE_IMAGE" in text
-    assert "harbor.lan/lcm-sd-ui:latest" in text
+    assert "harbor.lan/stability-toys:latest" in text
 
 
 def test_makefile_dev_target_uses_dev_compose():
@@ -401,3 +401,28 @@ def test_makefile_dev_down_target_uses_dev_compose():
 
     assert result.returncode == 0, result.stderr
     assert "docker compose -f docker-compose.dev.yml down" in result.stdout
+
+
+def test_every_repo_file_this_module_reads_is_present():
+    """Guard the image's COPY list against this module's REPO_ROOT reads.
+
+    When a path here is missing from Dockerfile.test, the owning test fails with
+    FileNotFoundError, which reads as a broken test rather than the packaging
+    gap it actually is. Failing here names the missing files directly.
+    """
+    import re
+
+    source = Path(__file__).read_text(encoding="utf-8")
+    # Split at the marker so the pattern's own literal never appears
+    # contiguously in this file. Otherwise the regex matches itself and reports
+    # a fragment of its own source as a missing path.
+    marker = "REPO_ROOT" + " / "
+    pattern = marker + r'"([^"]+)"'
+    referenced = sorted(set(re.findall(pattern, source)))
+    assert referenced, "expected this module to read repo files via REPO_ROOT"
+
+    missing = [name for name in referenced if not (REPO_ROOT / name).exists()]
+    assert not missing, (
+        "these paths are read by this module but absent from REPO_ROOT "
+        f"({REPO_ROOT}); add them to Dockerfile.test's COPY list: {missing}"
+    )

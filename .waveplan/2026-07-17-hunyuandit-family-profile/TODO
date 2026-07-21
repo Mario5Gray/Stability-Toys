@@ -1,0 +1,65 @@
+# Initialize todo's
++ create empty journal
++ create standard empty review-schedule
++ create plan agents json
++ estimate all tasks on init
++ ensure proper agent working environment (see worktree execution env enhancement )
+
+---
+
+Agent Sigma's interim workflow:
+Found it. There is not currently a one-shot “initialize execution directory” tool for the bundle you have under `.waveplan/<slug>/`. The closest supported path is `waveplan-cli swim compile-schedule --bootstrap-state`, but that only creates `<plan>.state.json` next to the plan, not your artifact-root `execution-state.json` bundle. See [waveplan-cli](/Users/darkbit1001/workspace/waveplan-mcp/waveplan-cli:744).
+
+Your immediate failure is `execution-journal.json`: it contains `{}`, but a SWIM journal must have `schema_version`, `schedule_path`, `cursor`, and `events`. The runtime only auto-initializes the journal if the file is missing or empty; a non-empty `{}` file is validated and rejected. See [runner.go](/Users/darkbit1001/workspace/waveplan-mcp/internal/swim/runner.go:153) and [swim-journal-schema-v1.json](/Users/darkbit1001/workspace/waveplan-mcp/docs/specs/swim-journal-schema-v1.json:7).
+
+To unblock this directory, use this shape:
+
+```bash
+source /Users/darkbit1001/workspace/Stability-Toys/.waveplan/.envrc
+source /Users/darkbit1001/workspace/Stability-Toys/.waveplan/2026-07-17-hunyuandit-family-profile/env.hunyuandit
+
+jq -n --arg sched "$WAVEPLAN_SCHED" '{
+  schema_version: 1,
+  schedule_path: $sched,
+  cursor: 0,
+  events: []
+}' > "$WAVEPLAN_JOURNAL"
+
+waveplan-cli swim validate --kind journal --in "$WAVEPLAN_JOURNAL"
+waveplan-cli swim run \
+  --schedule "$WAVEPLAN_SCHED" \
+  --journal "$WAVEPLAN_JOURNAL" \
+  --state "$WAVEPLAN_STATE" \
+  --review-schedule "$WAVEPLAN_SCHED_REVIEW" \
+  --until T1 \
+  --dry-run \
+  --max-steps 1
+```
+
+For a new execution directory, the missing assembler should create at least:
+
+```text
+logs/
+execution-agents.json
+execution-schedule.json
+execution-state.json
+execution-journal.json
+review-schedule.json
+env.<slug>
+```
+
+The empty `review-schedule.json` you made is basically right:
+
+```json
+{
+  "schema_version": 2,
+  "base_schedule_path": "/abs/path/to/execution-schedule.json",
+  "insertions": []
+}
+```
+
+One CLI gotcha: `swim validate` only supports `schedule|journal`; it does not validate review sidecars directly. The sidecar is validated when passed to `swim next`, `swim step`, `swim run`, or `swim journal`.
+
+I reproduced the failure with your current journal, then verified both “missing journal” and the valid v1 empty journal shape work in dry-run against the same schedule/state/review sidecar. I did not modify your `.waveplan` files.
+
+---

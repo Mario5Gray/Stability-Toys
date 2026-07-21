@@ -75,7 +75,8 @@ class FilesystemStorageProvider(StorageProvider):
 
     def _shard(self, key: str) -> str:
         """Extract 2-char shard from key UUID portion."""
-        # Keys are like "lcm_image:a3f5c2d9-..."
+        # Keys are like "st_image:a3f5c2d9-..." (older objects use other
+        # prefixes; only the UUID segment matters here).
         parts = key.split(":")
         uuid_part = parts[-1] if len(parts) > 1 else key
         return uuid_part[:2].lower()

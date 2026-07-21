@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "mode": "local",
+  "active": false,
+  "step_id": "S8_T8.1_review",
+  "task_id": "T8.1",
+  "action": "review",
+  "attempt": 1,
+  "claimed_at": "2026-07-19T05:06:23Z",
+  "completed_at": "2026-07-19T05:06:34Z",
+  "outcome": "applied",
+  "summary": "Reviewed T8.1 commits 89478d5 and f2ef991; no findings. Verified the Phase-2 regression fix restores the missing non-mode-system ControlNet stub at both HTTP and WS pre-submit admission seams while preserving loaded CUDA family admission.",
+  "evidence": [
+    "source /Users/darkbit1001/miniforge3/bin/activate base \u0026\u0026 python -m pytest tests/test_controlnet_dispatch.py tests/test_ws_routes.py tests/test_model_routes.py -q =\u003e 72 passed",
+    "python -m pytest tests/test_worker_pool.py tests/test_backend_runtimes.py tests/test_worker_factory.py -q =\u003e admission-related subset ran clean through 23 passed before manual stop; no failures in changed seam coverage",
+    "git show 89478d5 -- server/lcm_sr_server.py server/ws_routes.py tests/test_controlnet_dispatch.py and code-path audit confirm restored symmetry with existing _run_generate stub",
+    "git diff --check df875ed..f2ef991 clean; drift check --changed server/{lcm_sr_server.py,ws_routes.py} shows the family-profile spec ok and only unrelated pre-existing stale docs"
+  ]
+}

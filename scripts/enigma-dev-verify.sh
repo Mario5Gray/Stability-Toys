@@ -104,11 +104,11 @@ observe_anchor "FS_HOST_PATH" "\${FS_HOST_PATH:-./store}"
 observe_anchor "WORKFLOW_HOST_PATH" "\${WORKFLOW_HOST_PATH:-./workflows}"
 
 dump_dev_container_diagnostics() {
-  echo "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics"
+  echo "[enigma-dev-verify] stability-toys-dev did not become healthy; dumping diagnostics"
   echo "[enigma-dev-verify] container state:"
-  docker inspect -f 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' lcm-sd-dev || true
+  docker inspect -f 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' stability-toys-dev || true
   echo "[enigma-dev-verify] recent container logs (tail 250):"
-  docker logs --tail 250 lcm-sd-dev || true
+  docker logs --tail 250 stability-toys-dev || true
 }
 
 $base_build_command
@@ -116,7 +116,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 attempt=0
 while [ "\$attempt" -lt 30 ]; do
-  status=\$(docker inspect -f '{{.State.Health.Status}}' lcm-sd-dev 2>/dev/null || true)
+  status=\$(docker inspect -f '{{.State.Health.Status}}' stability-toys-dev 2>/dev/null || true)
   if [ "\$status" = "healthy" ]; then
     break
   fi
@@ -124,20 +124,20 @@ while [ "\$attempt" -lt 30 ]; do
   sleep 2
 done
 
-status=\$(docker inspect -f '{{.State.Health.Status}}' lcm-sd-dev 2>/dev/null || true)
+status=\$(docker inspect -f '{{.State.Health.Status}}' stability-toys-dev 2>/dev/null || true)
 if [ "\$status" != "healthy" ]; then
   dump_dev_container_diagnostics
   exit 1
 fi
 
-docker logs --tail 50 lcm-sd-dev
+docker logs --tail 50 stability-toys-dev
 EOF
 fi
 
 printf 'Manual step remaining:\n'
 printf '1. Terminal A: ssh %s\n' "$sync_host"
 printf '2. Terminal A: cd %s\n' "$worktree_path"
-printf '3. Terminal A: docker logs -f lcm-sd-dev\n'
+printf '3. Terminal A: docker logs -f stability-toys-dev\n'
 printf '4. Terminal A: leave the log stream running\n'
 printf '5. Terminal B: ssh %s\n' "$sync_host"
 printf '6. Terminal B: cd %s\n' "$worktree_path"

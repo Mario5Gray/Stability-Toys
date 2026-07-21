@@ -33,12 +33,17 @@ for _mod, _orig in _saved_modules.items():
 @pytest.fixture
 def mock_cuda():
     """Mock CUDA functions for testing."""    
+    # Patch only real torch.cuda APIs. `get_available_vram` is a ModelRegistry
+    # method, not a torch function, and it derives from get_reserved_vram() ->
+    # torch.cuda.memory_reserved, which is patched below; `device_memory_used`
+    # does not exist on torch.cuda either. Patching phantom attributes worked
+    # only while a MagicMock stub happened to be installed, and raised
+    # AttributeError against real torch — which is what broke this file in any
+    # run where another module imported backends.model_registry first.
     with patch('backends.model_registry.torch.cuda.is_available', return_value=True), \
     patch('backends.model_registry.torch.cuda.get_device_properties') as mock_props, \
     patch('backends.model_registry.torch.cuda.memory_allocated', return_value=0), \
-    patch('backends.model_registry.torch.cuda.memory_reserved', return_value=100 * 1024**2), \
-    patch("backends.model_registry.torch.cuda.get_available_vram", return_value=100 * 1024**2),\
-    patch("backends.model_registry.torch.cuda.device_memory_used", return_value=100 * 1024**2) :
+    patch('backends.model_registry.torch.cuda.memory_reserved', return_value=100 * 1024**2):
         
         # Mock GPU with 24GB VRAM
         mock_device_props = Mock()

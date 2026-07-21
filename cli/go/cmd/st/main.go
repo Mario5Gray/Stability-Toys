@@ -47,10 +47,20 @@ func loadStateStore() (history.Store, error) {
 	return newHistoryStore(root), nil
 }
 
+// configFlagHelp names the resolved default path. XDG_CONFIG_HOME is usually
+// unset, so "the XDG default" alone tells a new user nothing they can act on.
+func configFlagHelp() string {
+	def, err := config.Resolve("")
+	if err != nil || def == "" {
+		return "config file path (or $ST_CONFIG)"
+	}
+	return fmt.Sprintf("config file path (or $ST_CONFIG; default %s -- run 'st config' to see all paths)", def)
+}
+
 func init() {
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagServer, "server", os.Getenv("ST_SERVER"), "backend base URL (or $ST_SERVER)")
-	pf.StringVar(&flagConfig, "config", "", "config file path (or $ST_CONFIG, then XDG default)")
+	pf.StringVar(&flagConfig, "config", "", configFlagHelp())
 	pf.StringVarP(&flagOutputDir, "output-dir", "o", "", "directory for generated images (overrides config)")
 	pf.BoolVar(&flagJSON, "json", false, "emit machine-readable JSON")
 	pf.DurationVar(&flagTimeout, "timeout", 0, "per-request timeout (0 = client default)")
@@ -79,6 +89,12 @@ func requireConfig() (*config.Config, error) {
 	path, err := config.Resolve(flagConfig)
 	if err != nil {
 		return nil, err
+	}
+	// Hard cutover: a config left in the pre-consolidation directory is
+	// reported with the exact move command rather than being read silently,
+	// which would keep both locations alive indefinitely.
+	if legacyErr := config.CheckLegacyLocation(flagConfig); legacyErr != nil {
+		return nil, exitError{code: 2, err: legacyErr}
 	}
 	cfg, message, bootstrapped := resolveConfig(path)
 	if bootstrapped {

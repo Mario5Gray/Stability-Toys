@@ -1,7 +1,21 @@
 # docker-compose.dev.yml — fast CUDA dev builds with volume-mounted source.
 #
-# Prerequisite: base image must exist (built once via full compose build):
-#   docker compose -f docker-cuda.yml build
+# Prerequisite: the base image must exist and be current:
+#
+#   docker compose -f docker-cuda.yml build     # -> harbor.lan/stability-toys:latest
+#
+# One image repository, three tags: :latest (full build), :dev (this overlay),
+# :test (Dockerfile.test). Before the rename the full build produced
+# harbor.lan/lcm-sd:latest while this file defaulted to harbor.lan/lcm-sd-ui:latest,
+# so the documented rebuild refreshed an image the overlay never read and a stale
+# base survived it. Single-repo naming removes that failure mode entirely.
+#
+# The base image owns every Python dependency; the dev image is
+# docker/runtime/live-test.Dockerfile, which is FROM ${BASE_IMAGE} and only
+# COPYs source — it runs no pip install. So any change to requirements*.txt
+# invalidates the base and `make dev-build` cannot pick it up. Symptom is a
+# ModuleNotFoundError at container start, deep in an import chain, for a package
+# that is present in requirements.txt. Rebuild the base, not just the overlay.
 #
 # Prerequisite: pre-built UI dist (for serving the frontend):
 #   cd lcm-sr-ui && yarn build
@@ -17,17 +31,17 @@
 #   - env/base-image/model-root changes → docker compose -f docker-compose.dev.yml restart
 
 services:
-  lcm-sd:
+  stability-toys:
     platform: linux/amd64
-    container_name: lcm-sd-dev
+    container_name: stability-toys-dev
     runtime: nvidia
     build:
       context: .
       dockerfile: docker/runtime/live-test.Dockerfile
       args:
-        BASE_IMAGE: ${BASE_IMAGE:-harbor.lan/lcm-sd-ui:latest}
+        BASE_IMAGE: ${BASE_IMAGE:-harbor.lan/stability-toys:latest}
         GIT_SHA: ${GIT_SHA:-dev}
-    image: lcm-sd-ui:dev
+    image: harbor.lan/stability-toys:dev
     ports:
       - "4200:4200"
     volumes:

@@ -1,0 +1,177 @@
+.
+├── dirTree.now
+├── env.hunyuandit
+├── estimates
+│   ├── task-T1.json
+│   ├── task-T10.json
+│   ├── task-T2.json
+│   ├── task-T3.json
+│   ├── task-T4.json
+│   ├── task-T5.json
+│   ├── task-T6.json
+│   ├── task-T7.json
+│   ├── task-T8.json
+│   └── task-T9.json
+├── execution-agents.json
+├── execution-journal.json
+├── execution-journal.json.bak-20260717-123116
+├── execution-schedule.json
+├── execution-state.json
+├── init.sh
+├── logs
+│   ├── S1_T1.1_end_review.1.stderr.log
+│   ├── S1_T1.1_end_review.1.stdout.log
+│   ├── S1_T1.1_finish.1.stderr.log
+│   ├── S1_T1.1_finish.1.stdout.log
+│   ├── S1_T1.1_fix_r1.1.stderr.log
+│   ├── S1_T1.1_fix_r1.1.stdout.log
+│   ├── S1_T1.1_fix_r2.1.stderr.log
+│   ├── S1_T1.1_fix_r2.1.stdout.log
+│   ├── S1_T1.1_fix_r3.2.stderr.log
+│   ├── S1_T1.1_fix_r3.2.stdout.log
+│   ├── S1_T1.1_implement.1.stderr.log
+│   ├── S1_T1.1_implement.1.stdout.log
+│   ├── S1_T1.1_implement.2.stderr.log
+│   ├── S1_T1.1_implement.2.stdout.log
+│   ├── S1_T1.1_review_r2.1.stderr.log
+│   ├── S1_T1.1_review_r2.1.stdout.log
+│   ├── S1_T1.1_review_r3.1.stderr.log
+│   ├── S1_T1.1_review_r3.1.stdout.log
+│   ├── S1_T1.1_review.1.stderr.log
+│   ├── S1_T1.1_review.1.stdout.log
+│   ├── S1_T1.1_review.2.stderr.log
+│   ├── S1_T1.1_review.2.stdout.log
+│   ├── S10_T10.1_end_review.1.stderr.log
+│   ├── S10_T10.1_end_review.1.stdout.log
+│   ├── S10_T10.1_finish.1.stderr.log
+│   ├── S10_T10.1_finish.1.stdout.log
+│   ├── S10_T10.1_implement.1.stderr.log
+│   ├── S10_T10.1_implement.1.stdout.log
+│   ├── S10_T10.1_implement.2.stderr.log
+│   ├── S10_T10.1_implement.2.stdout.log
+│   ├── S10_T10.1_review.1.stderr.log
+│   ├── S10_T10.1_review.1.stdout.log
+│   ├── S2_T2.1_end_review.1.stderr.log
+│   ├── S2_T2.1_end_review.1.stdout.log
+│   ├── S2_T2.1_finish.1.stderr.log
+│   ├── S2_T2.1_finish.1.stdout.log
+│   ├── S2_T2.1_implement.1.stderr.log
+│   ├── S2_T2.1_implement.1.stdout.log
+│   ├── S2_T2.1_review.1.stderr.log
+│   ├── S2_T2.1_review.1.stdout.log
+│   ├── S2_T2.1_review.2.stderr.log
+│   ├── S2_T2.1_review.2.stdout.log
+│   ├── S3_T3.1_end_review.1.stderr.log
+│   ├── S3_T3.1_end_review.1.stdout.log
+│   ├── S3_T3.1_finish.1.stderr.log
+│   ├── S3_T3.1_finish.1.stdout.log
+│   ├── S3_T3.1_implement.1.stderr.log
+│   ├── S3_T3.1_implement.1.stdout.log
+│   ├── S3_T3.1_review.1.stderr.log
+│   ├── S3_T3.1_review.1.stdout.log
+│   ├── S4_T4.1_end_review.1.stderr.log
+│   ├── S4_T4.1_end_review.1.stdout.log
+│   ├── S4_T4.1_finish.1.stderr.log
+│   ├── S4_T4.1_finish.1.stdout.log
+│   ├── S4_T4.1_implement.1.stderr.log
+│   ├── S4_T4.1_implement.1.stdout.log
+│   ├── S4_T4.1_review.1.stderr.log
+│   ├── S4_T4.1_review.1.stdout.log
+│   ├── S5_T5.1_end_review.1.stderr.log
+│   ├── S5_T5.1_end_review.1.stdout.log
+│   ├── S5_T5.1_finish.1.stderr.log
+│   ├── S5_T5.1_finish.1.stdout.log
+│   ├── S5_T5.1_implement.1.stderr.log
+│   ├── S5_T5.1_implement.1.stdout.log
+│   ├── S5_T5.1_review.1.stderr.log
+│   ├── S5_T5.1_review.1.stdout.log
+│   ├── S6_T6.1_end_review.1.stderr.log
+│   ├── S6_T6.1_end_review.1.stdout.log
+│   ├── S6_T6.1_finish.1.stderr.log
+│   ├── S6_T6.1_finish.1.stdout.log
+│   ├── S6_T6.1_implement.1.stderr.log
+│   ├── S6_T6.1_implement.1.stdout.log
+│   ├── S6_T6.1_review.1.stderr.log
+│   ├── S6_T6.1_review.1.stdout.log
+│   ├── S6_T6.1_review.2.stderr.log
+│   ├── S6_T6.1_review.2.stdout.log
+│   ├── S7_T7.1_end_review.1.stderr.log
+│   ├── S7_T7.1_end_review.1.stdout.log
+│   ├── S7_T7.1_finish.1.stderr.log
+│   ├── S7_T7.1_finish.1.stdout.log
+│   ├── S7_T7.1_implement.1.stderr.log
+│   ├── S7_T7.1_implement.1.stdout.log
+│   ├── S7_T7.1_review.1.stderr.log
+│   ├── S7_T7.1_review.1.stdout.log
+│   ├── S7_T7.1_review.2.stderr.log
+│   ├── S7_T7.1_review.2.stdout.log
+│   ├── S8_T8.1_end_review.1.stderr.log
+│   ├── S8_T8.1_end_review.1.stdout.log
+│   ├── S8_T8.1_finish.1.stderr.log
+│   ├── S8_T8.1_finish.1.stdout.log
+│   ├── S8_T8.1_implement.1.stderr.log
+│   ├── S8_T8.1_implement.1.stdout.log
+│   ├── S8_T8.1_review.1.stderr.log
+│   ├── S8_T8.1_review.1.stdout.log
+│   ├── S9_T9.1_end_review.1.stderr.log
+│   ├── S9_T9.1_end_review.1.stdout.log
+│   ├── S9_T9.1_finish.1.stderr.log
+│   ├── S9_T9.1_finish.1.stdout.log
+│   ├── S9_T9.1_implement.1.stderr.log
+│   ├── S9_T9.1_implement.1.stdout.log
+│   ├── S9_T9.1_review.1.stderr.log
+│   └── S9_T9.1_review.1.stdout.log
+├── receipts
+│   ├── S1_T1.1_fix_r1.1.dispatch.json
+│   ├── S1_T1.1_fix_r2.1.dispatch.json
+│   ├── S1_T1.1_fix_r3.2.dispatch.json
+│   ├── S1_T1.1_implement.2.dispatch.json
+│   ├── S1_T1.1_review_r2.1.dispatch.json
+│   ├── S1_T1.1_review_r3.1.dispatch.json
+│   ├── S1_T1.1_review_r4.1.dispatch.json
+│   ├── S1_T1.1_review.2.dispatch.json
+│   ├── S10_T10.1_implement.1.local.json
+│   ├── S10_T10.1_implement.2.dispatch.json
+│   ├── S10_T10.1_implement.2.local.json
+│   ├── S10_T10.1_review.1.dispatch.json
+│   ├── S10_T10.1_review.1.local.json
+│   ├── S2_T2.1_implement.1.dispatch.json
+│   ├── S2_T2.1_implement.1.local.json
+│   ├── S2_T2.1_review.1.local.json
+│   ├── S2_T2.1_review.2.dispatch.json
+│   ├── S2_T2.1_review.2.local.json
+│   ├── S3_T3.1_implement.1.dispatch.json
+│   ├── S3_T3.1_implement.1.local.json
+│   ├── S3_T3.1_review.1.dispatch.json
+│   ├── S3_T3.1_review.1.local.json
+│   ├── S4_T4.1_implement.1.dispatch.json
+│   ├── S4_T4.1_implement.1.local.json
+│   ├── S4_T4.1_review.1.dispatch.json
+│   ├── S4_T4.1_review.1.local.json
+│   ├── S5_T5.1_implement.1.dispatch.json
+│   ├── S5_T5.1_implement.1.local.json
+│   ├── S5_T5.1_review.1.dispatch.json
+│   ├── S5_T5.1_review.1.local.json
+│   ├── S6_T6.1_implement.1.dispatch.json
+│   ├── S6_T6.1_implement.1.local.json
+│   ├── S6_T6.1_review.1.local.json
+│   ├── S6_T6.1_review.2.dispatch.json
+│   ├── S6_T6.1_review.2.local.json
+│   ├── S7_T7.1_implement.1.dispatch.json
+│   ├── S7_T7.1_implement.1.local.json
+│   ├── S7_T7.1_review.1.local.json
+│   ├── S7_T7.1_review.2.dispatch.json
+│   ├── S7_T7.1_review.2.local.json
+│   ├── S8_T8.1_implement.1.dispatch.json
+│   ├── S8_T8.1_implement.1.local.json
+│   ├── S8_T8.1_review.1.dispatch.json
+│   ├── S8_T8.1_review.1.local.json
+│   ├── S9_T9.1_implement.1.dispatch.json
+│   ├── S9_T9.1_implement.1.local.json
+│   ├── S9_T9.1_review.1.dispatch.json
+│   └── S9_T9.1_review.1.local.json
+├── review-schedule.json
+├── swim.lock
+└── TODO
+
+4 directories, 171 files

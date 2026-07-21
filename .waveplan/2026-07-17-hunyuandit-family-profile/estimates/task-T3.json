@@ -1,0 +1,22 @@
+{
+  "estimated_tokens": 32913,
+  "budget_min": 64000,
+  "budget_max": 192000,
+  "fit": "under",
+  "confidence": "low",
+  "drivers": [
+    "4 referenced files",
+    "0 imported local packages",
+    "file not found: backends/model_resolution.py",
+    "file not found: tests/test_model_resolution.py"
+  ],
+  "recommendation": "keep",
+  "missing_files": [
+    "backends/model_resolution.py",
+    "tests/test_model_resolution.py"
+  ],
+  "missing_sections": [],
+  "unknown_files": [],
+  "split_candidates": [],
+  "merge_candidates": []
+}

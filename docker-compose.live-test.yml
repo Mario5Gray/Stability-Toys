@@ -21,7 +21,7 @@
 services:
   # Python backend server
   backend:
-    container_name: lcm-live-test
+    container_name: stability-toys-live-test
     build:
       context: .
       dockerfile: Dockerfile.live-test
@@ -70,7 +70,7 @@ services:
   # Redis for storage/caching
   redis:
     image: redis:7-alpine
-    container_name: lcm-live-test-redis
+    container_name: stability-toys-live-test-redis
     ports:
       - "6379:6379"
     volumes:
@@ -87,7 +87,7 @@ services:
   # Vite dev server for UI hot-reload (optional profile)
   ui-dev:
     image: node:20-slim
-    container_name: lcm-live-test-ui
+    container_name: stability-toys-live-test-ui
     profiles:
       - ui-dev
     working_dir: /ui

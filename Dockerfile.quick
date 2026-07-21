@@ -4,18 +4,18 @@
 # Prerequisite: a base image must already be built (full build or prior quick build).
 #
 # Build (CUDA, default):
-#   docker build -f Dockerfile.quick -t harbor.lan/lcm-sd-ui:latest .
+#   docker build -f Dockerfile.quick -t harbor.lan/stability-toys:latest .
 #
 # Build (RKNN):
 #   docker build -f Dockerfile.quick \
-#     --build-arg BASE_IMAGE=darkbit1001/lcm-sd-ui:latest \
-#     -t darkbit1001/lcm-sd-ui:latest .
+#     --build-arg BASE_IMAGE=mitraframe/stability-toys:latest \
+#     -t mitraframe/stability-toys:latest .
 #
 # Or via Makefile:
-#   make quick-build                          # CUDA (harbor.lan/lcm-sd-ui:latest)
-#   make quick-build IMAGE=darkbit1001/lcm-sd-ui:latest  # RKNN
+#   make quick-build                          # CUDA (harbor.lan/stability-toys:latest)
+#   make quick-build IMAGE=mitraframe/stability-toys:latest  # RKNN
 
-ARG BASE_IMAGE=harbor.lan/lcm-sd-ui:latest
+ARG BASE_IMAGE=harbor.lan/stability-toys:latest
 FROM ${BASE_IMAGE}
 
 WORKDIR /app

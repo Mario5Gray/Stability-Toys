@@ -161,7 +161,11 @@ def test_sd_safetensors_snapshot_delta_is_only_architecture_facts(tmp_path: Path
     save_file(
         {
             "model.diffusion_model.input_blocks.0.0.weight": np.zeros((320, 4, 3, 3), dtype=np.float32),
-            "model.diffusion_model.middle_block.1.transformer_blocks.0.attn2.to_k.weight": np.zeros((768, 320), dtype=np.float32),
+            # attn2.to_k is Linear(context_dim -> inner_dim), and torch stores
+            # weights (out_features, in_features), so the LDM tensor is
+            # (inner_dim, cross_attention_dim) and CAD is shape[1]. Matches the
+            # fixture in tests/test_model_detector.py.
+            "model.diffusion_model.middle_block.1.transformer_blocks.0.attn2.to_k.weight": np.zeros((1280, 768), dtype=np.float32),
         },
         str(path),
     )

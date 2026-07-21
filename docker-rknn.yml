@@ -1,14 +1,14 @@
 services:
-  lcm-sd:
+  stability-toys:
     platform: linux/arm64
-    container_name: lcm-sd-ui
+    container_name: stability-toys
     build:
       context: .
       dockerfile: ./Dockerfile
       args:
         BACKEND: rknn
         GIT_SHA: ${GIT_SHA:-dev}
-    image: darkbit1001/lcm-sd-ui:latest
+    image: mitraframe/stability-toys:latest
 
     privileged: true
 

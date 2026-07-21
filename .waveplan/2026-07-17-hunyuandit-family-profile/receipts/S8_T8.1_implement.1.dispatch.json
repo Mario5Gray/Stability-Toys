@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "mode": "local",
+  "active": false,
+  "step_id": "S8_T8.1_implement",
+  "task_id": "T8.1",
+  "action": "implement",
+  "attempt": 1,
+  "claimed_at": "2026-07-19T04:51:52Z",
+  "completed_at": "2026-07-19T05:01:48Z",
+  "outcome": "applied",
+  "summary": "T8: CUDA no-op gate — SD/SDXL worker suites green; found+fixed one Phase-2 regression (non-mode-system ControlNet stub); pre-existing env failures documented",
+  "evidence": [
+    "GPU-host test-cuda: cuda_worker base/capabilities/controlnet 85 + worker_factory 7 + worker_pool 66 passed",
+    "regression fix: ws_routes+controlnet_http/success/dispatch/execution+cuda_worker+worker_factory -\u003e 147 passed"
+  ],
+  "git_sha": "89478d5"
+}

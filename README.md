@@ -532,11 +532,11 @@ rebuild, use the quick-build target. It overlays your Python source onto an
 existing image without reinstalling dependencies or rebuilding the UI:
 
 ```bash
-# CUDA (default) — overlays onto harbor.lan/lcm-sd-ui:latest
+# CUDA (default) — overlays onto harbor.lan/stability-toys:latest
 make quick-build
 
 # RKNN — overlay onto the RKNN image
-make quick-build IMAGE=darkbit1001/lcm-sd-ui:latest
+make quick-build IMAGE=mitraframe/stability-toys:latest
 ```
 
 This produces a thin layer on top of the base image — build time is seconds

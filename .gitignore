@@ -37,16 +37,15 @@ workflows
 *.pyo
 *.pyd
 *.egg-info/
-.env
-.venv
-venv
-dist
-build
-localbuild
-model
+/.env
+/.venv
+/venv
+/localbuild
+/model
+/scripts/build/
+/lcm-sr-ui/dist/
 
-docker pull harbor:443/rknn-lcm-sd-ui:latest
-docker tag harbor:443/rknn-lcm-sd-ui:latest darkbit1001/rknn-lcm-sd-ui:latest
+
 .envrc
 .claude
 env.lsp
@@ -63,5 +62,9 @@ skills-lock.json
 AGENT-PSI.md
 opencode.json
 .st-shell.zsh
-st
+# The built CLI binary. Anchored: a bare `st` also matches the directory
+# cli/go/cmd/st/, which silently hid every source file under it and required
+# per-file negations to add anything new there.
+/cli/go/st
+/st
 .superpowers

@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"encoding/json"
 	"errors"
 	"os"
@@ -71,8 +72,34 @@ func Load(path string) (*Config, error) {
 	return &wrap.Config, nil
 }
 
+// AppDir is the single directory name this CLI uses under every XDG root, so
+// config and state are found in the same place under different roots:
+//
+//	$XDG_CONFIG_HOME/st/config.json   settings, hand-edited
+//	$XDG_STATE_HOME/st/              history, locks, counters (managed)
+//
+// Config stays under the config root rather than moving in beside state: the
+// state directory holds lock files and an ID counter that nobody should edit
+// or sync, and XDG_DATA_HOME is for application data, not settings.
+const AppDir = "st"
+
+// legacyAppDir is the pre-consolidation config directory name. Only the config
+// root ever used it; state has always been under "st".
+const legacyAppDir = "stability-toys"
+
+func configRoot() (string, error) {
+	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
+		return base, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config"), nil
+}
+
 // Resolve picks the config path: explicit --config flag, then $ST_CONFIG, then
-// the XDG default ($XDG_CONFIG_HOME or ~/.config)/stability-toys/config.json.
+// the XDG default ($XDG_CONFIG_HOME or ~/.config)/st/config.json.
 func Resolve(flagPath string) (string, error) {
 	if flagPath != "" {
 		return flagPath, nil
@@ -80,15 +107,45 @@ func Resolve(flagPath string) (string, error) {
 	if env := os.Getenv("ST_CONFIG"); env != "" {
 		return env, nil
 	}
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	base, err := configRoot()
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(base, "stability-toys", "config.json"), nil
+	return filepath.Join(base, AppDir, "config.json"), nil
+}
+
+// CheckLegacyLocation reports a config left in the pre-consolidation directory
+// when the default location is in use.
+// It returns an error only when the legacy file exists and the current one does
+// not, so a fresh install bootstraps normally and a migrated install is never
+// nagged. The error carries the exact command to run: this is a hard cutover,
+// and silently reading the old path would leave both locations live forever.
+func CheckLegacyLocation(flagPath string) error {
+	// An explicit path is the user telling us where the config is; the cutover
+	// only governs the default location. Nagging here would break every caller
+	// that passes --config or $ST_CONFIG.
+	if flagPath != "" || os.Getenv("ST_CONFIG") != "" {
+		return nil
+	}
+	base, err := configRoot()
+	if err != nil {
+		return nil
+	}
+	current := filepath.Join(base, AppDir, "config.json")
+	if _, err := os.Stat(current); err == nil {
+		return nil
+	}
+	legacy := filepath.Join(base, legacyAppDir, "config.json")
+	if _, err := os.Stat(legacy); err != nil {
+		return nil
+	}
+	return fmt.Errorf(
+		"config found at the old location %s\n\n"+
+			"st now keeps configuration in %s.\nMove it with:\n\n"+
+			"  mkdir -p %s\n  mv %s %s\n  rmdir %s\n",
+		legacy, current,
+		filepath.Dir(current), legacy, current, filepath.Dir(legacy),
+	)
 }
 
 // BootstrapTemplate writes a loadable placeholder config to path (creating

@@ -43,4 +43,9 @@ coverage[toml]>=7.2.0
 
 # Performance testing
 pytest-benchmark>=4.0.0
-ptw
+
+# Test watcher. Provides the `ptw` console script used by the test-watch
+# compose service (`ptw tests/ -- -v`). Note the bare `ptw` distribution on
+# PyPI is an unrelated pooling TLS wrapper, and `pytest-watch` is unmaintained
+# since 2018 and does not work with modern pytest.
+pytest-watcher>=0.4.0

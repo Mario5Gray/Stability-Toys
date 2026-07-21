@@ -1,7 +1,7 @@
 services:
-  lcm-sd:
+  stability-toys:
     platform: linux/amd64
-    container_name: lcm-sd-ui
+    container_name: stability-toys
     runtime: nvidia
     build:
       context: .
@@ -9,7 +9,7 @@ services:
       args:
         BACKEND: cuda
         GIT_SHA: ${GIT_SHA:-dev}
-    image: harbor.lan/lcm-sd:latest
+    image: harbor.lan/stability-toys:latest
     security_opt:
       - label:disable
     privileged: true

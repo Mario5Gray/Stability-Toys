@@ -211,6 +211,22 @@ func runCmdWithStateRoot(t *testing.T, stateRoot string, args ...string) string 
 
 func runCmdMayFailWithStateRoot(t *testing.T, stateRoot string, args ...string) (string, error) {
 	t.Helper()
+	// Isolate the config root as well as the state root. Without this the CLI
+	// resolves the developer's real ~/.config file, so these tests silently
+	// depended on whatever that machine happened to have.
+	if os.Getenv("XDG_CONFIG_HOME") == "" || !strings.HasPrefix(os.Getenv("XDG_CONFIG_HOME"), os.TempDir()) {
+		cfgHome := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", cfgHome)
+		// Seed a valid config so config-gated commands run. Previously these
+		// tests reached the developer's real config for this.
+		if err := os.MkdirAll(filepath.Join(cfgHome, "st"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		seed := `{"config":{"defaults":{"generation":{"mode":"m","cfg":2.5,"steps":10,"genres":"512x512","seed":"random"},"output_format":"png","output_directory":"` + t.TempDir() + `"}}}`
+		if err := os.WriteFile(filepath.Join(cfgHome, "st", "config.json"), []byte(seed), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	resetCLIFlagState()
 	old := resolveStateRoot
 	resolveStateRoot = func() (string, error) { return stateRoot, nil }

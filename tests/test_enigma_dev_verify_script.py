@@ -67,8 +67,8 @@ def test_verify_wraps_remote_worktree_and_runs_expected_remote_commands(tmp_path
     assert 'cd "/srv/stability/.worktrees/gallery-ux-polish"' in remote_script
     assert "docker compose -f docker-cuda.yml build" in remote_script
     assert "docker compose -f docker-compose.dev.yml up -d --build" in remote_script
-    assert "docker inspect -f '{{.State.Health.Status}}' lcm-sd-dev" in remote_script
-    assert "docker logs --tail 50 lcm-sd-dev" in remote_script
+    assert "docker inspect -f '{{.State.Health.Status}}' stability-toys-dev" in remote_script
+    assert "docker logs --tail 50 stability-toys-dev" in remote_script
 
 
 def test_verify_unhealthy_container_dumps_local_diagnostics(tmp_path):
@@ -106,11 +106,11 @@ def test_verify_unhealthy_container_dumps_local_diagnostics(tmp_path):
     assert result.returncode == 0
     remote_script = (tmp_path / "remote-script.sh").read_text()
     assert "dump_dev_container_diagnostics()" in remote_script
-    assert "[enigma-dev-verify] lcm-sd-dev did not become healthy; dumping diagnostics" in remote_script
+    assert "[enigma-dev-verify] stability-toys-dev did not become healthy; dumping diagnostics" in remote_script
     assert "[enigma-dev-verify] container state:" in remote_script
     assert "docker inspect -f 'status={{.State.Status}}" in remote_script
     assert "[enigma-dev-verify] recent container logs (tail 250):" in remote_script
-    assert "docker logs --tail 250 lcm-sd-dev" in remote_script
+    assert "docker logs --tail 250 stability-toys-dev" in remote_script
     diagnostic_body = remote_script.split("dump_dev_container_diagnostics() {", 1)[1].split("\n}", 1)[0]
     assert ">&2" not in diagnostic_body
     assert "dump_dev_container_diagnostics" in remote_script.split('if [ "$status" != "healthy" ]; then', 1)[1]
@@ -151,7 +151,7 @@ def test_verify_manual_step_only_skips_remote_docker_phase(tmp_path):
 
     assert result.returncode == 0
     assert "Manual step remaining:" in result.stdout
-    assert "Terminal A: docker logs -f lcm-sd-dev" in result.stdout
+    assert "Terminal A: docker logs -f stability-toys-dev" in result.stdout
     assert "leave the log stream running" in result.stdout
     assert "Terminal B: edit conf/modes.yaml and save one reversible change" in result.stdout
     assert "Terminal A: confirm the config watcher reloads without restarting the container" in result.stdout

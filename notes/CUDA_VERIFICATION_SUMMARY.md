@@ -38,7 +38,7 @@ Comprehensive CUDA verification script that checks:
 
 **Usage:**
 ```bash
-docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all --privileged harbor.lan/stability-toys:test python verify_cuda.py
 ```
 
 ### 3. **Enhanced test-sdxl.sh**
@@ -46,7 +46,7 @@ docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
 Added automatic GPU verification before running tests:
 ```bash
 # Verifies GPU access in container using PyTorch
-docker run --rm --gpus all lcm-sd-test:latest python3 -c "import torch; ..."
+docker run --rm --gpus all harbor.lan/stability-toys:test python3 -c "import torch; ..."
 ```
 
 If GPU is not accessible, the script exits with troubleshooting tips.
@@ -122,10 +122,10 @@ This checks:
 
 ```bash
 # Build image
-docker build -f Dockerfile.test -t lcm-sd-test:latest .
+docker build -f Dockerfile.test -t harbor.lan/stability-toys:test .
 
 # Run verification
-docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all --privileged harbor.lan/stability-toys:test python verify_cuda.py
 ```
 
 ## Expected Output
@@ -220,7 +220,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 
 **Check 3: Container GPU Access**
 ```bash
-docker run --rm --gpus all --privileged lcm-sd-test:latest python verify_cuda.py
+docker run --rm --gpus all --privileged harbor.lan/stability-toys:test python verify_cuda.py
 ```
 
 ### Issue: Tests Skip with "CUDA not available"

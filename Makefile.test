@@ -58,7 +58,7 @@ test-shell: ## Open a shell in the test container
 
 test-clean: ## Clean up test containers and images
 	docker compose -f docker-compose.test.yml down
-	docker rmi harbor.lan/dreamlab-test:latest || true
+	docker rmi harbor.lan/stability-toys:test || true
 	rm -rf htmlcov/ .pytest_cache/ .coverage
 
 test-clean-all: test-clean ## Clean everything including volumes

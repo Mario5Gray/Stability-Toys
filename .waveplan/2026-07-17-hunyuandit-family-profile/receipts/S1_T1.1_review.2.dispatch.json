@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "step_id": "S1_T1.1_review",
+  "task_id": "",
+  "action": "review",
+  "target": "codex",
+  "agent": "theta",
+  "mode": "review",
+  "task_source": "provided_task_json",
+  "tool": "codex",
+  "delivered_on": "2026-07-17T19:35:01Z"
+}

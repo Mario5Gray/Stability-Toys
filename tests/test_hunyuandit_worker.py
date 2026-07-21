@@ -63,6 +63,17 @@ class _FakePipelineBase:
     def to(self, *args, **kwargs):
         return self
 
+    # Memory-optimization hooks _setup_pipe_memory_opts may call. Whether it
+    # does depends on CUDA_ATTENTION_SLICING / CUDA_ENABLE_XFORMERS, which are
+    # unset locally but both 1 in env.cuda — so a fake lacking these passes on a
+    # laptop and fails in the CUDA container. Record calls instead of omitting
+    # the methods; the SD/Hunyuan swap assertions patch over these anyway.
+    def enable_attention_slicing(self, *args, **kwargs):
+        self.calls.append(("enable_attention_slicing", args))
+
+    def enable_xformers_memory_efficient_attention(self, *args, **kwargs):
+        self.calls.append(("enable_xformers_memory_efficient_attention", args))
+
     def __call__(self, **kwargs):
         self.calls.append(kwargs)
         return SimpleNamespace(images=[MagicMock()])
