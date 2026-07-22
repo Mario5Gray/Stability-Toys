@@ -41,6 +41,23 @@ class ControlNetModelCache:
             entry = self._entries[model_id]
             entry.pin_count -= 1
 
+    def clear(self) -> int:
+        """Drop all unpinned entries and return how many were freed.
+
+        release() only decrements pin_count; nothing leaves the cache until it
+        exceeds max_entries, so held ControlNet models stay resident in VRAM
+        after a job. unload / free-vram call this to actually release them.
+        Pinned entries (a job is mid-flight) are kept. Caller runs
+        torch.cuda.empty_cache() afterward to return the freed blocks.
+        """
+        with self._lock:
+            dropped = 0
+            for model_id in list(self._entries.keys()):
+                if self._entries[model_id].pin_count <= 0:
+                    self._entries.pop(model_id)
+                    dropped += 1
+            return dropped
+
     def _evict_if_needed(self) -> None:
         while len(self._entries) > self._max_entries:
             victim_id, victim = next(iter(self._entries.items()))
