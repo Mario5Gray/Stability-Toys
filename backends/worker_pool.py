@@ -451,6 +451,19 @@ class WorkerPool:
 
     def _unload_current_worker(self):
         """Unload current worker and free VRAM."""
+        # Release cached ControlNet models before the worker-presence guard, so
+        # a free-vram issued after the base model is already unloaded still frees
+        # them. The cache is a separate store; release() only unpins, and entries
+        # are not evicted below max_entries, so without this the ControlNet
+        # weights stay resident in VRAM after the base model is gone. The
+        # composed ControlNet pipe shares base components (from_pipe), so it is
+        # gone with the worker.
+        from backends.controlnet_cache import get_controlnet_cache
+
+        dropped = get_controlnet_cache().clear()
+        if dropped:
+            logger.info(f"[WorkerPool] Released {dropped} cached ControlNet model(s)")
+
         if self._worker is None:
             return
 

@@ -270,6 +270,27 @@ class TestBasicLifecycle:
         pool._unload_current_worker()  # should be a no-op
         assert pool._worker is None
 
+    def test_unload_releases_cached_controlnet_models(self, pool):
+        """ControlNet models are freed even when the worker is already gone.
+
+        Regression: unload/free-vram left ControlNet weights resident in VRAM
+        because the cache is a separate store and release() only unpins.
+        """
+        from backends import controlnet_cache
+
+        controlnet_cache.reset_controlnet_cache()
+        cache = controlnet_cache.get_controlnet_cache()
+        cache.acquire("hunyuandit-canny", "/m/canny", loader=lambda p: {"p": p})
+        cache.release("hunyuandit-canny")
+        assert cache.snapshot()["entries"] == ["hunyuandit-canny"]
+
+        # Worker already unloaded: the teardown must still clear the cache.
+        pool._worker = None
+        pool._unload_current_worker()
+
+        assert cache.snapshot()["entries"] == []
+        controlnet_cache.reset_controlnet_cache()
+
 
 class TestModeSwitchingLifecycle:
     """Mode switching: unload→switch, auto-unload, switch→unload."""

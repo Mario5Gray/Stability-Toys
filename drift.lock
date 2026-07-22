@@ -11,6 +11,7 @@ docs/TESTING_IN_DOCKER.md -> requirements-test.txt sig:45a41769a2be9a1b
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:a6729f72c235e335
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:a351234f15bc6e73
+docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/AdvisorPanel.jsx sig:1f2760883985be21
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/OptionsPanel.jsx sig:321b8758ad7c8561
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/hooks/useAdvisorState.js sig:eaa645f0220de1d7
@@ -25,11 +26,12 @@ docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/mode_config.py si
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/model_routes.py sig:6ac83d56b26d8bce
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> server/ws_routes.py sig:de16c23fcee99570
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/model_registry.py sig:7e75d402fe28fd85
-docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:39867e22ba9dab04
+docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md sig:e49b18156e6ce238
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/lcm_sr_server.py sig:656c62530054600e
 docs/superpowers/plans/2026-04-13-explicit-backend-provider.md -> server/superres_service.py sig:74e4aca779ef6bff
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> Dockerfile.test sig:8be26d62b50791e4
+docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/ws_routes.py sig:de16c23fcee99570
@@ -37,7 +39,7 @@ docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/base.py sig:98c6bc7634d9a617
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/cuda_worker.py sig:2f958ee2c50fdc77
-docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/worker_pool.py sig:39867e22ba9dab04
+docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md sig:198da7e7b6e7c7a9
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements-test.txt sig:45a41769a2be9a1b
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements.txt sig:3a2f02a28f0bab68
@@ -65,6 +67,7 @@ docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_
 docs/superpowers/specs/2026-04-18-vision-chat-design.md -> server/ws_routes.py#_run_chat sig:44540cfdc2703728
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> backends/chat_client.py sig:a351234f15bc6e73
+docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> lcm-sr-ui/src/hooks/useGalleryAdvisor.js sig:35320eb672b8a6a7
 docs/superpowers/specs/2026-04-19-openwebui-prompt-memory-integration-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> Dockerfile sig:ed6c832394651a45
@@ -78,7 +81,7 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/condi
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/native.py sig:109eecdc334ced8b
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/registry.py sig:448245685ce46c5c
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/cuda_worker.py sig:2f958ee2c50fdc77
-docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/worker_pool.py sig:39867e22ba9dab04
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> docker-compose.test.yml sig:d74b3457f76f0969
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> requirements.txt sig:3a2f02a28f0bab68
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> scripts/st-dtype-live-verify.sh sig:651c210852625d71
@@ -89,7 +92,7 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backend
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/base.py sig:5055e82413ca5d94
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/cuda.py sig:a6729f72c235e335
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_pool.py sig:39867e22ba9dab04
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_pool.py sig:94d70adce42c49fc
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/controlnets.yaml sig:cd074e2ac578485f
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/modes.yml sig:bad423bfb57de4b4
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> docker-compose.test.yml sig:d74b3457f76f0969
