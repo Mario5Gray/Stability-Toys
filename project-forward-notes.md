@@ -5,19 +5,53 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ---
 
-## Active work
+## Current objectives
 
-Prompt-conditioning closeout is in flight under `STABL-hvalobvn`; implementation
-children through CUDA wiring are complete, with docs/container/live verification
-remaining in `STABL-dxxgoevd`.
+Two live tracks, both surfaced running HunyuanDiT + ControlNet on enigma
+(RTX 3090, 24 GB). All children below are `todo`, none claimed.
 
-Open, unowned, filed during the HunyuanDiT track:
+### VRAM memory pressure — umbrella `STABL-nvmieaxh`
+
+The enigma logs separated one apparent "leak" into three distinct failures:
+
+1. **Accounting is fiction.** `ModelRegistry.get_available_vram()` returns
+   `total_memory - torch.cuda.memory_reserved()` — only torch's own reserved pool
+   against the nameplate total, ignoring the CUDA context, cuDNN/cuBLAS/xformers
+   workspaces, and any other process. `can_fit()` consumes this inflated number and
+   over-commits → OOM. **First child `STABL-sqqlkmdl`** flips this to
+   `torch.cuda.mem_get_info()` (driver free/total). TDD-ready; do this first.
+2. **Post-free residual is the CUDA context, not a torch leak.** After free-vram
+   torch reports ~9 MiB allocated / ~22 MiB reserved — fully freed. What remains in
+   `nvidia-smi` is the per-process context (~0.5–1.5 GB), unreclaimable by
+   `empty_cache()`; only process exit frees it. Not fragmentation.
+3. **OOM poisons the context; in-process recovery can't fix it.** The pool already
+   auto-runs `_cleanup_vram` on the worker thread (`worker_pool.py:785`), but
+   `empty_cache`/`del` cannot drop a poisoned context. Durable fix is subprocess
+   isolation (kill + respawn the model process). Facet, not yet its own child.
+
+`STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
+predecessor (`a3c1c64`, issue still open): it fixed retained ControlNet weights but
+not the accounting or recovery facets this umbrella covers.
+
+### Mode-switch concurrency — first render after `lcm → hunyuanDiT`
+
+A generate admitted concurrently with a mode switch resolves against transient
+authority. Two windows of the one switch, **same root, one fix**:
+
+| Issue | Window | Failure |
+|---|---|---|
+| `STABL-ltefhpkk` | old snapshot still live (old epoch) | `StaleResolutionError` at execution; retry works |
+| `STABL-iuiwzthc` | new model still loading (`_active_snapshot` transiently `None`, `worker_pool.py:305-385`) | spurious "ControlNet provider not yet implemented"; retry works |
+
+Fix both by resolving/admitting/stamping the generate against the mode it
+**targets**, established atomically with the switch — not against whatever live
+authority admission happens to observe.
+
+Open, unowned (pre-existing):
 
 | Issue | What |
 |---|---|
 | `STABL-vwcwmiku` | `.github/workflows/ci.yml` has never run — `.gitignore:21`'s bare `workflows` pattern means it was never committed. The Concourse pipeline in `../continuous` is already fully configured for this repo and is one `fly login` away. |
-| `STABL-bclnlnzd` | `tests/test_model_registry.py` stubs `torch` only long enough to import `backends.model_registry`, so it passes alone and errors in a full run; its `mock_cuda` fixture also patches `torch.cuda.get_available_vram`, which is a `ModelRegistry` method. |
-| `STABL-zisphapv` | Miniforge base runs transformers 5.10.2 against a `<5.0` pin, aborting full pytest collection. Container unaffected. |
 
 ---
 
@@ -69,9 +103,10 @@ Depth and Pose are registered and user-reachable but only Canny is live-verified
 Hunyuan img2img, combined img2img+ControlNet, materialized Hunyuan conditioning,
 and `/models/status` family exposure remain deferred.
 
-### Pluggable prompt conditioning + Compel long prompts — landing
+### Pluggable prompt conditioning + Compel long prompts — merged
 
-**FP:** STABL-hvalobvn | **Spec:** `docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md`
+**FP:** STABL-hvalobvn (done, incl. docs/container/live closeout `STABL-dxxgoevd`)
+**Spec:** `docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md`
 
 CUDA workers now use a Stability-Toys-owned prompt-conditioning seam. Native
@@ -119,57 +154,23 @@ no longer reproduces (2026-07-20: 34 passed in one session, and both files are
 clean in the full suite), most likely resolved when `STABL-ichgkgno` removed the
 family-string branching those stubs interacted with. No FP issue was filed.
 
-Two related test-hygiene problems that *do* still reproduce are tracked
-separately: `STABL-bclnlnzd` (import-order-dependent torch stubbing in
-`test_model_registry.py`) and `STABL-zisphapv` (Miniforge base violating the
-`transformers<5.0` pin, which aborts full pytest collection).
+The combined-track test-hygiene follow-ups (`STABL-bclnlnzd` torch stubbing,
+`STABL-zisphapv` Miniforge pin) are both now **done**.
 
-### AssetStore bucketed interface — merged (PR #3)
+### Earlier landed (settled; forward-relevant detail folded into boundary decisions)
 
-**FP:** STABL-hvkybzlg | **Spec:** `docs/superpowers/specs/2026-07-04-asset-store-bucketed-interface-design.md`
-**Plan:** `docs/superpowers/plans/2026-07-05-asset-store-bucketed-interface.md`
-
-`AssetStore` reshaped into a Protocol + `InMemoryAssetStore` implementation: flat
-named buckets (`upload`, `control_map`, `ref_image`), per-bucket byte budgets with
-fail-closed admission (rolls back cleanly under pin pressure — no silent deletion of
-unrelated assets), and `promote(ref, target_bucket)` (copy semantics, new ref,
-image-decode validated, metadata merged forward). `kind` → `bucket`, `insert` →
-`write`, no compatibility aliases.
-
-### Tiered AssetStore persistence — merged (PR #4)
-
-**FP:** STABL-slsbyhga | **Spec:** `docs/superpowers/specs/2026-07-05-tiered-asset-store-persistence-design.md`
-**Plan:** `docs/superpowers/plans/2026-07-05-tiered-asset-store-persistence.md`
-
-`TieredAssetStore` composes the bucketed store (hot cache) with an optional
-`StorageProvider` (durable tier) via a pure `server/asset_codec.py` seam. Strict
-write-through (provider failure discards the just-admitted ref and raises — no
-half-persisted state); `resolve` rehydrates from the provider on a memory miss.
-Provider selection is a **dedicated** `ASSET_STORE_PROVIDER` env var, decoupled from
-the existing `STORAGE_PROVIDER` (which drives the separate `/storage/*` endpoint) —
-**Redis is intentionally out of scope** for this tier; only `DISABLED` (default),
-`MEMORY`, and `FILESYSTEM` are supported. Lifecycle (the filesystem provider's cleanup
-thread) is closed at the server's lifespan shutdown via `close_store()`.
-
-### st read: ControlNet metadata — merged (PR #5)
-
-**FP:** STABL-teiotvmc | **Spec:** `docs/superpowers/specs/2026-07-06-st-read-controlnet-metadata-design.md`
-**Plan:** `docs/superpowers/plans/2026-07-06-st-read-controlnet-metadata.md`
-
-`st read <image.png>` now detects all three PNG tEXt chunks the backend writes —
-`lcm` (generation params), `controlnet` (per-attachment ControlNet provenance, stamped
-alongside `lcm` whenever a generation used ControlNet), and `controlnet_map`
-(provenance on standalone control-map files) — via a single `pngmeta.Parse` walk, and
-prints one JSON key per chunk found. Output is now always wrapped by chunk keyword
-(breaking change from the old flat `lcm`-only shape, by design — no back-compat shim).
-
-### st CLI v1.x point release — done
-**FP:** STABL-csqqcjmo (previously mis-cited here as STABL-kczspmud, which is actually
-the unrelated, still-open v2 brainstorm below)
-
-All six planned tasks landed: `st modes switch/show/reload` + `stclient.ReloadModes()`,
-the `Generate()` callback refactor (`--stream`/`--quiet`), `--controlnet-file`, the
-upload bucket argument, and ControlNet config presets.
+- **AssetStore bucketed interface** — `STABL-hvkybzlg` (PR #3). Protocol +
+  `InMemoryAssetStore`; flat `upload`/`control_map`/`ref_image` buckets, per-bucket
+  fail-closed byte budgets, `promote(ref, target_bucket)`.
+- **Tiered AssetStore persistence** — `STABL-slsbyhga` (PR #4). `TieredAssetStore` =
+  bucketed hot cache + optional `StorageProvider` via `server/asset_codec.py`; strict
+  write-through; `ASSET_STORE_PROVIDER` env (`DISABLED`/`MEMORY`/`FILESYSTEM`, Redis
+  out of scope).
+- **st read: ControlNet metadata** — `STABL-teiotvmc` (PR #5). Detects `lcm`,
+  `controlnet`, `controlnet_map` PNG tEXt chunks; output wrapped by chunk keyword.
+- **st CLI v1.x point release** — `STABL-csqqcjmo`. `st modes switch/show/reload`,
+  `Generate()` `--stream`/`--quiet`, `--controlnet-file`, upload bucket arg,
+  ControlNet presets.
 
 ---
 
@@ -179,6 +180,15 @@ upload bucket argument, and ControlNet config presets.
 Frontend has no scope until CLI surface is complete and stable. This is not
 a temporary freeze — it reflects the project's delivery philosophy. Any agent
 suggesting a "quick UI" for a new capability is out of bounds.
+
+### `st gen --reset` was removed — use `conflate off` / `on`
+
+`gen --reset` (STABL-ykdsormc) added a per-run clean slate, then was reverted
+(`0779f06`). With no explicit prompt it resolved to an **empty** prompt — the
+conflation baseline was the only prompt source, and the WS handler defaults a
+missing prompt to `""` (`ws_routes.py:370`), rendering noise. The clean-slate
+path is `st conflate off; st gen ...; st conflate on`. Do not re-add `--reset`
+without first solving that empty-prompt resolution.
 
 ### `--json` output contract is frozen
 `st gen --json` emits exactly `{"output","seed","storage_key","storage_url"}` —
