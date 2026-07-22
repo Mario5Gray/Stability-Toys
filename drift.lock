@@ -4,7 +4,7 @@ docs/CUDA_VERIFICATION.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/PRIVILEGED_MODE.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/TESTING_IN_DOCKER.md -> Dockerfile.test sig:8be26d62b50791e4
 docs/TESTING_IN_DOCKER.md -> Makefile sig:b6052673ca8ae962
-docs/TESTING_IN_DOCKER.md -> Makefile.test sig:c16eda032bfd16f6
+docs/TESTING_IN_DOCKER.md -> Makefile.test sig:2f76b102d4afd163
 docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:d74b3457f76f0969
 docs/TESTING_IN_DOCKER.md -> requirements-test.txt sig:45a41769a2be9a1b

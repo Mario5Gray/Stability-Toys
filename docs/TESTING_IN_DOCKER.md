@@ -120,14 +120,14 @@ Run the local test suite:
 docker compose -f docker-compose.test.yml run --rm test
 ```
 
-Run local non-Docker tests via `Makefile.test` (requires Miniforge base):
+Run local non-Docker tests via `Makefile.test` (requires the `stability-toys` conda env — build it with `scripts/local-host.sh`):
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base
+conda activate stability-toys
 make -f Makefile.test local-test
 ```
 
-`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
+`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3/envs/stability-toys` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
 
 The shared Miniforge root environment drifts — other projects install into it, and it can end up outside the project pins (transformers 5.x, an older diffusers), which aborts pytest collection. The container is the source of truth; for a matching **host** environment, run [`scripts/local-host.sh`](/Users/darkbit1001/workspace/Stability-Toys/scripts/local-host.sh). It detects OS/architecture and CUDA, asks the operator for anything it cannot infer (no CLI arguments), creates a dedicated env named `stability-toys`, and installs torch plus the requirements in the same order as the image. Point local pytest at that env rather than the shared root.
 
