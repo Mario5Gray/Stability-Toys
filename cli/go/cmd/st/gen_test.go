@@ -715,3 +715,50 @@ func TestRecreateRequiredEvenWithInitImage(t *testing.T) {
 		t.Fatal("--recreate without lcm chunk must error even alongside --init-image")
 	}
 }
+
+func TestConflatedGenResetIgnoresBaseline(t *testing.T) {
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	baseID, _ := store.ReserveID(context.Background())
+	_ = store.Append(context.Background(), history.Entry{
+		SchemaVersion: 1,
+		ID:            baseID,
+		Family:        history.FamilyGen,
+		Raw:           history.CommandView{Argv: []string{"st", "gen"}, Display: "st gen"},
+		Effective: &history.CommandView{Params: map[string]any{
+			"prompt":         "owl",
+			"guidance_scale": 4.5,
+			"controlnets":    []any{map[string]any{"control_type": "canny"}},
+		}},
+		ExitCode: 0,
+	})
+	runCmdWithStateRoot(t, root, "conflate", "on")
+
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.Cfg = 7.5
+
+	// --reset: clean slate. Conflation stays enabled, but this run ignores the
+	// baseline entirely, so inherited controlnets drop and other baseline-only
+	// values fall back to config defaults.
+	patch := genPatch{
+		Reset:   true,
+		Args:    genArgs{Prompt: "fresh"},
+		Changed: map[string]bool{"prompt": true},
+	}
+	params, baseline, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := params["controlnets"]; ok {
+		t.Fatalf("--reset must drop inherited controlnets: %#v", params)
+	}
+	if params["guidance_scale"] != 7.5 {
+		t.Fatalf("--reset must fall back to config default cfg, got %#v", params["guidance_scale"])
+	}
+	if baseline != nil {
+		t.Fatalf("--reset applies no baseline, got %#v", baseline)
+	}
+	if params["prompt"] != "fresh" {
+		t.Fatalf("explicit prompt should still apply: %#v", params["prompt"])
+	}
+}

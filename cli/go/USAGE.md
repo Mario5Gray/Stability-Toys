@@ -195,6 +195,19 @@ positional text at the `st` root is rejected so mistyped commands do not become
 paid prompt patches. Explicit `st gen ...` remains valid and also inherits from
 the selected baseline while conflation is on.
 
+Clean slate without turning conflation off:
+
+```bash
+st gen "fresh scene" --reset   # this run ignores the baseline entirely —
+                               # inherited controlnets, seed, sr, etc. all drop
+st gen "next"                  # conflates forward from the reset run
+```
+
+`--reset` is per-run: conflation stays enabled, this one generation starts from
+config defaults plus whatever flags you pass, and the resulting run becomes the
+next baseline. It is the way to drop inherited controlnets (or any accumulated
+parameter) without `st conflate off`.
+
 Selectors:
 
 ```bash
