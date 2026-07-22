@@ -42,6 +42,8 @@ analysis_connections:
     endpoint: "http://node2.lan:8080/v1"
   local_detector:
     endpoint: "http://node2.lan:9080"
+  mindgate_vlm:
+    endpoint: "http://mindgate.lan:8080/v1"
 
 analysis_delegates:
   vlm_caption:
@@ -52,17 +54,29 @@ analysis_delegates:
     options:                   # all optional
       max_tokens: 512
       temperature: 0.7
-      timeout_s: 390
+      timeout_s: 3600
+      system_prompt: "Describe the image for stable diffusion keywords."
+  mindgate_caption:
+    connection: mindgate_vlm
+    kind: caption
+    model: /models/Huihui-gemma-4-12B-agentic-fable5-abliterated.Q3_K_L.gguf
+    provider: openai_vlm       # real VLM; omit for the stub
+    options:                   # all optional
+      max_tokens: 512
+      temperature: 0.7
+      timeout_s: 3600
       system_prompt: "Describe the image for stable diffusion keywords."
 
 analysis_profiles:
   default:
     task_routes:
-      caption: vlm_caption
+      caption: mindgate_caption
 
 chat_connections:
   local_default:
     endpoint: "http://node2.lan:8080/v1"
+  mindgate:
+    endpoint: "http://mindgate.lan:8080/v1"
 
 
 chat_delegates:
@@ -194,13 +208,16 @@ modes:
     resolution_set: sdxl
     default_size: 1024x1024
     recommended_size: 1024x1024
-    default_steps: 30
-    default_guidance: 5.0
+    default_steps: 50
+    default_guidance: 6.0
+    conditioning:
+      service: compel       
     negative_prompt_templates:
       safe_photo: "blurry, watermark, text, low quality"
     default_negative_prompt_template: safe_photo
     allow_custom_negative_prompt: true
     chat_delegate: sdxl_advisor
+    analysis_profile: default
     controlnet_policy:
       enabled: true
       max_attachments: 1
