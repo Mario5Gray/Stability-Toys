@@ -34,6 +34,67 @@ def _ensure_stub_module_spec(name: str) -> None:
 _ensure_stub_module_spec("torch")
 
 
+# --- stub containment helpers (STABL-tmrnepae) -----------------------------
+#
+# Unit modules install MagicMock stubs into sys.modules at import time so they
+# can import backends.cuda_worker without the heavy libraries. sys.modules
+# .setdefault does not protect a real install: it checks whether a module is
+# already *imported*, not whether it is *installed*. Whichever stubbing module
+# pytest imports first therefore decides what "diffusers" means for the rest of
+# the session.
+#
+# These helpers let a consumer that genuinely needs the real library repair the
+# session before it runs. Containment is deliberately NOT autouse: several
+# modules rely on stubs another module installed, so tearing them down between
+# modules fails 32 tests without protecting anything. Making every module
+# stub-self-sufficient is the follow-up that would allow that.
+#
+# conftest is imported before any test module, so this is the pristine state.
+
+_STUBBABLE_MODULES = (
+    "torch",
+    "torch.cuda",
+    "diffusers",
+    "diffusers.schedulers",
+    "diffusers.schedulers.scheduling_lcm",
+    "diffusers.pipelines",
+    "diffusers.pipelines.stable_diffusion",
+    "diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion",
+    "diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img",
+    "diffusers.pipelines.stable_diffusion_xl",
+    "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl",
+    "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img",
+    "transformers",
+    "backends.styles",
+)
+
+_PRISTINE_MODULES = {name: sys.modules.get(name) for name in _STUBBABLE_MODULES}
+
+
+def clear_lazy_import_caches() -> None:
+    """Drop attributes the CUDA worker resolved from a stub."""
+    worker = sys.modules.get("backends.cuda_worker")
+    importer = getattr(worker, "_import_attr", None)
+    cache_clear = getattr(importer, "cache_clear", None)
+    if cache_clear is not None:
+        cache_clear()
+
+
+def restore_pristine_modules() -> None:
+    """Undo test stubs so the real libraries are importable again.
+
+    Removes a lingering MagicMock and also drops a real module that a test
+    mutated by assigning fake classes onto it, so the next importer gets a
+    clean one. Call this from a consumer that needs the real stack.
+    """
+    for name, original in _PRISTINE_MODULES.items():
+        if original is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = original
+    clear_lazy_import_caches()
+
+
 @pytest.fixture(scope="session")
 def event_loop_policy():
     """Set event loop policy for async tests."""

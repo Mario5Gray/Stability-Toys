@@ -19,7 +19,10 @@ sys.modules.setdefault("torch", torch)
 
 # ---------------------------------------------------------------------------
 # Stub out diffusers and project deps before importing cuda_worker.
-# sys.modules.setdefault means real installs (if present) are not disturbed.
+# NOTE: setdefault does NOT protect a real install. It checks whether the module
+# is already *imported*, not whether it is *installed*, so it stubs a fully
+# installed diffusers whenever this module imports first. See STABL-tmrnepae and
+# tests/test_diffusers_stub_leak.py.
 # ---------------------------------------------------------------------------
 _STUBS = [
     "numpy",

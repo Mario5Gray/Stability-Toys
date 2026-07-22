@@ -8,7 +8,9 @@ at /conf/modes.yml.
 
 from __future__ import annotations
 
+import conftest
 import contextlib
+import importlib
 import io
 import logging
 import os
@@ -127,6 +129,18 @@ def _job(req: GenerateRequest, *, bindings, epoch: int) -> GenerationJob:
 
 
 def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
+    # Repair the session before touching the GPU. Unit modules install MagicMock
+    # stubs at sys.modules["diffusers"] that outlive them, and in a full-suite
+    # run this test would otherwise load a mock scheduler and fail with
+    # "MagicMock has no attribute from_config" -- an error that reads as a
+    # worker defect and costs a GPU cycle to investigate. See STABL-tmrnepae.
+    conftest.restore_pristine_modules()
+    real_diffusers = importlib.import_module("diffusers")
+    assert not type(real_diffusers).__module__.startswith("unittest.mock"), (
+        "a test stub still occupies sys.modules['diffusers']; the live "
+        "acceptance needs the real library"
+    )
+
     conf_dir = _production_conf_dir()
     monkeypatch.setenv("CONTROLNET_REGISTRY_PATH", str(conf_dir / "controlnets.yaml"))
     monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "strict")
