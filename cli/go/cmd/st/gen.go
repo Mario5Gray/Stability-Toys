@@ -43,6 +43,7 @@ var (
 	genControlStrength float64
 	genOutfile         string
 	genStream          bool
+	genReset           bool
 	genQuiet           bool
 )
 
@@ -87,6 +88,7 @@ func (a genArgs) toFlags() config.Flags {
 
 type genPatch struct {
 	Active  bool
+	Reset   bool
 	Args    genArgs
 	Changed map[string]bool
 }
@@ -112,6 +114,7 @@ type genFlagValues struct {
 	Outfile         string
 	Stream          bool
 	Quiet           bool
+	Reset           bool
 }
 
 func parseRootGenPatch(argv []string) (genPatch, error) {
@@ -132,7 +135,7 @@ func parseRootGenPatch(argv []string) (genPatch, error) {
 		return genPatch{}, err
 	}
 	changed := changedGenFlags(f)
-	if len(changed) == 0 {
+	if len(changed) == 0 && !values.Reset {
 		return genPatch{}, nil
 	}
 	if f.NArg() != 0 {
@@ -146,6 +149,7 @@ func parseRootGenPatch(argv []string) (genPatch, error) {
 	applyGenExecutionValues(values)
 	return genPatch{
 		Active:  true,
+		Reset:   values.Reset,
 		Args:    genArgsFromFlagSet(f, values, nil),
 		Changed: changed,
 	}, nil
@@ -192,6 +196,7 @@ func bindGenFlags(f *pflag.FlagSet, v *genFlagValues) {
 	f.StringVar(&v.Outfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&v.Stream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&v.Quiet, "quiet", false, "suppress progress and job_id output on stderr")
+	f.BoolVar(&v.Reset, "reset", false, "clean slate: ignore the conflation baseline for this run (conflation stays on)")
 }
 
 func genArgsFromFlagSet(f *pflag.FlagSet, v genFlagValues, args []string) genArgs {
@@ -334,6 +339,7 @@ func init() {
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
+	f.BoolVar(&genReset, "reset", false, "clean slate: ignore the conflation baseline for this run (conflation stays on)")
 	rootCmd.AddCommand(genCmd)
 }
 
@@ -396,6 +402,12 @@ func buildConflatedParams(ctx context.Context, store history.Store, patch genPat
 		return nil, nil, nil, err
 	}
 	if !policy.Enabled {
+		params, err := buildGenParamsWithBaseline(cfg, patch.Args, nil, patch.Changed)
+		return params, nil, nil, err
+	}
+	if patch.Reset {
+		// Clean slate: conflation stays enabled, but this run inherits nothing.
+		// The run is still recorded, so the next gen conflates forward from it.
 		params, err := buildGenParamsWithBaseline(cfg, patch.Args, nil, patch.Changed)
 		return params, nil, nil, err
 	}
@@ -580,6 +592,7 @@ func buildObservationCallbacks(cmd *cobra.Command, quiet, stream bool) (func(str
 
 func runGen(cmd *cobra.Command, args []string) error {
 	patch := genPatch{
+		Reset:   cmd.Flags().Changed("reset"),
 		Args:    genArgsFromFlags(cmd, args),
 		Changed: changedGenFlags(cmd.Flags()),
 	}
