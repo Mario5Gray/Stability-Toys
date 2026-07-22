@@ -70,12 +70,15 @@ def test_setdefault_does_not_protect_an_installed_library():
 )
 @pytest.mark.xfail(
     reason=(
-        "STABL-tmrnepae: stubs still outlive the module that installs them. "
-        "Containment cannot be autouse until every stubbing module is "
-        "self-sufficient -- several rely on another module's stubs, and tearing "
-        "them down between modules fails 32 tests. Consumers that need the real "
-        "library call conftest.restore_pristine_modules() instead. This flips to "
-        "XPASS when the refactor lands."
+        "STABL-tmrnepae / STABL-sgdavnvz: stubs leak across the session. "
+        "Not fixable by per-module teardown: pytest imports every test file at "
+        "collection, so a stubbing module can bind a MagicMock torch into a real "
+        "shared library (e.g. safetensors) before any fixture runs, and "
+        "restoring sys.modules afterward cannot unbind it. Autouse containment "
+        "was tried and failed 32 tests for exactly this reason. The real fix is "
+        "collection-time process isolation (pytest-forked / xdist loadfile). "
+        "Meanwhile the live acceptance calls conftest.restore_pristine_modules() "
+        "so the GPU path is protected. Flips to XPASS once isolation lands."
     ),
     strict=False,
 )
