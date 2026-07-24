@@ -271,7 +271,58 @@ rsocket-over-UDS transport child · progress-to-WS child · facet-3 subprocess
 
 ---
 
-## 8. Risks / mitigations
+## 8. Forward compatibility: video (non-goal, extension points only)
+
+Video is **out of scope** for this issue. It is documented here because it is the
+forcing function that validates the interface choices — the expensive, hard-to-reverse
+decisions (reactive-streams interface, per-job `Publisher`, `BlobRef`, `request(n)`
+backpressure) are precisely what video needs. Video enters as **new frame types + one
+additive field + graduating video off the Future facade**, never as a reshape of the
+interface, BlobRef, or transports.
+
+**What holds unchanged (video-ready by construction):**
+
+- **Reactive-streams interface (D1).** A `Future` is single-valued and could have
+  carried image generation; video **cannot** — decoded frames/chunks stream out before
+  the clip finishes (inherently multi-output). The per-job `Publisher[Frame]` expresses
+  that natively. Video vindicates D1.
+- **BlobRef (D2).** Media-agnostic; `read() -> bytes` holds for mp4/webm/raw-frames.
+  Video makes shared-mem **non-optional** (tens–hundreds of MB) and possibly
+  multi-segment. One additive, non-breaking field: `media_type` on the blob
+  (today `image/png` is implicit).
+- **Split backpressure (D3).** Generalizes: telemetry conflates, output must-deliver.
+  `request(n)` — near-pointless for a single image `Result` — becomes the real throttle
+  for a client consuming a video stream.
+- **IPC/shared-mem transport (D5).** Same seam; segment sizing + BlobRef reaper just
+  get stressed harder.
+
+**What video adds (follow-ups, not reshapes):**
+
+- **A third frame class — streamed output.** `Output`/`Chunk{seq, blob, media_type,
+  final}`: must-deliver, **ordered** (unlike conflatable `Progress`), large (rides
+  BlobRef). Today's `Result` becomes the degenerate single-chunk case (`seq=0,
+  final=True`).
+- **Stage-aware `Progress`.** The `stage` field (§4.1) is the forward hook; video makes
+  it load-bearing: `denoise → decode` (VAE latents→frames, often the dominant cost)
+  `→ mux`. Likely `frames_done/frames_total` alongside `step/total`.
+- **Video does not use the Future facade (D4) — by design.** A `Future` is
+  single-valued, so video generation cannot use the compat shim; it is *born* consuming
+  the `Publisher` directly — which is exactly the **progress→WS "consume the stream
+  directly" follow-up already deferred** in §7. Video does not create that work; it
+  justifies it. The image path stays on the facade untouched.
+- **Cancel + subprocess isolation go from nice-to-have to necessary.** Video jobs run
+  minutes holding VRAM the whole time, so the inbound `subscription.cancel()` path and
+  facet-3 subprocess reap (STABL-qvmdayhb) become load-bearing — but they are already
+  named siblings, not new scope.
+
+**Design tell to preserve now (costs nothing):** do **not** bake "exactly one `Result`
+then `onComplete`" into the transport or the codec. Keep the output side a stream of
+**N≥1** output frames terminated by `onComplete`, even though the image path always
+sends N=1. That keeps the video door open for free.
+
+---
+
+## 9. Risks / mitigations
 
 | Risk | Mitigation |
 |------|-----------|
@@ -282,7 +333,7 @@ rsocket-over-UDS transport child · progress-to-WS child · facet-3 subprocess
 
 ---
 
-## 9. Acceptance criteria (from the FP issue)
+## 10. Acceptance criteria (from the FP issue)
 
 1. A backplane interface with at least the in-proc transport, wired so WS
    progress/result/error are delivered through it with **no observable change** to
