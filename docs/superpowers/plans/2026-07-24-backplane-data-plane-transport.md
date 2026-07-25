@@ -954,6 +954,21 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Create: `backends/backplane/ipc.py`
 - Test: `tests/test_backplane_ipc.py`
 
+**Carry-forwards from the Task 4 review (c9c39b0) — track, don't lose:**
+1. **Inbound cancel is the IPC cancel channel.** In-proc, the worker reads
+   `job_record.cancel_requested`; across a process boundary the worker cannot see it,
+   so it must read `sink.cancelled`, fed by `subscription.cancel()` → a reverse control
+   frame over the pipe. Task 5's IPC transport MUST carry this, and the boundary test
+   asserts a mid-stream `subscription.cancel()` reaches the child and it stops.
+   **Not in Task 5:** wiring production `worker_pool.cancel_job` → `record.sink`'s
+   subscription — that's facet-3 (when the production worker becomes a subprocess); the
+   in-proc `cancel_job` correctly keys off `cancel_requested` today.
+2. **STALE_EPOCH IPC reconstruction stays a facet-3 debt.** Keep Task 5's synthetic
+   boundary test from sending a `STALE_EPOCH` error across the wire — reconstruction of
+   `StaleResolutionError` is not implemented (`_reconstruct` → `RuntimeError`) and is
+   bound to facet-3 (see Deferred). Exercise only `OOM`/`CANCELLED`/`GENERIC` error
+   terminals across IPC if any.
+
 **Interfaces:**
 - Consumes: `encode_frame`/`decode_frame`, `SharedMemBlob`, frames, `JobSink`, `Publisher`/`Subscriber`.
 - Produces:
