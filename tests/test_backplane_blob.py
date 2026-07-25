@@ -5,7 +5,9 @@ from backends.backplane.frames import Ack, Progress, Result, BackplaneError, Bac
 
 
 def _read(blob):
-    return asyncio.get_event_loop().run_until_complete(blob.read())
+    # asyncio.run() creates a fresh loop per call — order-independent, unlike
+    # get_event_loop() which raises after another test closes the main-thread loop.
+    return asyncio.run(blob.read())
 
 
 def test_inproc_blob_read_returns_bytes_close_noop():
