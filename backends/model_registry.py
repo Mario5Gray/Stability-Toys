@@ -225,12 +225,19 @@ class ModelRegistry:
         return self._total_vram
 
     def get_available_vram(self) -> int:
-        """Get available VRAM in bytes."""
+        """Get available VRAM in bytes — the driver's real free memory.
+
+        Uses torch.cuda.mem_get_info(), which reports the driver's free/total and
+        therefore accounts for the CUDA context, cuDNN/cuBLAS/xformers workspaces,
+        and every other process on the GPU. The old total - memory_reserved()
+        counted only this process's torch pool against the nameplate total, which
+        overstated availability and let can_fit() over-commit into OOM.
+        """
         if torch is None or not torch.cuda.is_available():
             return 0
 
-        reserved = self.get_reserved_vram()
-        return self._total_vram - reserved
+        # mem_get_info() -> (free_bytes, total_bytes); we want driver free.
+        return torch.cuda.mem_get_info(self._device_index)[0]
 
     def can_fit(self, estimated_bytes: int) -> bool:
         """
@@ -334,6 +341,11 @@ class ModelRegistry:
         total = self.get_total_vram()
         available = self.get_available_vram()
         allocated = self.get_allocated_vram()
+        # Device-used is the driver truth (total - driver_free), which includes the
+        # CUDA context, library workspaces, and other processes — not just this
+        # process's torch reserved pool. reserved_gb/allocated_gb below stay as the
+        # torch-specific numbers.
+        used = max(0, total - available)
 
         # Get breakdown by loaded models
         models_breakdown = []
@@ -354,9 +366,9 @@ class ModelRegistry:
             "total_gb": to_gb(total),
             "allocated_gb": to_gb(allocated),
             "reserved_gb": to_gb(reserved),
-            "used_gb": to_gb(reserved),
+            "used_gb": to_gb(used),
             "available_gb": to_gb(available),
-            "usage_percent": round((reserved / total * 100) if total > 0 else 0, 1),
+            "usage_percent": round((used / total * 100) if total > 0 else 0, 1),
             "models_loaded": len(self._loaded),
             "models": models_breakdown,
         }
