@@ -20,7 +20,21 @@ class _InProcSubscription(Subscription):
 
 class _Channel:
     """Synchronous single-subscriber channel. Progress conflates while demand==0;
-    Ack/Result/terminal are buffered must-deliver."""
+    Ack/Result/terminal are buffered must-deliver.
+
+    ORDERING INVARIANT (load-bearing for the no-op facade, spec §3.3/§5):
+    "synchronous must-deliver on return" holds ONLY when the subscriber is already
+    attached with unbounded demand before any emit_* call. Under that ordering an
+    emit_must_deliver / emit_terminal delivers to the subscriber synchronously and
+    returns after on_next/on_complete/on_error has run — matching today's
+    fut.set_result semantics. If a frame is emitted before subscribe()/request(),
+    it is buffered and delivered on later demand instead (NOT synchronous). Task 4's
+    submit_job MUST attach the compat Subscriber (request unbounded) before the job
+    is enqueued, so the worker thread never emits into an unattached channel.
+
+    Single terminal: emit exactly one of complete()/error(); do not emit after a
+    terminal (the worker loop never does).
+    """
 
     def __init__(self):
         self._subscriber: Optional[Subscriber] = None

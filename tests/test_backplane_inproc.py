@@ -62,6 +62,30 @@ def test_progress_conflates_under_zero_demand_result_never_dropped():
     assert len(results) == 1 and results[0].seed == 9  # never dropped
 
 
+def test_result_delivered_synchronously_before_sink_result_returns():
+    """The load-bearing invariant Task 4 depends on: with an attached, unbounded
+    subscriber, sink.result() delivers on_next(Result) synchronously and returns
+    only after it ran (matches today's fut.set_result semantics)."""
+    delivered = []
+
+    class ImmediateRecorder(Subscriber):
+        def on_subscribe(self, subscription):
+            subscription.request(1 << 62)  # unbounded, before any emit
+        def on_next(self, value):
+            delivered.append(value)
+        def on_error(self, error):
+            pass
+        def on_complete(self):
+            pass
+
+    sink, pub = InProcBackplane("j1").open()
+    pub.subscribe(ImmediateRecorder())  # attach BEFORE emit
+    assert delivered == []              # nothing yet
+    sink.result(seed=5, blob=InProcBlob(b"z"))
+    # If delivery were async/buffered, this would still be empty here:
+    assert len(delivered) == 1 and delivered[0].seed == 5
+
+
 def test_cancel_sets_sink_cancelled():
     sink, pub = InProcBackplane("j1").open()
     rec = Recorder()

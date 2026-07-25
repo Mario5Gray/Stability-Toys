@@ -875,8 +875,19 @@ In `submit_job`, for generation jobs, open a channel and attach the bridge, stas
             sink, publisher = InProcBackplane(job.job_id).open()
             record = self._get_job_record(job.job_id)
             record.sink = sink                      # add `sink=None` field to the record dataclass
-            publisher.subscribe(_FutureBridge(job.fut))
+            publisher.subscribe(_FutureBridge(job.fut))  # attach + request(unbounded) NOW
+        # ... existing self.q.put(job) / put_nowait happens AFTER this block ...
 ```
+
+**ORDERING INVARIANT (load-bearing — from Task 3 review of `fe960a8`).** The
+`subscribe(...)` call above MUST run **before** the job is enqueued (`self.q.put`).
+`_FutureBridge.on_subscribe` requests unbounded demand synchronously, so by the time
+the worker thread dequeues and emits, the channel is attached with demand and
+`sink.result()`/`sink.error()` deliver **synchronously** (matching today's
+`fut.set_result`). If the subscribe were placed after the enqueue, the worker could
+emit into an unattached channel — the frame buffers, the Future never resolves, and
+the no-op tests **hang** rather than fail loudly. Keep subscribe strictly before the
+existing `put`/`put_nowait`. (`_Channel`'s docstring states the same invariant.)
 
 Add a `sink: Optional[JobSink] = None` field to the job-record class — the mutable record type returned by `_get_job_record()` and constructed in `_register_job()` (it already holds `.job`, `.state`, `.cancel_requested`, so it is mutable; adding an attribute is safe). Import `JobSink` from `backends.backplane.interface` for the annotation, or type it loosely as `Optional[object]` to avoid the import if the record type lives in a module the backplane would import back (check for a cycle first with `mcp__lsp__references` on the record class).
 
