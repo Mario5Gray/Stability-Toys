@@ -34,6 +34,11 @@ from backends.model_resolution import (
     merge_mode_capabilities,  # re-exported for callers/tests; overlay lives in model_resolution
     resolve_model,
 )
+from backends.backplane.inproc import InProcBackplane
+from backends.backplane.blob import InProcBlob
+from backends.backplane.frames import Result, BackplaneError, BackplaneErrorCode
+from backends.backplane.interface import JobSink
+from backends.backplane.reactivestreams import Subscriber
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +150,41 @@ class JobRecord:
     state: str
     job: GenerationJob
     cancel_requested: bool = False
+    sink: Optional[JobSink] = None  # backplane producer handle (attached in submit_job)
+
+
+class _FutureBridge(Subscriber):
+    """Compat Subscriber: fulfils a concurrent.futures.Future from the backplane
+    stream, reproducing today's fut.set_result / fut.set_exception exactly.
+
+    Touches ONLY the Future — never pool state or _job_lock (spec §3.3 lock
+    invariant). Requests unbounded demand so the synchronous in-proc channel
+    delivers terminals immediately (spec §3.3 must-deliver-on-return).
+
+    Result is carried OPAQUELY: the worker's run_job return value rides the frame's
+    image (InProcBlob) untouched, so `fut.set_result(<opaque>)` matches today whether
+    run_job returns a (png, seed) tuple (production) or "test_result" (tests). This
+    is the reconciliation of spec §5, which assumed the Subscriber decomposes into
+    (png_bytes, seed) — decomposition is incompatible with the no-op and is deferred
+    to the streaming/IPC consumers that actually need seed + PNG separated.
+    """
+
+    def __init__(self, fut: Future):
+        self._fut = fut
+
+    def on_subscribe(self, subscription):
+        subscription.request(1 << 62)  # unbounded — the Future is single-valued
+
+    def on_next(self, value):
+        if isinstance(value, Result) and not self._fut.done():
+            self._fut.set_result(value.image.read_sync())  # opaque passthrough
+
+    def on_error(self, error):
+        if not self._fut.done():
+            self._fut.set_exception(error.to_exception())  # live instance in-proc
+
+    def on_complete(self):
+        pass
 
 
 @dataclass
@@ -755,17 +795,28 @@ class WorkerPool:
 
                     result = job.execute(self._worker)
 
+                    sink = job_record.sink if job_record is not None else None
                     if job_record is not None and job_record.cancel_requested:
+                        # Post-execute (running) cancel: discard the result
+                        # producer-side — do NOT emit Result (spec §5 + review: both
+                        # cancel boundaries). Terminal is a CANCELLED error.
                         assert generation_job is not None
                         job_record.state = "cancelled"
-                        if not job.fut.done():
+                        if sink is not None:
+                            sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                        elif not job.fut.done():
                             job.fut.set_exception(CancelledError())
                         self._finalize_job_record(generation_job.job_id)
+                    elif sink is not None:
+                        # GenerationJob success: carry the worker result opaquely
+                        # through the backplane; _FutureBridge reproduces
+                        # fut.set_result(result) verbatim.
+                        assert generation_job is not None
+                        sink.result(0, InProcBlob(result))
+                        sink.complete()
+                        self._finalize_job_record(generation_job.job_id)
                     elif not job.fut.done():
-                        job.fut.set_result(result)
-                        if job_record is not None:
-                            assert generation_job is not None
-                            self._finalize_job_record(generation_job.job_id)
+                        job.fut.set_result(result)  # non-generation job (CustomJob)
 
             except Exception as e:
                 logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
@@ -786,16 +837,24 @@ class WorkerPool:
                 if isinstance(job, GenerationJob):
                     job_record = self._get_job_record(job.job_id)
                     if job_record is not None:
+                        sink = job_record.sink
                         if _oom:
-                            if not job.fut.done():
+                            if sink is not None:
+                                sink.error(BackplaneError.from_exc(e))
+                            elif not job.fut.done():
                                 job.fut.set_exception(e)
                             job_record.state = "failed"
                         elif job_record.cancel_requested:
-                            if not job.fut.done():
+                            if sink is not None:
+                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                            elif not job.fut.done():
                                 job.fut.set_exception(CancelledError())
                             job_record.state = "cancelled"
-                        elif not job.fut.done():
-                            job.fut.set_exception(e)
+                        else:
+                            if sink is not None:
+                                sink.error(BackplaneError.from_exc(e))
+                            elif not job.fut.done():
+                                job.fut.set_exception(e)
                             job_record.state = "failed"
                         self._finalize_job_record(job.job_id)
                     elif not job.fut.done():
@@ -829,6 +888,19 @@ class WorkerPool:
         effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
         try:
             self._register_job(job)
+            if isinstance(job, GenerationJob):
+                # Open the backplane channel and attach the compat Subscriber NOW —
+                # strictly before the job is enqueued. _FutureBridge.on_subscribe
+                # requests unbounded demand synchronously, so by the time the worker
+                # thread dequeues and emits, terminals deliver synchronously (spec
+                # §3.3 must-deliver-on-return). Attaching after put() would let the
+                # worker emit into an unattached channel — the Future would never
+                # resolve. See _Channel's ordering invariant.
+                sink, publisher = InProcBackplane(job.job_id).open()
+                record = self._get_job_record(job.job_id)
+                if record is not None:
+                    record.sink = sink
+                publisher.subscribe(_FutureBridge(job.fut))
             if effective_timeout_s > 0:
                 self.q.put(job, timeout=effective_timeout_s)
             else:

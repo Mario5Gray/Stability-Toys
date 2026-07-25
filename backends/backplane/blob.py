@@ -11,18 +11,24 @@ SCHEMA_VERSION = 1
 
 
 class InProcBlob(BlobRef):
-    def __init__(self, data: bytes):
+    """In-process payload carrier. Holds either PNG bytes (the streaming/IPC shape)
+    or, on the no-op facade path, the worker's OPAQUE run_job result passed straight
+    through (e.g. a `(png, seed)` tuple in production, or a test's `"test_result"`).
+    The async `read()` is for the byte-payload case; the facade uses `read_sync()`."""
+
+    def __init__(self, data):
         self._data = data
 
     async def read(self) -> bytes:
         return self._data
 
-    def read_sync(self) -> bytes:
+    def read_sync(self):
         """Synchronous read for the one loop-less consumer: the compat Subscriber
         (_FutureBridge in worker_pool, Task 4). It runs on the worker thread with no
-        asyncio loop, so it cannot `await read()`. This method is intentionally NOT on
-        the BlobRef ABC — only the in-proc facade adapter, which already knows it holds
-        an InProcBlob, calls it; general consumers use the async `read()`."""
+        asyncio loop, so it cannot `await read()`. Returns the held payload opaquely
+        (facade carries the raw worker result here). Intentionally NOT on the BlobRef
+        ABC — only the in-proc facade adapter, which knows it holds an InProcBlob,
+        calls it; general consumers use the async `read()`."""
         return self._data
 
     def close(self) -> None:
