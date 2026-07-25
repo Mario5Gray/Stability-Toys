@@ -46,9 +46,9 @@ current behavior to preserve*.
 
 | # | Axis | Decision |
 |---|------|----------|
-| D1 | Interface shape | **Full reactive-streams from day one, in-proc included.** Program both sides to rsocket-py's `reactivestreams` `Publisher`/`Subscriber`/`Subscription` ABCs so the future rsocket transport is a literal drop-in. |
+| D1 | Interface shape | **Full reactive-streams from day one, in-proc included.** Program both sides to **vendored** `Publisher`/`Subscriber`/`Subscription` ABCs (~150 LOC under `backends/backplane/reactivestreams/`) so the interface is rsocket-*shaped* without a runtime dependency on the pre-1.0 rsocket-py package. We control method naming (Python snake_case: `on_next`/`on_complete`/`on_error`, `request`, `cancel`). The rsocket transport follow-up pins rsocket-py and adapts to its surface then. *(Revised from "pin rsocket-py": the interface must not couple to a pre-1.0 ABC surface; vendoring 3 tiny files kills the "unverified module surface" risk. See §9.)* |
 | D2 | Result payload | **Transport-resolved `BlobRef`.** `Result{seed, image: BlobRef}`; the wire schema never changes across transports. In-proc → bytes; IPC → shared-mem; rsocket → fragment reassembly (later). |
-| D3 | Backpressure | **Split policy.** `Progress` conflates (onBackpressureLatest — GPU worker never blocks on a slow client); `Result` + `onComplete`/`onError` are must-deliver. |
+| D3 | Backpressure | **Split policy.** `Progress` conflates (onBackpressureLatest — GPU worker never blocks on a slow client); `Result` + `on_complete`/`on_error` are must-deliver. The conflating operator is **dormant in-proc** (compat Subscriber requests unbounded) and **active for IPC** (demand crosses a pipe). |
 | D4 | No-op landing | **Backplane lands under a preserved `submit_job() -> Future` facade.** `ws_routes.py` gets zero diff; existing suite green unmodified = the no-op proof. Progress→WS is a deliberate follow-up. |
 | D5 | Cross-process transport | **Build the stdlib IPC/shared-mem transport now** (`multiprocessing.Connection` frames + `shared_memory` payload) and test it across a real process boundary. **rsocket transport is a follow-up child** — the interface already fits it. |
 
@@ -60,9 +60,10 @@ current behavior to preserve*.
 
 | Module | Owns |
 |--------|------|
-| `frames.py` | Frame dataclasses (`Ack`, `Progress`, `Result`), `BackplaneError` + code enum, `BlobRef` ABC |
-| `blob.py` | `BlobRef` impls (`InProcBlob`, `SharedMemBlob`) + payload/frame codec |
-| `interface.py` | `Backplane` protocol + producer-side `JobSink`; typed on rsocket-py `reactivestreams` ABCs |
+| `reactivestreams/` | **Vendored** `Publisher`/`Subscriber`/`Subscription` ABCs (~150 LOC, snake_case surface). No runtime rsocket-py dep. |
+| `frames.py` | Frame dataclasses (`Ack`, `Progress`, `Result`), `BackplaneError` + code enum + `code → exception_factory` table, `BlobRef` ABC |
+| `blob.py` | `BlobRef` impls (`InProcBlob`, `SharedMemBlob`) + payload/frame codec (`schema_version`-tagged) |
+| `interface.py` | `Backplane` protocol + producer-side `JobSink`; typed on the vendored ABCs |
 | `inproc.py` | In-proc transport: anyio-backed `Publisher`, thread→loop bridge, conflating operator |
 | `ipc.py` | Stdlib cross-process transport: `Connection` frames + `shared_memory` payload |
 
@@ -74,26 +75,49 @@ returns a `(sink, publisher)` pair whose wiring is transport-specific.
 
 ```
 worker thread ──JobSink──▶ [transport] ──Publisher[Frame]──▶ parent (asyncio)
-   sink.ack()                                                   onNext(Ack)
-   sink.progress(step,total)   conflate ─────────────────────▶ onNext(Progress)   (dropped by facade for now)
-   sink.result(seed, BlobRef)  must-deliver ─────────────────▶ onNext(Result)
-   sink.complete()/error(e)                                     onComplete / onError
+   sink.ack()          (non-blocking)                           on_next(Ack)
+   sink.progress(...)  (non-blocking, conflatable) ───────────▶ on_next(Progress)  (dropped by facade for now)
+   sink.result(seed, BlobRef)  (sync, must-deliver) ─────────▶  on_next(Result)
+   sink.complete()/error(e)    (sync, must-deliver)             on_complete / on_error
    sink.cancelled ◀──────────── subscription.cancel() ◀──────  (inbound)
 ```
 
 ### 3.3 Substrate (from D1)
 
-- Add **`rsocket` (rsocket-py)** as a pinned dependency; program to its
-  `reactivestreams` ABCs. (`anyio` is already present via Starlette.)
+- **Vendor** the `Publisher`/`Subscriber`/`Subscription` ABCs (~150 LOC) under
+  `backends/backplane/reactivestreams/`; program both sides to them. **No runtime
+  rsocket-py dependency** — the interface is rsocket-*shaped*, not rsocket-*coupled*.
+  Method surface is Python snake_case (`on_next`/`on_complete`/`on_error`,
+  `request(n)`, `cancel()`). (`anyio` is already present via Starlette.)
 - In-proc `Publisher` is backed by an **`anyio` memory-object stream** with an
   **`anyio.from_thread`** bridge — the worker-thread→asyncio-consumer crux, the
   reactive generalization of today's `run_in_executor(fut.result)`.
+
+**Sink call semantics (pinned — the no-op depends on it):**
+
+- `sink.ack(...)` / `sink.progress(...)` — **fire-and-forget, non-blocking**. The
+  worker thread never parks on these; they are conflatable telemetry. A slow or
+  stalled consumer cannot back-pressure into the GPU worker through them.
+- `sink.result(...)` / `sink.complete()` / `sink.error(...)` — **synchronous,
+  must-deliver**: the worker blocks until the frame is accepted by the transport
+  (handed to the consumer side), preserving today's ordering where `set_result`
+  hands off before the worker moves on. Never dropped.
+
+**Compat Subscriber demand protocol (in-proc):** requests **unbounded** up front.
+Backpressure is therefore off in-proc (correct — the facade's `Future` is
+single-valued), so the conflating operator is **dormant** in-proc and only engages
+for the IPC transport where `request(n)` demand crosses a pipe (§6.2).
+
+**Lock invariant:** the compat Subscriber touches **only `job.fut`** — it must never
+acquire `_job_lock` or call pool methods. `cancel_job` keeps its direct `fut.cancel()`
+**under `_job_lock`**; `subscription.cancel()` sets `sink.cancelled`, a plain flag
+requiring no lock. This forecloses a loop↔worker lock inversion.
 
 ---
 
 ## 4. Wire contract
 
-### 4.1 Frames (onNext payloads)
+### 4.1 Frames (`on_next` payloads)
 
 ```python
 @dataclass(frozen=True)
@@ -109,37 +133,81 @@ negative total as indeterminate.
 
 ### 4.2 Terminals come from the reactive protocol, not a frame type
 
-- `onComplete()` — emitted immediately after `Result` on a clean run.
-- `onError(BackplaneError)` — carries a code enum plus message + optional
-  original-exception repr:
+- `on_complete()` — emitted immediately after `Result` on a clean run.
+- `on_error(BackplaneError)` — carries a code enum plus message, **and, in-proc, the
+  live exception instance itself**:
 
   ```
-  BackplaneErrorCode = OOM | STALE_EPOCH | CANCELLED | TIMEOUT | GENERIC
+  BackplaneErrorCode = OOM | STALE_EPOCH | CANCELLED | GENERIC
+                       | TIMEOUT   # RESERVED — not emitted by this issue (see below)
   ```
 
-  In-proc wraps the live exception; IPC reconstructs from the code. Maps 1:1 onto
-  today's `fut.set_result((png,seed))` / `fut.set_exception(e)`; the
-  `StaleResolutionError`, `CancelledError`, and OOM paths at
-  `worker_pool.py:756-804` each get a code.
+**Exception preservation is a hard invariant (not implied).** The in-proc transport
+carries the **original exception instance** unwrapped; the compat Subscriber calls
+`fut.set_exception(err.original)`, never `fut.set_exception(BackplaneError(...))`.
+This is load-bearing: [test_worker_pool.py:474](../../../tests/test_worker_pool.py)
+does `pytest.raises(fake_oom)` on the concrete `torch.cuda.OutOfMemoryError`, and
+[:1423] does `pytest.raises(StaleResolutionError)` — a `BackplaneError` substitution
+fails both. The **code enum is IPC-reconstruction metadata only**.
+
+**`code → exception_factory` table** (used by IPC, where the live instance cannot
+cross the boundary; in-proc prefers the carried instance):
+
+| code | reconstructs |
+| --- | --- |
+| `OOM` | `torch.cuda.OutOfMemoryError` |
+| `STALE_EPOCH` | `StaleResolutionError` |
+| `CANCELLED` | `concurrent.futures.CancelledError` |
+| `GENERIC` | `RuntimeError` (message-only) |
+
+This maps 1:1 onto today's `fut.set_exception(e)` paths at `worker_pool.py:756-804`.
+
+**`TIMEOUT` is reserved, not emitted this issue.** Timeout lives consumer-side today
+(`ws_routes.py:531`, `fut.result(timeout=120)`); the worker has no knowledge of the
+consumer's deadline and no code path produces it. It is reserved in the enum for the
+Governor watchdog / abandoned-job reap (STABL-qvmdayhb), which will emit it when that
+lands.
 
 ### 4.3 Ordering, correlation, cancel
 
 - One job = one `Publisher` = one stream. `job_id` on every frame. Ordered per
   stream by construction (maps to an rsocket requestStream id later).
-- **Inbound cancel** = `subscription.cancel()` → sets `sink.cancelled`. The worker
-  loop checks it at today's exact boundaries (`worker_pool.py:718`, `:758`), so the
-  two pinned cancel semantics — queued job ⇒ future cancelled, running job ⇒ late
-  result discarded — are preserved verbatim.
+
+**Cancel has two distinct sides, and every entry point keeps its direct
+`fut.cancel()`.** `subscription.cancel()` is *additive* — it arms the worker thread;
+it does **not** replace the synchronous `fut.cancel()` the consumer contract depends
+on. "Cancel maps onto `subscription.cancel()`" (the original phrasing) was too coarse
+and would break synchronous `fut.cancelled()` assertions.
+
+| Entry point | Consumer side (synchronous, kept) | Worker side (added) |
+| --- | --- | --- |
+| `cancel_job` queued branch (`worker_pool.py:661`) | `record.job.fut.cancel()` **under `_job_lock`** — `fut.cancelled()` true on return ([test:537-538](../../../tests/test_worker_pool.py)) | — (job never runs) |
+| `cancel_job` running branch (`:665`) | sets `cancel_requested` | `sink.cancelled` armed; worker discards **producer-side** (§5) |
+| `cancel_pending_generation_jobs` (`:598`) | `job.fut.cancel()` directly | — ([test:477](../../../tests/test_worker_pool.py), [:504]) |
+| `_mark_running_generation_jobs_cancel_requested` (`:560+`) | `cancel_requested` → later `CancelledError` | `sink.cancelled` armed |
+
+The two pinned semantics — queued ⇒ future synchronously cancelled, running ⇒ late
+result discarded — are preserved because the direct `fut.cancel()` calls stay exactly
+where they are; the backplane only *adds* the worker-thread signal.
 
 ### 4.4 BlobRef
 
-Transport-resolved payload handle. Consumer always does `png = await
-frame.image.read()`.
+Transport-resolved payload handle. The ABC is **two methods**:
 
-- `InProcBlob` → returns the held `bytes` (no-op unwrap).
-- `SharedMemBlob(name, size)` → maps + reads the `shared_memory` block.
+```python
+class BlobRef(ABC):
+    async def read(self) -> bytes: ...   # materialize the payload
+    def close(self) -> None: ...          # release the handle
+```
 
-Schema identical on every transport.
+- `InProcBlob` → `read()` returns the held `bytes`; `close()` is a no-op.
+- `SharedMemBlob(name, size)` → `read()` maps + copies out of the `shared_memory`
+  block; `close()` does `SharedMemory.close()` + `unlink()`.
+
+**The consumer MUST `close()` after `read()`** (a context manager is the intended
+form: `async with frame.image as png: ...`). Skipping `close()` leaks a `shared_memory`
+segment under IPC — read-once-unlink is the lifecycle (§6.1). Schema identical on
+every transport.
 
 ### 4.5 Backpressure operator (D3)
 
@@ -147,7 +215,7 @@ Sits between the worker-producer and the subscriber:
 
 - `Progress` → **conflate** (onBackpressureLatest): demand exhausted ⇒ keep newest,
   drop stale. The GPU worker thread never blocks on a slow client.
-- `Result` + `onComplete`/`onError` → **must-deliver**: buffered until `request(n)`,
+- `Result` + `on_complete`/`on_error` → **must-deliver**: buffered until `request(n)`,
   never dropped.
 - `Ack` → must-deliver (single cheap frame).
 
@@ -159,23 +227,43 @@ Sits between the worker-producer and the subscriber:
 
 1. Registers the job (unchanged).
 2. Creates a backplane channel via the in-proc `Backplane` → `(sink, publisher)`.
-3. Attaches a **compat Subscriber** to `publisher` that fulfills `job.fut`:
-   - `Result` → `fut.set_result((png_bytes, seed))` (BlobRef read is an in-proc
-     unwrap)
-   - `onError` → `fut.set_exception(mapped_exc)` (code enum → concrete exception)
-   - `onComplete` → no-op
-   - `Progress` → **dropped** (subscriber requests zero progress demand)
+3. Attaches a **compat Subscriber** to `publisher` that fulfills `job.fut`, and
+   `request(unbounded)` (§3.3 demand protocol). On each signal:
+   - `Result` → `fut.set_result((png_bytes, seed))` (`await blob.read()` then
+     `blob.close()`; in-proc read is an unwrap, close a no-op)
+   - `on_error(err)` → `fut.set_exception(err.original)` — the **live exception
+     instance**, unwrapped (§4.2 invariant). Never a `BackplaneError`.
+   - `on_complete` → no-op
+   - `Progress` → **ignored** (delivered under unbounded demand, dropped by the
+     Subscriber; the worker does not even emit real per-step progress this issue)
+   - **Touches only `job.fut`** — never `_job_lock`, never pool methods (§3.3 lock
+     invariant).
 4. Returns `job.fut`.
 
 **Worker loop change is purely internal** (`worker_pool.py:688-809`): where it now
-calls `job.fut.set_result/set_exception`, it drives the `sink` instead —
-`sink.ack()` at run start; `sink.result(seed, blob); sink.complete()` on success;
-`sink.error(BackplaneError.from_exc(e))` on failure — checking `sink.cancelled` at
-the two existing cancel boundaries. The compat Subscriber turns those frames back
-into identical Future outcomes.
+calls `job.fut.set_result/set_exception`, it drives the `sink` instead. The
+**producer-side cancel discard is explicit** — a cancelled job must not emit `Result`:
 
-`cancel_job(job_id)` maps onto `subscription.cancel()`; the queued-vs-running branch
-logic (`worker_pool.py:653`) is retained.
+```python
+sink.ack()
+result = job.execute(worker)          # (png_bytes, seed)
+if sink.cancelled:                     # running-cancel: discard producer-side
+    sink.error(BackplaneError(CANCELLED))   # -> Subscriber: fut.set_exception(CancelledError)
+else:
+    sink.result(seed, InProcBlob(png_bytes))
+    sink.complete()
+# on exception e:
+#   sink.error(BackplaneError.from_exc(e))   # carries the live instance
+#   OOM / StaleResolutionError paths keep their existing pre-checks (worker_pool.py:743-804)
+```
+
+The discard happens by **not emitting `Result`**, not by the Subscriber suppressing
+one — reproducing `worker_pool.py:758-763` where the running-cancel branch calls
+`set_exception(CancelledError())` in place of `set_result`.
+
+**Cancel entry points are unchanged on the consumer side** — every direct
+`fut.cancel()` stays exactly where §4.3 tabulates it; the backplane only *adds*
+`sink.cancelled`.
 
 ### 5.1 No-op proof
 
@@ -188,9 +276,11 @@ These pass **with zero edits** (the empty `ws_routes.py` diff *is* the proof):
 - `tests/test_model_routes.py` — routes untouched.
 
 **New backplane tests (added, not modified):** in-proc Publisher delivers
-`ack→result→complete` in order; `onError` code round-trips to the right exception;
-conflating operator drops stale `Progress` under zero demand while `Result` is never
-dropped; `subscription.cancel()` sets `sink.cancelled`.
+`ack→result→complete` in order; `on_error` carries the **live exception instance**
+(a `pytest.raises(OutOfMemoryError)` / `raises(StaleResolutionError)` passes through
+the facade); a running-cancel discards producer-side (no `Result` emitted, `fut` gets
+`CancelledError`); conflating operator drops stale `Progress` under bounded demand
+while `Result` is never dropped; `subscription.cancel()` sets `sink.cancelled`.
 
 ---
 
@@ -204,7 +294,12 @@ Worker and parent code are byte-for-byte unchanged; only the factory differs.
 - **Frames** (small: `Ack`, `Progress`, `Result`-metadata, error, terminal markers)
   ride a `multiprocessing.Connection` (Pipe). The codec serializes each frame to a
   tagged record via explicit `to_wire`/`from_wire` — **not** blanket pickle — so the
-  wire schema is auditable and version-stable.
+  wire schema is auditable. Every record carries a **`schema_version: int`** tag as
+  its first field. This is what actually makes the schema forward-stable: the video
+  extensions (§8) add fields (`media_type`, `Output`/`Chunk`) as higher-version
+  records the decoder branches on, rather than forcing a codec rewrite. Costs one int
+  now; without it, "additive field with a default" is a lie at the byte level (the
+  decoder can't know whether to expect the field).
 - **Payload** (the PNG) rides `multiprocessing.shared_memory`. `sink.result(seed,
   blob)` allocates a `SharedMemory` block, writes the bytes; the `Result` frame
   carries `SharedMemBlob(name, size)`. Consumer `await blob.read()` maps, copies out,
@@ -213,8 +308,10 @@ Worker and parent code are byte-for-byte unchanged; only the factory differs.
 ### 6.1 BlobRef lifecycle (the sharp edge)
 
 - Producer creates + writes; frame carries `(name, size)`.
-- Consumer reads once, then `close()` + `unlink()` — single-consumer, read-once.
-- On `onError` / `subscription.cancel()` before the consumer reads: a **reaper** on
+- Consumer reads once, then `blob.close()` (= `SharedMemory.close()` + `unlink()`,
+  §4.4) — single-consumer, read-once. The consumer's obligation to `close()` is the
+  ABC contract, not IPC-specific etiquette.
+- On `on_error` / `subscription.cancel()` before the consumer reads: a **reaper** on
   the producer side unlinks the orphan when the stream terminates. No segment
   outlives its stream.
 
@@ -245,13 +342,25 @@ a subprocess (that is facet 3).
 ## 7. Scope
 
 ### In scope
-- `backends/backplane/` package: frames, BlobRef, two-sided interface on rsocket-py
-  reactivestreams, in-proc transport, stdlib IPC transport.
-- `WorkerPool.submit_job`/`cancel_job` reworked to drive the backplane behind the
-  preserved Future facade — zero `ws_routes.py` diff.
+
+- `backends/backplane/` package: **vendored reactivestreams ABCs**, frames, BlobRef,
+  two-sided interface, in-proc transport, stdlib IPC transport.
+- `WorkerPool.submit_job`/`cancel_job`/`cancel_pending_generation_jobs` reworked to
+  drive the backplane behind the preserved Future facade — every direct `fut.cancel()`
+  retained (§4.3) — zero `ws_routes.py` diff.
 - New backplane unit tests + the process-boundary IPC test. Existing suite green
   unmodified.
-- `rsocket` pinned in `requirements.txt` (`anyio` already present).
+- **No new runtime dependency** — reactivestreams ABCs are vendored; `anyio` already
+  present via Starlette.
+
+### Data-plane / control-plane boundary note
+
+`BackplaneErrorCode.STALE_EPOCH` names a control-plane concept (resolution epoch)
+inside a data-plane taxonomy. This is deliberate and does not breach "data only": the
+backplane **carries** the code as an opaque label — it never computes staleness. The
+epoch check and the decision to fail stays in the worker-loop barrier today
+(`worker_pool.py:743`) and moves to the Governor later; the backplane only relays the
+resulting terminal.
 
 ### Explicit non-goals (belong to named siblings)
 - Moving CudaWorker to a subprocess — **facet 3** (depends on this).
@@ -316,8 +425,8 @@ interface, BlobRef, or transports.
   named siblings, not new scope.
 
 **Design tell to preserve now (costs nothing):** do **not** bake "exactly one `Result`
-then `onComplete`" into the transport or the codec. Keep the output side a stream of
-**N≥1** output frames terminated by `onComplete`, even though the image path always
+then `on_complete`" into the transport or the codec. Keep the output side a stream of
+**N≥1** output frames terminated by `on_complete`, even though the image path always
 sends N=1. That keeps the video door open for free.
 
 ---
@@ -325,11 +434,10 @@ sends N=1. That keeps the video door open for free.
 ## 9. Risks / mitigations
 
 | Risk | Mitigation |
-|------|-----------|
-| rsocket-py transitive weight | Verify footprint before pinning (Compel `--no-deps` precedent). If heavy, **vendor just the `reactivestreams` ABCs** (3 tiny files) instead of the whole package. **Plan step 1.** |
-| rsocket-py `reactivestreams` API is asyncio-shaped and its exact module surface is unverified (not installed) | **Plan step 1 confirms** real import paths before building on them; fallback is the vendored ABCs. |
-| thread→asyncio bridge correctness | In-proc no-op hinges on `anyio.from_thread` delivering frames without reorder/deadlock under the worker lock; covered by ordering + concurrency tests. |
-| shared-mem orphans on macOS/dev | `resource_tracker` warnings + leaked segments; reaper + read-once-unlink discipline tested explicitly; boundary test asserts no surviving segment. |
+| --- | --- |
+| ~~rsocket-py dependency weight / unverified ABC surface~~ **Resolved by D1 revision.** | reactivestreams ABCs are **vendored** (~150 LOC, snake_case surface we control). No runtime dep, no pre-1.0 coupling, nothing to verify at install time. Footprint of rsocket-py was confirmed trivial (91 KB, zero transitive deps) — but the coupling, not the weight, was the risk, and vendoring removes it. |
+| thread→asyncio bridge correctness — **the under-weighted risk.** | Now pinned at the **design** level, not deferred to tests: sink call semantics are fixed (ack/progress non-blocking; result/complete/error synchronous must-deliver), demand is `request(unbounded)` in-proc (conflation dormant), and the Subscriber↔lock invariant forbids `_job_lock` acquisition (§3.3). Tests then confirm ordering/no-deadlock — they do not substitute for the pinned protocol. |
+| shared-mem orphans on macOS/dev | `resource_tracker` warnings + leaked segments; `BlobRef.close()` read-once-unlink (ABC contract, §4.4) + producer-side reaper on error/cancel; boundary test asserts no surviving segment. |
 
 ---
 
