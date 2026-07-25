@@ -48,6 +48,16 @@ class SharedMemBlob(BlobRef):
         assert shm.buf is not None  # live segment always has a buffer
         shm.buf[: len(data)] = data
         blob = cls(shm.name, len(data))
+        # Consumer owns the unlink (read-once). Detach the PRODUCER process's
+        # resource_tracker so it does not unlink the segment when the producer exits —
+        # across a spawn boundary that would race the consumer's read. Semi-private
+        # API; best-effort. Correctness also relies on the consumer reading before the
+        # producer is released (handshake in the boundary test).
+        try:
+            from multiprocessing import resource_tracker
+            resource_tracker.unregister(shm._name, "shared_memory")  # type: ignore[attr-defined]
+        except Exception:
+            pass
         shm.close()  # keep the segment alive (not unlinked); consumer re-attaches by name
         return blob
 
