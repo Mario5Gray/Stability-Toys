@@ -13,6 +13,13 @@ def test_inproc_blob_read_returns_bytes_close_noop():
     assert _read(b) == b"hello"
     assert b.read_sync() == b"hello"  # sync path used by the loop-less facade
     b.close()  # no raise
+    assert b.read_sync() == b"hello"  # close() is a true no-op (spec §4.4)
+
+
+def test_decode_frame_rejects_empty_input():
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        decode_frame(b"")
 
 
 def test_sharedmem_blob_roundtrip_then_unlink():

@@ -18,11 +18,17 @@ class InProcBlob(BlobRef):
         return self._data
 
     def read_sync(self) -> bytes:
-        """In-proc-only synchronous read — the facade path has no event loop to await read()."""
+        """Synchronous read for the one loop-less consumer: the compat Subscriber
+        (_FutureBridge in worker_pool, Task 4). It runs on the worker thread with no
+        asyncio loop, so it cannot `await read()`. This method is intentionally NOT on
+        the BlobRef ABC — only the in-proc facade adapter, which already knows it holds
+        an InProcBlob, calls it; general consumers use the async `read()`."""
         return self._data
 
     def close(self) -> None:
-        self._data = b""
+        # No-op (spec §4.4): in-proc holds no OS resource. Kept for ABC symmetry so
+        # `read()` after `close()` still returns the held bytes.
+        pass
 
 
 class SharedMemBlob(BlobRef):
@@ -74,6 +80,8 @@ def encode_frame(frame) -> bytes:
 
 
 def decode_frame(raw: bytes):
+    if not raw:
+        raise ValueError("empty frame")
     version = raw[0]
     if version != SCHEMA_VERSION:
         raise ValueError(f"unsupported schema_version {version}")
