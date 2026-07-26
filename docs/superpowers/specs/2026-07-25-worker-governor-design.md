@@ -73,10 +73,12 @@ coupling has no seam to swap. Extracting the control plane into a Governor +
 
 | Module | Owns | Status |
 |--------|------|--------|
-| `backends/governor.py` (new) | `Governor`: queue, epoch/snapshot authority, admission barrier, dispatch, lifecycle, recovery | **new** |
-| `backends/worker_handle.py` (new) | `WorkerHandle` ABC + `InProcessWorkerHandle` impl | **new** |
-| `backends/worker_pool.py` (existing) | `WorkerPool` = thin facade delegating to `Governor`; `Job` types, `ActiveModelSnapshot`, `StaleResolutionError`, `_FutureBridge`, `get_worker_pool`/`reset_worker_pool` stay | **reduced to facade** |
+| `backends/governor.py` (new) | `Governor` **+ shared job types** (`Job`, `GenerationJob`, `ModeSwitchJob`, `CustomJob`, `JobType`, `JobRecord`, `ActiveModelSnapshot`, `StaleResolutionError`, `_FutureBridge`, `WorkerFactory`) — the Governor is the primary consumer of these types, so they live with it | **new** |
+| `backends/worker_handle.py` (new) | `WorkerHandle` ABC + `WorkerHealth` + `InProcessWorkerHandle` impl | **new** |
+| `backends/worker_pool.py` (existing) | `WorkerPool` = thin facade delegating to `Governor`; **re-exports** the shared types (`from backends.governor import GenerationJob, ...`) so `from backends.worker_pool import GenerationJob` (`ws_routes.py:621`) stays unbroken; `get_worker_pool`/`reset_worker_pool` stay | **reduced to facade** |
 | `backends/backplane/` (existing) | data-plane transport — unchanged | done (PR #19) |
+
+**Import graph (acyclic):** `governor.py` imports `backplane` + `model_resolution` + `base` + `worker_handle` (for the `WorkerHandle` type hint); `worker_handle.py` imports `backplane` + `base` (NOT `governor` — the handle is locality-agnostic and doesn't know the Governor); `worker_pool.py` imports `governor` and re-exports its types. No cycle. The public surface (`from backends.worker_pool import GenerationJob`) is preserved by re-export, not by ownership.
 
 ### 3.2 The WorkerHandle interface (locality-agnostic)
 
@@ -161,7 +163,7 @@ Owns every governance concern currently fused into `WorkerPool`:
 | Runtime status | `_build_runtime_status` (`:672-691`) | same |
 | Idle watchdog | `_idle_watchdog_loop`/`_start_watchdog_thread` (`:543-590`) | same |
 | Dispatch | `_worker_loop` (`:728-868`) | dispatch loop — **see §5 open question (a)** |
-| Submit | `submit_job` (`:870-916`) | `submit_job` — opens backplane, stamps epoch, enqueues |
+| Submit | `submit_job` (`:870-916`) | `submit_job` — registers job, enqueues (channel creation is the Handle's per §5(a); `_FutureBridge` attachment timing — pre-enqueue vs. post-`handle.submit()` in the dispatch loop — is part of open question (a), softened by the in-proc `_Channel`'s buffer-on-no-subscriber semantics). Epoch is stamped **caller-side** via `current_resolution_epoch()` at job construction (`ws_routes.py:626`); the Governor owns the authority + accessor, not the stamping. |
 | Mode switch | `switch_mode` (`:918-937`) | same |
 | Reload/unload/free | `reload_current_mode`/`free_vram`/`unload_current_model` (`:939-977`) | same |
 | Accessors | `get_current_mode`/`is_model_loaded`/`reload_if_current`/`get_queue_size` (`:979-1010`) | same |
@@ -179,7 +181,7 @@ Owns the threaded-worker coupling that today lives inside `WorkerPool`:
 | Worker free | `_free_worker` (`:484-490`) | `_free_worker` |
 | Worker unload | `_unload_current_worker` (`:492-527`) | `_unload_current_worker` (controlnet cache clear + unregister + free) |
 | Job execution | `job.execute(self._worker)` inside `_worker_loop` (`:796`) | `submit(job)` → drives `JobSink` from `job.execute(worker)` |
-| Backplane driving | sink.result/complete/error in `_worker_loop` (`:798-863`) | drives `JobSink` from inside `submit()` |
+| Backplane driving | sink.result/complete/error in `_worker_loop` (`:798-863`) | opens the `JobSink` inside `submit()`, drives it from `job.execute(worker)` (channel creation is the Handle's — see §5(a)) |
 
 The handle's `submit(job)` is where the backplane (done) plugs in: the handle
 opens the `JobSink`, runs `job.execute(worker)`, and emits
@@ -193,6 +195,15 @@ proven in the backplane's Task 5).
 Every public method becomes a one-line delegation:
 
 ```python
+# Re-export shared types so `from backends.worker_pool import GenerationJob`
+# (ws_routes.py:621) stays unbroken. The types live in governor.py; this
+# module only re-exports them.
+from backends.governor import (
+    GenerationJob, ModeSwitchJob, CustomJob, Job, JobType, JobRecord,
+    ActiveModelSnapshot, StaleResolutionError, WorkerFactory,
+)
+
+
 class WorkerPool:
     """Compatibility facade over Governor. Transitional — deleted when routes
     migrate to the Governor directly (same pattern as the deferred progress→WS
@@ -275,6 +286,20 @@ OOM recovery.
 The question: does the Governor's dispatch loop **replace** this (calling
 `handle.submit(job)` and correlating the stream), or **wrap** it (the handle
 keeps a `_worker_loop`-shaped thread, the Governor just enqueues into it)?
+
+**Channel ownership (resolved, folds into (a)):** the **Handle owns backplane
+channel creation** — `handle.submit(job)` opens the `JobSink` and returns the
+`Publisher`. This is uniform with facet-3's IPC channel (the subprocess handle
+opens its own connection + returns a `Publisher`; the Governor must not
+difference locality by opening the channel itself). The **Governor subscribes
+`_FutureBridge` to the returned `Publisher`** — so `submit_job` becomes:
+register job → `publisher = handle.submit(job)` → `publisher.subscribe(
+_FutureBridge(job.fut))` → enqueue (or the handle enqueues internally; that's
+the (a) part). The in-proc `_Channel` buffers must-deliver frames and drains
+them when a subscriber attaches, so subscribe-after-emit still resolves the
+`Future` — the backplane plan's "hangs forever" wording only applies if
+`_FutureBridge` is *never* attached. No test requires synchronous resolution
+through `submit_job`. Stating this now so the plan doesn't rediscover it.
 
 **Coupling:** this is tied to the stale-epoch barrier. Today the barrier runs
 at the "last safe boundary" inside `_worker_loop` (`:779-794`), just before
