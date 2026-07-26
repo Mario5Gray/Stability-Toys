@@ -232,9 +232,14 @@ class CustomJob(Job):
 
 # Import the WorkerHandle interface so `governor.WorkerHandle` /
 # `governor.InProcessWorkerHandle` resolve (acyclic: worker_handle does NOT
-# import governor at runtime). InProcessWorkerHandle lands in Task 2; the ABC
-# is present from Task 1.
-from backends.worker_handle import WorkerHandle, WorkerHealth  # noqa: E402
+# import governor at runtime — the Job hint is TYPE_CHECKING-guarded).
+# InProcessWorkerHandle is imported at module top (not lazily) now that Task 2
+# has landed; the Governor constructs it by default when no handle is injected.
+from backends.worker_handle import (  # noqa: E402
+    InProcessWorkerHandle,
+    WorkerHandle,
+    WorkerHealth,
+)
 
 
 class Governor:
@@ -280,18 +285,15 @@ class Governor:
         self._mode_config = mode_config or get_mode_config()
         self._registry = registry or get_model_registry()
 
-        # Handle: inject for testing, or build InProcessWorkerHandle from factory.
-        # InProcessWorkerHandle is imported lazily here (not at module top) so the
-        # Governor module loads even before Task 2 lands — Task 2 is parallel with
-        # Task 3. When Task 2 lands, the lazy import resolves and the default-handle
-        # path works. Injected handles (stub/subprocess) never touch this import.
+        # Handle: inject for testing/pluggability, or build InProcessWorkerHandle
+        # from the factory. Injected handles (stub/subprocess) never touch the
+        # default path. (Acceptance #4: a second WorkerHandle impl plugs in with
+        # no Governor change — proven by test_second_handle_impl_requires_no_governor_change.)
         if handle is not None:
             self._handle = handle
         elif worker_factory is not None:
-            from backends.worker_handle import InProcessWorkerHandle
             self._handle = InProcessWorkerHandle(worker_factory)
         else:
-            from backends.worker_handle import InProcessWorkerHandle
             self._handle = InProcessWorkerHandle(self._default_worker_factory)
 
         # Initialize with default mode (same as WorkerPool.__init__)
@@ -490,12 +492,14 @@ class Governor:
         torch.cuda.empty_cache()
         return cancelled
 
-    def _build_runtime_status(self, cancelled_jobs: Optional[list[str]] = None) -> dict:
+    def _build_runtime_status(
+        self, cancelled_jobs: Optional[list[str]] = None, *, status: str = "ok"
+    ) -> dict:
         allocated_bytes = int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
         reserved_bytes = int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0
         total_bytes = int(self._registry.get_total_vram())
-        status = {
-            "status": "ok",
+        payload = {
+            "status": status,
             "is_loaded": self.is_model_loaded(),
             "current_mode": self._current_mode,
             "queue_size": self.get_queue_size(),
@@ -506,8 +510,8 @@ class Governor:
             },
         }
         if cancelled_jobs is not None:
-            status["cancelled_jobs"] = cancelled_jobs
-        return status
+            payload["cancelled_jobs"] = cancelled_jobs
+        return payload
 
     # --- Idle watchdog ---
 
@@ -741,17 +745,7 @@ class Governor:
             self._current_mode = None
         gc.collect()
         torch.cuda.empty_cache()
-        return {
-            "status": "unloaded",
-            "is_loaded": self.is_model_loaded(),
-            "current_mode": self._current_mode,
-            "queue_size": self.get_queue_size(),
-            "vram": {
-                "allocated_bytes": int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0,
-                "reserved_bytes": int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0,
-                "total_bytes": int(self._registry.get_total_vram()),
-            },
-        }
+        return self._build_runtime_status(status="unloaded")
 
     # --- Accessors ---
 
