@@ -32,6 +32,7 @@ from backends.worker_pool import (
     CustomJob,
     reset_worker_pool,
 )
+from backends.governor import Governor
 
 # Restore immediately
 for _mod, _orig in _saved_modules.items():
@@ -189,7 +190,7 @@ def mock_model_detection():
             LocalModelBinding(model_path),
         )
 
-    with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
+    with patch("backends.governor.resolve_model", side_effect=_resolve):
         yield
 
 
@@ -213,9 +214,10 @@ def empty_pool(mock_mode_config, mock_registry, mock_worker_factory):
     """WorkerPool with no initial worker loaded."""
     reset_worker_pool()
 
-    # Patch _load_mode during __init__ so nothing is loaded
-    original_load = WorkerPool._load_mode
-    with patch.object(WorkerPool, '_load_mode'):
+    # Patch _load_mode during __init__ so nothing is loaded. The load now runs
+    # in Governor._load_mode (WorkerPool is a facade), so patch it there.
+    original_load = Governor._load_mode
+    with patch.object(Governor, '_load_mode'):
         p = WorkerPool(
             queue_max=10,
             worker_factory=mock_worker_factory,

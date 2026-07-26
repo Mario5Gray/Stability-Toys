@@ -1,248 +1,61 @@
 """
-Worker pool with extensible job queue system.
+Worker pool — thin compatibility facade over Governor.
 
-Manages worker lifecycle and job execution with support for:
-- Generation jobs
-- Mode switch jobs
-- Custom job types
-
-The queue is extensible - other parts of the app can submit jobs.
+The control plane lives in `backends/governor.py`; this module preserves the
+`WorkerPool` surface (and re-exports the shared job types) so every caller and
+test stays green unmodified. Transitional — deleted when routes migrate to the
+Governor directly. `from backends.worker_pool import GenerationJob`
+(ws_routes.py:621) stays unbroken via the re-export below.
 """
+from __future__ import annotations
 
-import gc
-import os
+import gc  # kept alongside torch so `backends.worker_pool.gc` resolves for tests
 import logging
-import queue
-import threading
-import time
-import uuid
-import torch
-from abc import ABC, abstractmethod
-from copy import deepcopy
-from typing import Optional, Any, Callable, Protocol
-from dataclasses import dataclass, field
-from concurrent.futures import Future, CancelledError
-from enum import Enum
+import os
+import torch  # kept so `backends.worker_pool.torch` resolves — tests patch
+              # torch.cuda.* / gc.* through this namespace; both are shared
+              # module objects so the patch reaches the Governor's code too.
+from concurrent.futures import Future
+from typing import Optional
 
-from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
-from backends.model_registry import get_model_registry
-from backends.base import PipelineWorker
+from server.mode_config import ModeConfigManager
 from backends.platforms.base import ModelRegistryProtocol
-from backends.model_resolution import (
-    LocalModelBinding,
-    ResolvedModel,
-    merge_mode_capabilities,  # re-exported for callers/tests; overlay lives in model_resolution
-    resolve_model,
+from backends.model_resolution import merge_mode_capabilities  # re-exported for callers/tests
+
+# Shared job types now live in governor.py; re-export them so the public surface
+# `from backends.worker_pool import GenerationJob` (and the backplane facade test
+# importing _FutureBridge) stays unbroken. Re-export, not ownership.
+from backends.governor import (
+    DEFAULT_QUEUE_TIMEOUT_S,
+    StaleResolutionError,
+    ActiveModelSnapshot,
+    WorkerFactory,
+    JobType,
+    Job,
+    GenerationJob,
+    JobRecord,
+    _FutureBridge,
+    ModeSwitchJob,
+    CustomJob,
 )
-from backends.backplane.inproc import InProcBackplane
-from backends.backplane.blob import InProcBlob
-from backends.backplane.frames import Result, BackplaneError, BackplaneErrorCode
-from backends.backplane.interface import JobSink
-from backends.backplane.reactivestreams import Subscriber
+
+__all__ = [
+    'StaleResolutionError', 'ActiveModelSnapshot', 'WorkerFactory',
+    'JobType', 'Job', 'GenerationJob', 'JobRecord', '_FutureBridge',
+    'ModeSwitchJob', 'CustomJob', 'WorkerPool', 'merge_mode_capabilities',
+    'get_worker_pool', 'reset_worker_pool', 'DEFAULT_QUEUE_TIMEOUT_S',
+]
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_QUEUE_TIMEOUT_S: float = float(os.environ.get("WORKER_QUEUE_TIMEOUT_S", "0.25"))
-
-
-class StaleResolutionError(RuntimeError):
-    """A queued job was resolved against a superseded model authority."""
-
-
-@dataclass(frozen=True)
-class ActiveModelSnapshot:
-    """The pool's single immutable model authority, published atomically with the
-    worker under the state lock. Carries the deep-copied mode, the portable
-    resolved value + node-local binding, and the resolution epoch it was minted
-    at. Idle eviction retains this so a demand reload can reconstruct the worker
-    without re-detecting."""
-
-    mode_name: str
-    mode: ModeConfig
-    resolved: ResolvedModel
-    binding: LocalModelBinding
-    resolution_epoch: int
-
-
-# Type hints for dependency injection
-class WorkerFactory(Protocol):
-    """Protocol for worker creation functions.
-
-    The final contract takes a portable ``ResolvedModel`` plus a node-local
-    ``LocalModelBinding``. Threading these through ``_load_mode`` (via
-    ``resolve_model``) and the default factory lands with the active snapshot in
-    Task 5; this task establishes the protocol shape only.
-    """
-
-    def __call__(
-        self,
-        worker_id: int,
-        resolved: ResolvedModel,
-        binding: LocalModelBinding,
-    ) -> PipelineWorker:
-        """Create a worker from a resolved model and its local binding."""
-        ...
-
-
-class JobType(Enum):
-    """Types of jobs that can be queued."""
-    GENERATION = "generation"
-    MODE_SWITCH = "mode_switch"
-    MODEL_LOAD = "model_load"
-    MODEL_UNLOAD = "model_unload"
-    CUSTOM = "custom"
-
-
-@dataclass
-class Job(ABC):
-    """
-    Base class for all job types.
-
-    Extensible job system - subclass this to create new job types.
-    """
-    job_type: JobType = field(init=False)
-    fut: Future = field(init=False, default_factory=Future)  # Result future
-
-    def __post_init__(self):
-        if self.fut is None:
-            self.fut = Future()
-
-    @abstractmethod
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
-        """
-        Execute the job.
-
-        Args:
-            worker: Current worker (may be None for non-generation jobs)
-
-        Returns:
-            Job result
-        """
-        pass
-
-
-@dataclass
-class GenerationJob(Job):
-    """Job for image generation."""
-    req: Any  # GenerateRequest
-    init_image: Optional[bytes] = None  # Optional init image bytes for img2img
-    controlnet_bindings: list[Any] = field(default_factory=list)  # Resolved ControlNetBinding list (T3 — populated by CudaGenerationRuntime.submit_generate)
-    job_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    # Required, keyword-only: the resolution epoch this job was admitted against.
-    # Stamped from the active snapshot at submission; enforced at the last safe
-    # boundary before run_job. No implicit default — unstamped jobs never queue.
-    resolution_epoch: int = field(kw_only=True)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.job_type = JobType.GENERATION
-
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
-        """Execute generation job."""
-        if worker is None:
-            raise RuntimeError("No worker available for generation")
-        return worker.run_job(self)  # type: ignore[arg-type]
-
-
-@dataclass
-class JobRecord:
-    job_id: str
-    state: str
-    job: GenerationJob
-    cancel_requested: bool = False
-    sink: Optional[JobSink] = None  # backplane producer handle (attached in submit_job)
-
-
-class _FutureBridge(Subscriber):
-    """Compat Subscriber: fulfils a concurrent.futures.Future from the backplane
-    stream, reproducing today's fut.set_result / fut.set_exception exactly.
-
-    Touches ONLY the Future — never pool state or _job_lock (spec §3.3 lock
-    invariant). Requests unbounded demand so the synchronous in-proc channel
-    delivers terminals immediately (spec §3.3 must-deliver-on-return).
-
-    Result is carried OPAQUELY: the worker's run_job return value rides the frame's
-    image (InProcBlob) untouched, so `fut.set_result(<opaque>)` matches today whether
-    run_job returns a (png, seed) tuple (production) or "test_result" (tests). This
-    is the reconciliation of spec §5, which assumed the Subscriber decomposes into
-    (png_bytes, seed) — decomposition is incompatible with the no-op and is deferred
-    to the streaming/IPC consumers that actually need seed + PNG separated.
-    """
-
-    def __init__(self, fut: Future):
-        self._fut = fut
-
-    def on_subscribe(self, subscription):
-        subscription.request(1 << 62)  # unbounded — the Future is single-valued
-
-    def on_next(self, value):
-        if isinstance(value, Result) and not self._fut.done():
-            self._fut.set_result(value.image.read_sync())  # opaque passthrough
-
-    def on_error(self, error):
-        if not self._fut.done():
-            self._fut.set_exception(error.to_exception())  # live instance in-proc
-
-    def on_complete(self):
-        pass
-
-
-@dataclass
-class ModeSwitchJob(Job):
-    """Job for switching model mode."""
-    target_mode: str
-    on_complete: Optional[Callable] = None
-    force: bool = False  # Reload even if target_mode == current_mode
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.job_type = JobType.MODE_SWITCH
-
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
-        """
-        Execute mode switch.
-
-        This doesn't use the worker directly - it triggers worker recreation.
-        """
-        logger.info(f"[ModeSwitchJob] Switching to mode: {self.target_mode}")
-        if self.on_complete:
-            self.on_complete(self.target_mode)
-        return {"mode": self.target_mode, "status": "switched"}
-
-
-@dataclass
-class CustomJob(Job):
-    """
-    Extensible custom job.
-
-    Allows other parts of the app to queue arbitrary work.
-    """
-    handler: Callable
-    args: tuple = ()
-    kwargs: Optional[dict] = None
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.job_type = JobType.CUSTOM
-        if self.kwargs is None:
-            self.kwargs = {}
-
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
-        """Execute custom handler."""
-        return self.handler(*self.args, **self.kwargs)  # type: ignore[arg-type]
-
 
 class WorkerPool:
-    """
-    Manages worker lifecycle and extensible job queue.
-
-    Features:
-    - Single worker mode (recreate on mode switch)
-    - Extensible job queue (generation, mode switch, custom)
-    - Mode switching with automatic worker recreation
-    - VRAM tracking via ModelRegistry
-    - Dependency injection support for testing
-    """
+    """Compatibility facade over Governor. Transitional — deleted when routes
+    migrate to the Governor directly. Preserved so every caller and (white-box)
+    test stays green unmodified: public methods delegate to the Governor, and the
+    internals the suite reaches into (q, _worker, _current_mode, _last_activity,
+    _get_job_record, _load_mode, _evict_if_idle, ...) are exposed as delegating
+    properties/methods. Same pattern as the backplane's Future facade."""
 
     def __init__(
         self,
@@ -252,788 +65,130 @@ class WorkerPool:
         mode_config: Optional[ModeConfigManager] = None,
         registry: Optional[ModelRegistryProtocol] = None,
     ):
-        """
-        Initialize worker pool.
-
-        Args:
-            queue_max: Maximum queue size
-            queue_timeout_s: Default timeout for queue admission. Values <= 0
-                            keep non-blocking put_nowait behavior.
-            worker_factory: Optional factory function for creating workers.
-                           Defaults to create_cuda_worker from worker_factory module.
-            mode_config: Optional mode configuration manager.
-                        Defaults to global singleton from get_mode_config().
-            registry: Optional model registry for VRAM tracking.
-                     Defaults to global singleton from get_model_registry().
-
-        Note:
-            When all optional parameters are None (default), uses global singletons
-            for backward compatibility. For testing, inject mocked dependencies.
-        """
-        self.queue_max = queue_max
-        self.queue_timeout_s = queue_timeout_s
-        self.q: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
-        self._stop = threading.Event()
-        self._worker: Optional[PipelineWorker] = None
-        self._worker_thread: Optional[threading.Thread] = None
-        self._watchdog_thread: Optional[threading.Thread] = None
-        self._current_mode: Optional[str] = None
-        # One immutable model authority, published atomically with the worker.
-        self._active_snapshot: Optional[ActiveModelSnapshot] = None
-        self._resolution_epoch: int = 0
-        self._job_records: dict[str, JobRecord] = {}
-        self._job_lock = threading.RLock()
-        # Idle eviction config — 0 disables eviction
-        self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
-        self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
-        self._last_activity = time.monotonic()
-        self._eviction_pending = False
-
-        # Dependency injection with defaults to singletons
-        self._worker_factory = worker_factory or self._default_worker_factory
-        self._mode_config = mode_config or get_mode_config()
-        self._registry = registry or get_model_registry()
-
-        # Initialize with default mode — failure is non-fatal so the server
-        # can still start and accept mode-switch or load requests via API.
-        default_mode = self._mode_config.get_default_mode()
-        try:
-            self._load_mode(default_mode)
-        except Exception as e:
-            logger.error(
-                f"[WorkerPool] Initial model load failed for mode '{default_mode}': {e}. "
-                "Server will start without a loaded model. "
-                "Use the /api/modes/switch endpoint to load a model.",
-                exc_info=True,
-            )
-            # _load_mode already cleaned up; pool starts in no-model state
-            self._start_worker_thread()
-
-        self._start_watchdog_thread()
-
-    @staticmethod
-    def _default_worker_factory(
-        worker_id: int,
-        resolved: ResolvedModel,
-        binding: LocalModelBinding,
-    ) -> PipelineWorker:
-        """Default worker factory: build the CUDA worker for a resolved model.
-
-        Imports and calls create_cuda_worker from worker_factory module. This is
-        the default behavior when no factory is injected.
-        """
-        from backends.worker_factory import create_cuda_worker
-        return create_cuda_worker(worker_id, resolved, binding)
-
-    def _load_mode(self, mode_name: str):
-        """
-        Load a mode: detect once, resolve, and publish one active snapshot.
-
-        Deep-copies the selected mode, resolves it into a portable value, builds
-        the worker, then — under the state lock — increments the resolution epoch
-        and publishes worker, mode, and snapshot together. An explicit load
-        invalidates any prior authority first; on failure it leaves no worker and
-        no snapshot.
-        """
-        logger.info(f"[WorkerPool] Loading mode: {mode_name}")
-
-        # Deep copy so later mutation of the source ModeConfig cannot reach the
-        # published snapshot.
-        mode = deepcopy(self._mode_config.get_mode(mode_name))
-
-        # Explicit replacement invalidates the old authority before re-resolving.
-        if self._worker is not None:
-            self._unload_current_worker()
-        with self._job_lock:
-            self._active_snapshot = None
-
-        # Track VRAM before worker creation
-        self._registry.get_used_vram()
-        allocated_before = self._registry.get_allocated_vram()
-
-        assert mode.model_path is not None, f"model_path not resolved for mode '{mode_name}'"
-        try:
-            # Detect once, resolve family (pre-overlay), then overlay mode
-            # capabilities, emitting a portable ResolvedModel + node-local binding.
-            resolved, binding = resolve_model(mode.model_path, mode)
-            worker = self._worker_factory(
-                worker_id=0,
-                resolved=resolved,
-                binding=binding,
-            )
-            configure_conditioning = getattr(worker, "configure_conditioning", None)
-            if callable(configure_conditioning):
-                configure_conditioning(mode.conditioning)
-            elif mode.conditioning.requires_configurable_worker():
-                raise RuntimeError(
-                    f"mode '{mode_name}' configures conditioning but worker "
-                    f"{type(worker).__name__} does not support conditioning"
-                )
-        except Exception as e:
-            logger.error(
-                f"[WorkerPool] Failed to load mode '{mode_name}': {e}",
-                exc_info=True,
-            )
-            # Clean up any partially allocated GPU memory and clear all authority.
-            self._free_worker()
-            with self._job_lock:
-                self._current_mode = None
-                self._active_snapshot = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            raise
-
-        vram_reserved = self._registry.get_used_vram()
-        vram_allocated = self._registry.get_allocated_vram()
-        vram_used = max(0, vram_allocated - allocated_before)
-        vram_total = self._registry.get_total_vram()
-        logger.info(
-            f"[WorkerPool] VRAM after load: "
-            f"allocated={vram_allocated/1024**3:.2f}GB "
-            f"reserved={vram_reserved/1024**3:.2f}GB "
-            f"total={vram_total/1024**3:.2f}GB "
-            f"model_delta={vram_used/1024**3:.2f}GB"
+        from backends.governor import Governor
+        self._governor = Governor(
+            queue_max=queue_max,
+            queue_timeout_s=queue_timeout_s,
+            worker_factory=worker_factory,
+            mode_config=mode_config,
+            registry=registry,
         )
 
-        # Load LoRAs if specified in mode
-        if mode.loras:
-            logger.info(f"[WorkerPool] Loading {len(mode.loras)} LoRAs for mode {mode_name}")
-            # LoRAs are loaded by worker during initialization from STYLE_REGISTRY
-            # TODO: Support dynamic LoRA loading from mode config
-
-        # Register model in registry
-        self._registry.register_model(
-            name=mode_name,
-            model_path=mode.model_path or "",
-            vram_bytes=vram_used,
-            worker_id=0,
-            loras=[lora.path for lora in mode.loras],
-        )
-
-        # Atomic publish: new epoch + worker + mode + snapshot together.
-        with self._job_lock:
-            self._resolution_epoch += 1
-            self._worker = worker
-            self._current_mode = mode_name
-            self._active_snapshot = ActiveModelSnapshot(
-                mode_name=mode_name,
-                mode=mode,
-                resolved=resolved,
-                binding=binding,
-                resolution_epoch=self._resolution_epoch,
-            )
-
-        # Start worker thread
-        self._start_worker_thread()
-
-        logger.info(
-            f"[WorkerPool] Mode '{mode_name}' loaded successfully "
-            f"(VRAM: {vram_used / 1024**3:.2f} GB, epoch={self._resolution_epoch})"
-        )
-
-    def get_active_model_snapshot(self) -> Optional[ActiveModelSnapshot]:
-        """Return the single coherent model authority under the state lock."""
-        with self._job_lock:
-            return self._active_snapshot
-
-    def current_resolution_epoch(self) -> int:
-        """The epoch a job submitted now must be stamped with."""
-        with self._job_lock:
-            if self._active_snapshot is not None:
-                return self._active_snapshot.resolution_epoch
-            return self._resolution_epoch
-
-    def _reload_from_snapshot(self) -> None:
-        """Reconstruct the worker from the retained snapshot after idle eviction.
-
-        Reuses the already-resolved value and binding — no detection, no new
-        epoch. The snapshot remains the same authority the evicted worker served.
-        """
-        snapshot = self._active_snapshot
-        if snapshot is None:
-            raise RuntimeError("demand reload requested with no retained snapshot")
-
-        logger.info(
-            f"[WorkerPool] Demand-reloading mode '{snapshot.mode_name}' from "
-            f"retained snapshot (epoch={snapshot.resolution_epoch})"
-        )
-        worker = self._worker_factory(
-            worker_id=0,
-            resolved=snapshot.resolved,
-            binding=snapshot.binding,
-        )
-        configure_conditioning = getattr(worker, "configure_conditioning", None)
-        if callable(configure_conditioning):
-            configure_conditioning(snapshot.mode.conditioning)
-        elif snapshot.mode.conditioning.requires_configurable_worker():
-            raise RuntimeError(
-                f"mode '{snapshot.mode_name}' configures conditioning but worker "
-                f"{type(worker).__name__} does not support conditioning"
-            )
-        self._registry.register_model(
-            name=snapshot.mode_name,
-            model_path=snapshot.binding.model_path,
-            vram_bytes=0,
-            worker_id=0,
-            loras=[lora.path for lora in snapshot.mode.loras],
-        )
-        with self._job_lock:
-            self._worker = worker
-
-    def _free_worker(self):
-        """Drop the worker reference and flush the GPU allocator cache."""
-        if self._worker is not None:
-            del self._worker
-            self._worker = None
-        gc.collect()
-        torch.cuda.empty_cache()
-
-    def _unload_current_worker(self):
-        """Unload current worker and free VRAM."""
-        # Release cached ControlNet models before the worker-presence guard, so
-        # a free-vram issued after the base model is already unloaded still frees
-        # them. The cache is a separate store; release() only unpins, and entries
-        # are not evicted below max_entries, so without this the ControlNet
-        # weights stay resident in VRAM after the base model is gone. The
-        # composed ControlNet pipe shares base components (from_pipe), so it is
-        # gone with the worker.
-        from backends.controlnet_cache import get_controlnet_cache
-
-        dropped = get_controlnet_cache().clear()
-        if dropped:
-            logger.info(f"[WorkerPool] Released {dropped} cached ControlNet model(s)")
-
-        if self._worker is None:
-            return
-
-        logger.info(f"[WorkerPool] Unloading current worker (mode: {self._current_mode})")
-
-        # Unregister from registry
-        if self._current_mode:
-            self._registry.unregister_model(self._current_mode)
-
-        self._free_worker()
-
-        if torch.cuda.is_available():
-            vram_allocated = torch.cuda.memory_allocated() / 1024**3
-            vram_reserved = torch.cuda.memory_reserved() / 1024**3
-            logger.info(
-                f"[WorkerPool] Worker unloaded — "
-                f"allocated={vram_allocated:.2f}GB reserved={vram_reserved:.2f}GB "
-                f"(reserved>allocated means PyTorch cache; call empty_cache to release)"
-            )
-        else:
-            logger.info("[WorkerPool] Worker unloaded, VRAM freed")
-
-    def _start_worker_thread(self):
-        """Start worker thread for processing jobs."""
-        if self._worker_thread is not None and self._worker_thread.is_alive():
-            logger.warning("[WorkerPool] Worker thread already running")
-            return
-
-        self._worker_thread = threading.Thread(
-            target=self._worker_loop,
-            daemon=True,
-            name="WorkerThread",
-        )
-        self._worker_thread.start()
-        logger.info("[WorkerPool] Worker thread started")
-
-    def _start_watchdog_thread(self):
-        """Start idle eviction watchdog thread."""
-        if self._idle_timeout <= 0:
-            logger.info("[WorkerPool] Idle eviction disabled (MODEL_IDLE_TIMEOUT_SECS=0)")
-            return
-
-        self._watchdog_thread = threading.Thread(
-            target=self._idle_watchdog_loop,
-            daemon=True,
-            name="IdleWatchdog",
-        )
-        self._watchdog_thread.start()
-        logger.info(
-            f"[WorkerPool] Idle watchdog started "
-            f"(timeout={self._idle_timeout:.0f}s, interval={self._idle_check_interval:.0f}s)"
-        )
-
-    def _idle_watchdog_loop(self):
-        """Background thread: evicts model after idle timeout."""
-        logger.debug("[WorkerPool] Idle watchdog loop running")
-
-        while not self._stop.wait(timeout=self._idle_check_interval):
-            try:
-                if self._worker is None:
-                    continue
-
-                idle_secs = time.monotonic() - self._last_activity
-                if idle_secs < self._idle_timeout:
-                    continue
-
-                if self._eviction_pending:
-                    continue
-
-                logger.info(
-                    f"[WorkerPool] Model idle for {idle_secs:.0f}s "
-                    f"(timeout={self._idle_timeout:.0f}s); queuing eviction"
-                )
-                try:
-                    evict_job = CustomJob(handler=self._evict_if_idle)
-                    self._eviction_pending = True
-                    self.q.put_nowait(evict_job)
-                except queue.Full:
-                    self._eviction_pending = False
-                    logger.warning("[WorkerPool] Queue full; skipping idle eviction this cycle")
-            except Exception:
-                logger.error("[WorkerPool] Idle watchdog error", exc_info=True)
-
-        logger.debug("[WorkerPool] Idle watchdog loop stopped")
-
-    def _register_job(self, job: Job):
-        if isinstance(job, GenerationJob):
-            with self._job_lock:
-                self._job_records[job.job_id] = JobRecord(
-                    job_id=job.job_id,
-                    state="queued",
-                    job=job,
-                )
-
-    def _finalize_job_record(self, job_id: str):
-        with self._job_lock:
-            self._job_records.pop(job_id, None)
-
-    def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
-        with self._job_lock:
-            return self._job_records.get(job_id)
-
-    def _mark_running_generation_jobs_cancel_requested(self, reason: str) -> list[str]:
-        """Mark running generation jobs so their futures resolve as cancelled."""
-        cancelled: list[str] = []
-        with self._job_lock:
-            for record in self._job_records.values():
-                if record.state == "running" and not record.cancel_requested:
-                    record.cancel_requested = True
-                    cancelled.append(record.job_id)
-
-        if cancelled:
-            logger.info(
-                f"[WorkerPool] Marked {len(cancelled)} running generation job(s) cancel requested "
-                f"({reason})"
-            )
-
-        return cancelled
-
-    def cancel_pending_generation_jobs(self, reason: str) -> list[str]:
-        """Cancel queued generation jobs that have not started yet."""
-        cancelled: list[str] = []
-        kept_jobs: list[Job] = []
-
-        with self.q.mutex:
-            pending_jobs = list(self.q.queue)
-            self.q.queue.clear()
-
-            for job in pending_jobs:
-                if isinstance(job, GenerationJob):
-                    cancelled.append(job.job_id)
-                    if not job.fut.done():
-                        job.fut.cancel()
-                else:
-                    kept_jobs.append(job)
-
-            for job in kept_jobs:
-                self.q.queue.append(job)
-
-        for _job_id in cancelled:
-            self.q.task_done()
-        for job_id in cancelled:
-            record = self._get_job_record(job_id)
-            if record is not None:
-                record.cancel_requested = True
-                record.state = "cancelled"
-            self._finalize_job_record(job_id)
-
-        if cancelled:
-            logger.info(
-                f"[WorkerPool] Cancelled {len(cancelled)} pending generation job(s) ({reason})"
-            )
-
-        return cancelled
-
-    def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
-        """Shared cleanup path for explicit free-VRAM and OOM recovery."""
-        cancelled = self.cancel_pending_generation_jobs(reason=reason)
-        if cancel_running:
-            cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
-        self._unload_current_worker()
-        gc.collect()
-        torch.cuda.empty_cache()
-        return cancelled
-
-    def _build_runtime_status(self, cancelled_jobs: Optional[list[str]] = None) -> dict:
-        """Return a stable runtime snapshot used by recovery endpoints."""
-        allocated_bytes = int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
-        reserved_bytes = int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0
-        total_bytes = int(self._registry.get_total_vram())
-
-        status = {
-            "status": "ok",
-            "is_loaded": self.is_model_loaded(),
-            "current_mode": self._current_mode,
-            "queue_size": self.get_queue_size(),
-            "vram": {
-                "allocated_bytes": allocated_bytes,
-                "reserved_bytes": reserved_bytes,
-                "total_bytes": total_bytes,
-            },
-        }
-        if cancelled_jobs is not None:
-            status["cancelled_jobs"] = cancelled_jobs
-        return status
-
-    def cancel_job(self, job_id: str) -> bool:
-        """Cancel a queued or running generation job by backend job ID."""
-        with self._job_lock:
-            record = self._job_records.get(job_id)
-            if record is None or record.job.fut.done():
-                return False
-
-            record.cancel_requested = True
-            if record.state == "queued" and record.job.fut.cancel():
-                record.state = "cancelled"
-                return True
-
-            record.state = "running"
-            return True
-
-    def _evict_if_idle(self):
-        """
-        Evict the loaded model if the pool is still idle.
-
-        Runs on the worker thread (via CustomJob) to serialise with generation.
-        Re-checks the idle condition in case a job arrived after the watchdog
-        enqueued this eviction.
-        """
-        self._eviction_pending = False
-        idle_secs = time.monotonic() - self._last_activity
-        if idle_secs < self._idle_timeout:
-            logger.debug("[WorkerPool] Eviction skipped: activity detected since enqueue")
-            return {"status": "skipped", "reason": "activity_detected"}
-        if self._worker is None:
-            return {"status": "skipped", "reason": "already_unloaded"}
-
-        logger.info(f"[WorkerPool] Evicting idle model '{self._current_mode}'")
-        self._unload_current_worker()
-        return {"status": "evicted"}
-
-    def _worker_loop(self):
-        """Main worker loop - processes jobs from queue."""
-        logger.info("[WorkerPool] Worker loop started")
-
-        while not self._stop.is_set():
-            try:
-                # Get job with timeout to allow checking stop flag
-                job = self.q.get(timeout=1.0)
-            except queue.Empty:
-                continue
-
-            try:
-                if isinstance(job, ModeSwitchJob):
-                    # Skip only if worker is live and already on the right mode
-                    if self._worker is not None and self._current_mode == job.target_mode and not job.force:
-                        logger.info(
-                            f"[WorkerPool] Already in mode '{job.target_mode}', "
-                            "skipping mode switch"
-                        )
-                        result = {"mode": job.target_mode, "status": "already_loaded"}
-                    else:
-                        result = job.execute(self._worker)
-                        self._load_mode(job.target_mode)
-
-                    if not job.fut.done():
-                        job.fut.set_result(result)
-
-                else:
-                    generation_job = job if isinstance(job, GenerationJob) else None
-                    job_record = self._get_job_record(generation_job.job_id) if generation_job is not None else None
-                    if job_record is not None and (job_record.cancel_requested or job.fut.cancelled()):
-                        assert generation_job is not None
-                        logger.info(f"[WorkerPool] Skipping cancelled generation job: {generation_job.job_id}")
-                        job_record.state = "cancelled"
-                        self._finalize_job_record(generation_job.job_id)
-                        continue
-
-                    if job_record is not None:
-                        job_record.state = "running"
-
-                    # Demand reload: worker may have been evicted since last job.
-                    # Reconstruct from the retained snapshot — no re-detection,
-                    # same epoch — so a job stamped before eviction stays valid.
-                    if self._worker is None and self._active_snapshot is not None:
-                        try:
-                            self._reload_from_snapshot()
-                        except Exception as load_err:
-                            raise RuntimeError(
-                                f"Demand reload of '{self._current_mode}' failed: {load_err}"
-                            ) from load_err
-
-                    # Stale-job barrier at the last safe boundary: a job resolved
-                    # against a superseded authority must never reach the worker.
-                    # Only fires when a model is loaded — a no-model pool falls
-                    # through to the worker's own "No worker available" error.
-                    if generation_job is not None:
-                        with self._job_lock:
-                            snapshot = self._active_snapshot
-                        if (
-                            snapshot is not None
-                            and snapshot.resolution_epoch != generation_job.resolution_epoch
-                        ):
-                            raise StaleResolutionError(
-                                f"job {generation_job.job_id} stamped epoch "
-                                f"{generation_job.resolution_epoch} != active epoch "
-                                f"{snapshot.resolution_epoch}"
-                            )
-
-                    result = job.execute(self._worker)
-
-                    sink = job_record.sink if job_record is not None else None
-                    if job_record is not None and job_record.cancel_requested:
-                        # Post-execute (running) cancel: discard the result
-                        # producer-side — do NOT emit Result (spec §5 + review: both
-                        # cancel boundaries). Terminal is a CANCELLED error.
-                        assert generation_job is not None
-                        job_record.state = "cancelled"
-                        if sink is not None:
-                            sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
-                        elif not job.fut.done():
-                            job.fut.set_exception(CancelledError())
-                        self._finalize_job_record(generation_job.job_id)
-                    elif sink is not None:
-                        # GenerationJob success: carry the worker result opaquely
-                        # through the backplane; _FutureBridge reproduces
-                        # fut.set_result(result) verbatim.
-                        assert generation_job is not None
-                        sink.result(0, InProcBlob(result))
-                        sink.complete()
-                        self._finalize_job_record(generation_job.job_id)
-                    elif not job.fut.done():
-                        job.fut.set_result(result)  # non-generation job (CustomJob)
-
-            except Exception as e:
-                logger.error(f"[WorkerPool] Job failed: {e}", exc_info=True)
-                _oom = (
-                    hasattr(torch.cuda, "OutOfMemoryError")
-                    and isinstance(e, torch.cuda.OutOfMemoryError)
-                ) or "out of memory" in str(e).lower()
-                if _oom:
-                    logger.warning(
-                        "[WorkerPool] OOM recovery: cancelling queued jobs and unloading worker — "
-                        f"allocated={torch.cuda.memory_allocated()/1024**3:.2f}GB "
-                        f"reserved={torch.cuda.memory_reserved()/1024**3:.2f}GB"
-                    )
-                    # OOM can leave the pipeline allocator state partially poisoned.
-                    # Use the same cleanup path as explicit free-VRAM, but keep the
-                    # failing job's original exception so callers see the OOM.
-                    self._cleanup_vram(reason="oom", cancel_running=False)
-                if isinstance(job, GenerationJob):
-                    job_record = self._get_job_record(job.job_id)
-                    if job_record is not None:
-                        sink = job_record.sink
-                        if _oom:
-                            if sink is not None:
-                                sink.error(BackplaneError.from_exc(e))
-                            elif not job.fut.done():
-                                job.fut.set_exception(e)
-                            job_record.state = "failed"
-                        elif job_record.cancel_requested:
-                            if sink is not None:
-                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
-                            elif not job.fut.done():
-                                job.fut.set_exception(CancelledError())
-                            job_record.state = "cancelled"
-                        else:
-                            if sink is not None:
-                                sink.error(BackplaneError.from_exc(e))
-                            elif not job.fut.done():
-                                job.fut.set_exception(e)
-                            job_record.state = "failed"
-                        self._finalize_job_record(job.job_id)
-                    elif not job.fut.done():
-                        job.fut.set_exception(e)
-                elif not job.fut.done():
-                    job.fut.set_exception(e)
-            finally:
-                self._last_activity = time.monotonic()
-                self.q.task_done()
-
-        logger.info("[WorkerPool] Worker loop stopped")
+    # --- Delegating public methods ---
 
     def submit_job(self, job: Job, *, timeout_s: float | None = None) -> Future:
-        """
-        Submit a job to the queue.
-
-        Extensible - accepts any Job subclass.
-
-        Args:
-            job: Job to execute
-            timeout_s: Optional queue wait timeout override. When omitted,
-                uses the pool default. Values <= 0 keep the non-blocking
-                put_nowait behavior.
-
-        Returns:
-            Future for job result
-
-        Raises:
-            queue.Full if queue is full
-        """
-        effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
-        try:
-            self._register_job(job)
-            if isinstance(job, GenerationJob):
-                # Open the backplane channel and attach the compat Subscriber NOW —
-                # strictly before the job is enqueued. _FutureBridge.on_subscribe
-                # requests unbounded demand synchronously, so by the time the worker
-                # thread dequeues and emits, terminals deliver synchronously (spec
-                # §3.3 must-deliver-on-return). Attaching after put() would let the
-                # worker emit into an unattached channel — the Future would never
-                # resolve. See _Channel's ordering invariant.
-                sink, publisher = InProcBackplane(job.job_id).open()
-                record = self._get_job_record(job.job_id)
-                if record is not None:
-                    record.sink = sink
-                publisher.subscribe(_FutureBridge(job.fut))
-            if effective_timeout_s > 0:
-                self.q.put(job, timeout=effective_timeout_s)
-            else:
-                self.q.put_nowait(job)
-            logger.debug(f"[WorkerPool] Job queued: {job.job_type.value}")
-            return job.fut
-        except queue.Full:
-            if isinstance(job, GenerationJob):
-                self._finalize_job_record(job.job_id)
-            raise queue.Full(
-                f"Job queue full (max: {self.queue_max}). "
-                "Try again later or increase QUEUE_MAX."
-            )
+        return self._governor.submit_job(job, timeout_s=timeout_s)
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Future:
-        """
-        Queue a mode switch.
-
-        Args:
-            mode_name: Target mode name
-            force: Reload the worker even if mode_name is already current.
-                   Use this when the mode's config has changed on disk.
-
-        Returns:
-            Future that completes when mode switch is done
-        """
-        logger.info(f"[WorkerPool] Queueing mode switch to: {mode_name} (force={force})")
-
-        # Validate mode exists
-        self._mode_config.get_mode(mode_name)  # Raises if not found
-
-        job = ModeSwitchJob(target_mode=mode_name, force=force)
-
-        return self.submit_job(job)
+        return self._governor.switch_mode(mode_name, force=force)
 
     def reload_current_mode(self) -> dict:
-        """Reload the currently loaded mode in place."""
-        if self._current_mode is None:
-            raise RuntimeError("No active mode to reload")
-
-        self.cancel_pending_generation_jobs(reason="reload_current_mode")
-        self.switch_mode(self._current_mode, force=True).result(timeout=30.0)
-        return {"status": "reloaded", "mode": self._current_mode}
-
-    def free_vram(self, reason: str) -> dict:
-        """Cancel queued work, unload the worker, and return a runtime snapshot."""
-        cancelled = self._cleanup_vram(reason=reason, cancel_running=True)
-        return self._build_runtime_status(cancelled_jobs=cancelled)
-
-    def unload_current_model(self) -> dict:
-        """Fully unload the model without canceling queued or running jobs.
-
-        Unlike idle eviction (which retains the snapshot so a demand reload can
-        rebuild the worker), this drops the model authority entirely: generation
-        fails until a new mode is loaded. Clearing the snapshot is what prevents
-        the worker loop from silently re-arming the same model on the next job.
-        """
-        self._unload_current_worker()
-        with self._job_lock:
-            self._active_snapshot = None
-            self._current_mode = None
-        gc.collect()
-        torch.cuda.empty_cache()
-        return {
-            "status": "unloaded",
-            "is_loaded": self.is_model_loaded(),
-            "current_mode": self._current_mode,
-            "queue_size": self.get_queue_size(),
-            "vram": {
-                "allocated_bytes": int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0,
-                "reserved_bytes": int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0,
-                "total_bytes": int(self._registry.get_total_vram()),
-            },
-        }
-
-    def get_current_mode(self) -> Optional[str]:
-        """Get currently loaded mode name.
-
-        Note: returns the mode name even after idle eviction, so the pool can
-        demand-reload the same mode on the next request. Use is_model_loaded()
-        to distinguish "in VRAM" from "evicted but name retained".
-        """
-        return self._current_mode
-
-    def is_model_loaded(self) -> bool:
-        """True if a worker is currently live in GPU memory."""
-        return self._worker is not None
+        return self._governor.reload_current_mode()
 
     def reload_if_current(self, mode_name: str) -> bool:
-        """Queue a force-reload if mode_name is the currently loaded mode.
+        return self._governor.reload_if_current(mode_name)
 
-        Returns True if a reload was queued, False otherwise.
-        Intended for route handlers that need to hot-reload after a config change.
-        """
-        if self.get_current_mode() != mode_name:
-            return False
-        logger.info(f"[WorkerPool] Config changed for loaded mode '{mode_name}'; queuing reload")
-        try:
-            self.switch_mode(mode_name, force=True)
-            return True
-        except Exception as e:
-            logger.warning(f"[WorkerPool] Could not queue reload for mode '{mode_name}': {e}")
-            return False
+    def free_vram(self, reason: str) -> dict:
+        return self._governor.free_vram(reason)
+
+    def unload_current_model(self) -> dict:
+        return self._governor.unload_current_model()
+
+    def get_current_mode(self) -> Optional[str]:
+        return self._governor.get_current_mode()
+
+    def is_model_loaded(self) -> bool:
+        return self._governor.is_model_loaded()
 
     def get_queue_size(self) -> int:
-        """Get current queue size."""
-        return self.q.qsize()
+        return self._governor.get_queue_size()
+
+    def get_active_model_snapshot(self) -> Optional[ActiveModelSnapshot]:
+        return self._governor.get_active_model_snapshot()
+
+    def current_resolution_epoch(self) -> int:
+        return self._governor.current_resolution_epoch()
+
+    def cancel_job(self, job_id: str) -> bool:
+        return self._governor.cancel_job(job_id)
+
+    def cancel_pending_generation_jobs(self, reason: str) -> list[str]:
+        return self._governor.cancel_pending_generation_jobs(reason)
 
     def shutdown(self):
-        """
-        Shutdown worker pool.
+        return self._governor.shutdown()
 
-        Waits for pending jobs to complete before shutting down.
-        """
-        logger.info("[WorkerPool] Shutting down")
+    # --- Delegating internals the (white-box) suite reaches into ---
 
-        # Wait for queue to drain (pending jobs complete)
-        logger.debug(f"[WorkerPool] Waiting for {self.q.qsize()} jobs to complete")
-        self.q.join()
+    @staticmethod
+    def _default_worker_factory(worker_id, resolved, binding):
+        from backends.governor import Governor
+        return Governor._default_worker_factory(worker_id, resolved, binding)
 
-        # Signal worker thread to stop
-        self._stop.set()
+    def _load_mode(self, mode_name: str):
+        return self._governor._load_mode(mode_name)
 
-        # Wait for worker and watchdog threads to finish
-        if self._worker_thread and self._worker_thread.is_alive():
-            self._worker_thread.join(timeout=5.0)
-        if self._watchdog_thread and self._watchdog_thread.is_alive():
-            self._watchdog_thread.join(timeout=5.0)
+    def _start_worker_thread(self):
+        return self._governor._start_dispatch_thread()
 
-        # Unload worker
-        self._unload_current_worker()
+    def _unload_current_worker(self):
+        return self._governor._unload_current_worker()
 
-        logger.info("[WorkerPool] Shutdown complete")
+    def _get_job_record(self, job_id: str):
+        return self._governor._get_job_record(job_id)
+
+    def _evict_if_idle(self):
+        return self._governor._evict_if_idle()
+
+    @property
+    def q(self):
+        return self._governor.q
+
+    @property
+    def queue_max(self) -> int:
+        return self._governor.queue_max
+
+    @property
+    def _worker(self):
+        return self._governor._handle.worker
+
+    @_worker.setter
+    def _worker(self, value):
+        # Tests set pool._worker = None to simulate a vanished worker; forward to
+        # the in-proc handle's backing ref (the handle owns the worker).
+        self._governor._handle._worker = value
+
+    @property
+    def _worker_thread(self):
+        return getattr(self._governor, "_worker_thread", None)
+
+    @property
+    def _current_mode(self) -> Optional[str]:
+        return self._governor._current_mode
+
+    @property
+    def _active_snapshot(self):
+        return self._governor._active_snapshot
+
+    @property
+    def _registry(self):
+        return self._governor._registry
+
+    @property
+    def _mode_config(self):
+        return self._governor._mode_config
+
+    @property
+    def _resolution_epoch(self) -> int:
+        return self._governor._resolution_epoch
+
+    @property
+    def _last_activity(self) -> float:
+        return self._governor._last_activity
+
+    @_last_activity.setter
+    def _last_activity(self, value: float) -> None:
+        self._governor._last_activity = value
 
 
 # Global worker pool instance

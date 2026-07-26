@@ -7,36 +7,79 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 ## Current objectives
 
-Two live tracks, both surfaced running HunyuanDiT + ControlNet on enigma
-(RTX 3090, 24 GB). All children below are `todo`, none claimed.
+The VRAM umbrella surfaced running HunyuanDiT + ControlNet on enigma (RTX 3090,
+24 GB) and has since become a deliberate **worker-as-a-service** refactor, not just
+bug fixes. Human-driven, no waveplan, kept close. Two children merged; the rest
+below are `todo`.
 
-### VRAM memory pressure — umbrella `STABL-nvmieaxh`
+### Worker-as-a-service — umbrella `STABL-nvmieaxh`
 
-The enigma logs separated one apparent "leak" into three distinct failures:
+Four-part model (control plane vs data plane): **Governor** (parent-side control) +
+**Worker Handle** (locality-agnostic) + **Backplane** (data plane) + **Worker**
+(executor). Boundary = the job queue; scale path in-proc thread → subprocess (spawn,
+NOT fork — CUDA contexts don't survive fork) → microservice, one contract throughout.
+Authority (resolution epoch, active snapshot, admission barrier) stays PARENT-side in
+the Governor.
 
-1. **Accounting is fiction.** `ModelRegistry.get_available_vram()` returns
-   `total_memory - torch.cuda.memory_reserved()` — only torch's own reserved pool
-   against the nameplate total, ignoring the CUDA context, cuDNN/cuBLAS/xformers
-   workspaces, and any other process. `can_fit()` consumes this inflated number and
-   over-commits → OOM. **First child `STABL-sqqlkmdl`** flips this to
-   `torch.cuda.mem_get_info()` (driver free/total). TDD-ready; do this first.
-2. **Post-free residual is the CUDA context, not a torch leak.** After free-vram
-   torch reports ~9 MiB allocated / ~22 MiB reserved — fully freed. What remains in
-   `nvidia-smi` is the per-process context (~0.5–1.5 GB), unreclaimable by
-   `empty_cache()`; only process exit frees it. Not fragmentation.
-3. **OOM poisons the context; in-process recovery can't fix it.** The pool already
-   auto-runs `_cleanup_vram` on the worker thread (`worker_pool.py:785`), but
-   `empty_cache`/`del` cannot drop a poisoned context. Durable fix is subprocess
-   isolation (kill + respawn the model process). Facet, not yet its own child.
+The enigma logs separated one apparent "leak" into three distinct failures — status:
+
+1. **Accounting was fiction → FIXED.** `get_available_vram()` used
+   `total - memory_reserved()` (torch's pool vs nameplate, ignoring the CUDA context /
+   library workspaces / other processes), over-committing → OOM. **`STABL-sqqlkmdl`
+   (done, merged `243455e`)** flipped it to driver truth via
+   `torch.cuda.mem_get_info()`.
+2. **Post-free residual is the CUDA context, not a torch leak.** After free-vram torch
+   reports fully freed; the ~0.5–1.5 GB left in `nvidia-smi` is the per-process context,
+   unreclaimable by `empty_cache()` — only process exit frees it. Not fragmentation.
+   → drives the subprocess direction (facet-3).
+3. **OOM poisons the context; in-process recovery can't fix it.** `_cleanup_vram` runs
+   on the worker thread but `empty_cache`/`del` cannot drop a poisoned context. Durable
+   fix = subprocess isolation (kill + respawn), which the backplane now makes possible.
+
+**Merged children:**
+
+- **`STABL-sqqlkmdl` (done)** — driver-truth VRAM accounting (`mem_get_info`).
+- **`STABL-yoauoqao` (done, PR #19, merge `919a1d6`)** — the **Backplane** data-plane
+  transport. `backends/backplane/`: vendored reactive-streams ABCs (no rsocket-py dep),
+  frames + `BlobRef` + `schema_version` codec, synchronous in-proc transport behind a
+  preserved `submit_job()→Future` facade (0-byte `ws_routes.py` diff = the no-op proof),
+  and a stdlib IPC transport proven across a real spawn boundary incl. the cross-process
+  cancel channel. See "Recently landed" for the carry-forwards.
+
+**Remaining children (`todo`):**
+
+- **`STABL-vdkdruox` — Worker Governor** (control plane): worker lifecycle
+  (spawn/ready/health/kill/respawn-with-backoff), authoritative state, dispatch +
+  admission. **This is where the epoch/snapshot authority lives**, so it owns the fix
+  for the mode-switch races below. Consumes the backplane + a Worker Handle interface;
+  extract from `WorkerPool` with an InProcHandle first (prove zero behavior change).
+  Natural next step now the backplane has landed. **Scoping locked (2026-07-25):**
+  pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split (WorkerHandle
+  contract + CUDA audit in v1; ControlNetBinding wire form + `CustomJob`→typed-message map
+  deferred to facet-3). Sub-question (b) demand-reload/eviction leans Governor; (a) dispatch
+  replace-vs-wrap left for brainstorming. See `fp context STABL-vdkdruox`.
+- **`STABL-qfjfflrx` — parent↔worker seam inventory**: the CUDA-in-parent audit + the
+  map of every touchpoint the service split must cover (per-job payload wire form,
+  `CustomJob` callable that can't cross a boundary, `superres` as a 2nd in-parent GPU
+  consumer, authority placement). Feeds the Governor + facet-3.
+- **`STABL-cchxvuhs` — global GPU identity** (UUID-keyed, not local index): governor
+  allocates by UUID; `CUDA_VISIBLE_DEVICES` per worker. Not blocking the Governor's
+  single-GPU path.
+- **Facet-3 (no issue yet)** — move CudaWorker to a spawn subprocess; the durable OOM
+  recovery + timed-out-job reap (`STABL-qvmdayhb`). Depends on the backplane (done) +
+  Governor. The backplane's facet-3 carry-forwards (cancel_job→subscription wiring,
+  `STALE_EPOCH` reconstruction registry, IPC `request(n)`/`job_id`/`result()` hardening)
+  are tracked in the backplane plan's Deferred section.
 
 `STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
-predecessor (`a3c1c64`, issue still open): it fixed retained ControlNet weights but
-not the accounting or recovery facets this umbrella covers.
+predecessor (`a3c1c64`): fixed retained ControlNet weights but not the accounting or
+recovery facets.
 
-### Mode-switch concurrency — first render after `lcm → hunyuanDiT`
+### Mode-switch concurrency — folded into the Governor
 
 A generate admitted concurrently with a mode switch resolves against transient
-authority. Two windows of the one switch, **same root, one fix**:
+authority. Two windows of the one switch, **same root, one fix — now a Governor
+concern** (authority placement, `STABL-vdkdruox`), not a standalone track:
 
 | Issue | Window | Failure |
 |---|---|---|
@@ -44,8 +87,8 @@ authority. Two windows of the one switch, **same root, one fix**:
 | `STABL-iuiwzthc` | new model still loading (`_active_snapshot` transiently `None`, `worker_pool.py:305-385`) | spurious "ControlNet provider not yet implemented"; retry works |
 
 Fix both by resolving/admitting/stamping the generate against the mode it
-**targets**, established atomically with the switch — not against whatever live
-authority admission happens to observe.
+**targets**, established atomically with the switch — implemented once in the Governor
+where epoch/snapshot authority lives, not spread across the boundary.
 
 Open, unowned (pre-existing):
 
@@ -56,6 +99,41 @@ Open, unowned (pre-existing):
 ---
 
 ## Recently landed
+
+### Backplane — data-plane transport — merged (PR #19)
+
+**FP:** STABL-yoauoqao (done) | **Merge:** `919a1d6`
+**Spec:** `docs/superpowers/specs/2026-07-24-backplane-data-plane-transport-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-24-backplane-data-plane-transport.md`
+
+The first concrete piece of the worker-as-a-service split. New package
+`backends/backplane/`. Five TDD tasks, each reviewed green; 156 passed; **0-byte
+`server/ws_routes.py` diff** is the no-op proof. Design decisions worth carrying:
+
+- **Vendored** reactive-streams `Publisher`/`Subscriber`/`Subscription` ABCs under
+  `backends/backplane/reactivestreams/` — no runtime rsocket-py dep. The interface is
+  rsocket-*shaped*; the rsocket transport is a follow-up child.
+- `WorkerPool.submit_job` still returns a `Future`; a `_FutureBridge` Subscriber
+  (attached with unbounded demand **before** enqueue) fulfils it, and the worker loop
+  drives a `JobSink`. **No `anyio` / no event loop** — the worker loop is a plain
+  thread, so the facade delivers synchronously in-thread. The `anyio.from_thread`
+  bridge is only for the deferred async progress→WS consumer.
+- **Result is carried opaquely**, not decomposed into `(png, seed)` — existing tests
+  mock `run_job`→`"test_result"`; the bridge does `fut.set_result(image.read_sync())`
+  verbatim. Typed seed/PNG split is deferred to the streaming consumers.
+- **`BlobRef`** is transport-resolved (in-proc bytes / IPC `shared_memory`, read-once
+  `close()`+unlink; `SharedMemBlob.create` unregisters the producer's `resource_tracker`
+  to dodge the spawn handoff race). Frame codec carries a leading `schema_version` byte.
+- **IPC** = duplex `multiprocessing.Connection` frames + `shared_memory` payload;
+  inbound cancel = `subscription.cancel()` → reverse control frame → `sink.cancelled`
+  (a subprocess worker can't read `cancel_requested`), proven across a real spawn
+  boundary.
+
+Deferred to facet-3 / Governor (tracked in the plan's Deferred, NOT done): wire
+production `cancel_job → record.sink` subscription; `STALE_EPOCH` IPC reconstruction
+via a consumer-injected `code→factory` registry (keep control-plane types out of
+`frames.py`); IPC `request(n)` backpressure + `IpcJobSink(conn, job_id)` + `result()`
+signature. Next umbrella step: the Governor (`STABL-vdkdruox`).
 
 ### HunyuanDiT family profile — merged (PR #17)
 
