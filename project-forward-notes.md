@@ -10,7 +10,7 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 The VRAM umbrella surfaced running HunyuanDiT + ControlNet on enigma (RTX 3090,
 24 GB) and has since become a deliberate **worker-as-a-service** refactor, not just
 bug fixes. Human-driven, no waveplan, kept close. Two children merged; the Governor
-(STABL-vdkdruox) is complete and in PR review (#20); the rest below are `todo`.
+(STABL-vdkdruox) is merged (PR #20, `2768802`); the rest below are `todo`.
 
 ### Worker-as-a-service — umbrella `STABL-nvmieaxh`
 
@@ -53,8 +53,8 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   admission. **This is where the epoch/snapshot authority lives**, so it owns the fix
   for the mode-switch races below. Consumes the backplane + a Worker Handle interface;
   extract from `WorkerPool` with an InProcHandle first (prove zero behavior change).
-  **Status: v1 COMPLETE — PR #20 open** (`feat/worker-governor` → `main`, all 5 TDD
-  tasks committed, 0-byte `server/` diff, 1008 passed). Scoping locked (2026-07-25):
+  **Status: v1 MERGED — PR #20** (`feat/worker-governor` → `main`, merge `2768802`,
+  all 5 TDD tasks committed, 0-byte `server/` diff, 1008 passed). Scoping locked (2026-07-25):
   pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split
   (WorkerHandle contract + CUDA audit in v1; ControlNetBinding wire form +
   `CustomJob`→typed-message map deferred to facet-3). Sub-question (b) demand-reload/
@@ -104,9 +104,9 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
-### Worker Governor — control plane — PR #20 open
+### Worker Governor — control plane — merged (PR #20)
 
-**FP:** STABL-vdkdruox (v1 complete, in review) | **Branch:** `feat/worker-governor` → `main`
+**FP:** STABL-vdkdruox (v1 merged) | **Merge:** `2768802` (PR #20, `feat/worker-governor` → `main`)
 **Spec:** `docs/superpowers/specs/2026-07-25-worker-governor-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-25-worker-governor.md`
 
