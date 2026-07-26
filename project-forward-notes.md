@@ -9,8 +9,8 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 The VRAM umbrella surfaced running HunyuanDiT + ControlNet on enigma (RTX 3090,
 24 GB) and has since become a deliberate **worker-as-a-service** refactor, not just
-bug fixes. Human-driven, no waveplan, kept close. Two children merged; the rest
-below are `todo`.
+bug fixes. Human-driven, no waveplan, kept close. Two children merged; the Governor
+(STABL-vdkdruox) is complete and in PR review (#20); the rest below are `todo`.
 
 ### Worker-as-a-service — umbrella `STABL-nvmieaxh`
 
@@ -53,11 +53,15 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   admission. **This is where the epoch/snapshot authority lives**, so it owns the fix
   for the mode-switch races below. Consumes the backplane + a Worker Handle interface;
   extract from `WorkerPool` with an InProcHandle first (prove zero behavior change).
-  Natural next step now the backplane has landed. **Scoping locked (2026-07-25):**
-  pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split (WorkerHandle
-  contract + CUDA audit in v1; ControlNetBinding wire form + `CustomJob`→typed-message map
-  deferred to facet-3). Sub-question (b) demand-reload/eviction leans Governor; (a) dispatch
-  replace-vs-wrap left for brainstorming. See `fp context STABL-vdkdruox`.
+  **Status: v1 COMPLETE — PR #20 open** (`feat/worker-governor` → `main`, all 5 TDD
+  tasks committed, 0-byte `server/` diff, 1008 passed). Scoping locked (2026-07-25):
+  pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split
+  (WorkerHandle contract + CUDA audit in v1; ControlNetBinding wire form +
+  `CustomJob`→typed-message map deferred to facet-3). Sub-question (b) demand-reload/
+  eviction leans Governor (landed there); (a) dispatch replace-vs-wrap resolved →
+  **wrap** (dispatch loop is `_worker_loop` behavior-verbatim with
+  `self._worker`→`self._handle.worker`; `handle.submit()` is the facet-3 contract,
+  unused in v1). See "In review" below + `fp context STABL-vdkdruox`.
 - **`STABL-qfjfflrx` — parent↔worker seam inventory**: the CUDA-in-parent audit + the
   map of every touchpoint the service split must cover (per-job payload wire form,
   `CustomJob` callable that can't cross a boundary, `superres` as a 2nd in-parent GPU
@@ -100,6 +104,71 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### Worker Governor — control plane — PR #20 open
+
+**FP:** STABL-vdkdruox (v1 complete, in review) | **Branch:** `feat/worker-governor` → `main`
+**Spec:** `docs/superpowers/specs/2026-07-25-worker-governor-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-25-worker-governor.md`
+
+The control-plane counterpart to the backplane. The four-part model is now concrete
+in code: **`backends/governor.py`** (new, ~779 LOC) owns the queue, resolution
+epoch/snapshot authority, admission barrier, dispatch loop, lifecycle
+(load/reload/evict), cancel, and recovery; **`backends/worker_handle.py`** (new,
+~193 LOC) owns the `WorkerHandle` ABC + `WorkerHealth` + `InProcessWorkerHandle`
+(the threaded-worker coupling); **`backends/worker_pool.py`** is reduced to a
+~260-LOC delegating facade (transitional — deleted when routes migrate to the
+Governor directly). Five TDD tasks, each reviewed green; **0-byte `server/` diff**
+is the no-op proof; 1008 passed (1 pre-existing `test_mode_config` hunyuandit
+failure on baseline, unrelated).
+
+Design decisions worth carrying:
+
+- **Dispatch loop is `_worker_loop` behavior-verbatim** (open question (a) resolved
+  → wrap, not replace) with one substitution: `self._worker` → `self._handle.worker`.
+  The post-execute cancel-discard reads `record.cancel_requested` under `_job_lock`
+  and drives `record.sink` — the handle cannot acquire `_job_lock` (backplane
+  `Subscriber↔lock` invariant) or touch `record.sink`, so the dispatch body stays
+  Governor-side. **`handle.submit()` is the facet-3 contract, NOT called in v1's
+  in-proc dispatch loop.** (Behavior-verbatim, not literal: a few log lines
+  condensed; `CustomJob` split into its own `else` branch — both equivalent, no
+  test asserts on logs.)
+- **`submit_job` keeps channel-opening in the Governor** (open question (b)
+  resolved → Governor owns lifecycle): opens `InProcBackplane(job.job_id)`,
+  stores `record.sink`, subscribes `_FutureBridge(job.fut)` BEFORE enqueueing —
+  verbatim from the former `worker_pool.py`. The dispatch loop drives `record.sink`
+  directly.
+- **Acyclic import graph:** `worker_handle.py` imports `governor` only under
+  `TYPE_CHECKING` (the `Job` hint is a string at runtime); `governor.py` imports
+  `worker_handle` at module top to construct `InProcessWorkerHandle`. `InProcessWorkerHandle`
+  is hoisted to `governor.py` module-top (was lazy during parallel Task 2/3 work;
+  moot once Task 2 landed).
+- **Authority split:** registry `unregister_model` is Governor authority
+  (`_unload_current_worker` seam); worker + ControlNet-cache teardown delegates to
+  the handle. `unload_current_model` returns `status:"unloaded"`; `_build_runtime_status`
+  takes a `status` kwarg so both paths share one builder.
+- **Pluggability proof (acceptance #4, lifecycle):** a stub `WorkerHandle` plugs in
+  via `handle=` with no Governor or backplane change. v1 proves **lifecycle**
+  pluggability, **not** dispatch pluggability — the dispatch loop reaches into
+  `self._handle.worker` directly, so a real `SubprocessWorkerHandle` (no in-proc
+  worker) would still require Governor dispatch changes (facet-3).
+
+Carry-forwards for the next agent: the plan's Task 3/5 tests had test-environment
+mocking gaps (missing `resolve_model` patches + `mode_config`/`registry` injection
+that `test_worker_pool.py` provides via fixtures) — fixed minimally without changing
+test intent; worth feeding back to the plan author. The frozen suite's patch targets
+were repointed mechanically (`resolve_model` → `governor` namespace; `_load_mode`/
+`_start_worker_thread`/`_start_watchdog_thread` → `Governor.*`) — zero assertion
+changes. `torch`/`gc` patches stay on `backends.worker_pool.*` (shared module
+objects — the patch reaches the Governor's code via the facade's kept imports).
+
+Deferred to facet-3 / follow-ons (tracked in the plan's Deferred, NOT done):
+mode-switch race fixes (`STABL-ltefhpkk`/`STABL-iuiwzthc` — authority now in one
+place, fix is a follow-on issue); API status/VRAM routing (remove inline
+`torch.cuda` in routes, route through Governor); facet-3 `SubprocessWorkerHandle`
+(carries backplane facet-3 debts: `cancel_job`→`record.sink` wiring, `STALE_EPOCH`
+reconstruction registry, IPC hardening); `ControlNetBinding` wire form;
+`CustomJob`→typed-message redesign; timed-out-job reap (`STABL-qvmdayhb`).
+
 ### Backplane — data-plane transport — merged (PR #19)
 
 **FP:** STABL-yoauoqao (done) | **Merge:** `919a1d6`
@@ -133,7 +202,8 @@ Deferred to facet-3 / Governor (tracked in the plan's Deferred, NOT done): wire
 production `cancel_job → record.sink` subscription; `STALE_EPOCH` IPC reconstruction
 via a consumer-injected `code→factory` registry (keep control-plane types out of
 `frames.py`); IPC `request(n)` backpressure + `IpcJobSink(conn, job_id)` + `result()`
-signature. Next umbrella step: the Governor (`STABL-vdkdruox`).
+signature. The Governor (`STABL-vdkdruox`) is now complete and in PR review (#20) —
+see "Worker Governor" above.
 
 ### HunyuanDiT family profile — merged (PR #17)
 
