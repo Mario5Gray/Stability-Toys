@@ -321,8 +321,7 @@ class Governor:
         logger.info(f"[Governor] Loading mode: {mode_name}")
         mode = deepcopy(self._mode_config.get_mode(mode_name))
 
-        if self._handle.worker is not None:  # handle has a live worker
-            self._handle.unload()
+        self._unload_current_worker()  # unregister old mode + tear down worker
         with self._job_lock:
             self._active_snapshot = None
 
@@ -473,11 +472,20 @@ class Governor:
 
     # --- VRAM cleanup / recovery ---
 
+    def _unload_current_worker(self) -> None:
+        """Unload the current worker. Registry-unregister is Governor authority
+        (mirrors WorkerPool._unload_current_worker:322); worker + ControlNet-cache
+        teardown is delegated to the handle. Guarded on worker-presence like the
+        original, so a no-worker pool still clears the cache without unregistering."""
+        if self._handle.worker is not None and self._current_mode:
+            self._registry.unregister_model(self._current_mode)
+        self._handle.unload()
+
     def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
         cancelled = self.cancel_pending_generation_jobs(reason=reason)
         if cancel_running:
             cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
-        self._handle.unload()
+        self._unload_current_worker()
         gc.collect()
         torch.cuda.empty_cache()
         return cancelled
@@ -539,7 +547,7 @@ class Governor:
         if self._handle.worker is None:
             return {"status": "skipped", "reason": "already_unloaded"}
         logger.info(f"[Governor] Evicting idle model '{self._current_mode}'")
-        self._handle.unload()
+        self._unload_current_worker()
         return {"status": "evicted"}
 
     # --- Dispatch loop (verbatim _worker_loop with self._worker -> self._handle.worker) ---
@@ -725,13 +733,25 @@ class Governor:
         return self._build_runtime_status(cancelled_jobs=cancelled)
 
     def unload_current_model(self) -> dict:
-        self._handle.unload()
+        """Fully unload the model and drop the authority (mirrors
+        WorkerPool.unload_current_model:783 — status 'unloaded', snapshot cleared)."""
+        self._unload_current_worker()
         with self._job_lock:
             self._active_snapshot = None
             self._current_mode = None
         gc.collect()
         torch.cuda.empty_cache()
-        return self._build_runtime_status()
+        return {
+            "status": "unloaded",
+            "is_loaded": self.is_model_loaded(),
+            "current_mode": self._current_mode,
+            "queue_size": self.get_queue_size(),
+            "vram": {
+                "allocated_bytes": int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0,
+                "reserved_bytes": int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0,
+                "total_bytes": int(self._registry.get_total_vram()),
+            },
+        }
 
     # --- Accessors ---
 
@@ -757,7 +777,9 @@ class Governor:
         logger.info("[Governor] Shutting down")
         self.q.join()
         self._stop.set()
+        if hasattr(self, '_worker_thread') and self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=5.0)
         if hasattr(self, '_watchdog_thread') and self._watchdog_thread and self._watchdog_thread.is_alive():
             self._watchdog_thread.join(timeout=5.0)
-        self._handle.unload()
+        self._unload_current_worker()
         logger.info("[Governor] Shutdown complete")

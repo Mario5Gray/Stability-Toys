@@ -32,6 +32,7 @@ from backends.worker_pool import (
     ModeSwitchJob,
     CustomJob,
 )
+from backends.governor import Governor
 
 # Restore immediately
 for _mod, _orig in _saved_modules.items():
@@ -204,7 +205,7 @@ def mock_model_detection():
         )
         return resolved, LocalModelBinding(model_path)
 
-    with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
+    with patch("backends.governor.resolve_model", side_effect=_resolve):
         yield
 
 
@@ -688,11 +689,11 @@ class TestWorkerLifecycle:
         )
 
         with patch.object(
-            WorkerPool,
-            "_start_worker_thread",
+            Governor,
+            "_start_dispatch_thread",
             autospec=True,
             side_effect=lambda pool: events.append(("thread", pool._current_mode)),
-        ), patch.object(WorkerPool, "_start_watchdog_thread", return_value=None):
+        ), patch.object(Governor, "_start_watchdog_thread", return_value=None):
             pool = WorkerPool(
                 worker_factory=Mock(return_value=ConfigurableWorker()),
                 mode_config=mock_mode_config,
@@ -874,7 +875,7 @@ class TestWorkerLifecycle:
                 LocalModelBinding(model_path),
             )
 
-        with patch("backends.worker_pool.resolve_model", side_effect=_resolve):
+        with patch("backends.governor.resolve_model", side_effect=_resolve):
             pool = WorkerPool(
                 queue_max=10,
                 worker_factory=mock_worker_factory,
@@ -1381,7 +1382,7 @@ class TestActiveModelSnapshot:
         assert worker_pool._worker is None
 
         # If demand reload re-detected, this patched resolve_model would explode.
-        with patch("backends.worker_pool.resolve_model",
+        with patch("backends.governor.resolve_model",
                    side_effect=AssertionError("demand reload re-detected")):
             fut = worker_pool.submit_job(_gen_job(worker_pool, resolution_epoch=epoch))
             assert fut.result(timeout=5) == "test_result"
