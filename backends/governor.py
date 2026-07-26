@@ -237,4 +237,527 @@ class CustomJob(Job):
 from backends.worker_handle import WorkerHandle, WorkerHealth  # noqa: E402
 
 
-# Governor class added in Task 3.
+class Governor:
+    """Control-plane extraction: owns queue, epoch/snapshot authority,
+    admission barrier, dispatch, lifecycle, recovery.
+
+    Delegates worker execution to a WorkerHandle (InProcessWorkerHandle by
+    default; stub/subprocess/remote for testing or facet-3).
+
+    Dispatch loop is ``_worker_loop`` VERBATIM (reconciliation #2) with one
+    substitution: ``self._worker`` -> ``self._handle.worker`` and
+    ``self._unload_current_worker()`` -> ``self._handle.unload()``. The handle's
+    ``submit()`` is the facet-3 contract and is NOT called in v1's in-proc
+    dispatch loop — the Governor drives ``record.sink`` directly (reconciliation
+    #4/#5). ``submit_job`` opens the ``InProcBackplane`` channel + attaches
+    ``_FutureBridge`` BEFORE enqueueing, verbatim from ``worker_pool.py``.
+    """
+
+    def __init__(
+        self,
+        queue_max: int = 64,
+        queue_timeout_s: float = DEFAULT_QUEUE_TIMEOUT_S,
+        worker_factory: Optional[WorkerFactory] = None,
+        mode_config: Optional[ModeConfigManager] = None,
+        registry: Optional[ModelRegistryProtocol] = None,
+        handle: Optional[WorkerHandle] = None,
+    ):
+        self.queue_max = queue_max
+        self.queue_timeout_s = queue_timeout_s
+        self.q: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
+        self._stop = threading.Event()
+        self._current_mode: Optional[str] = None
+        self._active_snapshot: Optional[ActiveModelSnapshot] = None
+        self._resolution_epoch: int = 0
+        self._job_records: dict[str, JobRecord] = {}
+        self._job_lock = threading.RLock()
+        self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
+        self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
+        self._last_activity = time.monotonic()
+        self._eviction_pending = False
+
+        self._worker_factory = worker_factory
+        self._mode_config = mode_config or get_mode_config()
+        self._registry = registry or get_model_registry()
+
+        # Handle: inject for testing, or build InProcessWorkerHandle from factory.
+        # InProcessWorkerHandle is imported lazily here (not at module top) so the
+        # Governor module loads even before Task 2 lands — Task 2 is parallel with
+        # Task 3. When Task 2 lands, the lazy import resolves and the default-handle
+        # path works. Injected handles (stub/subprocess) never touch this import.
+        if handle is not None:
+            self._handle = handle
+        elif worker_factory is not None:
+            from backends.worker_handle import InProcessWorkerHandle
+            self._handle = InProcessWorkerHandle(worker_factory)
+        else:
+            from backends.worker_handle import InProcessWorkerHandle
+            self._handle = InProcessWorkerHandle(self._default_worker_factory)
+
+        # Initialize with default mode (same as WorkerPool.__init__)
+        default_mode = self._mode_config.get_default_mode()
+        try:
+            self._load_mode(default_mode)
+        except Exception as e:
+            logger.error(
+                f"[Governor] Initial model load failed for mode '{default_mode}': {e}. "
+                "Server will start without a loaded model.",
+                exc_info=True,
+            )
+            # Start dispatch thread even on failure (same as WorkerPool :310)
+            self._start_dispatch_thread()
+        self._start_watchdog_thread()
+
+    @staticmethod
+    def _default_worker_factory(worker_id, resolved, binding):
+        from backends.worker_factory import create_cuda_worker
+        return create_cuda_worker(worker_id, resolved, binding)
+
+    # --- Mode load / lifecycle (delegates worker build to handle.start) ---
+
+    def _load_mode(self, mode_name: str):
+        """Load a mode: detect, resolve, build worker via handle.start(),
+        publish snapshot atomically."""
+        logger.info(f"[Governor] Loading mode: {mode_name}")
+        mode = deepcopy(self._mode_config.get_mode(mode_name))
+
+        if self._handle.worker is not None:  # handle has a live worker
+            self._handle.unload()
+        with self._job_lock:
+            self._active_snapshot = None
+
+        self._registry.get_used_vram()
+        allocated_before = self._registry.get_allocated_vram()
+
+        assert mode.model_path is not None
+        try:
+            resolved, binding = resolve_model(mode.model_path, mode)
+            self._handle.start(resolved, binding, mode)
+        except Exception as e:
+            logger.error(f"[Governor] Failed to load mode '{mode_name}': {e}", exc_info=True)
+            self._handle.unload()
+            with self._job_lock:
+                self._current_mode = None
+                self._active_snapshot = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            raise
+
+        vram_reserved = self._registry.get_used_vram()
+        vram_allocated = self._registry.get_allocated_vram()
+        vram_used = max(0, vram_allocated - allocated_before)
+        vram_total = self._registry.get_total_vram()
+        logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
+
+        if mode.loras:
+            logger.info(f"[Governor] Loading {len(mode.loras)} LoRAs for mode {mode_name}")
+
+        self._registry.register_model(
+            name=mode_name,
+            model_path=mode.model_path or "",
+            vram_bytes=vram_used,
+            worker_id=0,
+            loras=[lora.path for lora in mode.loras],
+        )
+
+        with self._job_lock:
+            self._resolution_epoch += 1
+            self._current_mode = mode_name
+            self._active_snapshot = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
+
+        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={self._resolution_epoch})")
+
+        # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
+        self._start_dispatch_thread()
+
+    def _reload_from_snapshot(self) -> None:
+        """Reconstruct the worker from the retained snapshot after idle eviction."""
+        snapshot = self._active_snapshot
+        if snapshot is None:
+            raise RuntimeError("demand reload requested with no retained snapshot")
+        logger.info(f"[Governor] Demand-reloading mode '{snapshot.mode_name}'")
+        self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)
+        self._registry.register_model(
+            name=snapshot.mode_name,
+            model_path=snapshot.binding.model_path,
+            vram_bytes=0,
+            worker_id=0,
+            loras=[lora.path for lora in snapshot.mode.loras],
+        )
+
+    # --- Snapshot / epoch accessors ---
+
+    def get_active_model_snapshot(self) -> Optional[ActiveModelSnapshot]:
+        with self._job_lock:
+            return self._active_snapshot
+
+    def current_resolution_epoch(self) -> int:
+        with self._job_lock:
+            if self._active_snapshot is not None:
+                return self._active_snapshot.resolution_epoch
+            return self._resolution_epoch
+
+    # --- Cancel ---
+
+    def _register_job(self, job: Job):
+        if isinstance(job, GenerationJob):
+            with self._job_lock:
+                self._job_records[job.job_id] = JobRecord(
+                    job_id=job.job_id, state="queued", job=job,
+                )
+
+    def _finalize_job_record(self, job_id: str):
+        with self._job_lock:
+            self._job_records.pop(job_id, None)
+
+    def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
+        with self._job_lock:
+            return self._job_records.get(job_id)
+
+    def _mark_running_generation_jobs_cancel_requested(self, reason: str) -> list[str]:
+        cancelled: list[str] = []
+        with self._job_lock:
+            for record in self._job_records.values():
+                if record.state == "running" and not record.cancel_requested:
+                    record.cancel_requested = True
+                    cancelled.append(record.job_id)
+        if cancelled:
+            logger.info(f"[Governor] Marked {len(cancelled)} running job(s) cancel requested ({reason})")
+        return cancelled
+
+    def cancel_pending_generation_jobs(self, reason: str) -> list[str]:
+        cancelled: list[str] = []
+        kept_jobs: list[Job] = []
+        with self.q.mutex:
+            pending_jobs = list(self.q.queue)
+            self.q.queue.clear()
+            for job in pending_jobs:
+                if isinstance(job, GenerationJob):
+                    cancelled.append(job.job_id)
+                    if not job.fut.done():
+                        job.fut.cancel()
+                else:
+                    kept_jobs.append(job)
+            for job in kept_jobs:
+                self.q.queue.append(job)
+        for _job_id in cancelled:
+            self.q.task_done()
+        for job_id in cancelled:
+            record = self._get_job_record(job_id)
+            if record is not None:
+                record.cancel_requested = True
+                record.state = "cancelled"
+            self._finalize_job_record(job_id)
+        if cancelled:
+            logger.info(f"[Governor] Cancelled {len(cancelled)} pending job(s) ({reason})")
+        return cancelled
+
+    def cancel_job(self, job_id: str) -> bool:
+        with self._job_lock:
+            record = self._job_records.get(job_id)
+            if record is None or record.job.fut.done():
+                return False
+            record.cancel_requested = True
+            if record.state == "queued" and record.job.fut.cancel():
+                record.state = "cancelled"
+                return True
+            record.state = "running"
+            return True
+
+    # --- VRAM cleanup / recovery ---
+
+    def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
+        cancelled = self.cancel_pending_generation_jobs(reason=reason)
+        if cancel_running:
+            cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
+        self._handle.unload()
+        gc.collect()
+        torch.cuda.empty_cache()
+        return cancelled
+
+    def _build_runtime_status(self, cancelled_jobs: Optional[list[str]] = None) -> dict:
+        allocated_bytes = int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
+        reserved_bytes = int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0
+        total_bytes = int(self._registry.get_total_vram())
+        status = {
+            "status": "ok",
+            "is_loaded": self.is_model_loaded(),
+            "current_mode": self._current_mode,
+            "queue_size": self.get_queue_size(),
+            "vram": {
+                "allocated_bytes": allocated_bytes,
+                "reserved_bytes": reserved_bytes,
+                "total_bytes": total_bytes,
+            },
+        }
+        if cancelled_jobs is not None:
+            status["cancelled_jobs"] = cancelled_jobs
+        return status
+
+    # --- Idle watchdog ---
+
+    def _start_watchdog_thread(self):
+        if self._idle_timeout <= 0:
+            return
+        self._watchdog_thread = threading.Thread(
+            target=self._idle_watchdog_loop, daemon=True, name="IdleWatchdog",
+        )
+        self._watchdog_thread.start()
+
+    def _idle_watchdog_loop(self):
+        while not self._stop.wait(timeout=self._idle_check_interval):
+            try:
+                if self._handle.worker is None:
+                    continue
+                idle_secs = time.monotonic() - self._last_activity
+                if idle_secs < self._idle_timeout:
+                    continue
+                if self._eviction_pending:
+                    continue
+                logger.info(f"[Governor] Model idle for {idle_secs:.0f}s; queuing eviction")
+                try:
+                    evict_job = CustomJob(handler=self._evict_if_idle)
+                    self._eviction_pending = True
+                    self.q.put_nowait(evict_job)
+                except queue.Full:
+                    self._eviction_pending = False
+            except Exception:
+                logger.error("[Governor] Idle watchdog error", exc_info=True)
+
+    def _evict_if_idle(self):
+        self._eviction_pending = False
+        idle_secs = time.monotonic() - self._last_activity
+        if idle_secs < self._idle_timeout:
+            return {"status": "skipped", "reason": "activity_detected"}
+        if self._handle.worker is None:
+            return {"status": "skipped", "reason": "already_unloaded"}
+        logger.info(f"[Governor] Evicting idle model '{self._current_mode}'")
+        self._handle.unload()
+        return {"status": "evicted"}
+
+    # --- Dispatch loop (verbatim _worker_loop with self._worker -> self._handle.worker) ---
+
+    def _dispatch_loop(self):
+        """Main dispatch loop — VERBATIM from _worker_loop (worker_pool.py:728-868)
+        with self._worker -> self._handle.worker and self._unload_current_worker()
+        -> self._handle.unload().
+
+        The Governor drives record.sink directly (NOT handle.submit() — the
+        handle's submit() is the facet-3 contract, unused in v1's in-proc path).
+        """
+        logger.info("[Governor] Dispatch loop started")
+        while not self._stop.is_set():
+            try:
+                job = self.q.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            try:
+                if isinstance(job, ModeSwitchJob):
+                    if self._handle.worker is not None and self._current_mode == job.target_mode and not job.force:
+                        result = {"mode": job.target_mode, "status": "already_loaded"}
+                    else:
+                        result = job.execute(self._handle.worker)
+                        self._load_mode(job.target_mode)
+                    if not job.fut.done():
+                        job.fut.set_result(result)
+                else:
+                    generation_job = job if isinstance(job, GenerationJob) else None
+                    job_record = self._get_job_record(generation_job.job_id) if generation_job is not None else None
+                    if job_record is not None and (job_record.cancel_requested or job.fut.cancelled()):
+                        assert generation_job is not None
+                        job_record.state = "cancelled"
+                        self._finalize_job_record(generation_job.job_id)
+                        continue
+                    if job_record is not None:
+                        job_record.state = "running"
+
+                    # Demand reload
+                    if self._handle.worker is None and self._active_snapshot is not None:
+                        try:
+                            self._reload_from_snapshot()
+                        except Exception as load_err:
+                            raise RuntimeError(f"Demand reload failed: {load_err}") from load_err
+
+                    # Stale-epoch barrier
+                    if generation_job is not None:
+                        with self._job_lock:
+                            snapshot = self._active_snapshot
+                        if snapshot is not None and snapshot.resolution_epoch != generation_job.resolution_epoch:
+                            raise StaleResolutionError(
+                                f"job {generation_job.job_id} stamped epoch "
+                                f"{generation_job.resolution_epoch} != active epoch "
+                                f"{snapshot.resolution_epoch}"
+                            )
+
+                    if isinstance(job, GenerationJob):
+                        # VERBATIM from _worker_loop:796-863 — the Governor
+                        # drives record.sink directly (NOT handle.submit()).
+                        # The handle's submit() is the facet-3 contract.
+                        result = job.execute(self._handle.worker)
+
+                        sink = job_record.sink if job_record is not None else None
+                        if job_record is not None and job_record.cancel_requested:
+                            # Post-execute cancel: discard result, emit CANCELLED
+                            assert generation_job is not None
+                            job_record.state = "cancelled"
+                            if sink is not None:
+                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                            elif not job.fut.done():
+                                job.fut.set_exception(CancelledError())
+                            self._finalize_job_record(generation_job.job_id)
+                        elif sink is not None:
+                            assert generation_job is not None
+                            sink.result(0, InProcBlob(result))
+                            sink.complete()
+                            self._finalize_job_record(generation_job.job_id)
+                        elif not job.fut.done():
+                            job.fut.set_result(result)
+                    else:
+                        # CustomJob: run directly (in-proc callable, D4 defers redesign)
+                        result = job.execute(self._handle.worker)
+                        if not job.fut.done():
+                            job.fut.set_result(result)
+
+            except Exception as e:
+                logger.error(f"[Governor] Job failed: {e}", exc_info=True)
+                _oom = (
+                    hasattr(torch.cuda, "OutOfMemoryError")
+                    and isinstance(e, torch.cuda.OutOfMemoryError)
+                ) or "out of memory" in str(e).lower()
+                if _oom:
+                    logger.warning("[Governor] OOM recovery: cancelling + unloading")
+                    self._cleanup_vram(reason="oom", cancel_running=False)
+                if isinstance(job, GenerationJob):
+                    job_record = self._get_job_record(job.job_id)
+                    if job_record is not None:
+                        sink = job_record.sink
+                        if _oom:
+                            if sink is not None:
+                                sink.error(BackplaneError.from_exc(e))
+                            elif not job.fut.done():
+                                job.fut.set_exception(e)
+                            job_record.state = "failed"
+                        elif job_record.cancel_requested:
+                            if sink is not None:
+                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                            elif not job.fut.done():
+                                job.fut.set_exception(CancelledError())
+                            job_record.state = "cancelled"
+                        else:
+                            if sink is not None:
+                                sink.error(BackplaneError.from_exc(e))
+                            elif not job.fut.done():
+                                job.fut.set_exception(e)
+                            job_record.state = "failed"
+                        self._finalize_job_record(job.job_id)
+                    elif not job.fut.done():
+                        job.fut.set_exception(e)
+                elif not job.fut.done():
+                    job.fut.set_exception(e)
+            finally:
+                self._last_activity = time.monotonic()
+                self.q.task_done()
+        logger.info("[Governor] Dispatch loop stopped")
+
+    def _start_dispatch_thread(self):
+        if hasattr(self, '_worker_thread') and self._worker_thread and self._worker_thread.is_alive():
+            logger.warning("[Governor] Dispatch thread already running")
+            return
+        self._worker_thread = threading.Thread(
+            target=self._dispatch_loop, daemon=True, name="WorkerThread",
+        )
+        self._worker_thread.start()
+        logger.info("[Governor] Dispatch thread started")
+
+    # --- Submit / mode switch / reload / unload / free ---
+
+    def submit_job(self, job: Job, *, timeout_s: float | None = None) -> Future:
+        """Submit a job — VERBATIM from worker_pool.py:870-916.
+
+        Opens the backplane channel + attaches _FutureBridge BEFORE enqueueing
+        (the backplane's Task 4 no-op pattern). The dispatch loop drives
+        record.sink directly.
+        """
+        effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
+        try:
+            self._register_job(job)
+            if isinstance(job, GenerationJob):
+                # Open the backplane channel and attach the compat Subscriber NOW —
+                # strictly before the job is enqueued (spec §3.3 ordering invariant).
+                sink, publisher = InProcBackplane(job.job_id).open()
+                record = self._get_job_record(job.job_id)
+                if record is not None:
+                    record.sink = sink
+                publisher.subscribe(_FutureBridge(job.fut))
+            if effective_timeout_s > 0:
+                self.q.put(job, timeout=effective_timeout_s)
+            else:
+                self.q.put_nowait(job)
+            logger.debug(f"[Governor] Job queued: {job.job_type.value}")
+            return job.fut
+        except queue.Full:
+            if isinstance(job, GenerationJob):
+                self._finalize_job_record(job.job_id)
+            raise queue.Full(f"Job queue full (max: {self.queue_max}).")
+
+    def switch_mode(self, mode_name: str, force: bool = False) -> Future:
+        logger.info(f"[Governor] Queueing mode switch to: {mode_name} (force={force})")
+        self._mode_config.get_mode(mode_name)
+        job = ModeSwitchJob(target_mode=mode_name, force=force)
+        return self.submit_job(job)
+
+    def reload_current_mode(self) -> dict:
+        if self._current_mode is None:
+            raise RuntimeError("No active mode to reload")
+        self.cancel_pending_generation_jobs(reason="reload_current_mode")
+        self.switch_mode(self._current_mode, force=True).result(timeout=30.0)
+        return {"status": "reloaded", "mode": self._current_mode}
+
+    def free_vram(self, reason: str) -> dict:
+        cancelled = self._cleanup_vram(reason=reason, cancel_running=True)
+        return self._build_runtime_status(cancelled_jobs=cancelled)
+
+    def unload_current_model(self) -> dict:
+        self._handle.unload()
+        with self._job_lock:
+            self._active_snapshot = None
+            self._current_mode = None
+        gc.collect()
+        torch.cuda.empty_cache()
+        return self._build_runtime_status()
+
+    # --- Accessors ---
+
+    def get_current_mode(self) -> Optional[str]:
+        return self._current_mode
+
+    def is_model_loaded(self) -> bool:
+        return self._handle.worker is not None
+
+    def reload_if_current(self, mode_name: str) -> bool:
+        if self.get_current_mode() != mode_name:
+            return False
+        try:
+            self.switch_mode(mode_name, force=True)
+            return True
+        except Exception:
+            return False
+
+    def get_queue_size(self) -> int:
+        return self.q.qsize()
+
+    def shutdown(self):
+        logger.info("[Governor] Shutting down")
+        self.q.join()
+        self._stop.set()
+        if hasattr(self, '_watchdog_thread') and self._watchdog_thread and self._watchdog_thread.is_alive():
+            self._watchdog_thread.join(timeout=5.0)
+        self._handle.unload()
+        logger.info("[Governor] Shutdown complete")
