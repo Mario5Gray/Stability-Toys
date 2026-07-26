@@ -53,7 +53,11 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   admission. **This is where the epoch/snapshot authority lives**, so it owns the fix
   for the mode-switch races below. Consumes the backplane + a Worker Handle interface;
   extract from `WorkerPool` with an InProcHandle first (prove zero behavior change).
-  Natural next step now the backplane has landed.
+  Natural next step now the backplane has landed. **Scoping locked (2026-07-25):**
+  pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split (WorkerHandle
+  contract + CUDA audit in v1; ControlNetBinding wire form + `CustomJob`→typed-message map
+  deferred to facet-3). Sub-question (b) demand-reload/eviction leans Governor; (a) dispatch
+  replace-vs-wrap left for brainstorming. See `fp context STABL-vdkdruox`.
 - **`STABL-qfjfflrx` — parent↔worker seam inventory**: the CUDA-in-parent audit + the
   map of every touchpoint the service split must cover (per-job payload wire form,
   `CustomJob` callable that can't cross a boundary, `superres` as a 2nd in-parent GPU
