@@ -162,8 +162,6 @@ modes:
     recommended_size: 1024x1024
     default_steps: 11
     default_guidance: 3.0
-    conditioning:
-      service: compel    
     negative_prompt_templates:
       safe_photo: "blurry, compression artifacts, bad anatomy, watermark, text, low quality"
       portrait: "bad anatomy, extra fingers, deformed"
