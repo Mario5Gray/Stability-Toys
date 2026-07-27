@@ -91,6 +91,8 @@ from concurrent.futures import Future
 
 import pytest
 
+from types import SimpleNamespace
+
 from backends.governor import (
     Governor, GenerationJob, ModeSwitchJob, CustomJob,
     ActiveModelSnapshot, StaleResolutionError, _FutureBridge,
@@ -326,3 +328,78 @@ def test_governor_dispatches_mode_switch_through_lifecycle():
         # _load_mode was called during __init__ (default mode) — handle.start was called
         assert len(handle.start_calls) >= 1
         gov.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Governor drives an out-of-proc handle.
+# ---------------------------------------------------------------------------
+
+def _make_subprocess_governor():
+    """Build a Governor wired to a real SubprocessWorkerHandle + FaultWorker.
+
+    All objects reaching handle.start() are picklable across the spawn boundary.
+    Mocks are parent-side only and never pickled.
+    """
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from backends.conditioning.contracts import ConditioningConfig
+    from backends.model_resolution import LocalModelBinding
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    mode_config = Mock()
+    mode = SimpleNamespace(
+        model_path="/models/test.safetensors",
+        loras=[],
+        conditioning=ConditioningConfig(),
+    )
+    mode_config.get_mode.return_value = mode
+    mode_config.get_default_mode.return_value = "test-mode"
+    registry = Mock()
+    registry.get_total_vram.return_value = 0
+    registry.get_used_vram.return_value = 0
+    registry.get_allocated_vram.return_value = 0
+    # resolved is opaque to FaultWorker; binding must be a real picklable object
+    # because the Governor stores it in ActiveModelSnapshot and later reads
+    # snapshot.binding.model_path in _reload_from_snapshot.
+    resolved_binding = (None, LocalModelBinding(model_path="/models/test.safetensors"))
+    return handle, mode_config, registry, resolved_binding
+
+
+def test_governor_dispatches_generation_to_subprocess_handle():
+    """The Governor dispatches a GenerationJob to a SubprocessWorkerHandle.
+
+    Uses picklable stand-ins for everything crossing handle.start() (spawn
+    pickles resolved/binding/mode). Mocks are parent-side only.
+    """
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from server.lcm_sr_server import GenerateRequest
+
+    handle, mode_config, registry, resolved_binding = _make_subprocess_governor()
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        job = GenerationJob(
+            req=GenerateRequest(prompt="hi", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        fut = gov.submit_job(job)
+        assert fut.result(timeout=15) == b"PNG:hi"
+    gov.shutdown()
+
+
+def test_governor_subprocess_mode_switch_no_respawn_when_already_loaded():
+    """ModeSwitchJob to the current mode is a no-op for a live subprocess handle.
+
+    Without the line-575 liveness flip, the dispatch loop sees
+    self._handle.worker is None and falls through to _load_mode(), killing and
+    respawning the subprocess for nothing. With the flip, it reports
+    already_loaded and leaves the process alive.
+    """
+    handle, mode_config, registry, resolved_binding = _make_subprocess_governor()
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        original_pid = handle._proc.pid
+        fut = gov.switch_mode("test-mode", force=False)
+        assert fut.result(timeout=15) == {"mode": "test-mode", "status": "already_loaded"}
+        assert handle._proc.pid == original_pid, "subprocess was respawned for a no-op mode switch"
+    gov.shutdown()
