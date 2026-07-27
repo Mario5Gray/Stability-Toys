@@ -1,6 +1,6 @@
 # Facet-3: SubprocessWorkerHandle — Design
 
-**FP:** child of umbrella `STABL-nvmieaxh` (issue to be filed; seam work overlaps `STABL-qfjfflrx`).
+**FP:** `STABL-rgvxuedo` (child of umbrella `STABL-nvmieaxh`; seam work overlaps `STABL-qfjfflrx`).
 **Depends on:** Backplane (`STABL-yoauoqao`, merged PR #19) — IPC data-plane transport. Worker Governor (`STABL-vdkdruox`, merged PR #20) — control plane + `WorkerHandle` interface.
 **Status:** design, pre-plan.
 
