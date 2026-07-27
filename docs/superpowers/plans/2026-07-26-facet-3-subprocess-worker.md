@@ -18,9 +18,18 @@
 
 2. **`_FutureBridge` attachment moves for the subprocess path only.** In-proc: `submit_job` opens the `InProcBackplane` channel and attaches `_FutureBridge` before enqueue (v1, unchanged). Subprocess: the IPC channel is owned by `handle.submit()`, so `submit_job` does NOT open a channel; the dispatch loop subscribes `_FutureBridge` to the `Publisher` returned by `handle.submit()`. This is the spec §4.2 "channel ownership moves to the handle" change, scoped to out-of-proc.
 
-3. **Liveness-read flip via one helper, semantics-preserving for in-proc.** The three `self._handle.worker is None` reads (`governor.py:529`, `:551`, `:594`) are replaced by `not self._worker_available()`, where `_worker_available()` returns `self._handle.health().state in ("ready", "busy")`. For `InProcessWorkerHandle` this is equivalent to `worker is not None` (start→"ready", unload→"dead", job→"busy"), so the frozen suite is unaffected; for the subprocess handle (whose `worker` is always `None`) it reads true liveness. The spec §9.2 semantic split is preserved: `:529`/`:551` mean "nothing to evict"; `:594` means "demand-reload/respawn, then run".
+3. **Liveness-read flip via one helper, semantics-preserving for in-proc — FIVE sites, not three.** All `self._handle.worker`-as-liveness predicates are replaced by `self._worker_available()`, where `_worker_available()` returns `self._handle.health().state in ("ready", "busy")`. For `InProcessWorkerHandle` this is **exactly equivalent** to `worker is not None` (start→"ready", unload→"dead", job→"busy"), so the frozen suite is unaffected; for the subprocess handle (whose `worker` is always `None`, even when alive) it reads true liveness. The five sites (review-verified):
+   - `:529` (`_idle_watchdog_loop`, "is there a worker to evict?") → `if not self._worker_available(): continue`
+   - `:551` (`_evict_if_idle`, "already unloaded?") → `if not self._worker_available(): return already_unloaded`
+   - `:594` (dispatch **demand-reload trigger**, "respawn then run") → `if not self._worker_available() and self._active_snapshot is not None:`
+   - `:756` (`is_model_loaded`, "loaded?") → `return self._worker_available()` — **without this, `/models/status` reports `is_loaded: false` for a loaded subprocess** (the frozen `test_model_routes` mocks `is_model_loaded`, so only Task 8 live acceptance catches it)
+   - `:482` (`_unload_current_worker` unregister guard) → `if self._worker_available() and self._current_mode:` — **without this, a subprocess unload never unregisters** (`worker` is always `None`), leaking a stale registry entry on every kill. See recon #4 for the OOM-death complement.
 
-4. **Reuse the existing kill seam.** Kill→respawn routes through `Governor._unload_current_worker` (registry `unregister_model` is Governor authority) → `handle.start()` → `register_model`. No new teardown seam.
+   The spec §9.2 semantic split is preserved: `:529`/`:551` mean "nothing to evict"; `:594` means "demand-reload/respawn, then run".
+
+4. **Kill seam — two unregister paths (clean vs dirty).** Registry `unregister_model` is Governor authority (`unregister_model` is idempotent in both `ModelRegistry` impls — `pop(name, None)` / `if name in self._loaded`). Two cases:
+   - **Clean unload** (subprocess *alive* — `unload_current_model`, `_load_mode` replace, `_cleanup_vram`, `_evict_if_idle`): routes through `_unload_current_worker`, whose unregister guard is flipped to `self._worker_available()` (recon #3 site `:482`). For an alive subprocess that reads true → unregister fires. → `handle.start()` re-registers on respawn. No new seam.
+   - **Dirty death** (subprocess *already dead* — OOM/frameless, Task 7 recovery): `_worker_available()` is `False`, so `_unload_current_worker`'s guard would skip the unregister and **leak the entry**. The recovery path therefore unregisters **explicitly** before respawn: `if self._current_mode: self._registry.unregister_model(self._current_mode)` (idempotent → safe even if already gone), then `handle.stop()` → `_reload_from_snapshot()` re-registers. This is the OOM-death complement to the `:482` flip.
 
 ## Global Constraints
 
@@ -675,9 +684,9 @@ def test_governor_dispatches_generation_to_subprocess_handle():
 
 - [ ] **Step 2: Run it** — Expected: FAIL — the in-proc dispatch calls `job.execute(self._handle.worker)` with `worker=None` → "No worker available".
 
-- [ ] **Step 3: Add `_worker_available()` and flip the 3 liveness reads**
+- [ ] **Step 3: Add `_worker_available()` and flip all FIVE liveness reads**
 
-In `backends/governor.py`, add the helper and replace the three reads (`:529`, `:551`, `:594`):
+In `backends/governor.py`, add the helper and replace **five** predicates (recon #3 — review-verified sites). For `InProcessWorkerHandle`, `_worker_available()` is exactly equivalent to `worker is not None`, so the frozen suite is unaffected.
 
 ```python
     def _worker_available(self) -> bool:
@@ -688,9 +697,11 @@ In `backends/governor.py`, add the helper and replace the three reads (`:529`, `
         return self._handle.health().state in ("ready", "busy")
 ```
 
-- `:529` `if self._handle.worker is None:` → `if not self._worker_available():`
-- `:551` `if self._handle.worker is None:` → `if not self._worker_available():`
-- `:594` `if self._handle.worker is None and self._active_snapshot is not None:` → `if not self._worker_available() and self._active_snapshot is not None:`
+- `:529` (`_idle_watchdog_loop`) `if self._handle.worker is None:` → `if not self._worker_available():`
+- `:551` (`_evict_if_idle`) `if self._handle.worker is None:` → `if not self._worker_available():`
+- `:594` (demand-reload) `if self._handle.worker is None and self._active_snapshot is not None:` → `if not self._worker_available() and self._active_snapshot is not None:`
+- `:756` (`is_model_loaded`) `return self._handle.worker is not None` → `return self._worker_available()` — **without this, `/models/status` reports `is_loaded: false` for a loaded subprocess** (only Task 8 live acceptance catches it; the frozen `test_model_routes` mocks `is_model_loaded`).
+- `:482` (`_unload_current_worker` unregister guard) `if self._handle.worker is not None and self._current_mode:` → `if self._worker_available() and self._current_mode:` — **without this, a clean subprocess unload never unregisters** (`worker` is always `None`). The OOM-*death* complement is the explicit unregister in Task 7 Step 3 (recon #4).
 
 - [ ] **Step 4: Dual-path the GenerationJob dispatch + `submit_job`**
 
@@ -792,19 +803,21 @@ def test_governor_recovers_from_subprocess_oom_and_next_job_succeeds():
 
 For the subprocess path, when the job terminates in an OOM error (or the handle goes `dead`), the Governor must kill+respawn before the next job. Two touch-points:
 
-(a) In the dispatch loop's exception handler, after the subprocess job fails, if the handle is out-of-proc and either the error is OOM or `not self._worker_available()`, run the recovery seam:
+(a) In the dispatch loop's exception handler, after the subprocess job fails, if the handle is dead, kill + **explicitly unregister** (the recon #4 dirty-death complement — `_worker_available()` is `False` here, so `_unload_current_worker`'s guard would skip the unregister and leak), then respawn:
 
 ```python
-            if self._handle.worker is None and not self._worker_available():
+            if not self._worker_available():
                 logger.warning("[Governor] Subprocess dead post-job; killing + respawning")
-                self._unload_current_worker()          # stop() + registry unregister
+                if self._current_mode:
+                    self._registry.unregister_model(self._current_mode)   # idempotent; dead subprocess never self-unregistered
+                self._handle.stop()                     # ensure the process is killed
                 if self._active_snapshot is not None:
                     self._reload_from_snapshot()        # -> handle.start() respawns + re-registers
 ```
 
-(b) The demand-reload trigger (the flipped `:594`) already respawns before a job when `not self._worker_available()`. Confirm `_reload_from_snapshot` calls `self._handle.start(...)` for the subprocess handle (it rebuilds from the retained snapshot — same path the in-proc handle uses to rebuild the worker).
+(The `self._handle.worker is None` conjunct is dropped — `not self._worker_available()` already implies the worker is unavailable regardless of locality.)
 
-**Verify** `_reload_from_snapshot` drives `handle.start()`; if it currently rebuilds an in-proc worker via the factory only, generalize it to call `self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)` so both localities respawn identically.
+(b) The demand-reload trigger (the flipped `:594`) already respawns *before* a job when `not self._worker_available()`. **No change needed to `_reload_from_snapshot`** — it already calls `self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)` (`governor.py:387`), so both localities respawn identically. (Confirmed against source during review — do not "generalize" it; it is already locality-agnostic.)
 
 - [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_governor.py::test_governor_recovers_from_subprocess_oom_and_next_job_succeeds -q` — Expected: PASS.
 
@@ -865,6 +878,6 @@ Multi-GPU/UUID (`STABL-cchxvuhs`); `superres` migration (parent keeps its contex
 
 ## Self-review
 
-- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + 3 reads) + Task 7 (kill seam). All covered.
+- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + **5 liveness sites**: `:529`/`:551`/`:594`/`is_model_loaded:756`/`_unload_current_worker:482`) + Task 7 (kill seam, clean + dirty-death unregister). All covered.
 - **Placeholder scan:** the one deliberate branch is Task 0's outcome feeding Task 3 (both concrete forms given); Task 5 notes heartbeat-VRAM fill as a non-blocking follow-on with the value stated (0 for M1). No TBDs.
 - **Type consistency:** `WorkerHealth(state, vram_free_bytes, vram_total_bytes, mode)` (Task 1) used consistently in Tasks 2/5/6; `DecodedJob(req, job_id, resolution_epoch)` (Task 3) consumed in Task 5; `_worker_available()` (Task 6) referenced in Task 7; `IpcJobSink(conn, job_id)` (Task 4) used in Task 5.
