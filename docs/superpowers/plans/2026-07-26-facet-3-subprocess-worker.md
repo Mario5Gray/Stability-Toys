@@ -31,6 +31,13 @@
    - **Clean unload** (subprocess *alive* — `unload_current_model`, `_load_mode` replace, `_cleanup_vram`, `_evict_if_idle`): routes through `_unload_current_worker`, whose unregister guard is flipped to `self._worker_available()` (recon #3 site `:482`). For an alive subprocess that reads true → unregister fires. → `handle.start()` re-registers on respawn. No new seam.
    - **Dirty death** (subprocess *already dead* — OOM/frameless, Task 7 recovery): `_worker_available()` is `False`, so `_unload_current_worker`'s guard would skip the unregister and **leak the entry**. The recovery path therefore unregisters **explicitly** before respawn: `if self._current_mode: self._registry.unregister_model(self._current_mode)` (idempotent → safe even if already gone), then `handle.stop()` → `_reload_from_snapshot()` re-registers. This is the OOM-death complement to the `:482` flip.
 
+5. **Result wire-form + serialized subprocess dispatch (integration-audit findings A/B/C/E).** The subprocess result/dispatch path has four coupled realities the in-proc path did not:
+   - **(A) `SharedMemBlob` needs `read_sync()`.** `_FutureBridge.on_next` calls `value.image.read_sync()`; `InProcBlob` has it, `SharedMemBlob` does not (only `async read()` + `close()`). Task 4 adds `SharedMemBlob.read_sync()` (read bytes + `close()`/unlink, read-once).
+   - **(C) `run_job` returns `Tuple[bytes, int]`, not bytes** (`base.py:37`). In-proc carries it opaquely in an `InProcBlob`; the IPC `SharedMemBlob` is bytes-only. So the **child pickles the `run_job` return** into the blob (`pickle.dumps(result)` — any picklable return, bytes or tuple), and a **`_SubprocessFutureBridge` unpickles** (`fut.set_result(pickle.loads(value.image.read_sync()))`). This preserves the opaque-carry contract across the boundary. (FaultWorker returns bytes → pickle→unpickle→bytes, M1 assertions unchanged; the real worker's `(png, seed)` tuple round-trips identically.) The big payload rides shared memory, not the pipe.
+   - **(E) `submit()` is async, but the single subprocess is serial.** The dispatch loop MUST wait for the current job's terminal before dequeuing the next (in-proc got this free from blocking `job.execute`). So the subprocess branch subscribes the bridge and **blocks on `job.fut` until the terminal**, restoring serialization AND routing failure back into the dispatch loop for recovery. The wait is **unbounded — matching in-proc** (a hung worker blocks the dispatch thread identically today); a bounded wait + reap is the deferred `STABL-qvmdayhb` follow-on, not M1.
+   - **Recovery trigger is terminal-code OR liveness, not the generic `except`.** In-band OOM leaves the child **alive** (it caught the error and emitted a frame), so liveness alone won't fire. `_SubprocessFutureBridge` captures `terminal_error_code`; after the per-job wait the branch recovers when `terminal_error_code == BackplaneErrorCode.OOM` (alive-but-poisoned → `stop()` kills it) **or** `not self._worker_available()` (frameless death). This is Task 7, placed in the subprocess dispatch branch (Task 6), not the in-proc `except`.
+   - **(B) M1 liveness is `is_alive()`-only.** `SubprocessLiveness(self._proc, stale_after_s=float("inf"))` — the staleness window is disabled until the periodic-heartbeat follow-on (spec §7 defers it), so an idle-but-alive subprocess is never falsely `dead`. Task 2's staleness capability is tested but not activated in M1.
+
 ## Global Constraints
 
 - **Python env:** `conda activate stability-toys` before pytest; use `python`, not `python3`.
@@ -50,7 +57,7 @@
 
 | File | Responsibility |
 |---|---|
-| `backends/worker_handle_subprocess.py` | `SubprocessWorkerHandle` (spawn/kill/respawn, `start`/`submit`/`health`/`unload`/`stop`), the child entrypoint `_worker_main`, and the `LivenessSource` wiring |
+| `backends/worker_handle_subprocess.py` | `SubprocessWorkerHandle` (spawn/kill/respawn, `start`/`submit`/`health`/`unload`/`stop`), the child entrypoint `_worker_main` (pickles the opaque `run_job` return), `_SubprocessFutureBridge` (unpickles + captures `terminal_error_code`), and the `LivenessSource` wiring |
 | `backends/liveness.py` | `LivenessSource` protocol + `SubprocessLiveness` (heartbeat staleness + EOF/dead-process) |
 | `backends/job_envelope.py` | Versioned job wire-form: `encode_job` / `decode_job` (schema_version byte + `{req, job_id, resolution_epoch}`) |
 | `tests/test_generaterequest_serialization.py` | M0 prerequisite: `GenerateRequest` round-trips the spawn boundary |
@@ -401,10 +408,11 @@ Task 4 IPC job_id + EOF guard hardening."
 
 **Files:**
 - Modify: `backends/backplane/ipc.py`
-- Test: `tests/test_backplane_ipc.py` (add cases)
+- Modify: `backends/backplane/blob.py` (`SharedMemBlob.read_sync()`)
+- Test: `tests/test_backplane_ipc.py`, `tests/test_backplane_blob.py` (add cases)
 
 **Interfaces:**
-- Produces: `IpcJobSink(conn, job_id: str)`; `drain_to_subscriber(conn, subscriber)` calls `subscriber.on_error(BackplaneError(...))` on EOF before a terminal.
+- Produces: `IpcJobSink(conn, job_id: str)`; `drain_to_subscriber(conn, subscriber)` calls `subscriber.on_error(BackplaneError(...))` on EOF before a terminal; `SharedMemBlob.read_sync() -> bytes` (read-once).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -459,7 +467,33 @@ def test_drain_synthesizes_error_on_frameless_eof():
             break
 ```
 
-- [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_backplane_ipc.py -q` — Expected: PASS (existing + 2 new).
+- [ ] **Step 3b: Add `SharedMemBlob.read_sync()` (tangle A)**
+
+`_FutureBridge`/`_SubprocessFutureBridge` call `image.read_sync()`, which `InProcBlob` has but `SharedMemBlob` (in `backends/backplane/blob.py`) does not — it only has `async read()` + `close()`. Add the sync read (read-once: read bytes, then unlink via `close()`). Test first:
+
+```python
+# add to tests/test_backplane_ipc.py  (or tests/test_backplane_blob.py)
+from backends.backplane.blob import SharedMemBlob
+def test_sharedmemblob_read_sync_reads_then_unlinks():
+    blob = SharedMemBlob.create(b"hello-shm")
+    assert blob.read_sync() == b"hello-shm"      # sync read
+```
+
+Implement in `SharedMemBlob`:
+
+```python
+    def read_sync(self) -> bytes:
+        from multiprocessing import shared_memory
+        shm = shared_memory.SharedMemory(name=self.name)
+        try:
+            data = bytes(shm.buf[: self.size])
+        finally:
+            shm.close()
+        self.close()          # read-once: consumer unlinks the segment
+        return data
+```
+
+- [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_backplane_ipc.py tests/test_backplane_blob.py -q` — Expected: PASS (existing + 3 new).
 
 - [ ] **Step 5: Commit**
 
@@ -514,8 +548,8 @@ def make_fault_worker(worker_id, resolved, binding):
 # tests/test_subprocess_worker_handle.py
 from concurrent.futures import Future
 from unittest.mock import Mock
-from backends.worker_handle_subprocess import SubprocessWorkerHandle
-from backends.governor import GenerationJob, _FutureBridge
+from backends.worker_handle_subprocess import SubprocessWorkerHandle, _SubprocessFutureBridge
+from backends.governor import GenerationJob
 from server.lcm_sr_server import GenerateRequest
 
 def _req(prompt="hello"):
@@ -529,8 +563,8 @@ def test_subprocess_handle_runs_a_job_end_to_end():
     job = GenerationJob(req=_req("hello"), resolution_epoch=0)
     pub = h.submit(job)
     fut = Future()
-    pub.subscribe(_FutureBridge(fut))
-    assert fut.result(timeout=15) == b"PNG:hello"
+    pub.subscribe(_SubprocessFutureBridge(fut))   # unpickles the opaque return
+    assert fut.result(timeout=15) == b"PNG:hello" # pickle(bytes) round-trips to bytes
     h.stop()
     assert h.health().state == "dead"
 ```
@@ -543,13 +577,14 @@ The child `_worker_main(conn, factory_ref, resolved, binding, mode)`: import the
 
 ```python
 from __future__ import annotations
-import importlib, threading, multiprocessing as mp
+import importlib, pickle, threading, multiprocessing as mp
 from typing import Optional
 from backends.worker_handle import WorkerHandle, WorkerHealth
 from backends.liveness import SubprocessLiveness
 from backends.job_envelope import encode_job, decode_job
 from backends.backplane.ipc import IpcJobSink, drain_to_subscriber
-from backends.backplane.reactivestreams import Publisher
+from backends.backplane.reactivestreams import Publisher, Subscriber
+from backends.backplane.frames import Result, BackplaneErrorCode
 
 _READY = b"\x00READY"
 
@@ -571,12 +606,31 @@ def _worker_main(conn, factory_ref, resolved, binding, mode):
         job = GenerationJob(req=d.req, resolution_epoch=d.resolution_epoch, job_id=d.job_id)
         sink = IpcJobSink(conn, job_id=d.job_id)
         try:
-            result = worker.run_job(job)
-            sink.result(0, result)
+            result = worker.run_job(job)              # opaque: bytes (FaultWorker) or (png,seed) tuple (real)
+            sink.result(0, pickle.dumps(result))      # recon #5(C): pickle the opaque return into the blob
             sink.complete()
         except Exception as e:   # noqa: BLE001 — rides the sink terminal
             from backends.backplane.frames import BackplaneError
             sink.error(BackplaneError.from_exc(e))
+
+class _SubprocessFutureBridge(Subscriber):
+    """Fulfils a Future from the subprocess stream: unpickles the opaque run_job
+    return (recon #5C), and records terminal_error_code (recon #5E) so the Governor
+    distinguishes in-band OOM (child alive → must kill) from success/other errors."""
+    def __init__(self, fut):
+        self._fut = fut
+        self.terminal_error_code = None
+    def on_subscribe(self, subscription):
+        subscription.request(1 << 62)
+    def on_next(self, value):
+        if isinstance(value, Result) and not self._fut.done():
+            self._fut.set_result(pickle.loads(value.image.read_sync()))
+    def on_error(self, error):
+        self.terminal_error_code = error.code
+        if not self._fut.done():
+            self._fut.set_exception(error.to_exception())
+    def on_complete(self):
+        pass
 
 class _SubprocPublisher(Publisher):
     def __init__(self, conn): self._conn = conn
@@ -604,7 +658,7 @@ class SubprocessWorkerHandle(WorkerHandle):
             daemon=True,
         )
         self._proc.start()
-        self._liveness = SubprocessLiveness(self._proc)
+        self._liveness = SubprocessLiveness(self._proc, stale_after_s=float("inf"))  # recon #5(B): is_alive()-only in M1
         if self._parent_conn.recv_bytes() != _READY:   # blocks until READY
             raise RuntimeError("subprocess worker failed to signal READY")
         self._liveness.note_heartbeat()
@@ -726,11 +780,20 @@ In `submit_job`, open the InProcBackplane channel + attach `_FutureBridge` ONLY 
                             elif not job.fut.done():
                                 job.fut.set_result(result)
                         else:
-                            # --- SUBPROCESS PATH (facet-3): the handle owns the channel ---
-                            publisher = self._handle.submit(job)
-                            publisher.subscribe(_FutureBridge(job.fut))
+                            # --- SUBPROCESS PATH (facet-3): handle owns the IPC channel ---
+                            from backends.worker_handle_subprocess import _SubprocessFutureBridge
+                            bridge = _SubprocessFutureBridge(job.fut)
+                            self._handle.submit(job).subscribe(bridge)
+                            # Serialize (recon #5E): the single subprocess runs one job at
+                            # a time — block on THIS job's terminal before dequeuing the next.
+                            try:
+                                job.fut.result()          # bridge fulfils it; wait for the terminal
+                            except Exception:
+                                pass                       # already delivered to the caller via the bridge
                             if job_record is not None:
                                 self._finalize_job_record(job.job_id)
+                            # Task 7 inserts kill+respawn recovery HERE (keyed on
+                            # bridge.terminal_error_code == OOM or not _worker_available()).
 ```
 
 Guard the in-proc channel-open in `submit_job`:
@@ -801,23 +864,27 @@ def test_governor_recovers_from_subprocess_oom_and_next_job_succeeds():
 
 - [ ] **Step 3: Add subprocess recovery to the dispatch exception path + demand-reload**
 
-For the subprocess path, when the job terminates in an OOM error (or the handle goes `dead`), the Governor must kill+respawn before the next job. Two touch-points:
+Recovery lives in the **subprocess dispatch branch** (the Task 6 placeholder), right after the per-job terminal wait — NOT in the generic `except` (recon #5E: an async `submit()` failure never raises into the dispatch loop's `try`). Two triggers, because **in-band OOM leaves the child alive** (it caught the error and emitted a frame, so liveness alone won't fire):
 
-(a) In the dispatch loop's exception handler, after the subprocess job fails, if the handle is dead, kill + **explicitly unregister** (the recon #4 dirty-death complement — `_worker_available()` is `False` here, so `_unload_current_worker`'s guard would skip the unregister and leak), then respawn:
+(a) Replace the `# Task 7 inserts kill+respawn recovery HERE` placeholder in the subprocess branch with:
 
 ```python
-            if not self._worker_available():
-                logger.warning("[Governor] Subprocess dead post-job; killing + respawning")
-                if self._current_mode:
-                    self._registry.unregister_model(self._current_mode)   # idempotent; dead subprocess never self-unregistered
-                self._handle.stop()                     # ensure the process is killed
-                if self._active_snapshot is not None:
-                    self._reload_from_snapshot()        # -> handle.start() respawns + re-registers
+                            oom = bridge.terminal_error_code == BackplaneErrorCode.OOM
+                            if oom or not self._worker_available():
+                                logger.warning(
+                                    "[Governor] Subprocess needs recovery "
+                                    f"(oom={oom}, alive={self._worker_available()}); kill+respawn"
+                                )
+                                if self._current_mode:
+                                    self._registry.unregister_model(self._current_mode)  # idempotent; recon #4 dirty-death complement
+                                self._handle.stop()                     # kills the poisoned-but-alive OR already-dead process
+                                if self._active_snapshot is not None:
+                                    self._reload_from_snapshot()        # -> handle.start() respawns + re-registers
 ```
 
-(The `self._handle.worker is None` conjunct is dropped — `not self._worker_available()` already implies the worker is unavailable regardless of locality.)
+`BackplaneErrorCode` is already imported in `governor.py`. The `oom` branch handles the alive-but-poisoned child (`stop()` kills it); the `not self._worker_available()` branch handles frameless death (already dead, `stop()` is a no-op join). Explicit `unregister_model` is required because `_worker_available()` is `False` for the dead/killed subprocess, so `_unload_current_worker`'s guard would skip it and leak (recon #4).
 
-(b) The demand-reload trigger (the flipped `:594`) already respawns *before* a job when `not self._worker_available()`. **No change needed to `_reload_from_snapshot`** — it already calls `self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)` (`governor.py:387`), so both localities respawn identically. (Confirmed against source during review — do not "generalize" it; it is already locality-agnostic.)
+(b) The demand-reload trigger (the flipped `:594`) is the **second safety net**: if recovery somehow didn't run, the next job's `not self._worker_available()` respawns before dispatch. **No change needed to `_reload_from_snapshot`** — it already calls `self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)` (`governor.py:387`), so both localities respawn identically. (Confirmed against source — do not "generalize" it.)
 
 - [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_governor.py::test_governor_recovers_from_subprocess_oom_and_next_job_succeeds -q` — Expected: PASS.
 
@@ -878,6 +945,6 @@ Multi-GPU/UUID (`STABL-cchxvuhs`); `superres` migration (parent keeps its contex
 
 ## Self-review
 
-- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + **5 liveness sites**: `:529`/`:551`/`:594`/`is_model_loaded:756`/`_unload_current_worker:482`) + Task 7 (kill seam, clean + dirty-death unregister). All covered.
+- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + **5 liveness sites**: `:529`/`:551`/`:594`/`is_model_loaded:756`/`_unload_current_worker:482`) + Task 7 (kill seam, clean + dirty-death unregister). **Integration-audit recon #5** (result wire-form for the `run_job` tuple, `SharedMemBlob.read_sync`, serialized subprocess dispatch, OOM-alive vs frameless recovery, M1 `is_alive()`-only liveness) → Tasks 4/5/6/7. All covered.
 - **Placeholder scan:** the one deliberate branch is Task 0's outcome feeding Task 3 (both concrete forms given); Task 5 notes heartbeat-VRAM fill as a non-blocking follow-on with the value stated (0 for M1). No TBDs.
 - **Type consistency:** `WorkerHealth(state, vram_free_bytes, vram_total_bytes, mode)` (Task 1) used consistently in Tasks 2/5/6; `DecodedJob(req, job_id, resolution_epoch)` (Task 3) consumed in Task 5; `_worker_available()` (Task 6) referenced in Task 7; `IpcJobSink(conn, job_id)` (Task 4) used in Task 5.
