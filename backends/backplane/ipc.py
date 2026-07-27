@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .blob import encode_frame, decode_frame, SharedMemBlob
-from .frames import Result, BackplaneError
+from .frames import Result, BackplaneError, BackplaneErrorCode
 from .interface import JobSink
 from .reactivestreams import Subscriber, Subscription
 
@@ -16,8 +16,9 @@ class IpcJobSink(JobSink):
     `cancelled` (the cross-process cancel channel — in-proc keys off cancel_requested,
     but a subprocess worker cannot see that, so it reads this)."""
 
-    def __init__(self, conn):
+    def __init__(self, conn, job_id: str = "job"):
         self._conn = conn
+        self._job_id = job_id
         self._cancelled = False
         self._live_blob: SharedMemBlob | None = None
 
@@ -28,17 +29,17 @@ class IpcJobSink(JobSink):
 
     def ack(self, queued_position: int = 0) -> None:
         from .frames import Ack
-        self._conn.send_bytes(encode_frame(Ack("job", queued_position)))
+        self._conn.send_bytes(encode_frame(Ack(self._job_id, queued_position)))
 
     def progress(self, step: int, total: int, stage: str = "denoise") -> None:
         from .frames import Progress
-        self._conn.send_bytes(encode_frame(Progress("job", step, total, stage)))
+        self._conn.send_bytes(encode_frame(Progress(self._job_id, step, total, stage)))
 
     def result(self, seed: int, blob) -> None:
         data = bytes(blob) if isinstance(blob, (bytes, bytearray)) else None
         shm_blob = SharedMemBlob.create(data) if data is not None else blob
         self._live_blob = shm_blob                      # armed for the reaper
-        self._conn.send_bytes(encode_frame(Result("job", seed, shm_blob)))
+        self._conn.send_bytes(encode_frame(Result(self._job_id, seed, shm_blob)))
         self._live_blob = None                          # ownership handed to consumer
 
     def complete(self) -> None:
@@ -84,6 +85,9 @@ def drain_to_subscriber(conn, subscriber: Subscriber):
         try:
             raw = conn.recv_bytes()
         except EOFError:
+            # Frameless death (spec §6b): the producer end closed before a terminal.
+            # Synthesize a failure terminal so a waiting Future never hangs.
+            subscriber.on_error(BackplaneError(BackplaneErrorCode.GENERIC, "worker connection closed"))
             break
         if raw == _COMPLETE:
             subscriber.on_complete()

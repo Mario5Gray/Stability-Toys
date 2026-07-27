@@ -34,6 +34,18 @@ def test_sharedmem_blob_roundtrip_then_unlink():
         shared_memory.SharedMemory(name=src.name)
 
 
+def test_sharedmemblob_read_sync_reads_then_unlinks():
+    # facet-3 Task 4 tangle A: _SubprocessFutureBridge calls image.read_sync() on the
+    # loop-less dispatch thread. SharedMemBlob only had async read() + close(); this
+    # adds the sync read-once path (read bytes, then close()/unlink the segment).
+    blob = SharedMemBlob.create(b"hello-shm")
+    assert blob.read_sync() == b"hello-shm"      # sync read
+    # read-once: read_sync() unlinks the segment (consumer owns the unlink)
+    from multiprocessing import shared_memory
+    with pytest.raises(FileNotFoundError):
+        shared_memory.SharedMemory(name=blob.name)
+
+
 def test_codec_roundtrips_ack_and_progress_with_schema_version():
     for frame in (Ack("j1", 2), Progress("j1", 5, 20, "decode")):
         raw = encode_frame(frame)

@@ -69,6 +69,22 @@ class SharedMemBlob(BlobRef):
         finally:
             shm.close()
 
+    def read_sync(self) -> bytes:
+        """Synchronous read-once for the loop-less dispatch consumer
+        (_SubprocessFutureBridge in facet-3). Re-attaches by name, copies the bytes,
+        closes the local handle, then unlinks the segment via close() — the consumer
+        owns the unlink (mirrors the async read() + close() contract). Intentionally
+        NOT on the BlobRef ABC — only SharedMemBlob and InProcBlob implement it; the
+        facade/bridge that calls it knows which it holds."""
+        shm = shared_memory.SharedMemory(name=self.name)
+        try:
+            assert shm.buf is not None  # live segment always has a buffer
+            data = bytes(shm.buf[: self.size])
+        finally:
+            shm.close()
+        self.close()          # read-once: consumer unlinks the segment
+        return data
+
     def close(self) -> None:
         try:
             shm = shared_memory.SharedMemory(name=self.name)
