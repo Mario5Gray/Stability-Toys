@@ -133,7 +133,7 @@ class StubHandle(WorkerHandle):
         return pub
 
     def health(self):
-        return WorkerHealth(state=self._state, vram_bytes=0, mode=None)
+        return WorkerHealth(state=self._state, vram_free_bytes=0, vram_total_bytes=0, mode=None)
 
     def unload(self):
         self.unload_calls += 1

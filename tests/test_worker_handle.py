@@ -17,6 +17,10 @@ _MOCKED_MODULES = ['torch', 'torch.cuda', 'diffusers']
 _saved_modules = {k: sys.modules.get(k) for k in _MOCKED_MODULES}
 for _mod in _MOCKED_MODULES:
     sys.modules[_mod] = MagicMock()
+# health() reads driver-truth VRAM via torch.cuda.mem_get_info() -> (free, total);
+# model the real 2-tuple API on the stub so unpacking doesn't yield 0 values.
+sys.modules['torch'].cuda.is_available.return_value = True
+sys.modules['torch'].cuda.mem_get_info.return_value = (0, 0)
 
 from backends.worker_handle import InProcessWorkerHandle, WorkerHealth
 from backends.governor import GenerationJob, _FutureBridge
@@ -143,3 +147,16 @@ def test_handle_health_reports_busy_during_job():
     done_event.set()
     assert fut.result(timeout=2.0) == "done"
     assert handle.health().state == "ready"
+
+
+def test_health_reports_driver_truth_vram_fields():
+    """WorkerHealth exposes driver-truth free/total VRAM (mem_get_info), not the
+    torch-allocator vram_bytes (spec §8.1, aligning with STABL-sqqlkmdl)."""
+    handle, _ = _make_handle()
+    handle.start(Mock(), Mock(), _make_mode())
+    h = handle.health()
+    assert hasattr(h, "vram_free_bytes")
+    assert hasattr(h, "vram_total_bytes")
+    assert not hasattr(h, "vram_bytes")
+    assert isinstance(h.vram_free_bytes, int)
+    assert isinstance(h.vram_total_bytes, int)
