@@ -164,8 +164,13 @@ child's IPC connection is CPU-side and unpoisoned, so the child catches it and e
 `sink.error(BackplaneError.from_exc(e))` (the `OOM` code already exists in
 `frames.py`). The handle's recovery path kills the child (its poisoned CUDA context
 dies with the process), respawns, reloads from the retained snapshot, and the next job
-succeeds. After emitting OOM the child MUST NOT run another job — the parent kills it
-before dispatching the next.
+succeeds. After emitting OOM the child MUST NOT run another job — but this is a
+**contract enforced by the parent**, not the child: the parent kills the child before
+dispatching the next job. That kill is **racy with the dispatch loop** — if the parent
+is slow and a second job is already in the child, the poisoned context OOMs again
+immediately. The design **tolerates double-OOM** (idempotent: the second OOM → the same
+kill), so the "MUST NOT" is a statement of who enforces it, not a guarantee the child
+self-polices.
 
 ### (b) Minimal frameless-death guard — the safety net
 
@@ -239,6 +244,11 @@ replacing the ambiguous `vram_bytes` with:
 low-risk — `WorkerHealth` VRAM fields are consumed only by tests today). This aligns
 the health contract with STABL-sqqlkmdl.
 
+**Sequencing note:** this touches *merged, shipped* Governor v1 code (`worker_handle.py`),
+not new facet-3 code. The plan MUST land the `WorkerHealth` field change as an **early
+task, before M1**, so the health contract is settled before `SubprocessWorkerHandle`
+implements it — not discovered when the subprocess handle tries to fill the new fields.
+
 ### 8.2 Advisory for admission, authoritative for status
 
 Heartbeat-piggybacked VRAM is **eventually-consistent**, not point-in-time. The
@@ -259,11 +269,16 @@ they are not discovered mid-M1:
 
 1. **Dispatch flip** (§5): `handle.submit()` + `_FutureBridge` subscription, replacing
    the in-proc `job.execute(self._handle.worker)` path.
-2. **Liveness-read flip:** the idle watchdog (`_idle_watchdog_loop`) and the
-   demand-reload check read `self._handle.worker is None`. `SubprocessWorkerHandle.worker`
-   returns `None` (no in-proc worker), so these flip to `health().state == "dead"` —
-   the cleanup Governor v1's docstring reserved. This *is* the "Governor dispatch
-   changes" finding B named.
+2. **Liveness-read flip:** there are exactly **three** `self._handle.worker is None`
+   reads (`governor.py:529`, `:551`, `:594`). `SubprocessWorkerHandle.worker` returns
+   `None` (no in-proc worker), so these flip to `health().state == "dead"` — the
+   cleanup Governor v1's docstring reserved. This *is* the "Governor dispatch changes"
+   finding B named. **Preserve the semantic split — do not flatten all three to one
+   expression:** `:529` (idle watchdog, "is there a worker to evict?") and `:551`
+   (`_evict_if_idle`, "already unloaded?") mean *dead ⇒ nothing to evict / skip*;
+   `:594` is a **demand-reload trigger**, not a liveness check — *dead ⇒ respawn, then
+   run this job*. The plan must keep `:594`'s reload semantics distinct when flipping
+   the predicate.
 3. **Kill path via the existing seam** (§6): kill → `_unload_current_worker`
    (unregister) → respawn → re-register. Reuse, do not re-invent.
 
