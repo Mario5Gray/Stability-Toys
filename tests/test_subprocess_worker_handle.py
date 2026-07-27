@@ -6,11 +6,15 @@ driven by the child, opaque-return pickle round-trip, and stop()->dead.
 """
 from concurrent.futures import Future
 
+import pytest
+import torch
+
 from backends.worker_handle_subprocess import (
     SubprocessWorkerHandle,
     _SubprocessFutureBridge,
 )
 from backends.governor import GenerationJob
+from backends.backplane.frames import BackplaneErrorCode
 from server.lcm_sr_server import GenerateRequest
 
 
@@ -35,3 +39,24 @@ def test_subprocess_handle_runs_a_job_end_to_end():
     assert fut.result(timeout=15) == b"PNG:hello"  # pickle(bytes) round-trips to bytes
     h.stop()
     assert h.health().state == "dead"
+
+
+def test_subprocess_handle_propagates_oom_as_oom_code():
+    """An in-band OOM is captured by the bridge as BackplaneErrorCode.OOM.
+
+    This is the handle-level half of Task 7: the child catches the error, emits
+    a terminal frame, and stays alive. The bridge must classify it as OOM so the
+    Governor knows to kill the poisoned child.
+    """
+    h = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    h.start(None, None, None)
+    job = GenerationJob(req=_req("__OOM__"), resolution_epoch=0)
+    pub = h.submit(job)
+    fut = Future()
+    bridge = _SubprocessFutureBridge(fut)
+    pub.subscribe(bridge)
+    with pytest.raises(Exception) as exc_info:
+        fut.result(timeout=15)
+    assert bridge.terminal_error_code is BackplaneErrorCode.OOM
+    assert isinstance(exc_info.value, torch.cuda.OutOfMemoryError)
+    h.stop()

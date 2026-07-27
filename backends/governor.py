@@ -661,8 +661,21 @@ class Governor:
                                 pass                       # already delivered to the caller via the bridge
                             if job_record is not None:
                                 self._finalize_job_record(job.job_id)
-                            # Task 7 inserts kill+respawn recovery HERE (keyed on
-                            # bridge.terminal_error_code == OOM or not _worker_available()).
+                            # Task 7: durable OOM / frameless-death recovery.
+                            # In-band OOM leaves the child alive but poisoned; frameless
+                            # death leaves it dead. Both require explicit unregister +
+                            # kill + demand-reload so the next job runs on a fresh process.
+                            oom = bridge.terminal_error_code == BackplaneErrorCode.OOM
+                            if oom or not self._worker_available():
+                                logger.warning(
+                                    "[Governor] Subprocess needs recovery "
+                                    f"(oom={oom}, alive={self._worker_available()}); kill+respawn"
+                                )
+                                if self._current_mode:
+                                    self._registry.unregister_model(self._current_mode)  # idempotent; recon #4 dirty-death complement
+                                self._handle.stop()                     # kills the poisoned-but-alive OR already-dead process
+                                if self._active_snapshot is not None:
+                                    self._reload_from_snapshot()        # -> handle.start() respawns + re-registers
                     else:
                         # CustomJob: run directly (in-proc callable, D4 defers redesign)
                         result = job.execute(self._handle.worker)
