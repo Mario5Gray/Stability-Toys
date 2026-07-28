@@ -1716,11 +1716,17 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
         # Compose via from_pipe (shares the base components at zero extra VRAM).
-        # No torch_dtype: base and ControlNet are already loaded at self.dtype and
-        # placed before composition, so the composed pipe must not be recast.
+        # torch_dtype=None is REQUIRED to skip the recast: base and ControlNet are
+        # already loaded at self.dtype and placed before composition. Omitting the
+        # kwarg does NOT skip the recast — diffusers' from_pipe defaults torch_dtype
+        # to torch.float32, upcasting the whole fp16 pipeline (base + CN + mT5/BERT
+        # text encoders) to fp32 -> deterministic OOM at the VRAM ceiling + ratcheting
+        # residual (STABL-kfekehhc). Passing None explicitly matches the SD1.5/SDXL
+        # _build_controlnet_pipe siblings (the STABL-crdsypux from_pipe fix).
         return _hunyuandit_controlnet_pipeline_cls().from_pipe(
             self.pipe,
             controlnet=controlnet_obj,
+            torch_dtype=None,
         )
 
     def _build_controlnet_kwargs(
