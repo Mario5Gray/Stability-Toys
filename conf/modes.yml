@@ -3,6 +3,28 @@ lora_root: /models/loras
 default_mode: lcm-general
 
 resolution_sets:
+  dit:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+    - size: 1280x1280
+      aspect_ratio: "1:1"
+    - size: 1024x768
+      aspect_ratio: ""
+    - size: 1152x864
+      aspect_ratio: ""
+    - size: 1280x960
+      aspect_ratio: ""
+    - size: 768x1024
+      aspect_ratio: ""
+    - size: 864x1152
+      aspect_ratio: ""
+    - size: 960x1280
+      aspect_ratio: ""
+    - size: 1280x768
+      aspect_ratio: ""
+    - size: 768x1280
+      aspect_ratio: ""
+
   default:
     - size: 512x512
       aspect_ratio: "1:1"
