@@ -341,8 +341,13 @@ def test_controlnet_composition_uses_from_pipe_without_dtype_recast():
     assert isinstance(composed, _FakeHunyuanControlNetPipeline)
     assert recorded["base"] is base
     assert recorded["controlnet"] is cn_obj
-    # No recast: a dtype must never be forced onto the composed pipeline.
-    assert recorded["torch_dtype"] in (_MISSING, None)
+    # No recast: the composed pipe must NOT be recast. diffusers' real from_pipe
+    # defaults torch_dtype to torch.float32 (NOT None), so OMITTING the kwarg
+    # upcasts the whole fp16 pipeline (base + CN + mT5/BERT text encoders) to
+    # fp32 -> deterministic OOM at the VRAM ceiling + ratcheting residual
+    # (STABL-kfekehhc). The worker must pass torch_dtype=None EXPLICITLY, exactly
+    # like the SD1.5/SDXL _build_controlnet_pipe siblings (STABL-crdsypux).
+    assert recorded["torch_dtype"] is None
 
 
 # --------------------------------------------------------------------------
