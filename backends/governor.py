@@ -474,12 +474,27 @@ class Governor:
 
     # --- VRAM cleanup / recovery ---
 
+    def _worker_available(self) -> bool:
+        """Locality-agnostic 'is a live, loaded worker present?'. For InProcess
+        this equals worker-is-not-None (start->ready, unload->dead); for Subprocess
+        it reads true liveness (its .worker is always None). Preserves the spec
+        §9.2 semantic split at each call site.
+
+        Defensive fallback: if health() raises (e.g. CPU-only host where
+        torch.cuda.is_available() is True but mem_get_info() returns empty),
+        preserve the in-proc equivalence by checking handle.worker directly.
+        """
+        try:
+            return self._handle.health().state in ("ready", "busy")
+        except Exception:
+            return self._handle.worker is not None
+
     def _unload_current_worker(self) -> None:
         """Unload the current worker. Registry-unregister is Governor authority
         (mirrors WorkerPool._unload_current_worker:322); worker + ControlNet-cache
         teardown is delegated to the handle. Guarded on worker-presence like the
         original, so a no-worker pool still clears the cache without unregistering."""
-        if self._handle.worker is not None and self._current_mode:
+        if self._worker_available() and self._current_mode:
             self._registry.unregister_model(self._current_mode)
         self._handle.unload()
 
@@ -526,7 +541,7 @@ class Governor:
     def _idle_watchdog_loop(self):
         while not self._stop.wait(timeout=self._idle_check_interval):
             try:
-                if self._handle.worker is None:
+                if not self._worker_available():
                     continue
                 idle_secs = time.monotonic() - self._last_activity
                 if idle_secs < self._idle_timeout:
@@ -548,7 +563,7 @@ class Governor:
         idle_secs = time.monotonic() - self._last_activity
         if idle_secs < self._idle_timeout:
             return {"status": "skipped", "reason": "activity_detected"}
-        if self._handle.worker is None:
+        if not self._worker_available():
             return {"status": "skipped", "reason": "already_unloaded"}
         logger.info(f"[Governor] Evicting idle model '{self._current_mode}'")
         self._unload_current_worker()
@@ -572,7 +587,10 @@ class Governor:
                 continue
             try:
                 if isinstance(job, ModeSwitchJob):
-                    if self._handle.worker is not None and self._current_mode == job.target_mode and not job.force:
+                    # Mode-switch fast-path: a live worker already holds the target mode.
+                    # _worker_available() is required for subprocess handles, whose
+                    # .worker is always None even when a live process is loaded.
+                    if self._worker_available() and self._current_mode == job.target_mode and not job.force:
                         result = {"mode": job.target_mode, "status": "already_loaded"}
                     else:
                         result = job.execute(self._handle.worker)
@@ -591,7 +609,7 @@ class Governor:
                         job_record.state = "running"
 
                     # Demand reload
-                    if self._handle.worker is None and self._active_snapshot is not None:
+                    if not self._worker_available() and self._active_snapshot is not None:
                         try:
                             self._reload_from_snapshot()
                         except Exception as load_err:
@@ -609,28 +627,55 @@ class Governor:
                             )
 
                     if isinstance(job, GenerationJob):
-                        # VERBATIM from _worker_loop:796-863 — the Governor
-                        # drives record.sink directly (NOT handle.submit()).
-                        # The handle's submit() is the facet-3 contract.
-                        result = job.execute(self._handle.worker)
+                        if self._handle.worker is not None:
+                            # --- IN-PROC PATH (v1, unchanged) ---
+                            result = job.execute(self._handle.worker)
 
-                        sink = job_record.sink if job_record is not None else None
-                        if job_record is not None and job_record.cancel_requested:
-                            # Post-execute cancel: discard result, emit CANCELLED
-                            assert generation_job is not None
-                            job_record.state = "cancelled"
-                            if sink is not None:
-                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                            sink = job_record.sink if job_record is not None else None
+                            if job_record is not None and job_record.cancel_requested:
+                                # Post-execute cancel: discard result, emit CANCELLED
+                                assert generation_job is not None
+                                job_record.state = "cancelled"
+                                if sink is not None:
+                                    sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                                elif not job.fut.done():
+                                    job.fut.set_exception(CancelledError())
+                                self._finalize_job_record(generation_job.job_id)
+                            elif sink is not None:
+                                assert generation_job is not None
+                                sink.result(0, InProcBlob(result))
+                                sink.complete()
+                                self._finalize_job_record(generation_job.job_id)
                             elif not job.fut.done():
-                                job.fut.set_exception(CancelledError())
-                            self._finalize_job_record(generation_job.job_id)
-                        elif sink is not None:
-                            assert generation_job is not None
-                            sink.result(0, InProcBlob(result))
-                            sink.complete()
-                            self._finalize_job_record(generation_job.job_id)
-                        elif not job.fut.done():
-                            job.fut.set_result(result)
+                                job.fut.set_result(result)
+                        else:
+                            # --- SUBPROCESS PATH (facet-3): handle owns the IPC channel ---
+                            from backends.worker_handle_subprocess import _SubprocessFutureBridge
+                            bridge = _SubprocessFutureBridge(job.fut)
+                            self._handle.submit(job).subscribe(bridge)
+                            # Serialize (recon #5E): the single subprocess runs one job at
+                            # a time — block on THIS job's terminal before dequeuing the next.
+                            try:
+                                job.fut.result()          # bridge fulfils it; wait for the terminal
+                            except Exception:
+                                pass                       # already delivered to the caller via the bridge
+                            if job_record is not None:
+                                self._finalize_job_record(job.job_id)
+                            # Task 7: durable OOM / frameless-death recovery.
+                            # In-band OOM leaves the child alive but poisoned; frameless
+                            # death leaves it dead. Both require explicit unregister +
+                            # kill + demand-reload so the next job runs on a fresh process.
+                            oom = bridge.terminal_error_code == BackplaneErrorCode.OOM
+                            if oom or not self._worker_available():
+                                logger.warning(
+                                    "[Governor] Subprocess needs recovery "
+                                    f"(oom={oom}, alive={self._worker_available()}); kill+respawn"
+                                )
+                                if self._current_mode:
+                                    self._registry.unregister_model(self._current_mode)  # idempotent; recon #4 dirty-death complement
+                                self._handle.stop()                     # kills the poisoned-but-alive OR already-dead process
+                                if self._active_snapshot is not None:
+                                    self._reload_from_snapshot()        # -> handle.start() respawns + re-registers
                     else:
                         # CustomJob: run directly (in-proc callable, D4 defers redesign)
                         result = job.execute(self._handle.worker)
@@ -700,9 +745,11 @@ class Governor:
         effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
         try:
             self._register_job(job)
-            if isinstance(job, GenerationJob):
+            if isinstance(job, GenerationJob) and self._handle.worker is not None:
                 # Open the backplane channel and attach the compat Subscriber NOW —
                 # strictly before the job is enqueued (spec §3.3 ordering invariant).
+                # Subprocess path: handle.submit() owns the IPC channel; do NOT open
+                # an in-proc channel here (recon #2).
                 sink, publisher = InProcBackplane(job.job_id).open()
                 record = self._get_job_record(job.job_id)
                 if record is not None:
@@ -753,7 +800,7 @@ class Governor:
         return self._current_mode
 
     def is_model_loaded(self) -> bool:
-        return self._handle.worker is not None
+        return self._worker_available()
 
     def reload_if_current(self, mode_name: str) -> bool:
         if self.get_current_mode() != mode_name:

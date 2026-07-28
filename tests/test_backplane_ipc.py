@@ -109,6 +109,48 @@ def test_frames_and_bytes_cross_a_real_process_boundary():
         shared_memory.SharedMemory(name=result_name)
 
 
+# --- facet-3 Task 4: job_id threading + frameless-death EOF guard ------------
+
+def test_ipc_sink_stamps_job_id():
+    ctx = mp.get_context("spawn")
+    a, b = ctx.Pipe()
+    sink = IpcJobSink(a, job_id="abc123")
+    sink.ack(0)
+    from backends.backplane.blob import decode_frame
+    frame = decode_frame(b.recv_bytes())
+    assert frame.job_id == "abc123"
+
+
+class _CollectingSub:
+    def __init__(self):
+        self.error = None
+        self.completed = False
+
+    def on_subscribe(self, s):
+        pass
+
+    def on_next(self, v):
+        pass
+
+    def on_error(self, e):
+        self.error = e
+
+    def on_complete(self):
+        self.completed = True
+
+
+@pytest.mark.timeout(30)
+def test_drain_synthesizes_error_on_frameless_eof():
+    ctx = mp.get_context("spawn")
+    a, b = ctx.Pipe()
+    b.close()                       # frameless death: producer end closed, no terminal
+    sub = _CollectingSub()
+    drain_to_subscriber(a, sub)
+    assert sub.error is not None
+    assert sub.error.code == BackplaneErrorCode.GENERIC
+    assert not sub.completed
+
+
 @pytest.mark.timeout(30)
 def test_inbound_cancel_reaches_child_across_boundary():
     ctx = mp.get_context("spawn")

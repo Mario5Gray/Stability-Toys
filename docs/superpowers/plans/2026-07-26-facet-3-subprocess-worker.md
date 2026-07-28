@@ -18,9 +18,10 @@
 
 2. **`_FutureBridge` attachment moves for the subprocess path only.** In-proc: `submit_job` opens the `InProcBackplane` channel and attaches `_FutureBridge` before enqueue (v1, unchanged). Subprocess: the IPC channel is owned by `handle.submit()`, so `submit_job` does NOT open a channel; the dispatch loop subscribes `_FutureBridge` to the `Publisher` returned by `handle.submit()`. This is the spec §4.2 "channel ownership moves to the handle" change, scoped to out-of-proc.
 
-3. **Liveness-read flip via one helper, semantics-preserving for in-proc — FIVE sites, not three.** All `self._handle.worker`-as-liveness predicates are replaced by `self._worker_available()`, where `_worker_available()` returns `self._handle.health().state in ("ready", "busy")`. For `InProcessWorkerHandle` this is **exactly equivalent** to `worker is not None` (start→"ready", unload→"dead", job→"busy"), so the frozen suite is unaffected; for the subprocess handle (whose `worker` is always `None`, even when alive) it reads true liveness. The five sites (review-verified):
+3. **Liveness-read flip via one helper, semantics-preserving for in-proc — SIX sites, not three.** All `self._handle.worker`-as-liveness predicates are replaced by `self._worker_available()`, where `_worker_available()` returns `self._handle.health().state in ("ready", "busy")`. For `InProcessWorkerHandle` this is **exactly equivalent** to `worker is not None` (start→"ready", unload→"dead", job→"busy"), so the frozen suite is unaffected; for the subprocess handle (whose `worker` is always `None`, even when alive) it reads true liveness. The six sites (review-verified):
    - `:529` (`_idle_watchdog_loop`, "is there a worker to evict?") → `if not self._worker_available(): continue`
    - `:551` (`_evict_if_idle`, "already unloaded?") → `if not self._worker_available(): return already_unloaded`
+   - `:575` (`ModeSwitchJob` already-loaded fast-path) → `if self._worker_available() and self._current_mode == job.target_mode and not job.force:` — **without this, a live subprocess always respawns on a no-op mode switch** because its `.worker` is always `None`
    - `:594` (dispatch **demand-reload trigger**, "respawn then run") → `if not self._worker_available() and self._active_snapshot is not None:`
    - `:756` (`is_model_loaded`, "loaded?") → `return self._worker_available()` — **without this, `/models/status` reports `is_loaded: false` for a loaded subprocess** (the frozen `test_model_routes` mocks `is_model_loaded`, so only Task 8 live acceptance catches it)
    - `:482` (`_unload_current_worker` unregister guard) → `if self._worker_available() and self._current_mode:` — **without this, a subprocess unload never unregisters** (`worker` is always `None`), leaking a stale registry entry on every kill. See recon #4 for the OOM-death complement.
@@ -738,9 +739,9 @@ def test_governor_dispatches_generation_to_subprocess_handle():
 
 - [ ] **Step 2: Run it** — Expected: FAIL — the in-proc dispatch calls `job.execute(self._handle.worker)` with `worker=None` → "No worker available".
 
-- [ ] **Step 3: Add `_worker_available()` and flip all FIVE liveness reads**
+- [ ] **Step 3: Add `_worker_available()` and flip all SIX liveness reads**
 
-In `backends/governor.py`, add the helper and replace **five** predicates (recon #3 — review-verified sites). For `InProcessWorkerHandle`, `_worker_available()` is exactly equivalent to `worker is not None`, so the frozen suite is unaffected.
+In `backends/governor.py`, add the helper and replace **six** predicates (recon #3 — review-verified sites). For `InProcessWorkerHandle`, `_worker_available()` is exactly equivalent to `worker is not None`, so the frozen suite is unaffected.
 
 ```python
     def _worker_available(self) -> bool:
@@ -753,6 +754,7 @@ In `backends/governor.py`, add the helper and replace **five** predicates (recon
 
 - `:529` (`_idle_watchdog_loop`) `if self._handle.worker is None:` → `if not self._worker_available():`
 - `:551` (`_evict_if_idle`) `if self._handle.worker is None:` → `if not self._worker_available():`
+- `:575` (`ModeSwitchJob` already-loaded fast-path) `if self._handle.worker is not None and self._current_mode == job.target_mode and not job.force:` → `if self._worker_available() and self._current_mode == job.target_mode and not job.force:` — **without this, a live subprocess always respawns on a no-op mode switch**
 - `:594` (demand-reload) `if self._handle.worker is None and self._active_snapshot is not None:` → `if not self._worker_available() and self._active_snapshot is not None:`
 - `:756` (`is_model_loaded`) `return self._handle.worker is not None` → `return self._worker_available()` — **without this, `/models/status` reports `is_loaded: false` for a loaded subprocess** (only Task 8 live acceptance catches it; the frozen `test_model_routes` mocks `is_model_loaded`).
 - `:482` (`_unload_current_worker` unregister guard) `if self._handle.worker is not None and self._current_mode:` → `if self._worker_available() and self._current_mode:` — **without this, a clean subprocess unload never unregisters** (`worker` is always `None`). The OOM-*death* complement is the explicit unregister in Task 7 Step 3 (recon #4).
@@ -945,6 +947,6 @@ Multi-GPU/UUID (`STABL-cchxvuhs`); `superres` migration (parent keeps its contex
 
 ## Self-review
 
-- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + **5 liveness sites**: `:529`/`:551`/`:594`/`is_model_loaded:756`/`_unload_current_worker:482`) + Task 7 (kill seam, clean + dirty-death unregister). **Integration-audit recon #5** (result wire-form for the `run_job` tuple, `SharedMemBlob.read_sync`, serialized subprocess dispatch, OOM-alive vs frameless recovery, M1 `is_alive()`-only liveness) → Tasks 4/5/6/7. All covered.
+- **Spec coverage:** §2 scope → Tasks 0–8; §4.1 start/load → Task 5; §4.2 versioned wire-form + GenerateRequest prereq → Tasks 0,3; §5 dispatch flip + eventual-consistency cancel → Task 6 (recon #1/#2); §6 OOM (a)+(b) → Tasks 4,7; §7 LivenessSource → Task 2; §8 VRAM driver-truth → Task 1 (heartbeat VRAM fill noted in Task 5); §9 finding-B enumerations → Task 6 (helper + **6 liveness sites**: `:529`/`:551`/`:575`/`is_model_loaded:756`/`_unload_current_worker:482`/demand-reload`:594`) + Task 7 (kill seam, clean + dirty-death unregister). **Integration-audit recon #5** (result wire-form for the `run_job` tuple, `SharedMemBlob.read_sync`, serialized subprocess dispatch, OOM-alive vs frameless recovery, M1 `is_alive()`-only liveness) → Tasks 4/5/6/7. All covered.
 - **Placeholder scan:** the one deliberate branch is Task 0's outcome feeding Task 3 (both concrete forms given); Task 5 notes heartbeat-VRAM fill as a non-blocking follow-on with the value stated (0 for M1). No TBDs.
 - **Type consistency:** `WorkerHealth(state, vram_free_bytes, vram_total_bytes, mode)` (Task 1) used consistently in Tasks 2/5/6; `DecodedJob(req, job_id, resolution_epoch)` (Task 3) consumed in Task 5; `_worker_available()` (Task 6) referenced in Task 7; `IpcJobSink(conn, job_id)` (Task 4) used in Task 5.

@@ -91,6 +91,8 @@ from concurrent.futures import Future
 
 import pytest
 
+from types import SimpleNamespace
+
 from backends.governor import (
     Governor, GenerationJob, ModeSwitchJob, CustomJob,
     ActiveModelSnapshot, StaleResolutionError, _FutureBridge,
@@ -133,7 +135,7 @@ class StubHandle(WorkerHandle):
         return pub
 
     def health(self):
-        return WorkerHealth(state=self._state, vram_bytes=0, mode=None)
+        return WorkerHealth(state=self._state, vram_free_bytes=0, vram_total_bytes=0, mode=None)
 
     def unload(self):
         self.unload_calls += 1
@@ -326,3 +328,149 @@ def test_governor_dispatches_mode_switch_through_lifecycle():
         # _load_mode was called during __init__ (default mode) — handle.start was called
         assert len(handle.start_calls) >= 1
         gov.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Governor drives an out-of-proc handle.
+# ---------------------------------------------------------------------------
+
+def _make_subprocess_governor(handle):
+    """Build a Governor wired to a real SubprocessWorkerHandle + FaultWorker.
+
+    All objects reaching handle.start() are picklable across the spawn boundary.
+    Mocks are parent-side only and never pickled.
+    """
+    from backends.conditioning.contracts import ConditioningConfig
+    from backends.model_resolution import LocalModelBinding
+
+    mode_config = Mock()
+    mode = SimpleNamespace(
+        model_path="/models/test.safetensors",
+        loras=[],
+        conditioning=ConditioningConfig(),
+    )
+    mode_config.get_mode.return_value = mode
+    mode_config.get_default_mode.return_value = "test-mode"
+    registry = Mock()
+    registry.get_total_vram.return_value = 0
+    registry.get_used_vram.return_value = 0
+    registry.get_allocated_vram.return_value = 0
+    # resolved is opaque to FaultWorker; binding must be a real picklable object
+    # because the Governor stores it in ActiveModelSnapshot and later reads
+    # snapshot.binding.model_path in _reload_from_snapshot.
+    resolved_binding = (None, LocalModelBinding(model_path="/models/test.safetensors"))
+    return mode_config, registry, resolved_binding
+
+
+def test_governor_dispatches_generation_to_subprocess_handle():
+    """The Governor dispatches a GenerationJob to a SubprocessWorkerHandle.
+
+    Uses picklable stand-ins for everything crossing handle.start() (spawn
+    pickles resolved/binding/mode). Mocks are parent-side only.
+    """
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from server.lcm_sr_server import GenerateRequest
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    mode_config, registry, resolved_binding = _make_subprocess_governor(handle)
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        job = GenerationJob(
+            req=GenerateRequest(prompt="hi", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        fut = gov.submit_job(job)
+        assert fut.result(timeout=15) == b"PNG:hi"
+    gov.shutdown()
+
+
+def test_governor_subprocess_mode_switch_no_respawn_when_already_loaded():
+    """ModeSwitchJob to the current mode is a no-op for a live subprocess handle.
+
+    Without the line-575 liveness flip, the dispatch loop sees
+    self._handle.worker is None and falls through to _load_mode(), killing and
+    respawning the subprocess for nothing. With the flip, it reports
+    already_loaded and leaves the process alive.
+    """
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    mode_config, registry, resolved_binding = _make_subprocess_governor(handle)
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        original_pid = handle._proc.pid
+        fut = gov.switch_mode("test-mode", force=False)
+        assert fut.result(timeout=15) == {"mode": "test-mode", "status": "already_loaded"}
+        assert handle._proc.pid == original_pid, "subprocess was respawned for a no-op mode switch"
+    gov.shutdown()
+
+
+def test_governor_recovers_from_subprocess_oom_and_next_job_succeeds():
+    """Subprocess OOM -> Governor kills + respawns -> next job succeeds.
+
+    The child catches the OOM, emits an error frame, and stays alive (poisoned).
+    The Governor must detect terminal_error_code == OOM, kill the child, and
+    demand-reload from the retained snapshot so the next job runs on a fresh
+    process.
+    """
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from server.lcm_sr_server import GenerateRequest
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    mode_config, registry, resolved_binding = _make_subprocess_governor(handle)
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        original_pid = handle._proc.pid
+        oom = GenerationJob(
+            req=GenerateRequest(prompt="__OOM__", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        with pytest.raises(Exception):
+            gov.submit_job(oom).result(timeout=15)
+
+        ok = GenerationJob(
+            req=GenerateRequest(prompt="after", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        assert gov.submit_job(ok).result(timeout=15) == b"PNG:after"
+        assert handle._proc.pid != original_pid, "OOM recovery must respawn the subprocess"
+    gov.shutdown()
+
+
+def test_governor_recovers_from_frameless_subprocess_death():
+    """Frameless death (SIGKILL) -> EOF guard synthesizes terminal -> recovery.
+
+    This path must use the liveness branch (not the OOM branch). We assert the
+    first job's exception is a plain RuntimeError (GENERIC reconstruction), not
+    torch.cuda.OutOfMemoryError, pinning the distinction so a future refactor
+    cannot silently collapse the two triggers.
+    """
+    import torch
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from server.lcm_sr_server import GenerateRequest
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    mode_config, registry, resolved_binding = _make_subprocess_governor(handle)
+    with patch("backends.governor.resolve_model", return_value=resolved_binding):
+        gov = Governor(handle=handle, mode_config=mode_config, registry=registry)
+
+        die = GenerationJob(
+            req=GenerateRequest(prompt="__DIE__", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        fut = gov.submit_job(die)
+        with pytest.raises(Exception) as exc_info:
+            fut.result(timeout=15)
+        assert not isinstance(exc_info.value, torch.cuda.OutOfMemoryError), (
+            "frameless death must surface as GENERIC (RuntimeError), not OOM"
+        )
+
+        ok = GenerationJob(
+            req=GenerateRequest(prompt="after", num_inference_steps=4, size="512x512"),
+            resolution_epoch=gov.current_resolution_epoch(),
+        )
+        assert gov.submit_job(ok).result(timeout=15) == b"PNG:after"
+    gov.shutdown()

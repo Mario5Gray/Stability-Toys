@@ -33,10 +33,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class WorkerHealth:
-    """Liveness + readiness snapshot the Governor reads for admission/status."""
-    state: str            # starting | ready | busy | draining | dead
-    vram_bytes: int       # current allocated VRAM (0 if not applicable)
-    mode: str | None      # loaded mode name, or None
+    """Liveness + readiness snapshot the Governor reads for admission/status.
+    VRAM is DRIVER TRUTH (mem_get_info), aligning with STABL-sqqlkmdl — not the
+    torch allocator."""
+    state: str                 # starting | ready | busy | draining | dead
+    vram_free_bytes: int       # driver-truth free (what admission needs); 0 if N/A
+    vram_total_bytes: int      # driver-truth total; 0 if N/A
+    mode: str | None           # loaded mode name, or None
 
 
 class WorkerHandle(ABC):
@@ -161,9 +164,14 @@ class InProcessWorkerHandle(WorkerHandle):
         return publisher
 
     def health(self) -> WorkerHealth:
+        if torch.cuda.is_available():
+            free_b, total_b = torch.cuda.mem_get_info()
+        else:
+            free_b, total_b = 0, 0
         return WorkerHealth(
             state=self._state,
-            vram_bytes=int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0,
+            vram_free_bytes=int(free_b),
+            vram_total_bytes=int(total_b),
             mode=None,  # mode is the Governor's authority; the handle doesn't track it
         )
 
