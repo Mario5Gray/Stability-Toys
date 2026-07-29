@@ -4,6 +4,7 @@ import sys
 
 from backends.device_memory import (
     ConsumerMemory,
+    CudaDeviceMemory,
     DeviceMemorySnapshot,
     MemoryTopology,
     NullDeviceMemory,
@@ -100,3 +101,51 @@ def test_singleton_selects_unified_when_no_nvml(monkeypatch):
     dm = get_device_memory()
     assert isinstance(dm, (UnifiedDeviceMemory, NullDeviceMemory))  # psutil present → Unified
     reset_device_memory()
+
+
+class _FakeNvml:
+    """Fake NVML boundary. Provider unit tests stub THIS (the injected module),
+    which is the one allowed pynvml seam; consumers never see pynvml."""
+    class _Info:
+        free = 20 * 1024**3
+        total = 24 * 1024**3
+    def __init__(self):
+        self.inited = False
+    def nvmlInit(self):
+        self.inited = True
+    def nvmlDeviceGetHandleByUUID(self, uuid):
+        assert uuid == "GPU-fake-uuid"
+        return "HANDLE"
+    def nvmlDeviceGetMemoryInfo(self, handle):
+        assert handle == "HANDLE"
+        return self._Info()
+    def nvmlDeviceGetName(self, handle):
+        return b"NVIDIA GeForce RTX 3090"
+
+
+def test_cuda_provider_nvml_by_uuid():
+    nvml = _FakeNvml()
+    dm = CudaDeviceMemory("GPU-fake-uuid", _pynvml=nvml)
+    assert nvml.inited
+    assert dm.device_uuid == "GPU-fake-uuid"
+    assert dm.topology == MemoryTopology.DISCRETE
+    assert dm.device_name == "NVIDIA GeForce RTX 3090"
+    assert dm.available_for_load() == 20 * 1024**3
+    snap = dm.cached_snapshot()  # pre-seeded at construction
+    assert snap.total_bytes == 24 * 1024**3
+    assert snap.free_bytes == 20 * 1024**3
+    assert snap.consumers == ()
+
+
+def test_available_for_load_does_not_fan_out():
+    nvml = _FakeNvml()
+    dm = CudaDeviceMemory("GPU-fake-uuid", _pynvml=nvml)
+
+    class _ExplodingConsumer:
+        def pool_stats(self):
+            raise AssertionError("available_for_load() MUST NOT fan out")
+        def reclaim(self):
+            pass
+
+    dm.register(_ExplodingConsumer())
+    assert dm.available_for_load() == 20 * 1024**3  # no consumer round-trip

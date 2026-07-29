@@ -248,6 +248,38 @@ class UnifiedDeviceMemory:
     def reclaim(self) -> None: return self._core.reclaim()
 
 
+class CudaDeviceMemory:
+    """DISCRETE provider: driver truth via NVML keyed by UUID. NVML is a driver
+    query — it initializes NO CUDA context in the caller (spec §3). UUID keying
+    seeds STABL-cchxvuhs: CUDA_VISIBLE_DEVICES reordering cannot misroute the
+    query."""
+    topology = MemoryTopology.DISCRETE
+
+    def __init__(self, device_uuid: str, _pynvml=None):
+        self.device_uuid = device_uuid
+        self._nvml = _pynvml or _import_pynvml()
+        self._nvml.nvmlInit()
+        self._handle = self._nvml.nvmlDeviceGetHandleByUUID(device_uuid)
+        name = self._nvml.nvmlDeviceGetName(self._handle)
+        self._device_name = name.decode() if isinstance(name, bytes) else str(name)
+        self._core = _ConsumerRegistry(self)
+        self._core.snapshot()  # pre-seed: driver truth from startup, consumers=()
+
+    @property
+    def device_name(self) -> str:
+        return self._device_name
+
+    def _driver_free_total(self) -> tuple[int, int]:
+        info = self._nvml.nvmlDeviceGetMemoryInfo(self._handle)
+        return int(info.free), int(info.total)
+
+    def register(self, c): return self._core.register(c)
+    def snapshot(self): return self._core.snapshot()
+    def cached_snapshot(self): return self._core.cached_snapshot()
+    def available_for_load(self) -> int: return self._driver_free_total()[0]
+    def reclaim(self) -> None: return self._core.reclaim()
+
+
 # --- singleton ---------------------------------------------------------------
 
 _device_memory: Optional[DeviceMemory] = None
@@ -280,7 +312,7 @@ def _select_provider(uuid: Optional[str]) -> DeviceMemory:
         try:
             nvml.nvmlInit()
             resolved = uuid or _first_device_uuid(nvml)
-            dm = CudaDeviceMemory(resolved, _pynvml=nvml)  # defined in Task 3
+            dm = CudaDeviceMemory(resolved, _pynvml=nvml)
             logger.info("[DeviceMemory] CUDA provider, device %s", resolved)
             return dm
         except Exception:
