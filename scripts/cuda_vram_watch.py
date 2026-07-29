@@ -159,9 +159,16 @@ def watch(args: argparse.Namespace) -> int:
             os.fsync(f.fileno())
             n += 1
             g0 = (rec["gpus"] or [{}])[0]
+            body = rec["status"].get("body") or {}
+            ok = rec["status"]["error"] is None
+            # queue_size = pending backlog (the running job is already popped off
+            # the queue, so it is NOT counted here); mode = current loaded mode.
+            queued = body.get("queue_size", "?") if ok else "-"
+            mode = body.get("current_mode", "?") if ok else "-"
             print(
                 f"[{rec['ts']}] #{n} "
-                f"status={'ok' if rec['status']['error'] is None else rec['status']['error']} "
+                f"status={'ok' if ok else rec['status']['error']} "
+                f"mode={mode} queued={queued} "
                 f"free={g0.get('memory_free_mib', '?')}MiB "
                 f"used={g0.get('memory_used_mib', '?')}MiB",
                 file=sys.stderr,
