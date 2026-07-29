@@ -6,6 +6,10 @@ from backends.device_memory import (
     ConsumerMemory,
     DeviceMemorySnapshot,
     MemoryTopology,
+    NullDeviceMemory,
+    UnifiedDeviceMemory,
+    get_device_memory,
+    reset_device_memory,
 )
 
 
@@ -54,3 +58,45 @@ def test_module_is_torch_free():
     assert result.returncode == 0, (
         f"device_memory pulled torch into sys.modules: {result.stderr.decode()}"
     )
+
+
+class _FakePsutil:
+    class _VM:
+        available = 8 * 1024**3
+        total = 32 * 1024**3
+    @staticmethod
+    def virtual_memory():
+        return _FakePsutil._VM()
+
+
+def test_null_degrades_to_zero_unknown():
+    dm = NullDeviceMemory()
+    snap = dm.snapshot()
+    assert snap.total_bytes == 0 and snap.free_bytes == 0
+    assert snap.topology == MemoryTopology.UNKNOWN
+    assert dm.available_for_load() == 0
+    assert dm.device_name == "Unknown"
+    reg = dm.register(object())  # inert, returns a Registration
+    reg.close(); reg.close()     # idempotent
+
+
+def test_unified_reads_psutil_host_ram():
+    dm = UnifiedDeviceMemory(_psutil=_FakePsutil())
+    assert dm.available_for_load() == 8 * 1024**3
+    snap = dm.cached_snapshot()  # pre-seeded at construction
+    assert snap.total_bytes == 32 * 1024**3
+    assert snap.topology == MemoryTopology.UNIFIED
+
+
+def test_singleton_selects_unified_when_no_nvml(monkeypatch):
+    reset_device_memory()
+    import builtins
+    real_import = builtins.__import__
+    def fake_import(name, *a, **k):
+        if name == "pynvml":
+            raise ImportError("no nvml on this host")
+        return real_import(name, *a, **k)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    dm = get_device_memory()
+    assert isinstance(dm, (UnifiedDeviceMemory, NullDeviceMemory))  # psutil present → Unified
+    reset_device_memory()
