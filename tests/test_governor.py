@@ -474,3 +474,64 @@ def test_governor_recovers_from_frameless_subprocess_death():
         )
         assert gov.submit_job(ok).result(timeout=15) == b"PNG:after"
     gov.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Task 8 (DeviceMemory, STABL-hjldxurg): _build_runtime_status sources the vram
+# block from the DeviceMemory snapshot's worker consumer entry — the direct
+# torch.cuda.memory_allocated/memory_reserved reads at governor.py:513-514 are
+# gone. /status is the cache-refresh point (one fresh snapshot() per call).
+# ---------------------------------------------------------------------------
+
+def _make_runtime_status_governor(dm):
+    """Governor whose initial _load_mode fails gracefully (default mode 'none'
+    raises KeyError before any DeviceMemory read) so no worker starts; the
+    status payload is then built from the injected DeviceMemory stub."""
+    mode_config = Mock()
+    mode_config.get_default_mode.return_value = "none"
+    mode_config.get_mode.side_effect = KeyError("no mode")
+    registry = Mock()
+    registry.get_total_vram.return_value = 24 * 1024**3
+    return Governor(
+        worker_factory=Mock(),
+        handle=StubHandle(),
+        mode_config=mode_config,
+        registry=registry,
+        device_memory=dm,
+    )
+
+
+def test_runtime_status_reads_worker_consumer_entry():
+    """_build_runtime_status:513-514 direct-torch reads are gone; the vram
+    block comes from the DeviceMemory snapshot's worker consumer entry."""
+    from backends.device_memory import (
+        ConsumerMemory, DeviceMemorySnapshot, MemoryTopology,
+    )
+    worker = ConsumerMemory(label="worker", pid=1, allocated_bytes=3 * 1024**3,
+                            reserved_bytes=5 * 1024**3, stale=False)
+    snap = DeviceMemorySnapshot(device_uuid="GPU-t", topology=MemoryTopology.DISCRETE,
+                                total_bytes=24 * 1024**3, free_bytes=10 * 1024**3,
+                                consumers=(worker,))
+    dm = Mock()
+    dm.snapshot.return_value = snap
+    governor = _make_runtime_status_governor(dm)
+    status = governor._build_runtime_status()
+    assert status["vram"]["allocated_bytes"] == 3 * 1024**3
+    assert status["vram"]["reserved_bytes"] == 5 * 1024**3
+    assert status["vram"]["stale"] is False
+    governor.shutdown()
+
+
+def test_runtime_status_no_worker_reads_zero_not_hang():
+    """No registered worker consumer -> zeros, stale False, no fan-out hang."""
+    from backends.device_memory import DeviceMemorySnapshot, MemoryTopology
+    snap = DeviceMemorySnapshot(device_uuid="GPU-t", topology=MemoryTopology.DISCRETE,
+                                total_bytes=24 * 1024**3, free_bytes=24 * 1024**3,
+                                consumers=())
+    dm = Mock()
+    dm.snapshot.return_value = snap
+    governor = _make_runtime_status_governor(dm)
+    status = governor._build_runtime_status()
+    assert status["vram"]["allocated_bytes"] == 0
+    assert status["vram"]["stale"] is False
+    governor.shutdown()

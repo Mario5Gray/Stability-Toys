@@ -185,6 +185,13 @@ class _FutureBridge(Subscriber):
         pass
 
 
+def _worker_allocated(snapshot) -> int:
+    """Worker consumer's live allocations from a DeviceMemory snapshot.
+    Load-time measurement reads a FRESH snapshot() (the one fan-out exception);
+    /status-shaped readers use cached_snapshot() instead."""
+    return next((c.allocated_bytes for c in snapshot.consumers if c.label == "worker"), 0)
+
+
 @dataclass
 class ModeSwitchJob(Job):
     """Job for switching model mode."""
@@ -266,6 +273,7 @@ class Governor:
         mode_config: Optional[ModeConfigManager] = None,
         registry: Optional[ModelRegistryProtocol] = None,
         handle: Optional[WorkerHandle] = None,
+        device_memory=None,
     ):
         self.queue_max = queue_max
         self.queue_timeout_s = queue_timeout_s
@@ -284,6 +292,10 @@ class Governor:
         self._worker_factory = worker_factory
         self._mode_config = mode_config or get_mode_config()
         self._registry = registry or get_model_registry()
+        if device_memory is None:
+            from backends.device_memory import get_device_memory
+            device_memory = get_device_memory()
+        self._dm = device_memory
 
         # Handle: inject for testing/pluggability, or build InProcessWorkerHandle
         # from the factory. Injected handles (stub/subprocess) never touch the
@@ -292,9 +304,9 @@ class Governor:
         if handle is not None:
             self._handle = handle
         elif worker_factory is not None:
-            self._handle = InProcessWorkerHandle(worker_factory)
+            self._handle = InProcessWorkerHandle(worker_factory, device_memory=self._dm)
         else:
-            self._handle = InProcessWorkerHandle(self._default_worker_factory)
+            self._handle = InProcessWorkerHandle(self._default_worker_factory, device_memory=self._dm)
 
         # Initialize with default mode (same as WorkerPool.__init__)
         default_mode = self._mode_config.get_default_mode()
@@ -327,8 +339,10 @@ class Governor:
         with self._job_lock:
             self._active_snapshot = None
 
-        self._registry.get_used_vram()
-        allocated_before = self._registry.get_allocated_vram()
+        # Load-time measurement reads a FRESH snapshot() — the one sanctioned
+        # fan-out exception (spec §4.1 / MUST-FIX-2). This is NOT the admission
+        # path (a load already blocks on model I/O), so fan-out is permitted.
+        allocated_before = _worker_allocated(self._dm.snapshot())
 
         assert mode.model_path is not None
         try:
@@ -345,8 +359,7 @@ class Governor:
                 torch.cuda.empty_cache()
             raise
 
-        vram_reserved = self._registry.get_used_vram()
-        vram_allocated = self._registry.get_allocated_vram()
+        vram_allocated = _worker_allocated(self._dm.snapshot())
         vram_used = max(0, vram_allocated - allocated_before)
         vram_total = self._registry.get_total_vram()
         logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
@@ -504,24 +517,24 @@ class Governor:
             cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
         self._unload_current_worker()
         gc.collect()
-        torch.cuda.empty_cache()
+        self._dm.reclaim()  # soft pool-trim of LIVE consumers; teardown already flushed inline
         return cancelled
 
     def _build_runtime_status(
         self, cancelled_jobs: Optional[list[str]] = None, *, status: str = "ok"
     ) -> dict:
-        allocated_bytes = int(torch.cuda.memory_allocated()) if torch.cuda.is_available() else 0
-        reserved_bytes = int(torch.cuda.memory_reserved()) if torch.cuda.is_available() else 0
-        total_bytes = int(self._registry.get_total_vram())
+        snap = self._dm.snapshot()  # refreshes the cache; /status is the refresh point
+        worker = next((c for c in snap.consumers if c.label == "worker"), None)
         payload = {
             "status": status,
             "is_loaded": self.is_model_loaded(),
             "current_mode": self._current_mode,
             "queue_size": self.get_queue_size(),
             "vram": {
-                "allocated_bytes": allocated_bytes,
-                "reserved_bytes": reserved_bytes,
-                "total_bytes": total_bytes,
+                "allocated_bytes": worker.allocated_bytes if worker else 0,
+                "reserved_bytes": worker.reserved_bytes if worker else 0,
+                "total_bytes": int(self._registry.get_total_vram()),
+                "stale": worker.stale if worker else False,
             },
         }
         if cancelled_jobs is not None:
@@ -791,7 +804,7 @@ class Governor:
             self._active_snapshot = None
             self._current_mode = None
         gc.collect()
-        torch.cuda.empty_cache()
+        self._dm.reclaim()  # soft trim; the worker's own pool was flushed inline at teardown
         return self._build_runtime_status(status="unloaded")
 
     # --- Accessors ---
