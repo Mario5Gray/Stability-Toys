@@ -280,6 +280,32 @@ class CudaDeviceMemory:
     def reclaim(self) -> None: return self._core.reclaim()
 
 
+# --- consumer adapter --------------------------------------------------------
+
+class WorkerMemoryConsumer:
+    """Adapter: the generation worker as a DeviceMemory consumer (spec §6).
+    torch imported lazily inside methods — the module stays torch-free."""
+
+    def __init__(self, worker, label: str = "worker"):
+        self._worker = worker
+        self.label = label
+
+    def pool_stats(self) -> ConsumerMemory:
+        import torch
+        return ConsumerMemory(
+            label=self.label,
+            pid=os.getpid(),
+            allocated_bytes=int(torch.cuda.memory_allocated()),
+            reserved_bytes=int(torch.cuda.memory_reserved()),
+            stale=False,  # consumers never self-declare staleness (spec §2.3)
+        )
+
+    def reclaim(self) -> None:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+
 # --- singleton ---------------------------------------------------------------
 
 _device_memory: Optional[DeviceMemory] = None

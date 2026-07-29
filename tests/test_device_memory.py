@@ -11,6 +11,7 @@ from backends.device_memory import (
     MemoryTopology,
     NullDeviceMemory,
     UnifiedDeviceMemory,
+    WorkerMemoryConsumer,
     get_device_memory,
     reset_device_memory,
 )
@@ -232,3 +233,33 @@ def test_reclaim_fans_out_to_live_consumers():
     reg.close()
     dm.reclaim()  # closed consumer not called
     assert c.reclaimed == 1
+
+
+# --- Task 5: WorkerMemoryConsumer adapter ---
+
+def test_worker_consumer_reports_torch_pool_stale_false(monkeypatch):
+    import sys as _sys
+    from unittest.mock import MagicMock
+    torch_mock = MagicMock()
+    torch_mock.cuda.memory_allocated.return_value = 3 * 1024**3
+    torch_mock.cuda.memory_reserved.return_value = 5 * 1024**3
+    monkeypatch.setitem(_sys.modules, "torch", torch_mock)
+
+    c = WorkerMemoryConsumer(worker=object())
+    cm = c.pool_stats()
+    assert cm.label == "worker"
+    assert cm.allocated_bytes == 3 * 1024**3
+    assert cm.reserved_bytes == 5 * 1024**3
+    assert cm.stale is False  # consumers can never self-declare staleness
+    assert cm.pid is not None
+
+
+def test_worker_consumer_reclaim_calls_empty_cache(monkeypatch):
+    import sys as _sys
+    from unittest.mock import MagicMock
+    torch_mock = MagicMock()
+    torch_mock.cuda.is_available.return_value = True
+    monkeypatch.setitem(_sys.modules, "torch", torch_mock)
+
+    WorkerMemoryConsumer(worker=object()).reclaim()
+    torch_mock.cuda.empty_cache.assert_called_once()
