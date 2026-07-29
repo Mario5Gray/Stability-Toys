@@ -342,9 +342,11 @@ def _select_provider(uuid: Optional[str]) -> DeviceMemory:
             logger.info("[DeviceMemory] CUDA provider, device %s", resolved)
             return dm
         except Exception:
-            logger.warning("[DeviceMemory] NVML present but unusable; degrading to Null",
+            # Wheel present, driver absent (mac dev host, any CUDA-less host with
+            # the pin installed). Degrade to the NEXT provider — psutil host RAM —
+            # not straight to Null (spec §3). Null is the no-psutil floor.
+            logger.warning("[DeviceMemory] NVML present but unusable; trying psutil",
                            exc_info=True)
-            return NullDeviceMemory()
     try:
         _import_psutil()
         logger.info("[DeviceMemory] unified provider (host RAM)")

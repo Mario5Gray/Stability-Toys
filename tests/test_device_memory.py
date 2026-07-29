@@ -106,6 +106,24 @@ def test_singleton_selects_unified_when_no_nvml(monkeypatch):
     reset_device_memory()
 
 
+def test_unusable_nvml_falls_through_to_unified(monkeypatch):
+    """pynvml imports but nvmlInit() fails (wheel present, no driver — the mac
+    dev host + any CUDA-less host with the pin installed). Must degrade to the
+    NEXT provider (Unified host RAM), NOT jump straight to Null (spec §3)."""
+    reset_device_memory()
+    import backends.device_memory as dm_mod
+
+    class _DeadNvml:
+        def nvmlInit(self):
+            raise RuntimeError("NVML Shared Library Not Found")
+
+    monkeypatch.setattr(dm_mod, "_import_pynvml", lambda: _DeadNvml())
+    monkeypatch.setattr(dm_mod, "_import_psutil", lambda: _FakePsutil())
+    dm = get_device_memory()
+    assert isinstance(dm, UnifiedDeviceMemory)  # not Null — psutil is present
+    reset_device_memory()
+
+
 class _FakeNvml:
     """Fake NVML boundary. Provider unit tests stub THIS (the injected module),
     which is the one allowed pynvml seam; consumers never see pynvml."""
