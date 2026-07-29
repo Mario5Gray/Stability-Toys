@@ -35,7 +35,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-STATUS_PATH = "/api/model/status"
+STATUS_PATH = "/api/models/status"  # model_router prefix=/api + route /models/status
 SMI_FIELDS = ["index", "uuid", "memory.total", "memory.free", "memory.used"]
 # JSON-safe keys for the parsed nvidia-smi row (memory.* -> *_mib, values in MiB).
 SMI_KEYS = ["index", "uuid", "memory_total_mib", "memory_free_mib", "memory_used_mib"]
@@ -46,11 +46,13 @@ def _now() -> tuple[str, float]:
     return datetime.now(timezone.utc).isoformat(), t
 
 
-def _build_url(base: str, port: int) -> str:
+def _build_url(base: str, port: int, path: str = STATUS_PATH) -> str:
     base = base.rstrip("/")
     if not base.startswith(("http://", "https://")):
         base = "http://" + base
-    return f"{base}:{port}{STATUS_PATH}"
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"{base}:{port}{path}"
 
 
 def poll_status(url: str, timeout: float) -> dict:
@@ -136,7 +138,7 @@ def _parse_resolution(s: str) -> tuple[int, int] | None:
 
 
 def watch(args: argparse.Namespace) -> int:
-    url = _build_url(args.base_url, args.port)
+    url = _build_url(args.base_url, args.port, args.path)
     wh = _parse_resolution(args.resolution)
     stop = {"flag": False}
 
@@ -221,6 +223,7 @@ def main(argv=None) -> int:
     p.add_argument("-o", "--out", default="vram_watch.jsonl", help="NDJSON output file (append mode)")
     p.add_argument("--base-url", default=default_base, help="server base URL (default $ST_BASE_URL or http://localhost)")
     p.add_argument("--port", type=int, default=4200, help="server port (default 4200)")
+    p.add_argument("--path", default=STATUS_PATH, help=f"status endpoint path (default {STATUS_PATH})")
     p.add_argument("--count", type=int, default=0, help="stop after N samples (default 0 = run until Ctrl-C)")
     p.add_argument("--http-timeout", type=float, default=5.0, help="per-poll timeout seconds (default 5)")
     args = p.parse_args(argv)
