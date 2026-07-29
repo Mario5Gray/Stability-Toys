@@ -1,8 +1,10 @@
 """DeviceMemory contract tests. Torch-free: this file must never import torch."""
 import subprocess
 import sys
+import time
 
 from backends.device_memory import (
+    POOL_STATS_TIMEOUT_S,
     ConsumerMemory,
     CudaDeviceMemory,
     DeviceMemorySnapshot,
@@ -149,3 +151,84 @@ def test_available_for_load_does_not_fan_out():
 
     dm.register(_ExplodingConsumer())
     assert dm.available_for_load() == 20 * 1024**3  # no consumer round-trip
+
+
+# --- Task 4: fan-out semantics (code landed in T2 _ConsumerRegistry; prove it) ---
+
+def _cuda():
+    return CudaDeviceMemory("GPU-fake-uuid", _pynvml=_FakeNvml())
+
+
+class _GoodConsumer:
+    label = "worker"
+    def __init__(self, reserved=5 * 1024**3):
+        self._reserved = reserved
+    def pool_stats(self):
+        return ConsumerMemory(label=self.label, pid=123,
+                              allocated_bytes=3 * 1024**3,
+                              reserved_bytes=self._reserved)
+    def reclaim(self):
+        pass
+
+
+def test_snapshot_merges_driver_truth_and_consumer_pools():
+    dm = _cuda()
+    dm.register(_GoodConsumer())
+    snap = dm.snapshot()
+    assert len(snap.consumers) == 1
+    assert snap.consumers[0].stale is False
+    # used = 24-20 = 4GB; consumer reserved = 5GB -> residual -1GB -> clamps to 0
+    assert snap.unattributed_bytes == 0
+
+
+def test_registration_close_deregisters_and_is_idempotent():
+    dm = _cuda()
+    reg = dm.register(_GoodConsumer())
+    assert len(dm.snapshot().consumers) == 1
+    reg.close()
+    assert len(dm.snapshot().consumers) == 0
+    reg.close()  # double-close = no-op
+    assert len(dm.snapshot().consumers) == 0
+
+
+def test_hung_consumer_substitutes_last_known_stale():
+    dm = _cuda()
+
+    class _Wedgie(_GoodConsumer):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+        def pool_stats(self):
+            self.calls += 1
+            if self.calls == 1:
+                return super().pool_stats()
+            time.sleep(POOL_STATS_TIMEOUT_S + 1.0)  # wedge
+            raise AssertionError("unreachable")
+
+    dm.register(_Wedgie())
+    fresh = dm.snapshot()
+    assert fresh.consumers[0].stale is False
+    assert fresh.consumers[0].reserved_bytes == 5 * 1024**3
+    stale = dm.snapshot()  # wedged -> last-known with stale=True, never omitted
+    assert len(stale.consumers) == 1
+    assert stale.consumers[0].stale is True
+    assert stale.consumers[0].reserved_bytes == 5 * 1024**3  # last-known, not zero
+
+
+def test_reclaim_fans_out_to_live_consumers():
+    dm = _cuda()
+
+    class _Reclaimer(_GoodConsumer):
+        def __init__(self):
+            super().__init__()
+            self.reclaimed = 0
+        def reclaim(self):
+            self.reclaimed += 1
+
+    c = _Reclaimer()
+    reg = dm.register(c)
+    dm.reclaim()
+    assert c.reclaimed == 1
+    reg.close()
+    dm.reclaim()  # closed consumer not called
+    assert c.reclaimed == 1
