@@ -4,6 +4,12 @@ Model registry implementations.
 CUDA uses a VRAM-aware registry. Other backends can expose a lightweight
 placeholder registry that reports backend identity without pretending to have
 CUDA allocator metrics.
+
+ModelRegistry is a pure VIEW over DeviceMemory (STABL-hjldxurg): it holds no
+torch and no pynvml. Driver truth comes from cached_snapshot()/
+available_for_load(); per-consumer pool stats come from the worker's entry in
+cached_snapshot().consumers[]. The view NEVER calls fresh snapshot() — no
+fan-out from the registry (spec §4.1).
 """
 
 import logging
@@ -12,11 +18,6 @@ from dataclasses import dataclass, field
 from threading import Lock
 
 from backends.platforms.base import ModelRegistryProtocol
-
-try:
-    import torch
-except ImportError:  # pragma: no cover - exercised on non-torch environments
-    torch = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -91,35 +92,23 @@ class ModelRegistry:
     """
     Tracks loaded models and VRAM usage.
 
-    Thread-safe registry for managing model lifecycle and VRAM accounting.
-    Uses actual torch.cuda measurements - no artificial limits.
+    Thread-safe registry for managing model lifecycle. VRAM accounting is a
+    pure view over DeviceMemory — no torch, no direct driver reads.
     """
 
-    def __init__(self) -> None:
-        """Initialize model registry."""
+    def __init__(self, device_memory=None) -> None:
+        """Initialize model registry as a pure view over DeviceMemory."""
         self._loaded: Dict[str, LoadedModel] = {}
         self._lock = Lock()
-        self._device_index = 0  # Default CUDA device
-
-        if torch is None:
-            self._total_vram = 0
-            self._device_name = "CUDA unavailable"
-            logger.warning("[ModelRegistry] torch is not installed")
-            return
-
-        # Detect GPU
-        if torch.cuda.is_available():
-            device_props = torch.cuda.get_device_properties(self._device_index)
-            self._total_vram = device_props.total_memory
-            self._device_name = device_props.name
-            logger.info(
-                f"[ModelRegistry] GPU detected: {self._device_name} "
-                f"({self._total_vram / 1024**3:.2f} GB VRAM)"
-            )
-        else:
-            self._total_vram = 0
-            self._device_name = "No GPU"
-            logger.warning("[ModelRegistry] No CUDA GPU detected")
+        if device_memory is None:
+            from backends.device_memory import get_device_memory
+            device_memory = get_device_memory()
+        self._dm = device_memory
+        logger.info(
+            "[ModelRegistry] Device: %s (%.2f GB)",
+            self._dm.device_name,
+            self._dm.cached_snapshot().total_bytes / 1024**3,
+        )
 
     def register_model(
         self,
@@ -185,59 +174,45 @@ class ModelRegistry:
         with self._lock:
             return name in self._loaded
 
+    def _worker_entry(self):
+        """The worker consumer's entry in the last computed snapshot (cached —
+        NO fan-out from this view; /status and diagnostics refresh the cache)."""
+        return next(
+            (c for c in self._dm.cached_snapshot().consumers if c.label == "worker"),
+            None,
+        )
+
     def get_reserved_vram(self) -> int:
-        """
-        Get allocator-reserved VRAM in bytes for this process.
+        """Allocator-reserved VRAM of the worker consumer (last snapshot).
 
-        This includes cached blocks held by the PyTorch allocator, not just
-        live tensors.
+        Includes cached blocks held by the PyTorch allocator, not just live
+        tensors.
         """
-        if torch is None or not torch.cuda.is_available():
-            return 0
-
-        return torch.cuda.memory_reserved(self._device_index)
+        entry = self._worker_entry()
+        return entry.reserved_bytes if entry else 0
 
     def get_used_vram(self) -> int:
-        """
-        Backward-compatible alias for allocator-reserved VRAM.
-
-        Process-level reporting now uses allocator metrics only:
-        - reserved: allocator-held memory
-        - allocated: live tensor allocations
-        """
+        """Backward-compatible alias for allocator-reserved VRAM."""
         return self.get_reserved_vram()
-    
+
     def get_allocated_vram(self) -> int:
-        '''
-        Get currently allocated VRAM by this app
+        """Live torch allocations of the worker consumer (last snapshot)."""
+        entry = self._worker_entry()
+        return entry.allocated_bytes if entry else 0
 
-        uses torch.cuda.memory_allocated                
-        '''
-        if torch is None or not torch.cuda.is_available():
-            return 0
-
-        # Get actual allocated memory
-        used_vram = torch.cuda.memory_allocated(self._device_index)
-        return used_vram
-        
     def get_total_vram(self) -> int:
-        """Get total GPU VRAM in bytes."""
-        return self._total_vram
+        """Total device VRAM in bytes (last snapshot; correct from startup
+        because the provider pre-seeds its cache)."""
+        return self._dm.cached_snapshot().total_bytes
 
     def get_available_vram(self) -> int:
-        """Get available VRAM in bytes — the driver's real free memory.
+        """Driver-truth free VRAM in bytes — NVML free via DeviceMemory.
 
-        Uses torch.cuda.mem_get_info(), which reports the driver's free/total and
-        therefore accounts for the CUDA context, cuDNN/cuBLAS/xformers workspaces,
-        and every other process on the GPU. The old total - memory_reserved()
-        counted only this process's torch pool against the nameplate total, which
-        overstated availability and let can_fit() over-commit into OOM.
+        Reports the driver's free memory, accounting for the CUDA context,
+        cuDNN/cuBLAS/xformers workspaces, and every other process on the GPU.
+        Never fans out to consumers (spec §2.2 invariant #1).
         """
-        if torch is None or not torch.cuda.is_available():
-            return 0
-
-        # mem_get_info() -> (free_bytes, total_bytes); we want driver free.
-        return torch.cuda.mem_get_info(self._device_index)[0]
+        return self._dm.available_for_load()
 
     def can_fit(self, estimated_bytes: int) -> bool:
         """
@@ -249,9 +224,8 @@ class ModelRegistry:
         Returns:
             True if model can fit
         """
-        if torch is None or not torch.cuda.is_available():
-            return False
-
+        # No CUDA guard: the Null provider reports 0 free, which rejects the
+        # same way the old torch.cuda.is_available() guard did.
         available = self.get_available_vram()
         can_load = estimated_bytes < available + (available*.05)
         
@@ -362,7 +336,7 @@ class ModelRegistry:
                 })
 
         return {
-            "device": self._device_name,
+            "device": self._dm.device_name,
             "total_gb": to_gb(total),
             "allocated_gb": to_gb(allocated),
             "reserved_gb": to_gb(reserved),
