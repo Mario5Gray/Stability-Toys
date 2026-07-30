@@ -4,6 +4,8 @@ include Makefile.test
 install: install-st install-controlnet-scripts install-qrng ## Install all production targets
 
 LOCAL_BIN ?= $(HOME)/.local/bin
+GIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+export GIT_SHA
 
 .PHONY: install-st
 install-st: ## Install the st and stcn CLI binaries to ~/.local/bin
