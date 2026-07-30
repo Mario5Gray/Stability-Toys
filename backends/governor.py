@@ -914,14 +914,85 @@ class Governor:
         return self._reserve_and_enqueue_switch(mode_name, force=force)
 
     def _reserve_and_enqueue_switch(self, mode_name: str, *, force: bool = False) -> Future:
-        """TEMPORARY (Task 2) — Task 4 makes reserve+enqueue one critical section."""
-        reservation = self._reserve_authority(mode_name)
-        job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
-        try:
-            return self.submit_job(job)
-        except Exception:
-            self._drop_reservation(reservation, dead=True)
-            raise
+        """Reserve the target's authority and enqueue its switch as ONE critical
+        section (spec §3.4).
+
+        Holding _job_lock across the bounded q.put cannot deadlock: the dispatch loop
+        never holds _job_lock while blocked on q.get. Splitting the two would let a
+        concurrent admitter interleave, inverting queue order against
+        _pending_authorities — the queue would then load a different mode last than
+        terminal authority claims.
+
+        Bypasses submit_job deliberately — submit_job cannot hold the lock across its
+        put, and a ModeSwitchJob needs no backplane channel (that is GenerationJob-only).
+        """
+        mode, resolved, binding = self._resolve_target(mode_name)  # disk I/O, no lock
+        worker_ok = self._worker_available()  # handle call — NOT under _job_lock
+        with self._job_lock:
+            if not force:
+                # Re-check under the lock: another thread may have reserved or
+                # published this target while we were resolving. Without it, a
+                # reservation could be minted for a mode the dispatch fast-path will
+                # short-circuit — never published, and doom for anything bound to it.
+                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+                if shortcircuit is not None:
+                    fut: Future = Future()
+                    fut.set_result(shortcircuit)
+                    return fut
+
+            self._resolution_epoch += 1
+            reservation = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
+            self._pending_authorities.append(reservation)
+            self._last_activity = time.monotonic()
+
+            job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
+            try:
+                if self.queue_timeout_s > 0:
+                    self.q.put(job, timeout=self.queue_timeout_s)
+                else:
+                    self.q.put_nowait(job)
+            except queue.Full:
+                self._pending_authorities = [
+                    r for r in self._pending_authorities if r is not reservation
+                ]
+                self._dead_epochs.add(reservation.resolution_epoch)
+                raise
+            logger.debug(
+                f"[Governor] Mode switch queued: {mode_name} "
+                f"(epoch={reservation.resolution_epoch})"
+            )
+            return job.fut
+
+    def admit_generation(self, target_mode: Optional[str]) -> Optional[ActiveModelSnapshot]:
+        """The authority a generate admitted NOW will execute against (spec §3.4).
+
+        target_mode is None            -> the active snapshot (today's behavior). A
+                                          generate naming no mode means 'the current
+                                          mode'; binding it to a pending switch would
+                                          silently run it on the wrong model.
+        target_mode == terminal's mode -> the terminal authority (active OR a switch
+                                          to it already queued).
+        anything else                  -> reserve + enqueue the switch; return the
+                                          reservation.
+
+        Side-effecting by design: reserve-and-enqueue must be atomic, and a split
+        accessor-plus-switch API reintroduces the interleave window this closes.
+        """
+        if target_mode is None:
+            return self.get_active_model_snapshot()
+        with self._job_lock:
+            terminal = self._terminal_authority()
+            if terminal is not None and terminal.mode_name == target_mode:
+                return terminal
+        self._reserve_and_enqueue_switch(target_mode)
+        with self._job_lock:
+            return self._terminal_authority()
 
     def reload_current_mode(self) -> dict:
         if self._current_mode is None:

@@ -84,6 +84,7 @@ def test_worker_handle_does_not_import_governor_at_runtime():
 # Proves the Governor owns queue + authority + dispatch + lifecycle, and that
 # a second WorkerHandle impl requires no Governor change (acceptance #4).
 # ---------------------------------------------------------------------------
+import queue
 import threading
 import time
 from unittest.mock import Mock, MagicMock, patch
@@ -583,11 +584,6 @@ def test_runtime_status_no_worker_reads_zero_not_hang():
 # Spec: docs/superpowers/specs/2026-07-30-governor-authority-reservation-design.md
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="STABL-ltefhpkk: generate stamped against pre-switch authority. "
-           "Marker removed in Task 4 when admit_generation lands.",
-)
 def test_generate_behind_queued_switch_is_not_stale():
     """A generate targeting mode B, admitted while a switch to B is queued ahead of
     it, must execute — not raise StaleResolutionError."""
@@ -622,6 +618,22 @@ def _reservation_governor(*names, default=None):
         registry=_make_mock_registry(),
     )
     return gov
+
+
+def _freeze_dispatch(gov):
+    """Stop the dispatch loop and WAIT for it to actually exit.
+
+    gov._stop.set() alone is not sufficient: the loop is typically blocked in
+    q.get(timeout=1.0) and will dequeue and run one more job before it re-checks the
+    flag. Any test that fills the queue or asserts on its contents must know nothing
+    is still draining it — otherwise a bounded-queue test sees a freed slot and a
+    queue-contents assertion sees an item disappear.
+    """
+    gov._stop.set()
+    thread = getattr(gov, "_worker_thread", None)
+    if thread is not None and thread.is_alive():
+        thread.join(timeout=5.0)
+        assert not thread.is_alive(), "dispatch loop did not stop"
 
 
 def _drain_queue(gov):
@@ -714,7 +726,7 @@ def test_switch_mode_to_pending_mode_reports_already_queued():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()  # freeze dispatch so the reservation stays pending
+            _freeze_dispatch(gov)  # freeze dispatch so the reservation stays pending
             gov._reserve_authority("mode-b")
             before = gov._resolution_epoch
             result = gov.switch_mode("mode-b").result(timeout=2.0)
@@ -732,7 +744,7 @@ def test_switch_mode_to_active_but_evicted_mode_still_reloads():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             gov._handle.unload()  # simulate idle eviction: state -> "dead"
             assert not gov._worker_available()
             before = gov._resolution_epoch
@@ -748,7 +760,7 @@ def test_switch_mode_force_always_reserves():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             before = gov._resolution_epoch
             gov.switch_mode("mode-a", force=True)
             assert gov._resolution_epoch == before + 1
@@ -772,7 +784,7 @@ def test_load_mode_publishes_the_reserved_epoch():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()  # freeze dispatch; drive _load_mode directly
+            _freeze_dispatch(gov)  # freeze dispatch; drive _load_mode directly
             reservation = gov._reserve_authority("mode-b")
             gov._load_mode("mode-b", reservation=reservation)
             snapshot = gov.get_active_model_snapshot()
@@ -792,7 +804,7 @@ def test_load_mode_with_reservation_does_not_re_resolve():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path) as spy:
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             reservation = gov._reserve_authority("mode-b")
             calls_after_reserve = spy.call_count
             gov._load_mode("mode-b", reservation=reservation)
@@ -807,7 +819,7 @@ def test_load_mode_without_reservation_reserves_inline():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             before = gov._resolution_epoch
             gov._load_mode("mode-b")
             assert gov.get_active_model_snapshot().resolution_epoch == before + 1
@@ -824,7 +836,7 @@ def test_demand_reload_does_not_change_the_epoch():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             epoch_before = gov.get_active_model_snapshot().resolution_epoch
             gov._unload_current_worker()          # simulate idle eviction
             gov._reload_from_snapshot()
@@ -840,7 +852,7 @@ def test_mode_switch_job_carries_its_reservation():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             gov.switch_mode("mode-b")
             queued = list(gov.q.queue)
             switches = [j for j in queued if isinstance(j, ModeSwitchJob)]
@@ -934,11 +946,120 @@ def test_dead_epochs_pruned_on_publish():
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
-            gov._stop.set()
+            _freeze_dispatch(gov)
             gov._dead_epochs.add(1)
             reservation = gov._reserve_authority("mode-b")
             gov._load_mode("mode-b", reservation=reservation)
             assert 1 not in gov._dead_epochs
         finally:
             _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_with_no_target_returns_active_snapshot():
+    """Spec §3.4: a generate naming no mode means 'the current mode'. It must NOT bind
+    to a pending switch — that is the wrong-model hazard."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            active = gov.get_active_model_snapshot()
+            gov._reserve_authority("mode-b")  # a switch is pending
+            assert gov.admit_generation(None) is active
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_binds_to_the_pending_switch():
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            reservation = gov._reserve_authority("mode-b")
+            assert gov.admit_generation("mode-b") is reservation
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_binds_to_the_active_mode():
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            active = gov.get_active_model_snapshot()
+            assert gov.admit_generation("mode-a") is active
+            assert gov._pending_authorities == []
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_creates_the_switch_for_an_untargeted_mode():
+    """The Governor owns the switch: naming a mode that is neither active nor pending
+    reserves it AND enqueues the ModeSwitchJob."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            authority = gov.admit_generation("mode-b")
+            assert authority.mode_name == "mode-b"
+            assert authority.resolved.profile.family_id == "family-of-mode-b"
+            switches = [j for j in list(gov.q.queue) if isinstance(j, ModeSwitchJob)]
+            assert len(switches) == 1
+            assert switches[0].reservation is authority
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_is_idempotent_for_the_same_target():
+    """Two generates targeting the same not-yet-active mode share ONE switch."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            first = gov.admit_generation("mode-b")
+            second = gov.admit_generation("mode-b")
+            assert first is second
+            switches = [j for j in list(gov.q.queue) if isinstance(j, ModeSwitchJob)]
+            assert len(switches) == 1
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_admit_generation_rolls_back_the_reservation_on_queue_full():
+    """Matrix case 11: a dangling reservation would poison terminal authority for every
+    later admission."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            while True:                      # fill the bounded queue
+                try:
+                    gov.q.put_nowait(CustomJob(handler=lambda: None))
+                except queue.Full:
+                    break
+            with pytest.raises(queue.Full):
+                gov.admit_generation("mode-b")
+            assert gov._pending_authorities == []
+            assert gov.get_pending_mode() is None
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_untargeted_generate_superseded_by_a_switch_is_still_rejected():
+    """Matrix case 4: mode=None binds to the active snapshot, so a later switch still
+    supersedes it. The barrier must reject."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            authority = gov.admit_generation(None)
+            gov.switch_mode("mode-b").result(timeout=5.0)
+            exc = _submit_and_capture(gov, authority.resolution_epoch)
+            assert isinstance(exc, StaleResolutionError), f"got {exc!r}"
+        finally:
             gov.shutdown()
