@@ -88,11 +88,23 @@ concern** (authority placement, `STABL-vdkdruox`), not a standalone track:
 | Issue | Window | Failure |
 |---|---|---|
 | `STABL-ltefhpkk` | old snapshot still live (old epoch) | `StaleResolutionError` at execution; retry works |
-| `STABL-iuiwzthc` | new model still loading (`_active_snapshot` transiently `None`, `worker_pool.py:305-385`) | spurious "ControlNet provider not yet implemented"; retry works |
+| `STABL-iuiwzthc` | new model still loading (`_active_snapshot` transiently `None`) | spurious "ControlNet provider not yet implemented"; retry works |
 
 Fix both by resolving/admitting/stamping the generate against the mode it
 **targets**, established atomically with the switch — implemented once in the Governor
 where epoch/snapshot authority lives, not spread across the boundary.
+
+**Still open after the Governor + DeviceMemory work — reproduced live (2026-07-30).**
+The race **survived the Governor extraction**: recorded repro was epochs 1≠2 via old
+`WorkerPool`; the fresh live repro is 5≠6 via the merged Governor (logged on
+`STABL-ltefhpkk`). Trigger = inline `st generate --mode <X>` (switch + generate
+queued back-to-back: `[ModeSwitchJob(→N+1), GenerationJob(stamped N)]`); explicit
+switch-then-gen does **not** race. Anchors on `main`: stamp at submission
+`server/ws_routes.py:238-246` (WS) + `:623-626` (HTTP); epoch bump
+`backends/governor.py:379`; barrier `governor.py:635-636`. The barrier is
+load-bearing (it rejects a generate meant for a switched-away mode) — a naive
+lazy-stamp would silently run stale generates on the wrong model. A ready-to-run
+handoff prompt for the brainstorm→spec→plan→TDD fix exists (both issues, one root).
 
 Open, unowned (pre-existing):
 
@@ -103,6 +115,51 @@ Open, unowned (pre-existing):
 ---
 
 ## Recently landed
+
+### DeviceMemory — backend-neutral device-memory accounting — merged (PR #24)
+
+**FP:** STABL-hjldxurg (done) | **Merge:** `445eae3` (PR #24, `feat/device-memory` → `main`)
+**Spec:** `docs/superpowers/specs/2026-07-28-device-memory-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-28-device-memory.md`
+
+The single source of truth for VRAM. Torch-free, backend-neutral: driver truth
+(NVML-by-UUID, no CUDA-context burn) ⊕ per-consumer torch pools via a consumer
+registry. Replaces the three ad-hoc `torch.cuda.mem_get_info()`/`empty_cache()`
+readers (ModelRegistry, WorkerHandle, Governor). New `backends/device_memory.py`;
+`model_registry.py` is now a pure DeviceMemory view, `worker_handle.py` injects it
+and owns a crash-safe `Registration`, `governor.py` measures load + builds status
+through it and `reclaim()` replaces inline `empty_cache`. 10 TDD tasks + follow-ons.
+
+Design decisions worth carrying:
+
+- **Provider by topology:** `CudaDeviceMemory` (NVML/DISCRETE), `UnifiedDeviceMemory`
+  (psutil/UNIFIED), `NullDeviceMemory` (UNKNOWN — degrade, never borrow). Singleton
+  selection; unusable-NVML (wheel present, no driver — mac dev) falls through to
+  psutil→Unified, Null only when psutil is also absent.
+- **`cached_snapshot()` (no fan-out) vs `snapshot()` (fresh, bounded fan-out).** The
+  registry view is pure `cached_snapshot` — it NEVER fans out, so a wedged worker
+  cannot hang `/status`. Load-time measurement is the one fresh-snapshot exception.
+- **`stale`** is snapshot-authoritative: consumer pool reads never self-declare
+  staleness; only a fan-out timeout substitutes last-known with `stale=True`.
+  Surfaced at `/api/models/status` via the registry cached view (not the Governor's
+  bytes-shape builder — full Governor-status HTTP wiring stays deferred).
+- **Behavioral no-op** on `/status`: swapping `mem_get_info`→NVML is invisible
+  (both driver truth).
+
+Live T10 acceptance on enigma (RTX 3090): branch self-identifying via
+`backend_version` (GIT_SHA capture); NVML-vs-`nvidia-smi` free delta **median
+−0.88 MiB, dead constant** at steady state; **zero ratchet** across HunyuanDiT↔SDXL
+free cycles (every free returns to the same ~0.8 GB CUDA-context floor). Suite 1052 passed.
+
+Carried follow-ons in the same PR: `nvidia-ml-py==13.610.43` pin; dev container
+now applies `LOGGING_CONFIG` via `--log-config` (the dev CMD imports the app, so
+app INFO — every `[ModelRegistry]` line — was silently dropped to WARNING; feeds
+`STABL-oxbwjwvu` observability); "dispatch thread already running" demoted to debug.
+
+Deferred (tracked, NOT done): route `/status` through the Governor bytes-shape
+builder; mode-switch epoch race (`STABL-ltefhpkk`/`STABL-iuiwzthc`, see above);
+facet-3 `SubprocessWorkerHandle` wiring (`STABL-ptoicrho`); runtime `LOG_LEVEL`
+into the build-time-generated dev log-config.
 
 ### Worker Governor — control plane — merged (PR #20)
 
