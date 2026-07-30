@@ -725,11 +725,33 @@ class Governor:
                         except Exception as load_err:
                             raise RuntimeError(f"Demand reload failed: {load_err}") from load_err
 
-                    # Stale-epoch barrier
+                    # Stale-epoch barrier. The dead-epoch / no-authority guard runs
+                    # FIRST: a job whose target mode failed to load has no authority to
+                    # run against, and the old `snapshot is not None` conjunct let it
+                    # fall through the barrier entirely — reaching the paths below with
+                    # no epoch check at all.
                     if generation_job is not None:
                         with self._job_lock:
                             snapshot = self._active_snapshot
-                        if snapshot is not None and snapshot.resolution_epoch != generation_job.resolution_epoch:
+                            dead = generation_job.resolution_epoch in self._dead_epochs
+                        if dead:
+                            raise ModeLoadFailedError(
+                                f"job {generation_job.job_id} was admitted against epoch "
+                                f"{generation_job.resolution_epoch}, whose mode load did "
+                                f"not complete"
+                            )
+                        if snapshot is None:
+                            # No authority at all: explicit unload, or nothing ever
+                            # loaded. Keeps the established operator-facing wording —
+                            # the condition is unchanged, only the point of rejection
+                            # moved here from the handle, and every real path that
+                            # clears the snapshot also drops the worker.
+                            raise ModeLoadFailedError(
+                                f"No worker available for generation: job "
+                                f"{generation_job.job_id} has no active model authority "
+                                f"(admitted against epoch {generation_job.resolution_epoch})"
+                            )
+                        if snapshot.resolution_epoch != generation_job.resolution_epoch:
                             raise StaleResolutionError(
                                 f"job {generation_job.job_id} stamped epoch "
                                 f"{generation_job.resolution_epoch} != active epoch "

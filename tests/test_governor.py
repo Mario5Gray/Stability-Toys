@@ -849,3 +849,96 @@ def test_mode_switch_job_carries_its_reservation():
         finally:
             _drain_queue(gov)
             gov.shutdown()
+
+
+def _submit_and_capture(gov, epoch):
+    """Submit a generate stamped at `epoch` and return the exception it terminates
+    with (or None if it completed)."""
+    job = GenerationJob(req=Mock(), resolution_epoch=epoch)
+    fut = gov.submit_job(job)
+    try:
+        fut.result(timeout=5.0)
+    except Exception as exc:
+        return exc
+    return None
+
+
+def test_generate_stamped_at_dead_epoch_raises_mode_load_failed():
+    """Matrix case 7: the target's load failed; the queued generate must say so, not
+    fall through to the subprocess branch."""
+    from backends.governor import ModeLoadFailedError
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._handle.start = Mock(side_effect=RuntimeError("checkpoint is corrupt"))
+            reservation = gov._reserve_authority("mode-b")
+            with pytest.raises(RuntimeError, match="checkpoint is corrupt"):
+                gov._load_mode("mode-b", reservation=reservation)
+            assert reservation.resolution_epoch in gov._dead_epochs
+
+            exc = _submit_and_capture(gov, reservation.resolution_epoch)
+            assert isinstance(exc, ModeLoadFailedError), f"got {exc!r}"
+        finally:
+            gov.shutdown()
+
+
+def test_generate_with_no_active_snapshot_raises_mode_load_failed():
+    """Matrix case 8: no authority at all means the job cannot run.
+
+    Before this guard the barrier was SKIPPED (it was conjoined with
+    `snapshot is not None`) and the job fell through to the paths below with no epoch
+    check whatsoever. With a handle whose submit() succeeds it would RUN — this test
+    originally failed with TypeError from the subprocess bridge choking on the stub's
+    str result, not with any 'no model' error. That is a correctness hole, not just a
+    confusing message.
+
+    The rejection keeps the established operator-facing 'No worker available for
+    generation' wording (asserted in 5 places across test_model_lifecycle.py and
+    test_worker_pool.py): the CONDITION is unchanged, only the point of rejection moved
+    from the handle to the barrier. What changes is that it is now a typed
+    ModeLoadFailedError raised before any execution path is reachable.
+    """
+    from backends.governor import ModeLoadFailedError
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", default="mode-a")
+        try:
+            with gov._job_lock:
+                gov._active_snapshot = None
+            exc = _submit_and_capture(gov, 1)
+            assert isinstance(exc, ModeLoadFailedError), f"got {exc!r}"
+            assert "no active model authority" in str(exc)
+            # The stub handle's submit() would have returned "stub_result"; proof the
+            # job never reached an execution path.
+            assert gov._handle.submit_calls == []
+        finally:
+            gov.shutdown()
+
+
+def test_barrier_still_rejects_a_genuinely_superseded_generate():
+    """Matrix case 3: the barrier keeps its teeth. A generate admitted for one epoch,
+    superseded by an unrelated switch, must still raise StaleResolutionError."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            stale_epoch = gov.get_active_model_snapshot().resolution_epoch
+            gov.switch_mode("mode-b").result(timeout=5.0)
+            exc = _submit_and_capture(gov, stale_epoch)
+            assert isinstance(exc, StaleResolutionError), f"got {exc!r}"
+        finally:
+            gov.shutdown()
+
+
+def test_dead_epochs_pruned_on_publish():
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._stop.set()
+            gov._dead_epochs.add(1)
+            reservation = gov._reserve_authority("mode-b")
+            gov._load_mode("mode-b", reservation=reservation)
+            assert 1 not in gov._dead_epochs
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
