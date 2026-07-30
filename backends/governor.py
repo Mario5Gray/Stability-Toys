@@ -738,7 +738,7 @@ class Governor:
 
     def _start_dispatch_thread(self):
         if hasattr(self, '_worker_thread') and self._worker_thread and self._worker_thread.is_alive():
-            logger.warning("[Governor] Dispatch thread already running")
+            logger.debug("[Governor] Dispatch thread already running")
             return
         self._worker_thread = threading.Thread(
             target=self._dispatch_loop, daemon=True, name="WorkerThread",
