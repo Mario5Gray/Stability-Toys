@@ -810,18 +810,35 @@ class TestWorkerLifecycle:
         mock_registry,
         mock_worker_factory,
     ):
-        """Model registration should use allocator growth even when reserved bytes stay flat."""
+        """Model registration should use allocator growth even when reserved bytes stay flat.
+
+        T8 (DeviceMemory): the load-time measurement reads a FRESH snapshot()
+        before and after worker creation (the one fan-out exception); the
+        registered vram is the worker consumer entry's allocated_bytes growth.
+        """
         from backends.worker_pool import reset_worker_pool
+        from backends.device_memory import (
+            ConsumerMemory, DeviceMemorySnapshot, MemoryTopology,
+        )
 
         reset_worker_pool()
-        mock_registry.get_used_vram.side_effect = [5 * 1024**3, 5 * 1024**3]
-        mock_registry.get_allocated_vram.side_effect = [1 * 1024**3, 3 * 1024**3]
+
+        def _snap(allocated: int) -> DeviceMemorySnapshot:
+            worker = ConsumerMemory(label="worker", pid=1, allocated_bytes=allocated,
+                                    reserved_bytes=5 * 1024**3, stale=False)
+            return DeviceMemorySnapshot(device_uuid="GPU-t", topology=MemoryTopology.DISCRETE,
+                                        total_bytes=24 * 1024**3, free_bytes=10 * 1024**3,
+                                        consumers=(worker,))
+
+        dm = Mock()
+        dm.snapshot.side_effect = [_snap(1 * 1024**3), _snap(3 * 1024**3)]
 
         pool = WorkerPool(
             queue_max=10,
             worker_factory=mock_worker_factory,
             mode_config=mock_mode_config,
             registry=mock_registry,
+            device_memory=dm,
         )
 
         call_args = mock_registry.register_model.call_args

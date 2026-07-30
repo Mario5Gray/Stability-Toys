@@ -64,6 +64,7 @@ class WorkerPool:
         worker_factory: Optional[WorkerFactory] = None,
         mode_config: Optional[ModeConfigManager] = None,
         registry: Optional[ModelRegistryProtocol] = None,
+        device_memory=None,
     ):
         from backends.governor import Governor
         self._governor = Governor(
@@ -72,6 +73,7 @@ class WorkerPool:
             worker_factory=worker_factory,
             mode_config=mode_config,
             registry=registry,
+            device_memory=device_memory,
         )
 
     # --- Delegating public methods ---
@@ -199,6 +201,7 @@ def get_worker_pool(
     worker_factory: Optional[WorkerFactory] = None,
     mode_config: Optional[ModeConfigManager] = None,
     registry: Optional[ModelRegistryProtocol] = None,
+    device_memory=None,
 ) -> WorkerPool:
     """
     Get global worker pool instance.
@@ -211,6 +214,7 @@ def get_worker_pool(
         worker_factory: Optional factory for creating workers (for testing)
         mode_config: Optional mode configuration manager (for testing)
         registry: Optional model registry (for testing)
+        device_memory: Optional DeviceMemory authority (for testing)
 
     Returns:
         Global WorkerPool instance
@@ -240,6 +244,7 @@ def get_worker_pool(
             worker_factory=worker_factory,
             mode_config=mode_config,
             registry=registry,
+            device_memory=device_memory,
         )
     return _worker_pool
 

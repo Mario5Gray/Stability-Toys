@@ -1,62 +1,45 @@
 """
-Functional tests for ModelRegistry.
+Functional tests for ModelRegistry as a pure DeviceMemory view.
 
-Tests VRAM tracking, model registration, and capacity checking.
+The registry holds no torch and no pynvml: tests stub the DeviceMemory
+interface (the mrrrbmjp vaccine — no torch/pynvml call-site mocks).
+Registration/lifecycle/estimate tests don't touch VRAM sourcing.
 """
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-import sys
 
-# Mock torch just long enough to import model_registry,
-# then restore sys.modules immediately so other test files aren't poisoned.
-_MOCKED_MODULES = ['torch', 'torch.cuda']
-_saved_modules = {k: sys.modules.get(k) for k in _MOCKED_MODULES}
-
-torch_mock = MagicMock(name="torch")
-cuda_mock = MagicMock(name="torch.cuda")
-torch_mock.cuda = cuda_mock
-
-sys.modules['torch'] = torch_mock
-sys.modules['torch.cuda'] = cuda_mock
-
+from backends.device_memory import (
+    ConsumerMemory,
+    DeviceMemorySnapshot,
+    MemoryTopology,
+)
 from backends.model_registry import ModelRegistry
 
-# Restore immediately
-for _mod, _orig in _saved_modules.items():
-    if _orig is None:
-        sys.modules.pop(_mod, None)
-    else:
-        sys.modules[_mod] = _orig
+
+def _snap(consumers=(), total=24 * 1024**3, free=10 * 1024**3):
+    return DeviceMemorySnapshot(
+        device_uuid="GPU-test",
+        topology=MemoryTopology.DISCRETE,
+        total_bytes=total,
+        free_bytes=free,
+        consumers=consumers,
+    )
 
 
 @pytest.fixture
-def mock_cuda():
-    """Mock CUDA functions for testing."""    
-    # Patch only real torch.cuda APIs. `get_available_vram` is a ModelRegistry
-    # method, not a torch function, and it derives from get_reserved_vram() ->
-    # torch.cuda.memory_reserved, which is patched below; `device_memory_used`
-    # does not exist on torch.cuda either. Patching phantom attributes worked
-    # only while a MagicMock stub happened to be installed, and raised
-    # AttributeError against real torch — which is what broke this file in any
-    # run where another module imported backends.model_registry first.
-    with patch('backends.model_registry.torch.cuda.is_available', return_value=True), \
-    patch('backends.model_registry.torch.cuda.get_device_properties') as mock_props, \
-    patch('backends.model_registry.torch.cuda.memory_allocated', return_value=0), \
-    patch('backends.model_registry.torch.cuda.memory_reserved', return_value=100 * 1024**2):
-        
-        # Mock GPU with 24GB VRAM
-        mock_device_props = Mock()
-        mock_device_props.total_memory = 24 * 1024**3  # 24GB in bytes
-        mock_device_props.name = "NVIDIA GeForce RTX 3090"
-        mock_props.return_value = mock_device_props
+def device_memory():
+    dm = Mock()
+    dm.device_name = "NVIDIA GeForce RTX 3090"
+    dm.cached_snapshot.return_value = _snap()
+    dm.available_for_load.return_value = 10 * 1024**3
+    return dm
 
-        yield
 
 @pytest.fixture
-def registry(mock_cuda):
-    """Create a fresh ModelRegistry for each test."""
-    return ModelRegistry()
+def registry(device_memory):
+    """Create a fresh ModelRegistry for each test, viewing the stub device."""
+    return ModelRegistry(device_memory=device_memory)
 
 
 class TestModelRegistryInit:
@@ -72,17 +55,43 @@ class TestModelRegistryInit:
         assert stats["device"] == "CPU placeholder"
         assert stats["models_loaded"] == 0
 
-    def test_init_with_cuda(self, mock_cuda):
-        """Test initialization with CUDA available."""
-        registry = ModelRegistry()
-
-        assert registry._device_index == 0
-        assert registry._total_vram == 24 * 1024**3
+    def test_init_loads_empty(self, registry):
+        """Initialization over the device view; no models loaded."""
         assert len(registry._loaded) == 0
 
-    def test_get_total_vram(self, registry):
-        """Test total VRAM retrieval."""
+
+class TestDeviceMemoryView:
+    """The registry is a pure view: cached_snapshot/available_for_load only."""
+
+    def test_total_from_cached_snapshot(self, registry, device_memory):
         assert registry.get_total_vram() == 24 * 1024**3
+        device_memory.cached_snapshot.assert_called()
+
+    def test_available_from_available_for_load(self, registry):
+        assert registry.get_available_vram() == 10 * 1024**3
+
+    def test_allocated_reserved_from_worker_consumer_entry(self, registry, device_memory):
+        worker = ConsumerMemory(label="worker", pid=1,
+                                allocated_bytes=3 * 1024**3,
+                                reserved_bytes=5 * 1024**3)
+        device_memory.cached_snapshot.return_value = _snap(consumers=(worker,))
+        assert registry.get_allocated_vram() == 3 * 1024**3
+        assert registry.get_reserved_vram() == 5 * 1024**3
+        assert registry.get_used_vram() == 5 * 1024**3  # reserved alias
+
+    def test_no_worker_consumer_reads_zero(self, registry):
+        assert registry.get_allocated_vram() == 0
+        assert registry.get_reserved_vram() == 0
+
+    def test_registry_never_calls_fresh_snapshot(self, registry, device_memory):
+        registry.get_total_vram()
+        registry.get_allocated_vram()
+        registry.get_reserved_vram()
+        device_memory.snapshot.assert_not_called()  # no fan-out from the view
+
+    def test_registry_has_no_torch(self):
+        import backends.model_registry as mr
+        assert not hasattr(mr, "torch"), "registry must not import torch"
 
 
 class TestModelRegistration:
@@ -158,119 +167,64 @@ class TestModelRegistration:
         assert len(registry._loaded) == 0
 
 
-class TestVRAMTracking:
-    """Test VRAM tracking and availability calculations."""
+class TestCanFit:
+    """can_fit reads driver-truth free via available_for_load (5% slack gate)."""
 
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    def test_get_used_vram_empty(self, mock_reserved, registry):
-        """Test VRAM usage with no models loaded."""
-        mock_reserved.return_value = 100 * 1024**2  # 100MB baseline
-
-        used = registry.get_used_vram()        
-        assert used == 100 * 1024**2
-
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    def test_get_used_vram_with_models(self, mock_reserved, registry):
-        """Test VRAM usage with models loaded."""
-        mock_reserved.return_value = 15 * 1024**3  # 15GB reserved
-
-        registry.register_model("test", "/path", 12 * 1024**3, loras=[])
-        used = registry.get_used_vram()
-        assert used == 15 * 1024**3
-
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_available_vram_reflects_driver_free_not_total_minus_reserved(
-        self, mock_mem_get_info, mock_reserved, registry
-    ):
-        """Available VRAM must be the driver's real free, not total - torch_reserved.
-
-        total - memory_reserved() ignores the CUDA context, library workspaces,
-        and every other process on the GPU. mem_get_info() is the driver truth.
-        """
-        # Driver: only 10 GB actually free (context + other procs hold the rest).
-        mock_mem_get_info.return_value = (10 * 1024**3, 24 * 1024**3)
-        # torch's own reserved pool is small; total - reserved would claim ~22 GB.
-        mock_reserved.return_value = 2 * 1024**3
-
-        available = registry.get_available_vram()
-
-        assert available == 10 * 1024**3
-
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_can_fit_rejects_when_driver_free_is_short(
-        self, mock_mem_get_info, mock_reserved, registry
-    ):
-        """can_fit must reject a model that exceeds the driver's real free VRAM.
-
-        Even when total - torch_reserved would wrongly say it fits.
-        """
-        mock_mem_get_info.return_value = (10 * 1024**3, 24 * 1024**3)  # 10 GB free
-        mock_reserved.return_value = 2 * 1024**3  # total - reserved would be ~22 GB
-
+    def test_can_fit_rejects_when_driver_free_is_short(self, registry, device_memory):
+        """Rejects even when total - torch_reserved would wrongly say it fits."""
+        device_memory.available_for_load.return_value = 10 * 1024**3
         assert registry.can_fit(12 * 1024**3) is False
 
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_can_fit_when_space_available(self, mock_mem_get_info, registry):
-        """Test can_fit returns True when space available."""
-        mock_mem_get_info.return_value = (14 * 1024**3, 24 * 1024**3)  # 14GB free
-
-        # Should fit: 14GB free > 12GB requested
+    def test_can_fit_when_space_available(self, registry, device_memory):
+        device_memory.available_for_load.return_value = 14 * 1024**3
         assert registry.can_fit(12 * 1024**3) is True
 
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_can_fit_when_no_space(self, mock_mem_get_info, registry):
-        """Test can_fit returns False when no space."""
-        mock_mem_get_info.return_value = (4 * 1024**3, 24 * 1024**3)  # 4GB free
-
-        # Should not fit: 4GB free < 12GB requested
+    def test_can_fit_when_no_space(self, registry, device_memory):
+        device_memory.available_for_load.return_value = 4 * 1024**3
         assert registry.can_fit(12 * 1024**3) is False
 
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_can_fit_exact_fit(self, mock_mem_get_info, registry):
-        """Test can_fit with exact available space."""
-        mock_mem_get_info.return_value = (4 * 1024**3, 24 * 1024**3)  # 4GB free
+    def test_can_fit_exact_fit_within_slack(self, registry, device_memory):
+        device_memory.available_for_load.return_value = 4 * 1024**3
+        assert registry.can_fit(4 * 1024**3) is True  # 4 < 4 + 5% slack
 
-        # Exact fit should work
-        assert registry.can_fit(4 * 1024**3) is True
+    def test_can_fit_false_when_no_device(self, registry, device_memory):
+        """Null-provider parity with the old no-CUDA guard: 0 free -> reject."""
+        device_memory.available_for_load.return_value = 0
+        assert registry.can_fit(4 * 1024**3) is False
 
 
 class TestVRAMStats:
-    """Test VRAM statistics output."""
+    """Test VRAM statistics output via the view."""
 
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_get_vram_stats_empty(self, mock_mem_get_info, mock_reserved, registry):
-        """Stats near-idle: used/available/usage_percent come from the driver.
-
-        used_gb is device-used (total - driver_free); available_gb is driver_free.
-        The torch-allocator fields (allocated_gb, reserved_gb) stay as torch numbers.
-        """
-        # No models registered, but the driver shows 1 GB device-used (CUDA context +
-        # library workspaces) while torch's own reserved pool is only 100 MB. The
-        # two must not be conflated: used_gb tracks the driver, reserved_gb tracks torch.
-        mock_mem_get_info.return_value = (23 * 1024**3, 24 * 1024**3)  # 23GB free -> 1GB device-used
-        mock_reserved.return_value = 100 * 1024**2  # 100MB torch reserved
+    def test_get_vram_stats_empty(self, registry, device_memory):
+        """used_gb is device-used (total - driver_free); reserved_gb is the
+        worker consumer's torch pool. The two must not be conflated."""
+        worker = ConsumerMemory(label="worker", pid=1,
+                                allocated_bytes=50 * 1024**2,
+                                reserved_bytes=100 * 1024**2)
+        device_memory.cached_snapshot.return_value = _snap(
+            consumers=(worker,), total=24 * 1024**3, free=23 * 1024**3)
+        device_memory.available_for_load.return_value = 23 * 1024**3
 
         stats = registry.get_vram_stats()
 
         assert stats["device"] == "NVIDIA GeForce RTX 3090"
         assert stats["total_gb"] == pytest.approx(24.0, rel=0.1)
         assert stats["available_gb"] == pytest.approx(23.0, rel=0.1)   # driver free
-        assert stats["used_gb"] == pytest.approx(1.0, rel=0.1)         # total - free (NOT reserved 0.1)
-        assert stats["usage_percent"] == pytest.approx(4.17, rel=0.1)  # used / total (NOT 0.42)
-        assert stats["reserved_gb"] == pytest.approx(0.1, rel=0.1)     # torch reserved, unchanged
+        assert stats["used_gb"] == pytest.approx(1.0, rel=0.1)         # total - free
+        assert stats["usage_percent"] == pytest.approx(4.17, rel=0.1)  # used / total
+        assert stats["reserved_gb"] == pytest.approx(0.1, rel=0.1)     # worker pool
         assert stats["models_loaded"] == 0
         assert stats["models"] == []
 
-    @patch('backends.model_registry.torch.cuda.memory_reserved')
-    @patch('backends.model_registry.torch.cuda.mem_get_info')
-    def test_get_vram_stats_with_models(self, mock_mem_get_info, mock_reserved, registry):
+    def test_get_vram_stats_with_models(self, registry, device_memory):
         """Stats with models: device-used reflects the driver, not torch reserved."""
-        # Driver shows 4GB free -> 20GB device-used, distinct from torch's 15GB reserved.
-        mock_mem_get_info.return_value = (4 * 1024**3, 24 * 1024**3)
-        mock_reserved.return_value = 15 * 1024**3  # 15GB torch reserved
+        worker = ConsumerMemory(label="worker", pid=1,
+                                allocated_bytes=14 * 1024**3,
+                                reserved_bytes=15 * 1024**3)
+        device_memory.cached_snapshot.return_value = _snap(
+            consumers=(worker,), total=24 * 1024**3, free=4 * 1024**3)
+        device_memory.available_for_load.return_value = 4 * 1024**3
 
         registry.register_model(
             name="sdxl-base",
@@ -289,9 +243,9 @@ class TestVRAMStats:
 
         assert stats["total_gb"] == pytest.approx(24.0, rel=0.1)
         assert stats["available_gb"] == pytest.approx(4.0, rel=0.1)   # driver free
-        assert stats["used_gb"] == pytest.approx(20.0, rel=0.1)       # total - free (NOT reserved 15)
-        assert stats["usage_percent"] == pytest.approx(83.3, rel=0.1)  # used / total (NOT 62.5)
-        assert stats["reserved_gb"] == pytest.approx(15.0, rel=0.1)   # torch reserved, unchanged
+        assert stats["used_gb"] == pytest.approx(20.0, rel=0.1)       # total - free
+        assert stats["usage_percent"] == pytest.approx(83.3, rel=0.1)
+        assert stats["reserved_gb"] == pytest.approx(15.0, rel=0.1)   # worker pool
         assert stats["models_loaded"] == 2
 
         # Check model details
@@ -305,6 +259,20 @@ class TestVRAMStats:
         sd15_stats = next(m for m in stats["models"] if m["name"] == "sd15-fast")
         assert sd15_stats["vram_gb"] == pytest.approx(3.0, rel=0.1)
         assert sd15_stats["loras"] == ["/loras/test.safetensors"]
+
+    def test_get_vram_stats_exposes_worker_stale(self, registry, device_memory):
+        """The `stale` signal — was the worker's last pool reading substituted
+        last-known after a fan-out timeout — must surface in /status. Sourced
+        from the worker consumer entry, no fan-out (respects the view contract)."""
+        worker = ConsumerMemory(label="worker", pid=1,
+                                allocated_bytes=1 * 1024**3,
+                                reserved_bytes=2 * 1024**3, stale=True)
+        device_memory.cached_snapshot.return_value = _snap(consumers=(worker,))
+        assert registry.get_vram_stats()["stale"] is True
+
+    def test_get_vram_stats_stale_false_without_worker(self, registry):
+        """No worker consumer in the snapshot -> stale defaults False, never absent."""
+        assert registry.get_vram_stats()["stale"] is False
 
 
 class TestHelperMethods:

@@ -104,7 +104,7 @@ RUN if [ "$BACKEND" != "cuda" ]; then \
     fi
 
 RUN if [ "$BACKEND" = "cuda" ]; then \
-      pip install --no-cache-dir nvidia-ml-py; \
+      pip install --no-cache-dir nvidia-ml-py==13.610.43; \
     fi
 
 RUN if [ "$BACKEND" = "cuda" ]; then \

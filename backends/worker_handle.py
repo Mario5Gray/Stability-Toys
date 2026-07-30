@@ -96,8 +96,13 @@ class InProcessWorkerHandle(WorkerHandle):
     Publisher immediately (async submit), matching the out-of-process shape.
     """
 
-    def __init__(self, worker_factory: Callable):
+    def __init__(self, worker_factory: Callable, device_memory=None):
         self._worker_factory = worker_factory
+        if device_memory is None:
+            from backends.device_memory import get_device_memory
+            device_memory = get_device_memory()
+        self._dm = device_memory
+        self._registration = None
         self._worker: Optional[PipelineWorker] = None
         self._worker_thread: Optional[threading.Thread] = None
         self._state = "starting"
@@ -124,6 +129,10 @@ class InProcessWorkerHandle(WorkerHandle):
             )
         self._worker = worker
         self._state = "ready"
+        # Register with DeviceMemory AFTER the worker is live so pool_stats() is
+        # immediately valid (spec §5, event 1). The parent is the sole closer.
+        from backends.device_memory import WorkerMemoryConsumer
+        self._registration = self._dm.register(WorkerMemoryConsumer(self._worker))
 
     def submit(self, job: Job) -> Publisher:
         """Execute a job. Opens a backplane channel, runs job.execute(worker) on
@@ -164,14 +173,12 @@ class InProcessWorkerHandle(WorkerHandle):
         return publisher
 
     def health(self) -> WorkerHealth:
-        if torch.cuda.is_available():
-            free_b, total_b = torch.cuda.mem_get_info()
-        else:
-            free_b, total_b = 0, 0
+        # VRAM is driver truth from DeviceMemory (spec §4.2) — no torch.cuda
+        # mem_get_info here (that burned a CUDA context; the leak this fixes).
         return WorkerHealth(
             state=self._state,
-            vram_free_bytes=int(free_b),
-            vram_total_bytes=int(total_b),
+            vram_free_bytes=int(self._dm.available_for_load()),
+            vram_total_bytes=int(self._dm.cached_snapshot().total_bytes),
             mode=None,  # mode is the Governor's authority; the handle doesn't track it
         )
 
@@ -179,6 +186,14 @@ class InProcessWorkerHandle(WorkerHandle):
         """Graceful teardown: clear the ControlNet cache, drop the worker
         reference, and flush the GPU allocator (WorkerPool._unload_current_worker
         + _free_worker, minus the registry-unregister which is Governor authority)."""
+        # Deregister BEFORE teardown so no snapshot fan-out samples a tearing-down
+        # consumer (spec §5, event 2). Parent-sole-closer; guarded against
+        # double-unload. This is teardown, not reclaim (the inline empty_cache
+        # below flushes this worker's own pool; spec §2.2).
+        if self._registration is not None:
+            self._registration.close()
+            self._registration = None
+
         from backends.controlnet_cache import get_controlnet_cache
 
         dropped = get_controlnet_cache().clear()

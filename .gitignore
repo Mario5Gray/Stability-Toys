@@ -69,3 +69,4 @@ opencode.json
 /cli/go/st
 /st
 .superpowers
+.opencode/opencode.json

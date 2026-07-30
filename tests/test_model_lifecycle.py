@@ -392,10 +392,31 @@ class TestRegistryIntegration:
         reg_call = mock_registry.register_model.call_args
         assert reg_call.kwargs['name'] == "mode-b"
 
-    def test_vram_tracked(self, pool, mock_registry):
-        """get_used_vram called during load."""
-        # Called twice per _load_mode (before and after worker creation)
-        assert mock_registry.get_used_vram.call_count >= 2
+    def test_vram_tracked(self, mock_mode_config, mock_registry, mock_worker_factory):
+        """Load-time VRAM measurement goes through DeviceMemory (T8): a FRESH
+        snapshot() before and after worker creation — the one fan-out exception.
+        (Was: registry.get_used_vram called twice per _load_mode.)"""
+        from backends.device_memory import DeviceMemorySnapshot, MemoryTopology
+
+        dm = Mock()
+        dm.snapshot.side_effect = lambda: DeviceMemorySnapshot(
+            device_uuid="GPU-t", topology=MemoryTopology.DISCRETE,
+            total_bytes=8 * 1024**3, free_bytes=8 * 1024**3, consumers=(),
+        )
+        reset_worker_pool()
+        p = WorkerPool(
+            queue_max=10,
+            worker_factory=mock_worker_factory,
+            mode_config=mock_mode_config,
+            registry=mock_registry,
+            device_memory=dm,
+        )
+        try:
+            # One snapshot before + one after worker creation per _load_mode.
+            assert dm.snapshot.call_count >= 2
+        finally:
+            p.shutdown()
+            reset_worker_pool()
 
 
 class TestEdgeCases:

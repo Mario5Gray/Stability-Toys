@@ -160,3 +160,58 @@ def test_health_reports_driver_truth_vram_fields():
     assert not hasattr(h, "vram_bytes")
     assert isinstance(h.vram_free_bytes, int)
     assert isinstance(h.vram_total_bytes, int)
+
+
+# --- Task 7: InProcessWorkerHandle injects DeviceMemory + owns Registration ---
+from backends.device_memory import DeviceMemorySnapshot, MemoryTopology
+
+
+def _stub_dm():
+    dm = Mock()
+    dm.available_for_load.return_value = 20 * 1024**3
+    dm.cached_snapshot.return_value = DeviceMemorySnapshot(
+        device_uuid="GPU-test", topology=MemoryTopology.DISCRETE,
+        total_bytes=24 * 1024**3, free_bytes=20 * 1024**3, consumers=(),
+    )
+    return dm
+
+
+def test_health_reads_device_memory_not_torch():
+    dm = _stub_dm()
+    h = InProcessWorkerHandle(lambda **kw: object(), device_memory=dm)
+    health = h.health()
+    assert health.vram_free_bytes == 20 * 1024**3
+    assert health.vram_total_bytes == 24 * 1024**3
+
+
+def test_start_registers_consumer_unload_closes():
+    dm = _stub_dm()
+    registration = Mock()
+    dm.register.return_value = registration
+    h = InProcessWorkerHandle(lambda **kw: object(), device_memory=dm)
+
+    class _Mode:
+        conditioning = Mock(requires_configurable_worker=lambda: False)
+
+    h.start(resolved_mode=Mock(), binding=Mock(), mode=_Mode())
+    dm.register.assert_called_once()
+    consumer = dm.register.call_args.args[0]
+    assert consumer.label == "worker"
+
+    h.unload()
+    registration.close.assert_called_once()
+
+
+def test_double_unload_closes_once():
+    dm = _stub_dm()
+    registration = Mock()
+    dm.register.return_value = registration
+    h = InProcessWorkerHandle(lambda **kw: object(), device_memory=dm)
+
+    class _Mode:
+        conditioning = Mock(requires_configurable_worker=lambda: False)
+
+    h.start(resolved_mode=Mock(), binding=Mock(), mode=_Mode())
+    h.unload()
+    h.unload()
+    registration.close.assert_called_once()  # handle guards re-close
