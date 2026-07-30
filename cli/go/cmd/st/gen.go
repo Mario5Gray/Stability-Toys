@@ -386,6 +386,17 @@ func localRecipePath(a genArgs) (path string, required bool) {
 // buildGenParams layers config < baked PNG < flags into the WS params. It sets
 // init_image_ref only for the fileref: case; local-file upload happens in the
 // command runner. --recreate contributes baked params but never an image ref.
+// preSubmitModeSideEffects is the pre-submit mode hook, deliberately empty.
+//
+// It used to call CurrentMode + SwitchMode before the generate. The Governor now
+// owns switch-and-admit as one atomic operation, so a client-side pre-switch only
+// re-creates the race it was meant to serve. The function is kept as a named seam
+// so "the CLI does not pre-switch" is a testable invariant rather than something
+// proven by the absence of code (see TestGenDoesNotPreSwitchMode).
+func preSubmitModeSideEffects(ctx context.Context, client *stclient.Client, params stclient.GenParams) error {
+	return nil
+}
+
 func buildGenParams(cfg *config.Config, a genArgs) (stclient.GenParams, error) {
 	return buildGenParamsWithBaseline(cfg, a, nil, inferChangedInputs(a))
 }
@@ -667,13 +678,14 @@ func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, param
 		params["init_image_ref"] = ref
 	}
 
-	// Switch model mode only when the resolved mode differs from the live one.
-	if m, ok := params["mode"].(string); ok && m != "" {
-		if cur, err := client.CurrentMode(ctx); err == nil && cur != m {
-			if err := client.SwitchMode(ctx, m); err != nil {
-				return err
-			}
-		}
+	// Mode switching is server-side (STABL-ltefhpkk). params["mode"] ships in the WS
+	// submit frame and the Governor admits the generate against the mode it targets,
+	// establishing the switch atomically with the admission. The CLI must not
+	// pre-switch: that POST /api/modes/switch returned as soon as the job was QUEUED,
+	// so the generate that followed was admitted against the pre-switch authority and
+	// rejected by the stale-epoch barrier.
+	if err := preSubmitModeSideEffects(ctx, client, params); err != nil {
+		return err
 	}
 
 	if genStream && flagJSON {

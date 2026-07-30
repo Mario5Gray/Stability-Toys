@@ -626,6 +626,11 @@ class Governor:
             "status": status,
             "is_loaded": self.is_model_loaded(),
             "current_mode": self._current_mode,
+            # The mode a queued switch is heading to. Distinguishes "nothing loaded"
+            # from "loading X" during the window _load_mode leaves between
+            # unregistering the outgoing mode and registering the new one — which was
+            # silent, and read as a spontaneous unload.
+            "pending_mode": self.get_pending_mode(),
             "queue_size": self.get_queue_size(),
             "vram": {
                 "allocated_bytes": worker.allocated_bytes if worker else 0,

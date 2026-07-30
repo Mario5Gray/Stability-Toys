@@ -131,6 +131,11 @@ async def get_models_status(request: Request):
         "backend": provider.backend_id,
         "backend_version": backend_version,
         "current_mode": current_mode,
+        # Non-mode-system runtimes have no reservations; report None rather than 404
+        # the attribute.
+        "pending_mode": (
+            runtime.get_pending_mode() if hasattr(runtime, "get_pending_mode") else None
+        ),
         "is_loaded": runtime.is_model_loaded(),
         "queue_size": runtime.get_queue_size(),
         "capabilities": {

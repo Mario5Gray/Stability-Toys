@@ -1063,3 +1063,44 @@ def test_untargeted_generate_superseded_by_a_switch_is_still_rejected():
             assert isinstance(exc, StaleResolutionError), f"got {exc!r}"
         finally:
             gov.shutdown()
+
+
+def test_runtime_status_reports_the_pending_mode_during_a_switch():
+    """Matrix case 9: while a switch is queued, status must say WHICH mode is coming
+    instead of reporting nothing loaded. _load_mode unregisters the outgoing mode
+    (governor.py:338) and re-registers only after the load (:370) — tens of seconds
+    for HunyuanDiT — and that window emitted no log line at all."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            gov.admit_generation("mode-b")
+            status = gov._build_runtime_status()
+            assert status["pending_mode"] == "mode-b"
+            assert status["current_mode"] == "mode-a"
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_runtime_status_pending_mode_is_none_when_settled():
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", default="mode-a")
+        try:
+            assert gov._build_runtime_status()["pending_mode"] is None
+        finally:
+            gov.shutdown()
+
+
+def test_reserving_refreshes_last_activity():
+    """The idle watchdog must not evict a mode that was just requested."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            _freeze_dispatch(gov)
+            gov._last_activity = time.monotonic() - 10_000
+            gov.admit_generation("mode-b")
+            assert time.monotonic() - gov._last_activity < 5.0
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
