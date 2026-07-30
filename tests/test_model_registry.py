@@ -260,6 +260,20 @@ class TestVRAMStats:
         assert sd15_stats["vram_gb"] == pytest.approx(3.0, rel=0.1)
         assert sd15_stats["loras"] == ["/loras/test.safetensors"]
 
+    def test_get_vram_stats_exposes_worker_stale(self, registry, device_memory):
+        """The `stale` signal — was the worker's last pool reading substituted
+        last-known after a fan-out timeout — must surface in /status. Sourced
+        from the worker consumer entry, no fan-out (respects the view contract)."""
+        worker = ConsumerMemory(label="worker", pid=1,
+                                allocated_bytes=1 * 1024**3,
+                                reserved_bytes=2 * 1024**3, stale=True)
+        device_memory.cached_snapshot.return_value = _snap(consumers=(worker,))
+        assert registry.get_vram_stats()["stale"] is True
+
+    def test_get_vram_stats_stale_false_without_worker(self, registry):
+        """No worker consumer in the snapshot -> stale defaults False, never absent."""
+        assert registry.get_vram_stats()["stale"] is False
+
 
 class TestHelperMethods:
     """Test helper methods."""

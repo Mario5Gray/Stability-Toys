@@ -321,6 +321,13 @@ class ModelRegistry:
         # torch-specific numbers.
         used = max(0, total - available)
 
+        # `stale` = was the worker's last pool reading substituted last-known after
+        # a snapshot fan-out timeout (a wedged worker). Read from the worker entry
+        # (cached — no fan-out from this view), so /status surfaces the signal
+        # WITHOUT itself risking a hang on the wedged worker it is reporting on.
+        worker_entry = self._worker_entry()
+        stale = worker_entry.stale if worker_entry else False
+
         # Get breakdown by loaded models
         models_breakdown = []
 
@@ -343,6 +350,7 @@ class ModelRegistry:
             "used_gb": to_gb(used),
             "available_gb": to_gb(available),
             "usage_percent": round((used / total * 100) if total > 0 else 0, 1),
+            "stale": stale,
             "models_loaded": len(self._loaded),
             "models": models_breakdown,
         }
