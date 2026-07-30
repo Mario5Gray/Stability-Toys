@@ -568,7 +568,10 @@ Add `DiffusersHunyuanDiTCudaWorker` with these responsibilities:
 - keep the native DDPMScheduler unless mode policy explicitly selects a tested
   compatible scheduler
 - load Hunyuan ControlNet through the family hook and existing cache
-- compose `HunyuanDiTControlNetPipeline.from_pipe()`
+- compose `HunyuanDiTControlNetPipeline.from_pipe(..., torch_dtype=None)`: diffusers
+  defaults `from_pipe` `torch_dtype` to `torch.float32`, so omitting it upcasts the
+  already-placed fp16 base pipe, ControlNet, and text encoders to fp32 and causes
+  deterministic OOM; `None` skips the recast
 - use `control_image` through `FamilyProfile.control_image_kwarg`
 - omit the SD/SDXL per-step guidance window: `HunyuanDiTControlNetPipeline.__call__`
   accepts `controlnet_conditioning_scale` but has no `control_guidance_start` or
@@ -610,7 +613,7 @@ The spike warnings have these production dispositions:
 | Safety checker absent | Preserve the repository's existing unfiltered-server posture; do not claim filtered output and do not hide the Diffusers warning. Public exposure policy remains an operator concern outside this family refactor. |
 | `learn_sigma` and `norm_type` ignored by the ControlNet class | Allow exactly these two known checkpoint extras for the validated Tencent Canny artifact; keep the warning visible and fail tests if new unexpected config incompatibilities or missing weights appear. |
 | `cross_attention_kwargs ['image_rotary_emb'] ... will be ignored` | Treat as a failure, never as noise. `HunyuanDiT2DModel` delivers rotary positional embeddings through `cross_attention_kwargs`, and a substituted processor drops them silently, so the run stays green while output degrades to noise. The worker prevents it by declining processor swaps; the CUDA acceptance additionally fails on any `will be ignored` warning captured from the `diffusers` logger during generation. |
-| dtype advisory after `from_pipe`/`.to()` | Load base and ControlNet with `torch_dtype`; place components before composition; do not recast the composed pipeline or call `.to(dtype=...)` after `from_pipe`. Device-only movement remains allowed where required. |
+| dtype advisory after `from_pipe`/`.to()` | Load base and ControlNet with `torch_dtype`; place components before composition; call `HunyuanDiTControlNetPipeline.from_pipe(..., torch_dtype=None)` so diffusers does not default to fp32 and recast the composed pipeline; do not call `.to(dtype=...)` after `from_pipe`. Device-only movement remains allowed where required. |
 
 The measured 21.37 GiB is a generation observation, not a dispatch field. The
 mode documentation states a tested 24 GiB GPU floor for the non-offloaded fp16
