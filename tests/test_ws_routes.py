@@ -927,7 +927,10 @@ class TestJobSubmit:
         app.state.use_mode_system = True
         pool = MagicMock()
         pool.get_current_mode.return_value = "SDXL"  # display-only status frame
+        # Admission moved to admit_generation (STABL-ltefhpkk); the failure it must
+        # survive is the same one.
         pool.get_active_model_snapshot.side_effect = RuntimeError("snapshot unavailable")
+        pool.admit_generation.side_effect = RuntimeError("snapshot unavailable")
         app.state.worker_pool = pool
         app.state.storage = None
 
@@ -1712,3 +1715,118 @@ class TestProgressDelta:
         asyncio.run(_run())
         assert len(broadcast_calls) == 1
         assert "delta" not in broadcast_calls[0]
+
+
+# ---------------------------------------------------------------------------
+# Authority reservation: target-mode admission (STABL-ltefhpkk / STABL-iuiwzthc).
+# ---------------------------------------------------------------------------
+
+class TestTargetModeAdmission:
+    """The target mode already arrives in the WS job:submit params and was dropped
+    at _build_generate_request. These cover reading it and admitting against it."""
+
+    def test_build_generate_request_passes_the_target_mode(self):
+        from server.ws_routes import _build_generate_request
+
+        req = _build_generate_request({"prompt": "hi", "mode": "mode-b"})
+        assert req.mode == "mode-b"
+
+    def test_build_generate_request_mode_defaults_to_none(self):
+        from server.ws_routes import _build_generate_request
+
+        assert _build_generate_request({"prompt": "hi"}).mode is None
+
+    def test_worker_pool_facade_delegates_admission(self):
+        from backends.worker_pool import WorkerPool
+
+        assert hasattr(WorkerPool, "admit_generation")
+        assert hasattr(WorkerPool, "get_pending_mode")
+
+    def test_controlnet_generate_mid_switch_admits_against_target_family(self):
+        """STABL-iuiwzthc acceptance, end to end through handle_job_submit.
+
+        The mode switch is in flight, so get_active_model_snapshot() returns None —
+        the window that used to drop the request into the 'no active snapshot' branch
+        and reject ControlNet as unimplemented. admit_generation returns the TARGET
+        authority instead, so the request is admitted against the target family and
+        stamped with the epoch that target's load will publish.
+        """
+        from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+        from tests.snapshot_test_helpers import make_active_snapshot
+
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "lcm-general"
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        policy = ControlNetPolicy(
+            enabled=True, max_attachments=1,
+            allowed_control_types={
+                "canny": ControlNetControlTypePolicy(
+                    default_model_id="sdxl-canny", allowed_model_ids=["sdxl-canny"],
+                    allow_preprocess=False, default_strength=1.0,
+                    min_strength=0.0, max_strength=2.0,
+                )
+            },
+        )
+        # Target defaults deliberately differ from the env defaults, so the size the
+        # job ends up with proves WHICH mode finalize_mode_generate_request read
+        # (matrix case 6 / spec §1.2 — binding to the live mode took defaults from
+        # the OUTGOING one).
+        target_mode = SimpleNamespace(
+            name="sdxl-general", default_size="1024x1024", default_steps=25,
+            default_guidance=7.5,
+            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}],
+            controlnet_policy=policy,
+        )
+        install_mode_backed(app.state, pool, target_mode, supports_controlnet=True)
+
+        # The switch is IN FLIGHT: live authority is None, but the target reservation
+        # exists and is what admission must bind to.
+        target_authority = make_active_snapshot(target_mode, family_id="sdxl", epoch=6)
+        pool.get_active_model_snapshot.return_value = None
+        pool.current_resolution_epoch.return_value = 5   # pre-switch epoch — must NOT be used
+        pool.admit_generation.return_value = target_authority
+
+        frames = []
+        try:
+            with patch("server.controlnet_preprocessing.preprocess_controlnet_attachments", return_value=[]):
+                with patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]):
+                    with client.websocket_connect("/v1/ws") as ws:
+                        ws.receive_json()  # consume status
+                        ws.send_json({
+                            "type": "job:submit",
+                            "id": "t-cn-midswitch",
+                            "jobType": "generate",
+                            "params": {
+                                "prompt": "a forest scene",
+                                "mode": "sdxl-general",
+                                "seed": 12345678,
+                                "controlnets": [
+                                    {"attachment_id": "cn_1", "control_type": "canny",
+                                     "map_asset_ref": "ref1", "model_id": "sdxl-canny"}
+                                ],
+                            },
+                        })
+                        frames.append(ws.receive_json())  # ack
+
+            # Admission bound to the TARGET, not the (absent) live authority.
+            pool.admit_generation.assert_called_once_with("sdxl-general")
+            errors = [f for f in frames if f.get("type") == "job:error"]
+            assert errors == [], f"unexpected job:error: {errors}"
+            pool.submit_job.assert_called_once()
+
+            submitted = pool.submit_job.call_args[0][0]
+            assert submitted.resolution_epoch == 6, (
+                "job must be stamped with the target reservation's epoch, "
+                "not the pre-switch epoch"
+            )
+            # Matrix case 6: generation defaults resolved against the TARGET mode.
+            assert submitted.req.size == "1024x1024"
+            assert submitted.req.num_inference_steps == 25
+            assert submitted.req.guidance_scale == 7.5
+        finally:
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+            app.state.backend_provider = None

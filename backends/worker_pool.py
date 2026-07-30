@@ -111,6 +111,12 @@ class WorkerPool:
     def current_resolution_epoch(self) -> int:
         return self._governor.current_resolution_epoch()
 
+    def admit_generation(self, target_mode):
+        return self._governor.admit_generation(target_mode)
+
+    def get_pending_mode(self):
+        return self._governor.get_pending_mode()
+
     def cancel_job(self, job_id: str) -> bool:
         return self._governor.cancel_job(job_id)
 
