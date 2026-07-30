@@ -765,3 +765,87 @@ def test_switch_mode_unknown_mode_still_raises_keyerror():
                 gov.switch_mode("nope")
         finally:
             gov.shutdown()
+
+
+def test_load_mode_publishes_the_reserved_epoch():
+    """The published snapshot carries the RESERVED epoch — not a fresh bump."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._stop.set()  # freeze dispatch; drive _load_mode directly
+            reservation = gov._reserve_authority("mode-b")
+            gov._load_mode("mode-b", reservation=reservation)
+            snapshot = gov.get_active_model_snapshot()
+            assert snapshot is reservation
+            assert snapshot.resolution_epoch == reservation.resolution_epoch
+            assert gov._pending_authorities == []
+            assert gov.get_pending_mode() is None
+            assert gov.get_current_mode() == "mode-b"
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_load_mode_with_reservation_does_not_re_resolve():
+    """_load_mode reuses reservation.resolved/.binding, so detect_model leaves the
+    dispatch thread entirely."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path) as spy:
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._stop.set()
+            reservation = gov._reserve_authority("mode-b")
+            calls_after_reserve = spy.call_count
+            gov._load_mode("mode-b", reservation=reservation)
+            assert spy.call_count == calls_after_reserve
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_load_mode_without_reservation_reserves_inline():
+    """__init__ and direct callers still work: no reservation means reserve inline."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._stop.set()
+            before = gov._resolution_epoch
+            gov._load_mode("mode-b")
+            assert gov.get_active_model_snapshot().resolution_epoch == before + 1
+            assert gov._pending_authorities == []
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_demand_reload_does_not_change_the_epoch():
+    """Spec §3.2 / matrix case 10: _reload_from_snapshot is epoch-NEUTRAL. Queued
+    generates stamped at epoch N must survive an eviction/reload cycle; a reserve here
+    would bump to N+1 and reject every one of them."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", default="mode-a")
+        try:
+            gov._stop.set()
+            epoch_before = gov.get_active_model_snapshot().resolution_epoch
+            gov._unload_current_worker()          # simulate idle eviction
+            gov._reload_from_snapshot()
+            assert gov.get_active_model_snapshot().resolution_epoch == epoch_before
+            assert gov._resolution_epoch == epoch_before
+            assert gov._pending_authorities == []
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_mode_switch_job_carries_its_reservation():
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            gov._stop.set()
+            gov.switch_mode("mode-b")
+            queued = list(gov.q.queue)
+            switches = [j for j in queued if isinstance(j, ModeSwitchJob)]
+            assert len(switches) == 1
+            assert switches[0].reservation is gov._pending_authorities[-1]
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()

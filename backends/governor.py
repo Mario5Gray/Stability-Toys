@@ -202,6 +202,10 @@ class ModeSwitchJob(Job):
     target_mode: str
     on_complete: Optional[Callable] = None
     force: bool = False  # Reload even if target_mode == current_mode
+    # The authority this switch WILL publish, reserved atomically with its enqueue.
+    # None for switches built outside the Governor (tests, legacy callers): _load_mode
+    # then reserves inline.
+    reservation: Optional["ActiveModelSnapshot"] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -353,9 +357,12 @@ class Governor:
         return self._active_snapshot
 
     def _reserve_authority(self, mode_name: str) -> ActiveModelSnapshot:
-        """Reserve an epoch + resolved model WITHOUT enqueueing a switch. Used by
-        _load_mode's reservation-less callers, where there is no enqueue to pair
-        with atomically."""
+        """Reserve an epoch + resolved model.
+
+        Used by callers that pair the reservation with their own enqueue, and by the
+        reservation-less paths (_load_mode's __init__ / force-reload callers) where
+        there is no enqueue to pair with at all.
+        """
         mode, resolved, binding = self._resolve_target(mode_name)
         with self._job_lock:
             self._resolution_epoch += 1
@@ -413,11 +420,18 @@ class Governor:
 
     # --- Mode load / lifecycle (delegates worker build to handle.start) ---
 
-    def _load_mode(self, mode_name: str):
-        """Load a mode: detect, resolve, build worker via handle.start(),
-        publish snapshot atomically."""
+    def _load_mode(self, mode_name: str, reservation: Optional[ActiveModelSnapshot] = None):
+        """Load a mode: build the worker via handle.start(), then publish the
+        reservation as the active snapshot.
+
+        The epoch is reserved by the caller (or inline here) BEFORE the load, so a
+        generate admitted against the reservation carries the epoch this publishes.
+        """
         logger.info(f"[Governor] Loading mode: {mode_name}")
-        mode = deepcopy(self._mode_config.get_mode(mode_name))
+        if reservation is None:
+            reservation = self._reserve_authority(mode_name)
+        mode = reservation.mode
+        resolved, binding = reservation.resolved, reservation.binding
 
         self._unload_current_worker()  # unregister old mode + tear down worker
         with self._job_lock:
@@ -428,9 +442,7 @@ class Governor:
         # path (a load already blocks on model I/O), so fan-out is permitted.
         allocated_before = _worker_allocated(self._dm.snapshot())
 
-        assert mode.model_path is not None
         try:
-            resolved, binding = resolve_model(mode.model_path, mode)
             self._handle.start(resolved, binding, mode)
         except Exception as e:
             logger.error(f"[Governor] Failed to load mode '{mode_name}': {e}", exc_info=True)
@@ -438,6 +450,7 @@ class Governor:
             with self._job_lock:
                 self._current_mode = None
                 self._active_snapshot = None
+            self._drop_reservation(reservation, dead=True)
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -445,7 +458,6 @@ class Governor:
 
         vram_allocated = _worker_allocated(self._dm.snapshot())
         vram_used = max(0, vram_allocated - allocated_before)
-        vram_total = self._registry.get_total_vram()
         logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
 
         if mode.loras:
@@ -460,17 +472,18 @@ class Governor:
         )
 
         with self._job_lock:
-            self._resolution_epoch += 1
             self._current_mode = mode_name
-            self._active_snapshot = ActiveModelSnapshot(
-                mode_name=mode_name,
-                mode=mode,
-                resolved=resolved,
-                binding=binding,
-                resolution_epoch=self._resolution_epoch,
-            )
+            self._active_snapshot = reservation
+            self._pending_authorities = [
+                r for r in self._pending_authorities if r is not reservation
+            ]
+            # Prune dead epochs below the published one: monotone epochs plus
+            # terminal-only admission mean no NEW job can carry them (spec §3.5).
+            self._dead_epochs = {
+                e for e in self._dead_epochs if e >= reservation.resolution_epoch
+            }
 
-        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={self._resolution_epoch})")
+        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={reservation.resolution_epoch})")
 
         # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
         self._start_dispatch_thread()
@@ -691,7 +704,7 @@ class Governor:
                         result = {"mode": job.target_mode, "status": "already_loaded"}
                     else:
                         result = job.execute(self._handle.worker)
-                        self._load_mode(job.target_mode)
+                        self._load_mode(job.target_mode, reservation=job.reservation)
                     if not job.fut.done():
                         job.fut.set_result(result)
                 else:
@@ -879,10 +892,9 @@ class Governor:
         return self._reserve_and_enqueue_switch(mode_name, force=force)
 
     def _reserve_and_enqueue_switch(self, mode_name: str, *, force: bool = False) -> Future:
-        """TEMPORARY (Task 1) — Task 2 attaches the reservation to the job, Task 4
-        makes reserve+enqueue one critical section."""
+        """TEMPORARY (Task 2) — Task 4 makes reserve+enqueue one critical section."""
         reservation = self._reserve_authority(mode_name)
-        job = ModeSwitchJob(target_mode=mode_name, force=force)
+        job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
         try:
             return self.submit_job(job)
         except Exception:
