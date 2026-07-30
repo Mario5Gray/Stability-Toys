@@ -47,6 +47,10 @@ class StaleResolutionError(RuntimeError):
     """A queued job was resolved against a superseded model authority."""
 
 
+class ModeLoadFailedError(RuntimeError):
+    """A queued job was admitted against an authority whose load never completed."""
+
+
 @dataclass(frozen=True)
 class ActiveModelSnapshot:
     """The pool's single immutable model authority, published atomically with the
@@ -282,6 +286,10 @@ class Governor:
         self._current_mode: Optional[str] = None
         self._active_snapshot: Optional[ActiveModelSnapshot] = None
         self._resolution_epoch: int = 0
+        # Reservations: authority that a queued mode switch WILL publish. The
+        # terminal reservation is what a job admitted NOW executes against.
+        self._pending_authorities: list[ActiveModelSnapshot] = []
+        self._dead_epochs: set[int] = set()
         self._job_records: dict[str, JobRecord] = {}
         self._job_lock = threading.RLock()
         self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
@@ -326,6 +334,82 @@ class Governor:
     def _default_worker_factory(worker_id, resolved, binding):
         from backends.worker_factory import create_cuda_worker
         return create_cuda_worker(worker_id, resolved, binding)
+
+    # --- Authority reservation (spec §3.1-§3.3) ---
+
+    def _resolve_target(self, mode_name: str):
+        """Detect + resolve a target mode. Performs disk I/O (detect_model) and
+        therefore MUST NOT be called while holding _job_lock."""
+        mode = deepcopy(self._mode_config.get_mode(mode_name))
+        assert mode.model_path is not None
+        resolved, binding = resolve_model(mode.model_path, mode)
+        return mode, resolved, binding
+
+    def _terminal_authority(self) -> Optional[ActiveModelSnapshot]:
+        """The authority a job admitted NOW will execute against: the last queued
+        reservation, else the published snapshot. Caller MUST hold _job_lock."""
+        if self._pending_authorities:
+            return self._pending_authorities[-1]
+        return self._active_snapshot
+
+    def _reserve_authority(self, mode_name: str) -> ActiveModelSnapshot:
+        """Reserve an epoch + resolved model WITHOUT enqueueing a switch. Used by
+        _load_mode's reservation-less callers, where there is no enqueue to pair
+        with atomically."""
+        mode, resolved, binding = self._resolve_target(mode_name)
+        with self._job_lock:
+            self._resolution_epoch += 1
+            reservation = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
+            self._pending_authorities.append(reservation)
+            self._last_activity = time.monotonic()
+            return reservation
+
+    def _drop_reservation(self, reservation: ActiveModelSnapshot, *, dead: bool) -> None:
+        """Remove a reservation by IDENTITY. The epoch is never rolled back — epochs
+        are monotone and never reused, including across failures."""
+        with self._job_lock:
+            self._pending_authorities = [
+                r for r in self._pending_authorities if r is not reservation
+            ]
+            if dead:
+                self._dead_epochs.add(reservation.resolution_epoch)
+
+    def get_pending_mode(self) -> Optional[str]:
+        """The mode a queued switch is heading to, or None. Distinct from
+        get_current_mode(), which stays 'the actually-loaded mode'."""
+        with self._job_lock:
+            if self._pending_authorities:
+                return self._pending_authorities[-1].mode_name
+            return None
+
+    def _switch_shortcircuit(self, mode_name: str, worker_ok: bool) -> Optional[dict]:
+        """The result to return INSTEAD of reserving, or None to proceed with a
+        reservation (spec §3.3). Caller MUST hold _job_lock.
+
+        `worker_ok` is passed in rather than read here: _worker_available() calls into
+        the handle, and the handle must never be invoked while _job_lock is held
+        (backplane Subscriber<->lock invariant). The dispatch fast-path at :606 also
+        reads it unlocked, so the same slight staleness already governs this decision.
+        """
+        terminal = self._terminal_authority()
+        if terminal is None or terminal.mode_name != mode_name:
+            return None
+        if self._pending_authorities:
+            # A switch to this mode is already queued — bind to it, reserve nothing.
+            return {"mode": mode_name, "status": "already_queued"}
+        if worker_ok:
+            # Already active with a live worker: the dispatch fast-path would return
+            # already_loaded WITHOUT calling _load_mode, so a reservation made here
+            # could never be published.
+            return {"mode": mode_name, "status": "already_loaded"}
+        # Active mode, but the worker was idle-evicted: fall through and reload.
+        return None
 
     # --- Mode load / lifecycle (delegates worker build to handle.start) ---
 
@@ -781,9 +865,29 @@ class Governor:
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Future:
         logger.info(f"[Governor] Queueing mode switch to: {mode_name} (force={force})")
-        self._mode_config.get_mode(mode_name)
+        self._mode_config.get_mode(mode_name)  # KeyError for unknown mode (unchanged)
+
+        if not force:
+            worker_ok = self._worker_available()  # handle call — NOT under _job_lock
+            with self._job_lock:
+                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+            if shortcircuit is not None:
+                fut: Future = Future()
+                fut.set_result(shortcircuit)
+                return fut
+
+        return self._reserve_and_enqueue_switch(mode_name, force=force)
+
+    def _reserve_and_enqueue_switch(self, mode_name: str, *, force: bool = False) -> Future:
+        """TEMPORARY (Task 1) — Task 2 attaches the reservation to the job, Task 4
+        makes reserve+enqueue one critical section."""
+        reservation = self._reserve_authority(mode_name)
         job = ModeSwitchJob(target_mode=mode_name, force=force)
-        return self.submit_job(job)
+        try:
+            return self.submit_job(job)
+        except Exception:
+            self._drop_reservation(reservation, dead=True)
+            raise
 
     def reload_current_mode(self) -> dict:
         if self._current_mode is None:
