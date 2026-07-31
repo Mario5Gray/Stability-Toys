@@ -114,7 +114,17 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode):
             break
         d = decode_job(raw)
         from backends.governor import GenerationJob
-        job = GenerationJob(req=d.req, resolution_epoch=d.resolution_epoch, job_id=d.job_id)
+        # Every transported field must be reconstructed here. Omitting one does not
+        # raise: it takes the dataclass DEFAULT, and for init_image/controlnet_bindings
+        # None/[] is the legitimate txt2img shape, so the job silently produces the
+        # wrong image (STABL-spxwqlan).
+        job = GenerationJob(
+            req=d.req,
+            resolution_epoch=d.resolution_epoch,
+            job_id=d.job_id,
+            init_image=d.init_image,
+            controlnet_bindings=list(d.controlnet_bindings or []),
+        )
         sink = IpcJobSink(conn, job_id=d.job_id)
         try:
             result = worker.run_job(job)              # opaque: bytes (FaultWorker) or (png, seed) tuple (real)

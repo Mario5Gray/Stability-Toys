@@ -52,6 +52,35 @@ def make_recording_worker(worker_id, resolved, binding):
     return RecordingWorker(worker_id, resolved, binding)
 
 
+class PayloadEchoWorker:
+    """Reports back what actually arrived on the job (STABL-spxwqlan).
+
+    The real CudaWorker reads these defensively —
+    `getattr(job, 'init_image', None)` / `getattr(job, 'controlnet_bindings', []) or []`
+    — and None/[] is the legitimate txt2img shape, so a payload lost in transit
+    produces a plausible image instead of an error. This worker makes the loss
+    observable by returning what it saw.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def run_job(self, job):
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        init_image = getattr(job, "init_image", None)
+        return {
+            "prompt": getattr(job.req, "prompt", None),
+            "init_image": init_image,
+            "binding_ids": [b.attachment_id for b in bindings],
+            "control_image_bytes": [b.control_image_bytes for b in bindings],
+            "strengths": [b.strength for b in bindings],
+        }
+
+
+def make_payload_echo_worker(worker_id, resolved, binding):
+    return PayloadEchoWorker()
+
+
 # --- startup-handshake fault factories (STABL-wotsqcjb) --------------------
 #
 # These fail INSIDE the spawn child, before _worker_main can signal READY —
