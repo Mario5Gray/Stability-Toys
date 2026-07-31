@@ -26,6 +26,7 @@ Grep the tail of stderr for "leaked semaphore objects".
 from __future__ import annotations
 
 import glob
+import os
 import sys
 from concurrent.futures import Future
 
@@ -38,11 +39,17 @@ from server.lcm_sr_server import GenerateRequest
 
 
 def sem_count() -> int | None:
-    """POSIX named semaphores visible on Linux; None where /dev/shm is absent."""
-    entries = glob.glob("/dev/shm/sem.*")
-    if not entries and not glob.glob("/dev/shm/*"):
+    """POSIX named semaphores visible on Linux; None where /dev/shm is absent.
+
+    Note the isdir() check: an EMPTY /dev/shm is the normal healthy state, not a
+    missing one. Inferring "no /dev/shm" from "no entries" made the first run of
+    this probe report 'unavailable (macOS)' inside a Linux container.
+
+    Also note /dev/shm is per-mount-namespace: a container's semaphores are NOT
+    visible from the host, so this must be sampled INSIDE the container."""
+    if not os.path.isdir("/dev/shm"):
         return None
-    return len(entries)
+    return len(glob.glob("/dev/shm/sem.*"))
 
 
 def _run_job(handle):

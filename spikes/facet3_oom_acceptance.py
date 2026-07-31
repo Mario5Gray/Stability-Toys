@@ -89,8 +89,14 @@ def main() -> int:
     t0 = time.monotonic()
     try:
         submit(pool, mode_name, oom_size, timeout=900.0)
-        print(f"NO OOM at {oom_size} after {time.monotonic() - t0:.0f}s — "
-              f"raise it via OOM_SIZE=4096x4096 and re-run", flush=True)
+        print(f"NO OOM at {oom_size} after {time.monotonic() - t0:.0f}s.", flush=True)
+        print("Do NOT just raise OOM_SIZE — for HunyuanDiT it is INOPERABLE: the "
+              "pipeline sets use_resolution_binning=True and folds every request to "
+              "a supported shape (3072x3072 -> 1280x1280), so size cannot provoke "
+              "an OOM at all.", flush=True)
+        print("Force the OOM from OUTSIDE instead — hold the VRAM from another "
+              "process, then re-run this script while it is held:", flush=True)
+        print("    python spikes/vram_hog.py 14   # in a second shell", flush=True)
         return 2
     except Exception as exc:  # noqa: BLE001 — the OOM is the point
         print(f"job failed as intended: {type(exc).__name__}: "
