@@ -1704,8 +1704,30 @@ conda activate stability-toys
 python -m pytest tests/ -q
 ```
 
-Record the exact pass/fail counts for the FP evidence. Only the known `test_mode_config`
-hunyuandit failure is acceptable.
+Record the exact pass/fail counts for the FP evidence.
+
+Actual result on this branch: **1085 passed, 9 skipped, 1 xfailed** — no failures. The
+`test_mode_config` hunyuandit failure this plan predicted did NOT occur; the remaining
+xfail is the pre-existing `test_diffusers_stub_leak` detector
+(`STABL-tmrnepae` / `STABL-sgdavnvz`), not this work.
+
+- [ ] **Step 1b: Set `DEFAULT_TIMEOUT` before deploying — REQUIRED**
+
+```bash
+DEFAULT_TIMEOUT=600     # in the enigma deployment env
+```
+
+Without this the live acceptance fails on a WebSocket timeout that is **not** a defect in
+the fix. `ws_routes.py:540` does `fut.result(timeout=DEFAULT_TIMEOUT)` with a 120s default,
+and that future does not resolve until the `ModeSwitchJob` ahead of it has finished loading
+the model. Before this branch, a racing generate failed fast with `StaleResolutionError` in
+milliseconds and never approached 120s; now it correctly queues and waits through the load,
+so 120s is too small for a cold large checkpoint.
+
+Do **not** "fix" this by changing the in-repo default — the number is not the problem, the
+thing being measured is. Tracked as `STABL-atzqpcte` (the timeout should start when the job
+begins executing, not when it is submitted). If `--sr` is used, `SR_REQUEST_TIMEOUT` is a
+second ceiling of the same shape.
 
 - [ ] **Step 2: Run the live repro on enigma**
 
