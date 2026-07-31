@@ -351,3 +351,123 @@ def test_start_timeout_defaults_to_the_module_constant():
 
     assert SubprocessWorkerHandle("x.y")._start_timeout_s == DEFAULT_START_TIMEOUT_S
     assert SubprocessWorkerHandle("x.y", start_timeout_s=1.5)._start_timeout_s == 1.5
+
+
+# ---------------------------------------------------------------------------
+# The envelope carries the WHOLE job (STABL-spxwqlan).
+#
+# encode_job carried only (req, job_id, resolution_epoch), so init_image and
+# controlnet_bindings took their dataclass defaults in the child — None and [],
+# which is the legitimate txt2img shape. An img2img request silently became
+# txt2img; a ControlNet request silently generated uncontrolled. No error.
+#
+# These run across a REAL spawn boundary on purpose: a mocked transport is what
+# missed this in the first place.
+# ---------------------------------------------------------------------------
+
+
+def _binding(attachment_id: str, image: bytes, strength: float = 0.8):
+    from server.controlnet_execution import ControlNetBinding
+
+    return ControlNetBinding(
+        attachment_id=attachment_id,
+        control_type="canny",
+        model_id="cn-model",
+        model_path="/models/cn",
+        control_image_bytes=image,
+        strength=strength,
+        start_percent=0.0,
+        end_percent=1.0,
+    )
+
+
+def test_controlnet_bindings_reach_the_child():
+    """A dropped binding produces an UNCONTROLLED image with no error, so this is
+    asserted on the child's own report of what arrived — not on the parent's job."""
+    h = SubprocessWorkerHandle("tests._fault_worker.make_payload_echo_worker")
+    h.start(None, None, None)
+    try:
+        job = GenerationJob(
+            req=_req("controlled"),
+            resolution_epoch=0,
+            controlnet_bindings=[
+                _binding("cn_1", b"CANNY-EDGES-1", strength=0.8),
+                _binding("cn_2", b"DEPTH-MAP-2", strength=0.4),
+            ],
+        )
+        fut = Future()
+        h.submit(job).subscribe(_SubprocessFutureBridge(fut))
+        seen = fut.result(timeout=20)
+
+        assert seen["binding_ids"] == ["cn_1", "cn_2"], (
+            f"child received bindings {seen['binding_ids']} — a ControlNet request "
+            f"silently generated without control"
+        )
+        assert seen["control_image_bytes"] == [b"CANNY-EDGES-1", b"DEPTH-MAP-2"], (
+            "control image bytes did not survive the boundary"
+        )
+        assert seen["strengths"] == [0.8, 0.4]
+    finally:
+        h.stop()
+
+
+def test_init_image_reaches_the_child():
+    """A dropped init_image turns img2img into txt2img — a valid-looking result that
+    ignored the user's image."""
+    h = SubprocessWorkerHandle("tests._fault_worker.make_payload_echo_worker")
+    h.start(None, None, None)
+    try:
+        job = GenerationJob(
+            req=_req("from-this-image"),
+            resolution_epoch=0,
+            init_image=b"INIT-IMAGE-PNG-BYTES",
+        )
+        fut = Future()
+        h.submit(job).subscribe(_SubprocessFutureBridge(fut))
+        seen = fut.result(timeout=20)
+
+        assert seen["init_image"] == b"INIT-IMAGE-PNG-BYTES", (
+            f"child received init_image={seen['init_image']!r} — an img2img request "
+            f"silently became txt2img"
+        )
+    finally:
+        h.stop()
+
+
+def test_every_generation_job_field_is_carried_or_explicitly_excused():
+    """THE STRUCTURAL GUARD. Fails when a field is added to GenerationJob without
+    wire support — which is exactly how STABL-spxwqlan was born.
+
+    A runtime rejection of unsupported fields would be dead code once the envelope
+    carries them; this keeps working for the next field someone adds.
+    """
+    import dataclasses
+    from backends.governor import GenerationJob
+    from backends.job_envelope import CARRIED_JOB_FIELDS, NOT_CARRIED_JOB_FIELDS
+
+    declared = {f.name for f in dataclasses.fields(GenerationJob)}
+    accounted = set(CARRIED_JOB_FIELDS) | set(NOT_CARRIED_JOB_FIELDS)
+    missing = declared - accounted
+
+    assert not missing, (
+        f"GenerationJob fields {sorted(missing)} are neither carried across the spawn "
+        f"boundary nor listed as deliberately excluded. A field the envelope drops "
+        f"takes its DEFAULT in the child, and for init_image/controlnet_bindings that "
+        f"default is the legitimate txt2img shape — so the job silently produces the "
+        f"wrong image instead of failing. Add it to CARRIED_JOB_FIELDS (and to "
+        f"encode_job/decode_job) or to NOT_CARRIED_JOB_FIELDS with a reason."
+    )
+
+
+def test_a_v1_envelope_is_rejected_rather_than_default_filled():
+    """A stale v1 body would decode into a job with init_image=None and no bindings —
+    the exact silent degradation this issue is about. It must fail loudly."""
+    import pickle
+    from backends.job_envelope import decode_job
+
+    v1_body = pickle.dumps((_req("old"), "job-1", 0))
+    stale = bytes([1]) + v1_body
+
+    with pytest.raises(ValueError) as exc_info:
+        decode_job(stale)
+    assert "schema_version" in str(exc_info.value)
