@@ -110,7 +110,8 @@ the code it was meant to exercise.
   `model_resolution` already provided (`8fe1c94`).
 - Task 8's OOM lever could not work for HunyuanDiT: `use_resolution_binning=True` bins
   every request to 1280×1280, so an oversized `size` is normalised away. Replaced with
-  `spikes/vram_hog.py`, which applies pressure from a separate process (`e50acf8`).
+  `spikes/vram_hog.py`, which applies pressure from a separate process (authored in
+  `e50acf8`, which PR #28 did not include; restored to main in `1dc2dfa`).
 
 ---
 

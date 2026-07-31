@@ -139,7 +139,14 @@ Traps worth carrying:
   bins everything to 1280×1280, so `size` is normalised away before it can exhaust
   anything. Use `spikes/vram_hog.py` — pressure from a *separate* process, because
   allocating in the parent would give the parent its own CUDA context and change the very
-  topology under test.
+  topology under test. **Leave a window:** enough free VRAM for the 1024×1024 baseline job,
+  not enough for the binned 1280×1280. On a 24GB card 14 GiB works and 15 does not — 15
+  OOMs the baseline job itself, which proves nothing, since a failure then cannot be
+  distinguished from "there was never enough VRAM".
+- **A merged PR is not the same as every commit pushed to its branch.** `vram_hog.py` was
+  authored in `e50acf8` but PR #28 merged only up to `530b785`, so the one tool that makes
+  Task 8 reproducible was absent from `main` while three documents referenced it. Restored
+  in `1dc2dfa`.
 - **`test_hunyuandit_acceptance.py` is not a vehicle for subprocess work.** It builds
   `WorkerPool(...)` directly, while the env switch lives in `get_worker_pool()` — so
   `WORKER_ISOLATION=subprocess` leaves it running in-proc, passing, and appearing to prove
@@ -149,15 +156,35 @@ Traps worth carrying:
   Re-resolving in the child instead has no working configuration and silently defeats
   parent-side `resolve_model` patching, since patches do not cross a spawn boundary.
 
-Open, filed, not fixed:
+Both children are now resolved:
 
-- **`STABL-wotsqcjb`** — `start()` blocks on the `_READY` handshake with no timeout or
-  liveness check. Any child-side failure before `_READY` hangs the parent indefinitely
-  with VRAM held, 0% util, no error. This is what turns a small child-side bug into an
-  indefinite outage.
-- **`STABL-nstyyrhh`** — kill+respawn leaks multiprocessing semaphores (3 per cycle
-  observed). Now that respawn is the production recovery path, this accumulates over
-  uptime.
+- **`STABL-wotsqcjb` — FIXED** (`7b8a46b`, PR #30). `start()` blocked on the `_READY`
+  handshake with no timeout or liveness check, so any child-side failure hung the parent
+  indefinitely with VRAM held, 0% util and no error. Two guards, because neither covers
+  the other's cases: a parent-side `poll()` loop with an `is_alive()` check and a deadline
+  (covers `SIGKILL` and the OOM-killer), plus a child-side `_FAILED` frame carrying the
+  real traceback (covers ordinary startup exceptions). `WORKER_START_TIMEOUT_S`, default
+  300s. On a death detected mid-poll the loop re-checks for a buffered frame first, so the
+  traceback is never discarded in favour of a bare exit code.
+- **`STABL-nstyyrhh` — CLOSED as accepted risk**, and the filed mechanism was wrong.
+  Measured on enigma: **one POSIX semaphore per MODEL LOAD**, linear, never reclaimed
+  (4 = one default load + three forced switches). **Not** kill+respawn — six spawn/kill
+  cycles with no model load leak zero, clearing `stop()` and `SIGKILL` entirely. Not
+  facet-3-specific either: it is on the model-load path and would occur identically
+  in-proc. The ecosystem treats this class of warning as noise, and every standard
+  mitigation is worse for us — `resource_tracker.unregister` would unlink another
+  library's live lock, and changing the start method would destroy facet-3, since spawn
+  is what gives the child its own CUDA context. **Residual risk accepted:** growth is
+  unbounded, not fixed — filed as **`STABL-cxbwwgly`** for the observability work: surface
+  leaked resource counts (`/dev/shm/sem.*`, shm segments, fds) so the trend is visible
+  rather than discovered as a mystery failure. Sample **inside** the container —
+  `/dev/shm` is per-mount-namespace, and a host-side check reads a different one.
+  `spikes/sem_creator_trace.py` names the owning library in ~1 minute if this is reopened
+  — it was never identified.
+
+Method note worth carrying: the count was stable at 2 across two runs, which read as a
+fixed cost until the variable actually moving turned out to be **load count**, not
+respawn count. Two runs agreeing is not a controlled comparison.
 
 
 ### Authority reservation — mode-switch admission race — merged (PR #26)
