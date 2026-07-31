@@ -22,6 +22,15 @@ from __future__ import annotations
 
 import glob
 import os
+import sys
+
+
+def _arg_str(flag: str, default: str) -> str:
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+
+def _arg_int(flag: str, default: int) -> int:
+    return int(_arg_str(flag, str(default)))
 
 
 def sems() -> set[str]:
@@ -99,13 +108,29 @@ def main() -> int:
     h.stop()
     t.check("kill that child")
 
+    # THE question. get_worker_pool() was the stage that created one — and it is
+    # also the stage that LOADED A MODEL. Spawning and killing a child added none.
+    # So the suspect is the model load, not the process. If each load adds one,
+    # a server accumulates one per mode switch, which is the normal hot path.
+    switches = _arg_int("--switches", 0)
+    mode = _arg_str("--mode", "")
+    if switches and mode:
+        from backends.worker_pool import get_worker_pool as _pool
+        print(f"\n--- {switches} forced reloads of mode {mode!r} ---", flush=True)
+        for i in range(switches):
+            _pool().switch_mode(mode, force=True).result(timeout=900.0)
+            t.check(f"switch_mode({mode!r}, force=True) #{i + 1}")
+        print("\nIf each reload added exactly one, this LEAKS PER MODE SWITCH and "
+              "the issue stays open with a corrected title. If the count is flat, "
+              "it is a one-time cost and the issue should be closed.", flush=True)
+    else:
+        print("\nRe-run with --switches 3 --mode <name> to test whether each model "
+              "load adds one. That is the open question.", flush=True)
+
     reset_worker_pool()
     t.check("reset_worker_pool()")
 
-    print("\nWhatever line says CREATED HERE owns the semaphores. If nothing "
-          "does, they predate this script — check the interpreter's own startup.",
-          flush=True)
-    print(f"final: {len(sems())} semaphores {sorted(sems()) or ''}", flush=True)
+    print(f"\nfinal: {len(sems())} semaphores {sorted(sems()) or ''}", flush=True)
     return 0
 
 
