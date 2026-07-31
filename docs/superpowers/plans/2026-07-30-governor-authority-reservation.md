@@ -1711,10 +1711,17 @@ Actual result on this branch: **1085 passed, 9 skipped, 1 xfailed** — no failu
 xfail is the pre-existing `test_diffusers_stub_leak` detector
 (`STABL-tmrnepae` / `STABL-sgdavnvz`), not this work.
 
-- [ ] **Step 1b: Set `DEFAULT_TIMEOUT` before deploying — REQUIRED**
+- [x] **Step 1b: Set `DEFAULT_TIMEOUT` before deploying — ~~REQUIRED~~ OBSOLETE**
+
+> **Superseded 2026-07-31 by `STABL-atzqpcte` (`4646005`, PR #32).** Queue wait is now
+> bounded separately from execution (`ADMISSION_TIMEOUT_S`, default 900), so a generate
+> queued behind a cold model load is no longer timed out for waiting. **Do not apply this
+> workaround** — it no longer buys anything and still makes an abandoned job hold VRAM for
+> ten minutes instead of two. Remove it from any deployment env where it was set. The
+> analysis below is retained because it is what identified the defect.
 
 ```bash
-DEFAULT_TIMEOUT=600     # in the enigma deployment env
+DEFAULT_TIMEOUT=600     # in the enigma deployment env — NO LONGER NEEDED
 ```
 
 Without this the live acceptance fails on a WebSocket timeout that is **not** a defect in
