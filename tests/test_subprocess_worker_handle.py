@@ -233,3 +233,121 @@ def test_child_starts_when_the_model_path_is_not_resolvable_on_disk(tmp_path):
         assert handle.health().state in ("ready", "busy")
     finally:
         handle.stop()
+
+
+# ---------------------------------------------------------------------------
+# The startup handshake is BOUNDED (STABL-wotsqcjb).
+#
+# Every test here drives start() on a thread with a bounded join: a regression
+# reinstates an unbounded recv_bytes(), so asserting on the raised error alone
+# would hang the suite for the 300s pytest timeout instead of failing.
+# ---------------------------------------------------------------------------
+
+
+def _start_bounded(handle, *, join_timeout: float):
+    """Run handle.start(None, None, None) on a thread; return (thread, errors)."""
+    import threading
+
+    errors: list[BaseException] = []
+
+    def _run():
+        try:
+            handle.start(None, None, None)
+        except BaseException as exc:        # noqa: BLE001 — asserted by the caller
+            errors.append(exc)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=join_timeout)
+    return t, errors
+
+
+def test_start_raises_with_the_child_traceback_when_the_worker_fails_to_build():
+    """An ordinary startup exception reaches the parent as a WorkerStartError
+    carrying the CHILD's traceback — not an exit code, and not a hang.
+
+    This is guard B. Without it the best a parent can say is "exited with code 1",
+    which is the diagnosis cost this issue exists to remove."""
+    from backends.worker_handle_subprocess import WorkerStartError
+
+    handle = SubprocessWorkerHandle(
+        "tests._fault_worker.make_exploding_worker", start_timeout_s=60.0
+    )
+    t, errors = _start_bounded(handle, join_timeout=60.0)
+
+    try:
+        assert not t.is_alive(), "start() never returned — the handshake is unbounded"
+        assert errors, "start() returned normally although the child never signalled READY"
+        assert isinstance(errors[0], WorkerStartError), f"raised {errors[0]!r}"
+        assert "worker construction failed (injected)" in str(errors[0]), (
+            f"the child's own traceback did not reach the parent: {errors[0]}"
+        )
+        assert handle.health().state == "dead"
+    finally:
+        handle.stop()
+
+
+def test_start_raises_when_the_child_is_hard_killed_before_ready():
+    """A SIGKILLed child cannot send a failure frame, so only the parent's
+    is_alive() check can end the wait. This is guard A's liveness half — it is
+    also what covers the kernel OOM-killer."""
+    from backends.worker_handle_subprocess import WorkerStartError
+
+    handle = SubprocessWorkerHandle(
+        "tests._fault_worker.make_suiciding_worker", start_timeout_s=60.0
+    )
+    t, errors = _start_bounded(handle, join_timeout=60.0)
+
+    try:
+        assert not t.is_alive(), (
+            "start() never returned: the child died without a frame and nobody "
+            "closed the pipe, so recv_bytes blocks forever"
+        )
+        assert errors, "start() returned normally although the child was killed"
+        assert isinstance(errors[0], WorkerStartError), f"raised {errors[0]!r}"
+        assert str(handle._proc.exitcode) in str(errors[0]), (
+            f"the error should name the child's exit code: {errors[0]}"
+        )
+        assert handle.health().state == "dead"
+    finally:
+        handle.stop()
+
+
+def test_start_times_out_on_a_child_that_hangs_while_still_alive():
+    """A child that blocks forever but stays ALIVE defeats the liveness check, so
+    only the deadline ends the wait. The child must also be killed: an orphan
+    holding a CUDA context is exactly what facet-3 exists to prevent."""
+    import time
+
+    from backends.worker_handle_subprocess import WorkerStartError
+
+    handle = SubprocessWorkerHandle(
+        "tests._fault_worker.make_hanging_worker", start_timeout_s=2.0
+    )
+    t0 = time.monotonic()
+    t, errors = _start_bounded(handle, join_timeout=45.0)
+    elapsed = time.monotonic() - t0
+
+    try:
+        assert not t.is_alive(), "start() never returned — the deadline is not enforced"
+        assert errors, "start() returned normally although the child never signalled READY"
+        assert isinstance(errors[0], WorkerStartError), f"raised {errors[0]!r}"
+        assert elapsed < 30.0, (
+            f"start() took {elapsed:.1f}s for a 2.0s timeout — the deadline is not honoured"
+        )
+        assert handle.health().state == "dead"
+        assert not handle._proc.is_alive(), "the hung child was left orphaned"
+    finally:
+        handle.stop()
+
+
+def test_start_timeout_defaults_to_the_module_constant():
+    """The env-driven constant is the production lever; the constructor arg exists
+    so tests can inject a sub-second deadline without touching process-global env."""
+    from backends.worker_handle_subprocess import (
+        DEFAULT_START_TIMEOUT_S,
+        SubprocessWorkerHandle,
+    )
+
+    assert SubprocessWorkerHandle("x.y")._start_timeout_s == DEFAULT_START_TIMEOUT_S
+    assert SubprocessWorkerHandle("x.y", start_timeout_s=1.5)._start_timeout_s == 1.5

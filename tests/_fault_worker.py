@@ -50,3 +50,34 @@ class RecordingWorker:
 
 def make_recording_worker(worker_id, resolved, binding):
     return RecordingWorker(worker_id, resolved, binding)
+
+
+# --- startup-handshake fault factories (STABL-wotsqcjb) --------------------
+#
+# These fail INSIDE the spawn child, before _worker_main can signal READY —
+# the window that used to hang the parent forever. Each covers a different
+# guard: the child-side failure frame, the parent-side liveness check, and
+# the parent-side deadline.
+
+
+def make_exploding_worker(worker_id, resolved, binding):
+    """Raises during construction: an ordinary startup exception, so the child
+    can catch it and report a traceback before it dies."""
+    raise RuntimeError("worker construction failed (injected)")
+
+
+def make_suiciding_worker(worker_id, resolved, binding):
+    """SIGKILLs the child mid-construction. No failure frame is possible — only
+    the parent's is_alive() check can notice this one."""
+    import os
+    import signal
+
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def make_hanging_worker(worker_id, resolved, binding):
+    """Blocks far longer than any injected timeout, staying ALIVE throughout, so
+    only the parent's deadline can end the wait."""
+    import time
+
+    time.sleep(3600)

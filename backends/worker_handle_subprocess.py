@@ -17,8 +17,10 @@ pipe.
 from __future__ import annotations
 
 import importlib
+import os
 import pickle
 import threading
+import time
 import multiprocessing as mp
 from typing import Optional
 
@@ -31,6 +33,21 @@ from backends.backplane.reactivestreams import Publisher, Subscriber
 from backends.backplane.frames import Result
 
 _READY = b"\x00READY"
+_FAILED = b"\x00FAILED"
+
+# STABL-wotsqcjb. Generous because the spawn child imports torch + diffusers cold
+# before it can signal READY. It costs nothing in the common failure: the liveness
+# check below raises the moment the child dies, so the full window is only ever
+# spent on a child that is hung but ALIVE.
+DEFAULT_START_TIMEOUT_S: float = float(os.environ.get("WORKER_START_TIMEOUT_S", "300"))
+_READY_POLL_INTERVAL_S: float = 0.1
+_MAX_FAILURE_BYTES = 8192
+
+
+class WorkerStartError(RuntimeError):
+    """The child never reached READY. A RuntimeError subclass on purpose: the
+    Governor's `except Exception` around handle.start() (governor.py:447) catches
+    it unchanged and still runs _drop_reservation(dead=True)."""
 
 
 def _resolve_ref(dotted: str):
@@ -54,25 +71,40 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode):
     Serial by construction — one job at a time. The opaque run_job return is pickled
     into the blob (recon #5C); errors ride the sink terminal so a waiting Future
     never hangs. A frameless death (SIGKILL) is caught parent-side by the Task 4 EOF
-    guard, not here."""
-    from backends.model_resolution import resolved_model_from_json_dict
+    guard, not here.
 
-    factory = _resolve_ref(factory_ref)
-    resolved = (
-        resolved_model_from_json_dict(wire_resolved) if wire_resolved is not None else None
-    )
-    worker = factory(0, resolved, binding)
+    STABL-wotsqcjb guard B: everything up to READY runs under a try/except that sends
+    the traceback back as a _FAILED frame before the child dies, so the parent raises
+    with the real cause rather than an exit code. It cannot cover a hard kill — that
+    is the parent's liveness check (guard A)."""
+    try:
+        from backends.model_resolution import resolved_model_from_json_dict
 
-    # M-A: replicate InProcessWorkerHandle.start() conditioning configuration.
-    if mode is not None:
-        configure_conditioning = getattr(worker, "configure_conditioning", None)
-        if callable(configure_conditioning):
-            configure_conditioning(mode.conditioning)
-        elif mode.conditioning.requires_configurable_worker():
-            raise RuntimeError(
-                f"mode configures conditioning but worker {type(worker).__name__} "
-                "does not support conditioning"
+        factory = _resolve_ref(factory_ref)
+        resolved = (
+            resolved_model_from_json_dict(wire_resolved) if wire_resolved is not None else None
+        )
+        worker = factory(0, resolved, binding)
+
+        # M-A: replicate InProcessWorkerHandle.start() conditioning configuration.
+        if mode is not None:
+            configure_conditioning = getattr(worker, "configure_conditioning", None)
+            if callable(configure_conditioning):
+                configure_conditioning(mode.conditioning)
+            elif mode.conditioning.requires_configurable_worker():
+                raise RuntimeError(
+                    f"mode configures conditioning but worker {type(worker).__name__} "
+                    "does not support conditioning"
+                )
+    except BaseException:       # noqa: BLE001 — reported to the parent, then re-raised
+        import traceback
+        try:
+            conn.send_bytes(
+                _FAILED + traceback.format_exc().encode()[:_MAX_FAILURE_BYTES]
             )
+        except Exception:       # noqa: BLE001 — a broken pipe leaves guard A to notice
+            pass
+        raise
 
     conn.send_bytes(_READY)
     while True:
@@ -130,13 +162,18 @@ class _SubprocPublisher(Publisher):
 
 
 class SubprocessWorkerHandle(WorkerHandle):
-    def __init__(self, worker_factory_ref: str):
+    def __init__(self, worker_factory_ref: str, start_timeout_s: Optional[float] = None):
         self._factory_ref = worker_factory_ref
         self._ctx = mp.get_context("spawn")
         self._proc = None
         self._parent_conn = None
         self._liveness: Optional[SubprocessLiveness] = None
         self._state = "starting"
+        # None => the env-driven module constant. The argument exists so tests can
+        # inject a sub-second deadline without mutating process-global env.
+        self._start_timeout_s = (
+            DEFAULT_START_TIMEOUT_S if start_timeout_s is None else start_timeout_s
+        )
 
     @property
     def worker(self):
@@ -161,10 +198,58 @@ class SubprocessWorkerHandle(WorkerHandle):
         # recon #5B: is_alive()-only liveness in M1 — staleness disabled until the
         # periodic-heartbeat follow-on, so an idle-but-alive child is never dead.
         self._liveness = SubprocessLiveness(self._proc, stale_after_s=float("inf"))
-        if self._parent_conn.recv_bytes() != _READY:   # blocks until READY
-            raise RuntimeError("subprocess worker failed to signal READY")
+        self._await_ready()
         self._liveness.note_heartbeat()
         self._state = "ready"
+
+    def _await_ready(self) -> None:
+        """Wait for the child's READY, bounded by liveness AND a deadline (guard A).
+
+        `recv_bytes()` alone blocks forever: the child is daemon=True, so a child that
+        dies before READY closes nothing the parent would raise EOFError on. Polling
+        with an is_alive() check covers every death mode including SIGKILL and the
+        kernel OOM-killer; the deadline covers a child that hangs while still alive.
+
+        poll() is checked BEFORE is_alive() so a child that writes _FAILED and exits
+        immediately still has its frame read — buffered data stays readable after the
+        writer dies."""
+        deadline = time.monotonic() + self._start_timeout_s
+        while not self._parent_conn.poll(_READY_POLL_INTERVAL_S):
+            if not self._proc.is_alive():
+                # A child that wrote _FAILED and exited inside the poll gap still has
+                # its frame buffered. Prefer that traceback over a bare exit code —
+                # discarding it here would defeat guard B in the very case it targets.
+                if self._parent_conn.poll(0):
+                    break
+                exitcode = self._proc.exitcode
+                self.stop()
+                raise WorkerStartError(
+                    f"subprocess worker '{self._factory_ref}' exited with code "
+                    f"{exitcode} before signalling READY, and sent no failure frame "
+                    f"(hard kill, or a crash before the child could report)"
+                )
+            if time.monotonic() >= deadline:
+                self.stop()
+                raise WorkerStartError(
+                    f"subprocess worker '{self._factory_ref}' did not signal READY "
+                    f"within {self._start_timeout_s}s (still alive — hung during "
+                    f"startup); child killed. Raise WORKER_START_TIMEOUT_S if a "
+                    f"legitimate load needs longer."
+                )
+
+        frame = self._parent_conn.recv_bytes()
+        if frame == _READY:
+            return
+
+        self.stop()
+        if frame.startswith(_FAILED):
+            detail = frame[len(_FAILED):].decode(errors="replace")
+            raise WorkerStartError(
+                f"subprocess worker '{self._factory_ref}' failed during startup:\n{detail}"
+            )
+        raise WorkerStartError(
+            f"subprocess worker '{self._factory_ref}' sent {frame[:64]!r} instead of READY"
+        )
 
     def submit(self, job) -> Publisher:
         self._state = "busy"
