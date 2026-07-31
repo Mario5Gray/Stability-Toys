@@ -1875,3 +1875,38 @@ def test_neither_transport_applies_default_timeout_to_the_whole_wait():
     assert "wait_for_result" in http_src, (
         "lcm_sr_server does not use the two-budget waiter"
     )
+
+
+# ---------------------------------------------------------------------------
+# The WS status frame reads VRAM through the SEAM, not through torch directly
+# (STABL-qfjfflrx CUDA-in-parent audit).
+# ---------------------------------------------------------------------------
+
+
+def test_ws_status_reads_vram_through_the_seam_not_torch_directly():
+    """`torch.cuda.mem_get_info()` inline in a status route is a direct-CUDA bypass
+    of the registry, and it keeps the parent process bound to CUDA — which is what
+    makes a CUDA-free parent (and therefore a clean service split) impossible.
+
+    It is also a DUPLICATE: model_routes already serves the same numbers from
+    `registry.get_vram_stats()`, which reads DeviceMemory's driver truth. The
+    duplicate had already accumulated a defensive isinstance() guard against a
+    stubbed torch leaking in — a symptom of reading the wrong source.
+    """
+    import inspect
+    import server.ws_routes as ws_mod
+
+    # Strip comment lines before matching. A comment explaining why the old call was
+    # wrong legitimately contains the call text, and a naive token match on the raw
+    # source fails on the very documentation that records the fix.
+    src = "\n".join(
+        line for line in inspect.getsource(ws_mod).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert "torch.cuda.mem_get_info" not in src, (
+        "ws_routes still calls torch.cuda.mem_get_info() directly; VRAM must come "
+        "through the pool/registry seam"
+    )
+    assert "get_vram_stats" in src, (
+        "ws_routes does not read VRAM through the registry seam"
+    )

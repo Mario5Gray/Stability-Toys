@@ -865,18 +865,19 @@ def _build_status(state) -> dict:
     else:
         status["mode"] = "legacy"
 
-    # VRAM (best-effort)
+    # VRAM (best-effort) — through the SEAM, never torch directly (STABL-qfjfflrx).
+    # This used to call torch.cuda.mem_get_info() inline: a direct-CUDA bypass of
+    # DeviceMemory's accounting that also bound the parent process to CUDA, which is
+    # what makes a CUDA-free parent impossible. It duplicated numbers model_routes
+    # already serves from the registry, and had accumulated an isinstance() guard
+    # against a stubbed torch leaking in — a symptom of reading the wrong source.
     try:
-        import torch
-        if torch.cuda.is_available():
-            mem = torch.cuda.mem_get_info()
-            free_mb = mem[0] // (1024 * 1024)
-            total_mb = mem[1] // (1024 * 1024)
-            # Guard against stubbed/non-standard torch backends that return
-            # non-int values (e.g. MagicMock from leaked test stubs) which
-            # would break JSON serialization downstream in hub.send.
-            if isinstance(free_mb, int) and isinstance(total_mb, int):
-                status["vram"] = {"free_mb": free_mb, "total_mb": total_mb}
+        pool = getattr(state, "worker_pool", None)
+        if pool is not None:
+            stats = pool.get_vram_stats()
+            free_mb = int(stats["available_gb"] * 1024)
+            total_mb = int(stats["total_gb"] * 1024)
+            status["vram"] = {"free_mb": free_mb, "total_mb": total_mb}
     except Exception:
         pass
 
