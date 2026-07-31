@@ -1,22 +1,262 @@
 model_root: /models
 lora_root: /models/loras
 default_mode: lcm-general
+
 resolution_sets:
+  dit:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+    - size: 1280x1280
+      aspect_ratio: "1:1"
+    - size: 1024x768
+      aspect_ratio: "4:3"
+    - size: 1152x864
+      aspect_ratio: "4:3"
+    - size: 1280x960
+      aspect_ratio: "4:3"
+    - size: 768x1024
+      aspect_ratio: "3:4"
+    - size: 864x1152
+      aspect_ratio: "3:4"
+    - size: 960x1280
+      aspect_ratio: "3:4"
+    - size: 1280x768
+      aspect_ratio: "5:3"
+    - size: 768x1280
+      aspect_ratio: "3:5"
+
   default:
-    - size: "512x512"
+    - size: 512x512
       aspect_ratio: "1:1"
-    - size: "768x768"
+    - size: 512x768
+      aspect_ratio: "2:3"
+    - size: 768x512
+      aspect_ratio: "3:2"
+    - size: 768x768
       aspect_ratio: "1:1"
+    - size: 1152x896
+      aspect_ratio: "9:7"
+    - size: 896x1152
+      aspect_ratio: "7:9"
+
+  sdxl:
+    - size: 512x512
+      aspect_ratio: "1:1"
+    - size: 512x768
+      aspect_ratio: "2:3"
+    - size: 768x512
+      aspect_ratio: "3:2"
+    - size: 768x768
+      aspect_ratio: "1:1"
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+    - size: 896x1152
+      aspect_ratio: "7:9"
+    - size: 1152x896
+      aspect_ratio: "9:7"
+    - size: 832x1216
+      aspect_ratio: "13:19"
+    - size: 1216x832
+      aspect_ratio: "19:13"
+
+analysis_connections:
+  local_vlm:
+    endpoint: "http://node2.lan:8080/v1"
+  local_detector:
+    endpoint: "http://node2.lan:9080"
+  mindgate_vlm:
+    endpoint: "http://mindgate.lan:8080/v1"
+
+analysis_delegates:
+  vlm_caption:
+    connection: local_vlm
+    kind: caption
+    model: phi4-mm-Q4_K_M.gguf
+    provider: openai_vlm       # real VLM; omit for the stub
+    options:                   # all optional
+      max_tokens: 512
+      temperature: 0.7
+      timeout_s: 3600
+      system_prompt: "Describe the image for stable diffusion keywords."
+  mindgate_caption:
+    connection: mindgate_vlm
+    kind: caption
+    model: /models/Huihui-gemma-4-12B-agentic-fable5-abliterated.Q3_K_L.gguf
+    provider: openai_vlm       # real VLM; omit for the stub
+    options:                   # all optional
+      max_tokens: 512
+      temperature: 0.7
+      timeout_s: 3600
+      system_prompt: "Describe the image for stable diffusion keywords."
+
+analysis_profiles:
+  default:
+    task_routes:
+      caption: mindgate_caption
+
+chat_connections:
+  local_default:
+    endpoint: "http://node2.lan:8080/v1"
+  mindgate:
+    endpoint: "http://mindgate.lan:8080/v1"
+
+
+chat_delegates:
+  sdxl_advisor:
+    connection: local_default
+    model: "gemma3-1b"
+    max_tokens: 750
+    temperature: 0.4
+    system_prompt: "You are a concise SDXL prompt advisor."
 
 modes:
   lcm-general:
     model: diffusers/lcm-dreamshaper-v7
-    default_size: "768x768"
+    default_size: 768x768
     default_steps: 8
-    default_guidance: 2.5
+    default_guidance: 3
+    conditioning:
+      service: compel
+    analysis_profile: default
+    negative_prompt_templates:
+      safe_photo: "blurry, watermark, text, low quality"
+      portrait: "bad anatomy, extra fingers, deformed"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    allowed_scheduler_ids:
+      - euler
+      - lcm
+    default_scheduler_id: lcm
+    chat_delegate: sdxl_advisor
+    controlnet_policy:
+      enabled: true
+      max_attachments: 2
+      allow_reuse_emitted_maps: true
+      allowed_control_types:
+        canny:
+          default_model_id: sd15-canny
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        depth:
+          default_model_id: sd15-depth
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        pose:
+          default_model_id: sd15-openpose
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
 
-  lcm-chenkin:
-    model: diffusers/chenkinanimehotbaby_xl_lcm
-    default_size: "512x512"
+  lcm-runwayml:
+    model: diffusers/LCM-runwayml-stable-diffusion-v1-5
+    default_size: 512x512
     default_steps: 8
-    default_guidance: 2.5
+    default_guidance: 1.5
+    conditioning:
+      service: compel    
+    negative_prompt_templates:
+      safe_photo: "blurry, watermark, text, low quality"
+      portrait: "bad anatomy, extra fingers, deformed"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    allowed_scheduler_ids:
+      - euler
+      - lcm
+    default_scheduler_id: lcm
+    chat_delegate: sdxl_advisor
+  SDXL:
+    model: checkpoints/sdxl4GB2GBImprovedFP8_fp8FullCheckpoint.safetensors
+    loader_format: single_file
+    checkpoint_precision: fp8
+    checkpoint_variant: sdxl-base
+    scheduler_profile: native
+    runtime_quantize: none
+    runtime_offload: model
+    runtime_attention_slicing: true
+    runtime_enable_xformers: true
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 11
+    default_guidance: 3.0
+    conditioning:
+      service: compel    
+    negative_prompt_templates:
+      safe_photo: "blurry, compression artifacts, bad anatomy, watermark, text, low quality"
+      portrait: "bad anatomy, extra fingers, deformed"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    allowed_scheduler_ids:
+      - ddim
+      - dpmpp_2m
+      - dpmpp_2m_karras
+      - dpmpp_sde
+      - dpmpp_sde_karras
+      - euler
+      - lcm
+    default_scheduler_id: dpmpp_2m_karras
+    chat_delegate: sdxl_advisor
+    controlnet_policy:
+      enabled: true
+      max_attachments: 2
+      allow_reuse_emitted_maps: true
+      allowed_control_types:
+        canny:
+          default_model_id: sdxl-canny
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        depth:
+          default_model_id: sdxl-depth
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0    
+        pose:
+          default_model_id: sdxl-openpose
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+  HunyuanDiT:
+    model: diffusers/HunyuanDiT-v1.1-Diffusers
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 50
+    default_guidance: 6.0
+    negative_prompt_templates:
+      safe_photo: "blurry, watermark, text, low quality"
+    default_negative_prompt_template: safe_photo
+    allow_custom_negative_prompt: true
+    chat_delegate: sdxl_advisor
+    analysis_profile: default
+    controlnet_policy:
+      enabled: true
+      max_attachments: 1
+      allowed_control_types:
+        canny:
+          default_model_id: hunyuandit-canny
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        depth:
+          default_model_id: hunyuandit-depth
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
+        pose:
+          default_model_id: hunyuandit-pose
+          allow_preprocess: true
+          default_strength: 1.0
+          min_strength: 0.0
+          max_strength: 2.0
