@@ -47,6 +47,10 @@ class StaleResolutionError(RuntimeError):
     """A queued job was resolved against a superseded model authority."""
 
 
+class ModeLoadFailedError(RuntimeError):
+    """A queued job was admitted against an authority whose load never completed."""
+
+
 @dataclass(frozen=True)
 class ActiveModelSnapshot:
     """The pool's single immutable model authority, published atomically with the
@@ -198,6 +202,10 @@ class ModeSwitchJob(Job):
     target_mode: str
     on_complete: Optional[Callable] = None
     force: bool = False  # Reload even if target_mode == current_mode
+    # The authority this switch WILL publish, reserved atomically with its enqueue.
+    # None for switches built outside the Governor (tests, legacy callers): _load_mode
+    # then reserves inline.
+    reservation: Optional["ActiveModelSnapshot"] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -282,6 +290,10 @@ class Governor:
         self._current_mode: Optional[str] = None
         self._active_snapshot: Optional[ActiveModelSnapshot] = None
         self._resolution_epoch: int = 0
+        # Reservations: authority that a queued mode switch WILL publish. The
+        # terminal reservation is what a job admitted NOW executes against.
+        self._pending_authorities: list[ActiveModelSnapshot] = []
+        self._dead_epochs: set[int] = set()
         self._job_records: dict[str, JobRecord] = {}
         self._job_lock = threading.RLock()
         self._idle_timeout = float(os.environ.get("MODEL_IDLE_TIMEOUT_SECS", "300"))
@@ -327,13 +339,99 @@ class Governor:
         from backends.worker_factory import create_cuda_worker
         return create_cuda_worker(worker_id, resolved, binding)
 
+    # --- Authority reservation (spec §3.1-§3.3) ---
+
+    def _resolve_target(self, mode_name: str):
+        """Detect + resolve a target mode. Performs disk I/O (detect_model) and
+        therefore MUST NOT be called while holding _job_lock."""
+        mode = deepcopy(self._mode_config.get_mode(mode_name))
+        assert mode.model_path is not None
+        resolved, binding = resolve_model(mode.model_path, mode)
+        return mode, resolved, binding
+
+    def _terminal_authority(self) -> Optional[ActiveModelSnapshot]:
+        """The authority a job admitted NOW will execute against: the last queued
+        reservation, else the published snapshot. Caller MUST hold _job_lock."""
+        if self._pending_authorities:
+            return self._pending_authorities[-1]
+        return self._active_snapshot
+
+    def _reserve_authority(self, mode_name: str) -> ActiveModelSnapshot:
+        """Reserve an epoch + resolved model.
+
+        Used by callers that pair the reservation with their own enqueue, and by the
+        reservation-less paths (_load_mode's __init__ / force-reload callers) where
+        there is no enqueue to pair with at all.
+        """
+        mode, resolved, binding = self._resolve_target(mode_name)
+        with self._job_lock:
+            self._resolution_epoch += 1
+            reservation = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
+            self._pending_authorities.append(reservation)
+            self._last_activity = time.monotonic()
+            return reservation
+
+    def _drop_reservation(self, reservation: ActiveModelSnapshot, *, dead: bool) -> None:
+        """Remove a reservation by IDENTITY. The epoch is never rolled back — epochs
+        are monotone and never reused, including across failures."""
+        with self._job_lock:
+            self._pending_authorities = [
+                r for r in self._pending_authorities if r is not reservation
+            ]
+            if dead:
+                self._dead_epochs.add(reservation.resolution_epoch)
+
+    def get_pending_mode(self) -> Optional[str]:
+        """The mode a queued switch is heading to, or None. Distinct from
+        get_current_mode(), which stays 'the actually-loaded mode'."""
+        with self._job_lock:
+            if self._pending_authorities:
+                return self._pending_authorities[-1].mode_name
+            return None
+
+    def _switch_shortcircuit(self, mode_name: str, worker_ok: bool) -> Optional[dict]:
+        """The result to return INSTEAD of reserving, or None to proceed with a
+        reservation (spec §3.3). Caller MUST hold _job_lock.
+
+        `worker_ok` is passed in rather than read here: _worker_available() calls into
+        the handle, and the handle must never be invoked while _job_lock is held
+        (backplane Subscriber<->lock invariant). The dispatch fast-path at :606 also
+        reads it unlocked, so the same slight staleness already governs this decision.
+        """
+        terminal = self._terminal_authority()
+        if terminal is None or terminal.mode_name != mode_name:
+            return None
+        if self._pending_authorities:
+            # A switch to this mode is already queued — bind to it, reserve nothing.
+            return {"mode": mode_name, "status": "already_queued"}
+        if worker_ok:
+            # Already active with a live worker: the dispatch fast-path would return
+            # already_loaded WITHOUT calling _load_mode, so a reservation made here
+            # could never be published.
+            return {"mode": mode_name, "status": "already_loaded"}
+        # Active mode, but the worker was idle-evicted: fall through and reload.
+        return None
+
     # --- Mode load / lifecycle (delegates worker build to handle.start) ---
 
-    def _load_mode(self, mode_name: str):
-        """Load a mode: detect, resolve, build worker via handle.start(),
-        publish snapshot atomically."""
+    def _load_mode(self, mode_name: str, reservation: Optional[ActiveModelSnapshot] = None):
+        """Load a mode: build the worker via handle.start(), then publish the
+        reservation as the active snapshot.
+
+        The epoch is reserved by the caller (or inline here) BEFORE the load, so a
+        generate admitted against the reservation carries the epoch this publishes.
+        """
         logger.info(f"[Governor] Loading mode: {mode_name}")
-        mode = deepcopy(self._mode_config.get_mode(mode_name))
+        if reservation is None:
+            reservation = self._reserve_authority(mode_name)
+        mode = reservation.mode
+        resolved, binding = reservation.resolved, reservation.binding
 
         self._unload_current_worker()  # unregister old mode + tear down worker
         with self._job_lock:
@@ -344,9 +442,7 @@ class Governor:
         # path (a load already blocks on model I/O), so fan-out is permitted.
         allocated_before = _worker_allocated(self._dm.snapshot())
 
-        assert mode.model_path is not None
         try:
-            resolved, binding = resolve_model(mode.model_path, mode)
             self._handle.start(resolved, binding, mode)
         except Exception as e:
             logger.error(f"[Governor] Failed to load mode '{mode_name}': {e}", exc_info=True)
@@ -354,6 +450,7 @@ class Governor:
             with self._job_lock:
                 self._current_mode = None
                 self._active_snapshot = None
+            self._drop_reservation(reservation, dead=True)
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -361,7 +458,6 @@ class Governor:
 
         vram_allocated = _worker_allocated(self._dm.snapshot())
         vram_used = max(0, vram_allocated - allocated_before)
-        vram_total = self._registry.get_total_vram()
         logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
 
         if mode.loras:
@@ -376,17 +472,18 @@ class Governor:
         )
 
         with self._job_lock:
-            self._resolution_epoch += 1
             self._current_mode = mode_name
-            self._active_snapshot = ActiveModelSnapshot(
-                mode_name=mode_name,
-                mode=mode,
-                resolved=resolved,
-                binding=binding,
-                resolution_epoch=self._resolution_epoch,
-            )
+            self._active_snapshot = reservation
+            self._pending_authorities = [
+                r for r in self._pending_authorities if r is not reservation
+            ]
+            # Prune dead epochs below the published one: monotone epochs plus
+            # terminal-only admission mean no NEW job can carry them (spec §3.5).
+            self._dead_epochs = {
+                e for e in self._dead_epochs if e >= reservation.resolution_epoch
+            }
 
-        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={self._resolution_epoch})")
+        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={reservation.resolution_epoch})")
 
         # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
         self._start_dispatch_thread()
@@ -529,6 +626,11 @@ class Governor:
             "status": status,
             "is_loaded": self.is_model_loaded(),
             "current_mode": self._current_mode,
+            # The mode a queued switch is heading to. Distinguishes "nothing loaded"
+            # from "loading X" during the window _load_mode leaves between
+            # unregistering the outgoing mode and registering the new one — which was
+            # silent, and read as a spontaneous unload.
+            "pending_mode": self.get_pending_mode(),
             "queue_size": self.get_queue_size(),
             "vram": {
                 "allocated_bytes": worker.allocated_bytes if worker else 0,
@@ -607,7 +709,7 @@ class Governor:
                         result = {"mode": job.target_mode, "status": "already_loaded"}
                     else:
                         result = job.execute(self._handle.worker)
-                        self._load_mode(job.target_mode)
+                        self._load_mode(job.target_mode, reservation=job.reservation)
                     if not job.fut.done():
                         job.fut.set_result(result)
                 else:
@@ -628,11 +730,33 @@ class Governor:
                         except Exception as load_err:
                             raise RuntimeError(f"Demand reload failed: {load_err}") from load_err
 
-                    # Stale-epoch barrier
+                    # Stale-epoch barrier. The dead-epoch / no-authority guard runs
+                    # FIRST: a job whose target mode failed to load has no authority to
+                    # run against, and the old `snapshot is not None` conjunct let it
+                    # fall through the barrier entirely — reaching the paths below with
+                    # no epoch check at all.
                     if generation_job is not None:
                         with self._job_lock:
                             snapshot = self._active_snapshot
-                        if snapshot is not None and snapshot.resolution_epoch != generation_job.resolution_epoch:
+                            dead = generation_job.resolution_epoch in self._dead_epochs
+                        if dead:
+                            raise ModeLoadFailedError(
+                                f"job {generation_job.job_id} was admitted against epoch "
+                                f"{generation_job.resolution_epoch}, whose mode load did "
+                                f"not complete"
+                            )
+                        if snapshot is None:
+                            # No authority at all: explicit unload, or nothing ever
+                            # loaded. Keeps the established operator-facing wording —
+                            # the condition is unchanged, only the point of rejection
+                            # moved here from the handle, and every real path that
+                            # clears the snapshot also drops the worker.
+                            raise ModeLoadFailedError(
+                                f"No worker available for generation: job "
+                                f"{generation_job.job_id} has no active model authority "
+                                f"(admitted against epoch {generation_job.resolution_epoch})"
+                            )
+                        if snapshot.resolution_epoch != generation_job.resolution_epoch:
                             raise StaleResolutionError(
                                 f"job {generation_job.job_id} stamped epoch "
                                 f"{generation_job.resolution_epoch} != active epoch "
@@ -781,9 +905,99 @@ class Governor:
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Future:
         logger.info(f"[Governor] Queueing mode switch to: {mode_name} (force={force})")
-        self._mode_config.get_mode(mode_name)
-        job = ModeSwitchJob(target_mode=mode_name, force=force)
-        return self.submit_job(job)
+        self._mode_config.get_mode(mode_name)  # KeyError for unknown mode (unchanged)
+
+        if not force:
+            worker_ok = self._worker_available()  # handle call — NOT under _job_lock
+            with self._job_lock:
+                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+            if shortcircuit is not None:
+                fut: Future = Future()
+                fut.set_result(shortcircuit)
+                return fut
+
+        return self._reserve_and_enqueue_switch(mode_name, force=force)
+
+    def _reserve_and_enqueue_switch(self, mode_name: str, *, force: bool = False) -> Future:
+        """Reserve the target's authority and enqueue its switch as ONE critical
+        section (spec §3.4).
+
+        Holding _job_lock across the bounded q.put cannot deadlock: the dispatch loop
+        never holds _job_lock while blocked on q.get. Splitting the two would let a
+        concurrent admitter interleave, inverting queue order against
+        _pending_authorities — the queue would then load a different mode last than
+        terminal authority claims.
+
+        Bypasses submit_job deliberately — submit_job cannot hold the lock across its
+        put, and a ModeSwitchJob needs no backplane channel (that is GenerationJob-only).
+        """
+        mode, resolved, binding = self._resolve_target(mode_name)  # disk I/O, no lock
+        worker_ok = self._worker_available()  # handle call — NOT under _job_lock
+        with self._job_lock:
+            if not force:
+                # Re-check under the lock: another thread may have reserved or
+                # published this target while we were resolving. Without it, a
+                # reservation could be minted for a mode the dispatch fast-path will
+                # short-circuit — never published, and doom for anything bound to it.
+                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+                if shortcircuit is not None:
+                    fut: Future = Future()
+                    fut.set_result(shortcircuit)
+                    return fut
+
+            self._resolution_epoch += 1
+            reservation = ActiveModelSnapshot(
+                mode_name=mode_name,
+                mode=mode,
+                resolved=resolved,
+                binding=binding,
+                resolution_epoch=self._resolution_epoch,
+            )
+            self._pending_authorities.append(reservation)
+            self._last_activity = time.monotonic()
+
+            job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
+            try:
+                if self.queue_timeout_s > 0:
+                    self.q.put(job, timeout=self.queue_timeout_s)
+                else:
+                    self.q.put_nowait(job)
+            except queue.Full:
+                self._pending_authorities = [
+                    r for r in self._pending_authorities if r is not reservation
+                ]
+                self._dead_epochs.add(reservation.resolution_epoch)
+                raise
+            logger.debug(
+                f"[Governor] Mode switch queued: {mode_name} "
+                f"(epoch={reservation.resolution_epoch})"
+            )
+            return job.fut
+
+    def admit_generation(self, target_mode: Optional[str]) -> Optional[ActiveModelSnapshot]:
+        """The authority a generate admitted NOW will execute against (spec §3.4).
+
+        target_mode is None            -> the active snapshot (today's behavior). A
+                                          generate naming no mode means 'the current
+                                          mode'; binding it to a pending switch would
+                                          silently run it on the wrong model.
+        target_mode == terminal's mode -> the terminal authority (active OR a switch
+                                          to it already queued).
+        anything else                  -> reserve + enqueue the switch; return the
+                                          reservation.
+
+        Side-effecting by design: reserve-and-enqueue must be atomic, and a split
+        accessor-plus-switch API reintroduces the interleave window this closes.
+        """
+        if target_mode is None:
+            return self.get_active_model_snapshot()
+        with self._job_lock:
+            terminal = self._terminal_authority()
+            if terminal is not None and terminal.mode_name == target_mode:
+                return terminal
+        self._reserve_and_enqueue_switch(target_mode)
+        with self._job_lock:
+            return self._terminal_authority()
 
     def reload_current_mode(self) -> dict:
         if self._current_mode is None:

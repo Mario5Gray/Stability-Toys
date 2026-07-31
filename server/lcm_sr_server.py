@@ -549,33 +549,34 @@ def generate(req: GenerateRequest):
     runtime = app.state.generation_runtime
     supports_modes = hasattr(runtime, "switch_mode")
 
-    if supports_modes and req.mode is not None:
-        current_mode = runtime.get_current_mode()
-        if current_mode != req.mode:
-            try:
-                switch_fut = runtime.switch_mode(req.mode)
-                switch_fut.result(timeout=30.0)
-                logger.info(f"[/generate] Switched to mode: {req.mode}")
-            except KeyError:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Mode '{req.mode}' not found in modes.yaml"
-                )
-            except Exception as e:
-                logger.error(f"[/generate] Mode switch failed: {e}", exc_info=True)
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Mode switch failed: {e}"
-                )
-
     # Capture the active-model authority exactly once; everything below (mode
     # defaults, family-cell admission, ControlNet compatibility, job epoch) reads
     # this object — no get_current_mode/get_mode_config/detect_model afterward.
-    snapshot = (
-        runtime.get_active_model_snapshot()
-        if supports_modes and hasattr(runtime, "get_active_model_snapshot")
-        else None
-    )
+    #
+    # One admission path with the WS route (STABL-ltefhpkk): bind to the mode this
+    # request TARGETS, established atomically with the switch. Replaces the former
+    # blocking switch_mode(...).result(30s) — the switch is now queued ahead of the
+    # job and the job is stamped against the authority that switch will publish.
+    if supports_modes and hasattr(runtime, "admit_generation"):
+        try:
+            snapshot = runtime.admit_generation(req.mode)
+        except KeyError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Mode '{req.mode}' not found in modes.yaml"
+            )
+        except Exception as e:
+            logger.error(f"[/generate] Admission failed: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Admission failed: {e}"
+            )
+    else:
+        snapshot = (
+            runtime.get_active_model_snapshot()
+            if supports_modes and hasattr(runtime, "get_active_model_snapshot")
+            else None
+        )
     emitted_artifacts: list = []
     controlnet_bindings: list = []
 

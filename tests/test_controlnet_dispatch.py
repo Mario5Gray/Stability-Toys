@@ -109,7 +109,11 @@ def test_ws_handle_job_submit_rejects_controlnets_when_mode_system_has_no_curren
     mock_ws = MagicMock()
     mock_state = MagicMock()
     mock_state.use_mode_system = True
-    mock_state.worker_pool.get_active_model_snapshot.return_value = None  # no model loaded
+    # No model loaded and none targeted: admission returns no authority. Admission
+    # moved to admit_generation (STABL-ltefhpkk); get_active_model_snapshot is set too
+    # so the intent stays readable if the seam moves again.
+    mock_state.worker_pool.get_active_model_snapshot.return_value = None
+    mock_state.worker_pool.admit_generation.return_value = None
     mock_ws.app.state = mock_state
 
     sent_messages = []

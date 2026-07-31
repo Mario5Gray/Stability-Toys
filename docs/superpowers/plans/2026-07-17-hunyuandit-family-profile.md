@@ -974,7 +974,8 @@ release, seed, and cleanup seams, but own Hunyuan pipeline assembly:
 - base `HunyuanDiTPipeline.from_pretrained(..., torch_dtype=self.dtype)`
 - native DDPMScheduler unless a tested explicit scheduler is selected
 - Hunyuan ControlNet through `_controlnet_model_cls()` and existing cache
-- `HunyuanDiTControlNetPipeline.from_pipe(base, controlnet=...)`
+- `HunyuanDiTControlNetPipeline.from_pipe(base, controlnet=..., torch_dtype=None)`
+  so diffusers does not default to fp32 and upcast the placed fp16 components
 - component placement before composition; device-only movement afterward
 - native prompt delegation, no SDXL pooled materialization
 - `use_resolution_binning=True`

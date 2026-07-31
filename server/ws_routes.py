@@ -183,8 +183,11 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
         # than crashing the WS loop.
         snapshot = None
         try:
-            snapshot = state.worker_pool.get_active_model_snapshot()
             req = _build_generate_request(params)
+            # Admit against the mode this request TARGETS, established atomically with
+            # the switch (STABL-ltefhpkk / STABL-iuiwzthc). With no target this returns
+            # the active snapshot, exactly as get_active_model_snapshot() did.
+            snapshot = state.worker_pool.admit_generation(getattr(req, "mode", None))
             has_init_image = bool(params.get("init_image_ref"))
             if snapshot is not None:
                 mode = snapshot.mode
@@ -234,16 +237,18 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 await hub.send(client_id, _error(str(e), corr_id))
                 return
 
+        if pre_submit_job_error is None and snapshot is None:
+            # admit_generation returns None only when there is genuinely no model and
+            # none was targeted. The current_resolution_epoch() fallback is gone: it
+            # stamped the PRE-switch epoch, which is the STABL-ltefhpkk race.
+            pre_submit_job_error = "No model loaded"
+
         if pre_submit_job_error is None:
             job = GenerationJob(
                 req=req,
                 init_image=init_image_bytes,
                 controlnet_bindings=controlnet_bindings,
-                resolution_epoch=(
-                    snapshot.resolution_epoch
-                    if snapshot is not None
-                    else state.worker_pool.current_resolution_epoch()
-                ),
+                resolution_epoch=snapshot.resolution_epoch,
             )
             try:
                 fut = state.worker_pool.submit_job(job)
@@ -369,6 +374,10 @@ def _build_generate_request(params: dict):
     return GenerateRequest(
         prompt=params.get("prompt", ""),
         negative_prompt=params.get("negative_prompt"),
+        # The CLI has always sent this (config/precedence.go sets params["mode"] and
+        # the whole GenParams map ships in the submit frame); it was silently dropped
+        # here, which is why the Governor could not admit against the target mode.
+        mode=params.get("mode"),
         scheduler_id=params.get("scheduler_id"),
         size=params.get("size", os.environ.get("DEFAULT_SIZE", "512x512")),
         num_inference_steps=params.get(

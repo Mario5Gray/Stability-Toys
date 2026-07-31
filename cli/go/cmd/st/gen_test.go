@@ -715,3 +715,39 @@ func TestRecreateRequiredEvenWithInitImage(t *testing.T) {
 		t.Fatal("--recreate without lcm chunk must error even alongside --init-image")
 	}
 }
+
+// TestGenDoesNotPreSwitchMode pins that the CLI no longer switches modes before
+// submitting. The server now owns switch+admit atomically (STABL-ltefhpkk): that
+// pre-emptive POST /api/modes/switch is exactly what created the racing
+// ModeSwitchJob the Governor then had to reject. params["mode"] already ships in
+// the WS submit frame, so the target is not lost by removing it.
+func TestGenDoesNotPreSwitchMode(t *testing.T) {
+	var hitSwitch, hitStatus bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/modes/switch":
+			hitSwitch = true
+		case "/api/models/status":
+			hitStatus = true
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"current_mode":"mode-a","is_loaded":true}`))
+	}))
+	defer srv.Close()
+
+	client := stclient.New(srv.URL)
+	params := stclient.GenParams{"prompt": "hi", "mode": "mode-b"}
+
+	if err := preSubmitModeSideEffects(context.Background(), client, params); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if hitSwitch {
+		t.Error("CLI called POST /api/modes/switch; the server owns the switch now")
+	}
+	if hitStatus {
+		t.Error("CLI called GET /api/models/status for CurrentMode; round-trip should be gone")
+	}
+	if params["mode"] != "mode-b" {
+		t.Errorf("params[mode] = %v, want mode-b (must still ship in the submit frame)", params["mode"])
+	}
+}

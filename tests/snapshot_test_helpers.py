@@ -79,6 +79,10 @@ def install_mode_backed(state, pool, mode, *, family_id="sdxl", epoch=1, **caps)
     snapshot = make_active_snapshot(mode, family_id=family_id, epoch=epoch)
     pool.get_active_model_snapshot.return_value = snapshot
     pool.current_resolution_epoch.return_value = epoch
+    # Admission now goes through admit_generation (STABL-ltefhpkk); with no pending
+    # switch it returns the same authority get_active_model_snapshot() does.
+    pool.admit_generation.return_value = snapshot
+    pool.get_pending_mode.return_value = None
     # Display-only: the connect-time system:status frame reads get_current_mode();
     # keep it JSON-serializable so the status frame doesn't break the socket.
     pool.get_current_mode.return_value = snapshot.mode_name
