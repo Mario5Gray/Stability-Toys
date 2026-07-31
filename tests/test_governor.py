@@ -1181,3 +1181,136 @@ def test_demand_reload_runs_before_the_execution_clock_starts():
         finally:
             _drain_queue(gov)
             gov.shutdown()
+
+
+# --- the two-budget waiter (STABL-atzqpcte Task 2) --------------------------
+
+
+def _waiter_governor():
+    """A Governor whose dispatch loop is frozen, so job state is test-controlled."""
+    gov = _reservation_governor("mode-a", default="mode-a")
+    _freeze_dispatch(gov)
+    return gov
+
+
+def _queued_job(gov):
+    """Register a job WITHOUT enqueueing it: the record exists, state is queued,
+    executing_since is None. Returns (job, record)."""
+    job = GenerationJob(req=SimpleNamespace(prompt="x"), resolution_epoch=0)
+    gov._register_job(job)
+    return job, gov._get_job_record(job.job_id)
+
+
+def test_a_queued_job_is_not_timed_out_by_the_execution_budget():
+    """THE HEADLINE. A generate waiting behind a multi-minute model load must not
+    be killed by a budget meant for generation.
+
+    This is the field failure from enigma: the first inline --mode generate against
+    HunyuanDiT was timed out at 120s while the model was still loading.
+    """
+    import concurrent.futures
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _waiter_governor()
+        try:
+            job, record = _queued_job(gov)
+            assert record.executing_since is None
+
+            start = time.monotonic()
+            with pytest.raises(concurrent.futures.TimeoutError) as exc_info:
+                # Execution budget far below the admission budget: a queued job must
+                # survive the former and only be judged by the latter.
+                gov.wait_for_result(
+                    job.fut,
+                    execution_timeout_s=0.05,
+                    admission_timeout_s=0.6,
+                    poll_interval_s=0.02,
+                )
+            elapsed = time.monotonic() - start
+
+            assert elapsed >= 0.5, (
+                f"gave up after {elapsed:.2f}s — the queued job was judged against the "
+                f"0.05s EXECUTION budget instead of the 0.6s admission budget"
+            )
+            assert "admission" in str(exc_info.value).lower()
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_an_executing_job_is_timed_out_by_the_execution_budget():
+    """Once the job is genuinely running, the tight budget applies — and is measured
+    from when execution actually began, not from when the waiter noticed."""
+    import concurrent.futures
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _waiter_governor()
+        try:
+            job, record = _queued_job(gov)
+            record.state = "running"
+            record.executing_since = time.monotonic()
+
+            start = time.monotonic()
+            with pytest.raises(concurrent.futures.TimeoutError) as exc_info:
+                gov.wait_for_result(
+                    job.fut,
+                    execution_timeout_s=0.2,
+                    admission_timeout_s=30.0,
+                    poll_interval_s=0.02,
+                )
+            elapsed = time.monotonic() - start
+
+            assert elapsed < 5.0, f"took {elapsed:.2f}s for a 0.2s execution budget"
+            assert "execution" in str(exc_info.value).lower()
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_timing_out_requests_cancellation():
+    """A timed-out job is told to stop. For a still-queued job this cancels it
+    outright, so the work is never done at all.
+
+    It does NOT stop a running generation — cancel_requested is only checked at job
+    boundaries and run_job never reads it. That limit is STABL-jredufxb.
+    """
+    import concurrent.futures
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _waiter_governor()
+        try:
+            job, record = _queued_job(gov)
+            with pytest.raises(concurrent.futures.TimeoutError):
+                gov.wait_for_result(
+                    job.fut,
+                    execution_timeout_s=5.0,
+                    admission_timeout_s=0.1,
+                    poll_interval_s=0.02,
+                )
+            assert record.cancel_requested is True, "timeout did not request cancellation"
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_a_result_that_arrives_is_returned_unchanged():
+    """The waiter is transparent on the happy path — it carries the worker's opaque
+    return exactly as fut.result() did."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _waiter_governor()
+        try:
+            job, _record = _queued_job(gov)
+            job.fut.set_result((b"PNG", 4242))
+            assert gov.wait_for_result(job.fut) == (b"PNG", 4242)
+        finally:
+            _drain_queue(gov)
+            gov.shutdown()
+
+
+def test_waiter_budgets_default_to_the_module_constants():
+    """DEFAULT_TIMEOUT keeps its name and its 120 default, and finally means
+    EXECUTION. ADMISSION_TIMEOUT_S is the new, generous queue-wait budget."""
+    from backends import governor as gov_mod
+
+    assert gov_mod.DEFAULT_EXECUTION_TIMEOUT_S == 120.0
+    assert gov_mod.DEFAULT_ADMISSION_TIMEOUT_S == 900.0

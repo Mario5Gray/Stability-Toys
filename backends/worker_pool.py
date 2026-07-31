@@ -119,6 +119,12 @@ class WorkerPool:
     def get_pending_mode(self):
         return self._governor.get_pending_mode()
 
+    def wait_for_result(self, fut, **kwargs):
+        """Wait under the two budgets (STABL-atzqpcte). Transports call this instead
+        of fut.result(timeout=...), which charged queue wait + model load to a budget
+        meant for generation."""
+        return self._governor.wait_for_result(fut, **kwargs)
+
     def cancel_job(self, job_id: str) -> bool:
         return self._governor.cancel_job(job_id)
 

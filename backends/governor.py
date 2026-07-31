@@ -42,6 +42,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_QUEUE_TIMEOUT_S: float = float(os.environ.get("WORKER_QUEUE_TIMEOUT_S", "0.25"))
 
+# STABL-atzqpcte: one clock became two. DEFAULT_TIMEOUT keeps its name and its 120s
+# default and now bounds only EXECUTION — the meaning its name always claimed. Queue
+# wait (which includes a mode switch's model load, minutes for a cold checkpoint) is
+# bounded separately and generously. Bounded rather than unbounded so a job wedged
+# behind a hung ModeSwitchJob still fails instead of pinning a connection forever.
+DEFAULT_EXECUTION_TIMEOUT_S: float = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
+DEFAULT_ADMISSION_TIMEOUT_S: float = float(os.environ.get("ADMISSION_TIMEOUT_S", "900"))
+
 
 class StaleResolutionError(RuntimeError):
     """A queued job was resolved against a superseded model authority."""
@@ -574,6 +582,96 @@ class Governor:
         if cancelled:
             logger.info(f"[Governor] Cancelled {len(cancelled)} pending job(s) ({reason})")
         return cancelled
+
+    # --- Result waiting: two budgets, split at true execution start ---
+
+    def _record_for_future(self, fut) -> Optional[JobRecord]:
+        """Find a job's record by FUTURE IDENTITY.
+
+        Deliberately not by job id: the HTTP path's `runtime.submit_generate()`
+        returns only a future and never exposes an id, so an id-keyed lookup would
+        fix the WebSocket transport and silently leave HTTP on the old semantics.
+        """
+        with self._job_lock:
+            for record in self._job_records.values():
+                if record.job.fut is fut:
+                    return record
+        return None
+
+    def wait_for_result(
+        self,
+        fut,
+        *,
+        admission_timeout_s: Optional[float] = None,
+        execution_timeout_s: Optional[float] = None,
+        poll_interval_s: float = 0.25,
+    ):
+        """Wait for a job's result under TWO budgets.
+
+        A generate's future does not resolve until everything ahead of it in the
+        queue has run, so a single `fut.result(timeout=...)` charges queue wait and
+        model load to a budget meant for generation — the STABL-atzqpcte defect,
+        observed in the field as a WebSocket timeout during a HunyuanDiT load.
+
+        While the job has not begun executing it is judged against the ADMISSION
+        budget; once `JobRecord.executing_since` is stamped (after the demand reload
+        and the stale-epoch barrier) it is judged against the EXECUTION budget,
+        measured from when execution actually began rather than from when this
+        waiter noticed.
+
+        On expiry the job is asked to cancel and `TimeoutError` is raised — the type
+        callers already handle. NOTE that cancelling does NOT stop a generation that
+        is already running: `cancel_requested` is read only at job boundaries and
+        `run_job` never checks it, so the worker runs to completion holding VRAM.
+        Reaping it for real is STABL-jredufxb.
+        """
+        admission = (
+            DEFAULT_ADMISSION_TIMEOUT_S if admission_timeout_s is None else admission_timeout_s
+        )
+        execution = (
+            DEFAULT_EXECUTION_TIMEOUT_S if execution_timeout_s is None else execution_timeout_s
+        )
+        waiting_since = time.monotonic()
+        vanished_since: Optional[float] = None
+
+        while True:
+            try:
+                return fut.result(timeout=poll_interval_s)
+            except TimeoutError:
+                if fut.done():
+                    # The JOB raised TimeoutError; that is its result, not our budget.
+                    return fut.result()
+
+            record = self._record_for_future(fut)
+            now = time.monotonic()
+
+            if record is not None:
+                started = record.executing_since
+            else:
+                # The record is finalized on completion, so it can vanish while the
+                # future is briefly unresolved. Treat that as executing — never as
+                # still-queued, which would hand the generous admission budget to a
+                # job that has already run.
+                vanished_since = now if vanished_since is None else vanished_since
+                started = vanished_since
+
+            if started is None:
+                if now - waiting_since >= admission:
+                    self._expire(record, "admission", admission, now - waiting_since)
+            elif now - started >= execution:
+                self._expire(record, "execution", execution, now - started)
+
+    def _expire(self, record: Optional[JobRecord], budget: str, limit_s: float, waited_s: float):
+        """Ask the job to stop, then raise. Cancelling a still-QUEUED job takes it off
+        the queue entirely, so the work is never done at all."""
+        knob = "ADMISSION_TIMEOUT_S" if budget == "admission" else "DEFAULT_TIMEOUT"
+        who = f"job {record.job_id}" if record is not None else "job"
+        if record is not None:
+            self.cancel_job(record.job_id)
+        raise TimeoutError(
+            f"{who} exceeded its {budget} budget of {limit_s:g}s after {waited_s:.1f}s "
+            f"(raise {knob} if this is legitimate)"
+        )
 
     def cancel_job(self, job_id: str) -> bool:
         with self._job_lock:
