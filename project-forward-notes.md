@@ -9,8 +9,13 @@ Stable policy lives in `AGENTS.md`. This file is operational and will drift.
 
 The VRAM umbrella surfaced running HunyuanDiT + ControlNet on enigma (RTX 3090,
 24 GB) and has since become a deliberate **worker-as-a-service** refactor, not just
-bug fixes. Human-driven, no waveplan, kept close. Two children merged; the Governor
-(STABL-vdkdruox) is merged (PR #20, `2768802`); the rest below are `todo`.
+bug fixes. Human-driven, no waveplan, kept close.
+
+**Status as of 2026-07-31:** umbrella `STABL-nvmieaxh` is `in-progress`. **Four children
+done** — `STABL-sqqlkmdl` (accounting), `STABL-yoauoqao` (backplane, PR #19),
+`STABL-vdkdruox` (Governor, PR #20), `STABL-hjldxurg` (DeviceMemory, PR #24). Two
+in-progress with code landed (`STABL-kfekehhc`, `STABL-rgvxuedo`). Three `todo`, one of
+which is the load-bearing gap below.
 
 ### Worker-as-a-service — umbrella `STABL-nvmieaxh`
 
@@ -46,22 +51,12 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   and a stdlib IPC transport proven across a real spawn boundary incl. the cross-process
   cancel channel. See "Recently landed" for the carry-forwards.
 
-**Remaining children (`todo`):**
+**Remaining children:**
 
-- **`STABL-vdkdruox` — Worker Governor** (control plane): worker lifecycle
-  (spawn/ready/health/kill/respawn-with-backoff), authoritative state, dispatch +
-  admission. **This is where the epoch/snapshot authority lives**, so it owns the fix
-  for the mode-switch races below. Consumes the backplane + a Worker Handle interface;
-  extract from `WorkerPool` with an InProcHandle first (prove zero behavior change).
-  **Status: v1 MERGED — PR #20** (`feat/worker-governor` → `main`, merge `2768802`,
-  all 5 TDD tasks committed, 0-byte `server/` diff, 1008 passed). Scoping locked (2026-07-25):
-  pure no-op extraction v1, `WorkerPool` = thin facade, seam inventory split
-  (WorkerHandle contract + CUDA audit in v1; ControlNetBinding wire form +
-  `CustomJob`→typed-message map deferred to facet-3). Sub-question (b) demand-reload/
-  eviction leans Governor (landed there); (a) dispatch replace-vs-wrap resolved →
-  **wrap** (dispatch loop is `_worker_loop` behavior-verbatim with
-  `self._worker`→`self._handle.worker`; `handle.submit()` is the facet-3 contract,
-  unused in v1). See "In review" below + `fp context STABL-vdkdruox`.
+- **`STABL-vdkdruox` — Worker Governor — DONE** (PR #20, `2768802`). Authority
+  (resolution epoch, active snapshot, admission barrier) now lives in
+  `backends/governor.py`. The mode-switch races it was expected to own were fixed as a
+  follow-on in PR #26 — see "Authority reservation" under Recently landed.
 - **`STABL-qfjfflrx` — parent↔worker seam inventory**: the CUDA-in-parent audit + the
   map of every touchpoint the service split must cover (per-job payload wire form,
   `CustomJob` callable that can't cross a boundary, `superres` as a 2nd in-parent GPU
@@ -69,42 +64,42 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
 - **`STABL-cchxvuhs` — global GPU identity** (UUID-keyed, not local index): governor
   allocates by UUID; `CUDA_VISIBLE_DEVICES` per worker. Not blocking the Governor's
   single-GPU path.
-- **Facet-3 (no issue yet)** — move CudaWorker to a spawn subprocess; the durable OOM
-  recovery + timed-out-job reap (`STABL-qvmdayhb`). Depends on the backplane (done) +
-  Governor. The backplane's facet-3 carry-forwards (cancel_job→subscription wiring,
-  `STALE_EPOCH` reconstruction registry, IPC `request(n)`/`job_id`/`result()` hardening)
-  are tracked in the backplane plan's Deferred section.
+- **Facet-3 — issues EXIST and M1 has LANDED.** The note that there was "no issue yet"
+  is obsolete.
+  - **`STABL-rgvxuedo`** (in-progress, revs `f997137d`, `e3ebebb3`) —
+    `backends/worker_handle_subprocess.py` exists; the Governor dispatch loop carries the
+    full subprocess path including OOM kill+respawn and frameless-death recovery;
+    `tests/test_subprocess_worker_handle.py` plus ~20 subprocess assertions in
+    `test_governor.py` cover it.
+  - **`STABL-ptoicrho`** (todo) — **THE LOAD-BEARING GAP.** Verified 2026-07-31: nothing
+    outside `worker_handle_subprocess.py` and the tests constructs
+    `SubprocessWorkerHandle`. No env switch, no config flag, no server wiring;
+    `Governor.__init__` defaults to `InProcessWorkerHandle`. So this umbrella's headline
+    goal — durable OOM recovery via subprocess isolation, the only thing that can drop a
+    poisoned CUDA context — is written, tested, and **unreachable in production**. enigma
+    is not protected by it today. One wiring task, not a research task.
+  - The backplane's facet-3 carry-forwards (`cancel_job`→subscription wiring,
+    `STALE_EPOCH` reconstruction registry, IPC `request(n)`/`job_id`/`result()`
+    hardening) are tracked in the backplane plan's Deferred section.
+
+**Timeout ↔ VRAM interaction, recorded 2026-07-31.** The umbrella's 2026-07-22 comment
+notes the flat WS result timeout abandons a long job *without stopping the backend*, so
+the worker keeps denoising and holds VRAM with the result discarded. The
+`STABL-ltefhpkk` acceptance required `DEFAULT_TIMEOUT=600`, so an abandoned job now holds
+VRAM for **ten** minutes rather than two. That workaround is correct for the admission
+race and actively worse for this umbrella's goal. Both need the same fix: start the
+timeout clock when the job begins *executing* (`STABL-atzqpcte`) plus a real reap — which
+is another argument for facet-3, since Python cannot interrupt a running worker thread.
+(The comment cites `STABL-qvmdayhb`; that ID does not resolve. The reap concern is
+tracked nowhere but that comment and `STABL-atzqpcte`.)
 
 `STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
 predecessor (`a3c1c64`): fixed retained ControlNet weights but not the accounting or
 recovery facets.
 
-### Mode-switch concurrency — folded into the Governor
+### Mode-switch concurrency — RESOLVED, merged (PR #26)
 
-A generate admitted concurrently with a mode switch resolves against transient
-authority. Two windows of the one switch, **same root, one fix — now a Governor
-concern** (authority placement, `STABL-vdkdruox`), not a standalone track:
-
-| Issue | Window | Failure |
-|---|---|---|
-| `STABL-ltefhpkk` | old snapshot still live (old epoch) | `StaleResolutionError` at execution; retry works |
-| `STABL-iuiwzthc` | new model still loading (`_active_snapshot` transiently `None`) | spurious "ControlNet provider not yet implemented"; retry works |
-
-Fix both by resolving/admitting/stamping the generate against the mode it
-**targets**, established atomically with the switch — implemented once in the Governor
-where epoch/snapshot authority lives, not spread across the boundary.
-
-**Still open after the Governor + DeviceMemory work — reproduced live (2026-07-30).**
-The race **survived the Governor extraction**: recorded repro was epochs 1≠2 via old
-`WorkerPool`; the fresh live repro is 5≠6 via the merged Governor (logged on
-`STABL-ltefhpkk`). Trigger = inline `st generate --mode <X>` (switch + generate
-queued back-to-back: `[ModeSwitchJob(→N+1), GenerationJob(stamped N)]`); explicit
-switch-then-gen does **not** race. Anchors on `main`: stamp at submission
-`server/ws_routes.py:238-246` (WS) + `:623-626` (HTTP); epoch bump
-`backends/governor.py:379`; barrier `governor.py:635-636`. The barrier is
-load-bearing (it rejects a generate meant for a switched-away mode) — a naive
-lazy-stamp would silently run stale generates on the wrong model. A ready-to-run
-handoff prompt for the brainstorm→spec→plan→TDD fix exists (both issues, one root).
+Both windows are fixed. See "Authority reservation" under Recently landed.
 
 Open, unowned (pre-existing):
 
@@ -115,6 +110,79 @@ Open, unowned (pre-existing):
 ---
 
 ## Recently landed
+
+### Authority reservation — mode-switch admission race — merged (PR #26)
+
+**FP:** STABL-ltefhpkk (done), STABL-iuiwzthc (done) | **Merge:** `ff1a300` (PR #26, `fix/governor-authority-reservation` → `main`)
+**Spec:** `docs/superpowers/specs/2026-07-30-governor-authority-reservation-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-30-governor-authority-reservation.md`
+
+The Governor reserves a mode switch's **resolution epoch and resolved model at
+enqueue time** rather than at load time, and admission binds a targeted generate to
+that reservation. The generate's stamp therefore equals the epoch `_load_mode` will
+publish. **The barrier's epoch-equality comparison is unchanged** — the fix is in what
+gets stamped, not what enforces it. Seven TDD tasks; Python 1085 passed / 9 skipped /
+1 xfailed, Go 9/9; live acceptance on enigma across two sequences.
+
+Design decisions worth carrying:
+
+- **`mode=None` binds the ACTIVE snapshot, not terminal authority.** A generate naming
+  no mode means "the current mode"; binding it to a pending switch would silently run
+  it on the wrong model — worse than the bug. A bare `st gen` racing someone else's
+  switch is *correctly* still rejected.
+- **`switch_mode` short-circuits BEFORE reserving** when the target is already
+  terminal. The dispatch fast-path (`governor.py:606`) returns `already_loaded` without
+  calling `_load_mode`, so a reservation minted there is never published — the same bug,
+  self-inflicted. Reports `already_queued` when the match is a pending reservation, and
+  still falls through to a reload when the active mode's worker was idle-evicted.
+- **Demand reload is epoch-neutral, byte-for-byte.** `_reload_from_snapshot` never
+  bumps, so generates stamped at epoch N survive an eviction/reload cycle. Do not
+  "fix" this by reserving there.
+- **`get_current_mode()` still means "the actually-loaded mode"** — nine call sites
+  depend on it. Observability went into a new `get_pending_mode()` + `pending_mode` in
+  `/api/models/status`, which closes the previously **silent** window where `_load_mode`
+  unregisters the outgoing mode (`:338`) and re-registers only after the load (`:370`).
+- **`_reserve_and_enqueue_switch` is one critical section.** Resolve outside the lock
+  (disk I/O), then re-check/bump/append/put under it. Splitting them lets a concurrent
+  admitter invert queue order against `_pending_authorities`. `queue.Full` rolls the
+  reservation back.
+- **The CLI no longer pre-switches.** `gen.go`'s `CurrentMode` + `SwitchMode` returned
+  as soon as the switch was *queued*, so the generate behind it was admitted against
+  pre-switch authority — the direct cause of the race. `params["mode"]` already shipped
+  in the WS frame and is now read server-side. Replaced by an intentionally empty
+  `preSubmitModeSideEffects()` seam so "the CLI does not pre-switch" stays testable.
+
+Two findings beyond the filed issues:
+
+- **Wrong-mode configuration.** Admission bound to the live mode, so a generate
+  targeting X took `size`/`steps`/`guidance` from the **outgoing** mode and resolved
+  ControlNet bindings against the outgoing `family_id`. Masked only because the barrier
+  rejected the job — the decisive argument against relaxing the barrier.
+- **A correctness hole at the barrier.** The epoch check was conjoined with
+  `snapshot is not None`, so after a failed load it was skipped entirely. With a handle
+  whose `submit()` succeeds the no-authority job did not error — it **ran**. A
+  dead-epoch / no-authority guard now runs first, raising `ModeLoadFailedError`.
+
+Test-infrastructure invariants for anyone writing Governor tests: `gov._stop.set()`
+does **not** stop the dispatch loop (it is blocked in `q.get(timeout=1.0)` and will
+dequeue and run one more job) — use `_freeze_dispatch`, which also joins the thread.
+And `shutdown()` begins with `q.join()`, so anything left queued must be cleared with
+`_drain_queue` or shutdown blocks.
+
+Deferred / filed, NOT fixed here:
+
+- **`STABL-atzqpcte`** — `DEFAULT_TIMEOUT` (120s) bounds queue-wait + model load, not
+  generation time. Confirmed in the field during acceptance; `DEFAULT_TIMEOUT=600`
+  cleared it. Pre-existing but previously unreachable, because the racing generate used
+  to fail fast in milliseconds. **The in-repo default is deliberately unchanged** — the
+  number is not the problem, the thing being measured is. Fix = start the clock when the
+  job begins executing (the Governor already tracks `JobRecord` queued→running).
+- **`STABL-anxqlxkm`** (under `STABL-sgdavnvz`) — cross-file test isolation; two
+  `gc`/`empty_cache` mock assertions fail when `test_governor.py` runs first.
+- **Unload-after-gen cause not isolated.** The symptom is verified gone (inline `--mode`
+  is now sticky; the model stays resident and the next generate reuses it), but the
+  cause was not discriminated between the registry-gap reporting artifact and a genuine
+  idle eviction from stale `_last_activity` — both were addressed in the same task.
 
 ### DeviceMemory — backend-neutral device-memory accounting — merged (PR #24)
 
