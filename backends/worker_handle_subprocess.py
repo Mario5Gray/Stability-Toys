@@ -24,6 +24,7 @@ from typing import Optional
 
 from backends.worker_handle import WorkerHandle, WorkerHealth
 from backends.liveness import SubprocessLiveness
+from backends.model_resolution import resolved_model_to_json_dict
 from backends.job_envelope import encode_job, decode_job
 from backends.backplane.ipc import IpcJobSink, drain_to_subscriber
 from backends.backplane.reactivestreams import Publisher, Subscriber
@@ -37,15 +38,42 @@ def _resolve_ref(dotted: str):
     return getattr(importlib.import_module(mod), name)
 
 
-def _worker_main(conn, factory_ref, resolved, binding, mode):
-    """Spawn-child entrypoint: build the worker, signal READY, then serve jobs.
+def _worker_main(conn, factory_ref, wire_resolved, binding, mode):
+    """Spawn-child entrypoint: rebuild the resolution, build + condition the worker,
+    signal READY.
+
+    ``ResolvedModel`` cannot be pickled (it holds ``MappingProxyType``), so the wire
+    form is its JSON dict — the codec `model_resolution` was designed to provide
+    (module docstring: "wire-safe ResolvedModel that may appear verbatim in a request
+    trace and be consumed by a future remote processor **without re-detecting or
+    re-resolving family**"). The child rebuilds, it does NOT re-resolve: resolution
+    authority stays parent-side, the child touches no filesystem, and a parent-side
+    `resolve_model` patch still governs the result even though patches do not cross a
+    spawn boundary.
 
     Serial by construction — one job at a time. The opaque run_job return is pickled
     into the blob (recon #5C); errors ride the sink terminal so a waiting Future
     never hangs. A frameless death (SIGKILL) is caught parent-side by the Task 4 EOF
     guard, not here."""
+    from backends.model_resolution import resolved_model_from_json_dict
+
     factory = _resolve_ref(factory_ref)
+    resolved = (
+        resolved_model_from_json_dict(wire_resolved) if wire_resolved is not None else None
+    )
     worker = factory(0, resolved, binding)
+
+    # M-A: replicate InProcessWorkerHandle.start() conditioning configuration.
+    if mode is not None:
+        configure_conditioning = getattr(worker, "configure_conditioning", None)
+        if callable(configure_conditioning):
+            configure_conditioning(mode.conditioning)
+        elif mode.conditioning.requires_configurable_worker():
+            raise RuntimeError(
+                f"mode configures conditioning but worker {type(worker).__name__} "
+                "does not support conditioning"
+            )
+
     conn.send_bytes(_READY)
     while True:
         try:
@@ -115,10 +143,18 @@ class SubprocessWorkerHandle(WorkerHandle):
         return None
 
     def start(self, resolved_mode, binding, mode) -> None:
+        # M-A: ResolvedModel is unpicklable (MappingProxyType), so it crosses the spawn
+        # boundary as its JSON dict via the codec model_resolution already provides.
+        # The parent stays the single resolution authority — the child rebuilds rather
+        # than re-resolving, so it needs no filesystem access and a parent-side
+        # resolve_model patch still governs what the child sees.
+        wire_resolved = (
+            resolved_model_to_json_dict(resolved_mode) if resolved_mode is not None else None
+        )
         self._parent_conn, child_conn = self._ctx.Pipe()
         self._proc = self._ctx.Process(
             target=_worker_main,
-            args=(child_conn, self._factory_ref, resolved_mode, binding, mode),
+            args=(child_conn, self._factory_ref, wire_resolved, binding, mode),
             daemon=True,
         )
         self._proc.start()
