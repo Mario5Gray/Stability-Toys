@@ -78,6 +78,42 @@
 
 ---
 
+## Completion record
+
+**All tasks complete.** Boxes were never ticked as the work landed, so this section
+records what closed each one — a cold agent reading unticked boxes would otherwise
+conclude nothing had been done and could redo Task 0.
+
+| Task | Closed by |
+|---|---|
+| 0 — M0 spawn round-trip | `a7814c6` |
+| 1 — `WorkerHealth` driver-truth VRAM | `002a3d1` |
+| 2 — `LivenessSource` | `fd3f638` |
+| 3 — versioned job wire-form | `91b6a99` |
+| 4 — IPC `job_id` + EOF guard | `447c95a` |
+| 5 — `SubprocessWorkerHandle` (M1) | `69050b5` |
+| 6 — Governor dual-path dispatch | `f997137` |
+| 7 — durable OOM recovery (M2) | `e173d0e` |
+| 8 — live acceptance + docs | live run on enigma 2026-07-31; this commit |
+
+Tasks 0–7 merged as PR #23 (`18a6bdb`). Task 8 was blocked until PR #28 landed
+`STABL-ptoicrho`'s `WORKER_ISOLATION=subprocess` wiring — before that, nothing outside
+this module constructed a `SubprocessWorkerHandle`, so the live run had no way to reach
+the code it was meant to exercise.
+
+**Two corrections the plan did not anticipate**, both fixed in PR #28:
+
+- The M-A wire form sent `model_path` and re-resolved in the child. That has no working
+  configuration — `None` starves the parent of authority, a real path makes the child
+  raise before `_READY` and hangs the parent. `ResolvedModel` now crosses via
+  `resolved_model_to_json_dict` / `resolved_model_from_json_dict`, the codec
+  `model_resolution` already provided (`8fe1c94`).
+- Task 8's OOM lever could not work for HunyuanDiT: `use_resolution_binning=True` bins
+  every request to 1280×1280, so an oversized `size` is normalised away. Replaced with
+  `spikes/vram_hog.py`, which applies pressure from a separate process (`e50acf8`).
+
+---
+
 ## Task 0 (M0 — prerequisite): `GenerateRequest` round-trips the spawn boundary
 
 **Goal:** Confirm — RED-first — whether `GenerateRequest` (a pydantic `BaseModel`, `server/lcm_sr_server.py:136`) survives the spawn pickle. This gates the M1 wire-form: if raw pickle is clean, the envelope carries the instance; if not, it carries `model_dump()` and reconstructs with `model_validate()`. **This is the #1 M1 schedule risk — resolve it before M1.**
@@ -88,7 +124,7 @@
 **Interfaces:**
 - Produces: the decision consumed by Task 3 (`job_envelope.py`) — either "pickle the instance" or "carry a dict via `model_dump`/`model_validate`".
 
-- [ ] **Step 1: Write the failing test — round-trip through a spawn child**
+- [x] **Step 1: Write the failing test — round-trip through a spawn child**
 
 ```python
 # tests/test_generaterequest_serialization.py
@@ -113,12 +149,12 @@ def test_generaterequest_round_trips_spawn_boundary():
     assert got.steps == 4
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_generaterequest_serialization.py -q`
 Expected: **PASS** if `GenerateRequest` pickles cleanly (pydantic v2 `BaseModel` is picklable by default). **FAIL** (PicklingError/AttributeError) if a field holds an unpicklable value.
 
-- [ ] **Step 3: If it FAILED, add the `model_dump` boundary test and adopt it as the envelope contract**
+- [x] **Step 3: If it FAILED, add the `model_dump` boundary test and adopt it as the envelope contract**
 
 ```python
 def test_generaterequest_round_trips_via_model_dump():
@@ -134,7 +170,7 @@ def test_generaterequest_round_trips_via_model_dump():
 
 Record the outcome in the commit message: **"GenerateRequest pickles cleanly"** OR **"GenerateRequest requires model_dump boundary"**. Task 3 consumes this.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/test_generaterequest_serialization.py
@@ -157,7 +193,7 @@ Task 3 job wire-form. Next: Task 1 WorkerHealth driver-truth fields."
 **Interfaces:**
 - Produces: `WorkerHealth(state: str, vram_free_bytes: int, vram_total_bytes: int, mode: str | None)`. Consumed by Tasks 2, 3, 5, and the Governor helper in Task 6.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # add to tests/test_worker_handle.py
@@ -172,12 +208,12 @@ def test_health_reports_driver_truth_vram_fields():
     assert isinstance(h.vram_total_bytes, int)
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_worker_handle.py::test_health_reports_driver_truth_vram_fields -q`
 Expected: FAIL — `WorkerHealth` has `vram_bytes`, not the new fields.
 
-- [ ] **Step 3: Change `WorkerHealth` + `InProcessWorkerHandle.health()`**
+- [x] **Step 3: Change `WorkerHealth` + `InProcessWorkerHandle.health()`**
 
 In `backends/worker_handle.py`, replace the dataclass field and the health method:
 
@@ -207,19 +243,19 @@ class WorkerHealth:
         )
 ```
 
-- [ ] **Step 4: Update `StubHandle.health()` in `tests/test_governor.py`**
+- [x] **Step 4: Update `StubHandle.health()` in `tests/test_governor.py`**
 
 ```python
     def health(self):
         return WorkerHealth(state=self._state, vram_free_bytes=0, vram_total_bytes=0, mode=None)
 ```
 
-- [ ] **Step 5: Run health + governor + handle suites**
+- [x] **Step 5: Run health + governor + handle suites**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_worker_handle.py tests/test_governor.py -q`
 Expected: PASS. (No other consumer reads `vram_bytes` — confirmed by grep before this change.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/worker_handle.py tests/test_worker_handle.py tests/test_governor.py
@@ -243,7 +279,7 @@ InProcessWorkerHandle.health() + StubHandle updated. Next: Task 2 LivenessSource
 **Interfaces:**
 - Produces: `class LivenessSource(Protocol)` with `state() -> str` (`"live"` | `"dead"`) and `note_heartbeat() -> None`; `class SubprocessLiveness(process, stale_after_s: float)` implementing it. Consumed by `SubprocessWorkerHandle` (Task 5).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_liveness.py
@@ -271,9 +307,9 @@ def test_dead_when_heartbeat_stale():
     assert liv.state() == "dead"
 ```
 
-- [ ] **Step 2: Run it** — Run: `python -m pytest tests/test_liveness.py -q` — Expected: FAIL (module missing).
+- [x] **Step 2: Run it** — Run: `python -m pytest tests/test_liveness.py -q` — Expected: FAIL (module missing).
 
-- [ ] **Step 3: Implement `backends/liveness.py`**
+- [x] **Step 3: Implement `backends/liveness.py`**
 
 ```python
 from __future__ import annotations
@@ -305,9 +341,9 @@ class SubprocessLiveness:
         return "live"
 ```
 
-- [ ] **Step 4: Run it** — Expected: PASS (3 tests).
+- [x] **Step 4: Run it** — Expected: PASS (3 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/liveness.py tests/test_liveness.py
@@ -331,7 +367,7 @@ Protocol; rsocket KEEPALIVE backs the same contract later. Next: Task 3 wire-for
 - Consumes: Task 0 decision (pickle instance vs model_dump).
 - Produces: `encode_job(job) -> bytes`, `decode_job(raw: bytes) -> DecodedJob` where `DecodedJob` has `.req`, `.job_id: str`, `.resolution_epoch: int`. Consumed by `SubprocessWorkerHandle.submit` + `_worker_main` (Task 5).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/test_job_envelope.py
@@ -356,9 +392,9 @@ def test_job_envelope_rejects_unknown_version():
         decode_job(bytes([99]) + b"garbage")
 ```
 
-- [ ] **Step 2: Run it** — Expected: FAIL (module missing).
+- [x] **Step 2: Run it** — Expected: FAIL (module missing).
 
-- [ ] **Step 3: Implement `backends/job_envelope.py`**
+- [x] **Step 3: Implement `backends/job_envelope.py`**
 
 Use the Task 0 outcome. If `GenerateRequest` pickles cleanly, the body pickles `(req, job_id, resolution_epoch)`; otherwise it pickles `(req.model_dump(), job_id, resolution_epoch)` and `decode_job` reconstructs via `GenerateRequest.model_validate`. Version-gate on the first byte.
 
@@ -389,9 +425,9 @@ def decode_job(raw: bytes) -> DecodedJob:
 
 (If Task 0 required the `model_dump` boundary: `pickle.dumps((job.req.model_dump(), ...))` in encode, and `GenerateRequest.model_validate(req_dict)` in decode. Keep `init_image`/`controlnet_bindings` OUT — additive later.)
 
-- [ ] **Step 4: Run it** — Expected: PASS (2 tests).
+- [x] **Step 4: Run it** — Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/job_envelope.py tests/test_job_envelope.py
@@ -415,7 +451,7 @@ Task 4 IPC job_id + EOF guard hardening."
 **Interfaces:**
 - Produces: `IpcJobSink(conn, job_id: str)`; `drain_to_subscriber(conn, subscriber)` calls `subscriber.on_error(BackplaneError(...))` on EOF before a terminal; `SharedMemBlob.read_sync() -> bytes` (read-once).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # add to tests/test_backplane_ipc.py
@@ -451,9 +487,9 @@ def test_drain_synthesizes_error_on_frameless_eof():
     assert not sub.completed
 ```
 
-- [ ] **Step 2: Run it** — Expected: FAIL (`IpcJobSink` takes no `job_id`; drain breaks silently, `error` stays None).
+- [x] **Step 2: Run it** — Expected: FAIL (`IpcJobSink` takes no `job_id`; drain breaks silently, `error` stays None).
 
-- [ ] **Step 3: Thread `job_id` and add the EOF guard**
+- [x] **Step 3: Thread `job_id` and add the EOF guard**
 
 `IpcJobSink.__init__(self, conn, job_id: str = "job")`; replace the hardcoded `"job"` in `ack`/`progress`/`result` frames with `self._job_id`. In `drain_to_subscriber`, replace the silent `except EOFError: break`:
 
@@ -468,7 +504,7 @@ def test_drain_synthesizes_error_on_frameless_eof():
             break
 ```
 
-- [ ] **Step 3b: Add `SharedMemBlob.read_sync()` (tangle A)**
+- [x] **Step 3b: Add `SharedMemBlob.read_sync()` (tangle A)**
 
 `_FutureBridge`/`_SubprocessFutureBridge` call `image.read_sync()`, which `InProcBlob` has but `SharedMemBlob` (in `backends/backplane/blob.py`) does not — it only has `async read()` + `close()`. Add the sync read (read-once: read bytes, then unlink via `close()`). Test first:
 
@@ -494,9 +530,9 @@ Implement in `SharedMemBlob`:
         return data
 ```
 
-- [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_backplane_ipc.py tests/test_backplane_blob.py -q` — Expected: PASS (existing + 3 new).
+- [x] **Step 4: Run it** — Run: `python -m pytest tests/test_backplane_ipc.py tests/test_backplane_blob.py -q` — Expected: PASS (existing + 3 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/backplane/ipc.py tests/test_backplane_ipc.py
@@ -521,7 +557,7 @@ a terminal so a waiting Future never hangs (spec §6b). Next: Task 5 handle.star
 - Consumes: `WorkerHandle` ABC + `WorkerHealth` (Task 1); `encode_job`/`decode_job` (Task 3); `IpcJobSink`/`drain_to_subscriber` (Task 4); `SubprocessLiveness` (Task 2).
 - Produces: `SubprocessWorkerHandle(worker_factory_ref: str)` implementing `WorkerHandle`; `worker` property returns `None`; `health().state` ∈ {starting, ready, busy, dead}.
 
-- [ ] **Step 1: Write the fault worker (module-level, spawn-importable)**
+- [x] **Step 1: Write the fault worker (module-level, spawn-importable)**
 
 ```python
 # tests/_fault_worker.py
@@ -543,7 +579,7 @@ def make_fault_worker(worker_id, resolved, binding):
     return FaultWorker()
 ```
 
-- [ ] **Step 2: Write the failing test — start + submit a succeeding job across spawn**
+- [x] **Step 2: Write the failing test — start + submit a succeeding job across spawn**
 
 ```python
 # tests/test_subprocess_worker_handle.py
@@ -570,9 +606,9 @@ def test_subprocess_handle_runs_a_job_end_to_end():
     assert h.health().state == "dead"
 ```
 
-- [ ] **Step 3: Run it** — Expected: FAIL (module missing).
+- [x] **Step 3: Run it** — Expected: FAIL (module missing).
 
-- [ ] **Step 4: Implement `SubprocessWorkerHandle` + `_worker_main`**
+- [x] **Step 4: Implement `SubprocessWorkerHandle` + `_worker_main`**
 
 The child `_worker_main(conn, factory_ref, resolved, binding, mode)`: import the factory by dotted ref, build the worker, send `READY`, then loop — receive an encoded job, `decode_job`, build a `GenerationJob`-shaped object, run `worker.run_job`, and drive an `IpcJobSink(conn, job_id)` (`result` + `complete`, or `error` on exception). Heartbeats piggyback on a periodic `Ack`/dedicated frame. The parent `submit()` sends the envelope and returns a `Publisher` whose `subscribe` starts a reader thread running `drain_to_subscriber`.
 
@@ -686,9 +722,9 @@ class SubprocessWorkerHandle(WorkerHandle):
 
 (VRAM reporting via heartbeat — `vram_free_bytes`/`vram_total_bytes` from the child's `mem_get_info` — is wired when the child sends periodic health frames; M1 reports 0 and M2/heartbeat fills them. Keep this note; do not block M1 on it.)
 
-- [ ] **Step 5: Run it** — Run: `python -m pytest tests/test_subprocess_worker_handle.py::test_subprocess_handle_runs_a_job_end_to_end -q` — Expected: PASS. If flaky on `recv`, confirm the reader thread + `_FutureBridge` unbounded demand deliver the buffered Result.
+- [x] **Step 5: Run it** — Run: `python -m pytest tests/test_subprocess_worker_handle.py::test_subprocess_handle_runs_a_job_end_to_end -q` — Expected: PASS. If flaky on `recv`, confirm the reader thread + `_FutureBridge` unbounded demand deliver the buffered Result.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/worker_handle_subprocess.py tests/_fault_worker.py tests/test_subprocess_worker_handle.py
@@ -712,7 +748,7 @@ returns a Publisher, stop() kills the process. Next: Task 6 Governor dispatch fl
 - Consumes: `SubprocessWorkerHandle` (Task 5); `_worker_available()` (defined here).
 - Produces: a Governor that dispatches GenerationJobs to an out-of-proc handle via `handle.submit()`.
 
-- [ ] **Step 1: Write the failing test — Governor drives a subprocess handle**
+- [x] **Step 1: Write the failing test — Governor drives a subprocess handle**
 
 ```python
 # add to tests/test_governor.py
@@ -737,9 +773,9 @@ def test_governor_dispatches_generation_to_subprocess_handle():
     gov.shutdown()
 ```
 
-- [ ] **Step 2: Run it** — Expected: FAIL — the in-proc dispatch calls `job.execute(self._handle.worker)` with `worker=None` → "No worker available".
+- [x] **Step 2: Run it** — Expected: FAIL — the in-proc dispatch calls `job.execute(self._handle.worker)` with `worker=None` → "No worker available".
 
-- [ ] **Step 3: Add `_worker_available()` and flip all SIX liveness reads**
+- [x] **Step 3: Add `_worker_available()` and flip all SIX liveness reads**
 
 In `backends/governor.py`, add the helper and replace **six** predicates (recon #3 — review-verified sites). For `InProcessWorkerHandle`, `_worker_available()` is exactly equivalent to `worker is not None`, so the frozen suite is unaffected.
 
@@ -759,7 +795,7 @@ In `backends/governor.py`, add the helper and replace **six** predicates (recon 
 - `:756` (`is_model_loaded`) `return self._handle.worker is not None` → `return self._worker_available()` — **without this, `/models/status` reports `is_loaded: false` for a loaded subprocess** (only Task 8 live acceptance catches it; the frozen `test_model_routes` mocks `is_model_loaded`).
 - `:482` (`_unload_current_worker` unregister guard) `if self._handle.worker is not None and self._current_mode:` → `if self._worker_available() and self._current_mode:` — **without this, a clean subprocess unload never unregisters** (`worker` is always `None`). The OOM-*death* complement is the explicit unregister in Task 7 Step 3 (recon #4).
 
-- [ ] **Step 4: Dual-path the GenerationJob dispatch + `submit_job`**
+- [x] **Step 4: Dual-path the GenerationJob dispatch + `submit_job`**
 
 In `submit_job`, open the InProcBackplane channel + attach `_FutureBridge` ONLY for the in-proc path (guard on `self._handle.worker is not None`); for the subprocess path, just register + enqueue (the bridge attaches in the dispatch loop). In the dispatch loop's GenerationJob branch, replace the single `result = job.execute(self._handle.worker)` block with:
 
@@ -809,12 +845,12 @@ Guard the in-proc channel-open in `submit_job`:
                 publisher.subscribe(_FutureBridge(job.fut))
 ```
 
-- [ ] **Step 5: Run it** — Run: `python -m pytest tests/test_governor.py -q` — Expected: PASS (subprocess path + all existing governor tests). Then the frozen in-proc suite:
+- [x] **Step 5: Run it** — Run: `python -m pytest tests/test_governor.py -q` — Expected: PASS (subprocess path + all existing governor tests). Then the frozen in-proc suite:
 
 Run: `python -m pytest tests/test_worker_pool.py tests/test_model_lifecycle.py -q`
 Expected: PASS unmodified (in-proc path untouched; `_worker_available()` is equivalent to `worker is None` for in-proc).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/governor.py tests/test_governor.py
@@ -840,7 +876,7 @@ complete: a subprocess job runs end-to-end. Next: Task 7 OOM kill+respawn."
 - Consumes: `_worker_available()`, `_unload_current_worker`, `handle.start()`, `handle.stop()`.
 - Produces: `Governor` recovers a subprocess after OOM/death and the next job succeeds.
 
-- [ ] **Step 1: Write the failing test — OOM then success**
+- [x] **Step 1: Write the failing test — OOM then success**
 
 ```python
 # add to tests/test_governor.py
@@ -862,9 +898,9 @@ def test_governor_recovers_from_subprocess_oom_and_next_job_succeeds():
     gov.shutdown()
 ```
 
-- [ ] **Step 2: Run it** — Expected: FAIL — after OOM the dead subprocess is never respawned; the second job hangs or errors.
+- [x] **Step 2: Run it** — Expected: FAIL — after OOM the dead subprocess is never respawned; the second job hangs or errors.
 
-- [ ] **Step 3: Add subprocess recovery to the dispatch exception path + demand-reload**
+- [x] **Step 3: Add subprocess recovery to the dispatch exception path + demand-reload**
 
 Recovery lives in the **subprocess dispatch branch** (the Task 6 placeholder), right after the per-job terminal wait — NOT in the generic `except` (recon #5E: an async `submit()` failure never raises into the dispatch loop's `try`). Two triggers, because **in-band OOM leaves the child alive** (it caught the error and emitted a frame, so liveness alone won't fire):
 
@@ -888,9 +924,9 @@ Recovery lives in the **subprocess dispatch branch** (the Task 6 placeholder), r
 
 (b) The demand-reload trigger (the flipped `:594`) is the **second safety net**: if recovery somehow didn't run, the next job's `not self._worker_available()` respawns before dispatch. **No change needed to `_reload_from_snapshot`** — it already calls `self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)` (`governor.py:387`), so both localities respawn identically. (Confirmed against source — do not "generalize" it.)
 
-- [ ] **Step 4: Run it** — Run: `python -m pytest tests/test_governor.py::test_governor_recovers_from_subprocess_oom_and_next_job_succeeds -q` — Expected: PASS.
+- [x] **Step 4: Run it** — Run: `python -m pytest tests/test_governor.py::test_governor_recovers_from_subprocess_oom_and_next_job_succeeds -q` — Expected: PASS.
 
-- [ ] **Step 5: Add the frameless-death test**
+- [x] **Step 5: Add the frameless-death test**
 
 ```python
 def test_governor_recovers_from_frameless_subprocess_death():
@@ -901,7 +937,7 @@ def test_governor_recovers_from_frameless_subprocess_death():
 
 Run it; expected PASS (the Task 4 EOF guard + Step 3 recovery cover this).
 
-- [ ] **Step 6: Full regression + commit**
+- [x] **Step 6: Full regression + commit**
 
 Run: `conda activate stability-toys && python -m pytest tests/ --ignore=tests/test_backplane_ipc.py -q` (then the ipc suite separately)
 Expected: only the pre-existing `test_mode_config` hunyuandit failure; everything else green.
@@ -925,11 +961,11 @@ live acceptance on the RTX-3090 box + STOP/NEXT."
 **Files:**
 - Modify: `project-forward-notes.md` (facet-3 landed; VRAM-from-child accounting shift; dual-path dispatch note)
 
-- [ ] **Step 1: Live run on the RTX-3090 box** — load a real mode (e.g. SDXL txt2img), run a job that succeeds; then force an OOM (oversized request or a low `PYTORCH_CUDA_ALLOC_CONF`), confirm the subprocess is killed + respawned and the next job succeeds. Capture `nvidia-smi` before/after showing the per-process context is reclaimed on kill (the ~0.5–1.5 GB that `empty_cache` could not free).
+- [x] **Step 1: Live run on the RTX-3090 box** — load a real mode (e.g. SDXL txt2img), run a job that succeeds; then force an OOM (oversized request or a low `PYTORCH_CUDA_ALLOC_CONF`), confirm the subprocess is killed + respawned and the next job succeeds. Capture `nvidia-smi` before/after showing the per-process context is reclaimed on kill (the ~0.5–1.5 GB that `empty_cache` could not free).
 
-- [ ] **Step 2: Update `project-forward-notes.md`** — move facet-3 from "todo/no issue" to "landed"; record: VRAM accounting source moved to the child (spec §8); dual-path dispatch (reconciliation #1) with unification deferred; the backplane facet-3 debts now discharged (`job_id`, EOF guard) vs still-deferred (`STALE_EPOCH` registry, `request(n)` backpressure).
+- [x] **Step 2: Update `project-forward-notes.md`** — move facet-3 from "todo/no issue" to "landed"; record: VRAM accounting source moved to the child (spec §8); dual-path dispatch (reconciliation #1) with unification deferred; the backplane facet-3 debts now discharged (`job_id`, EOF guard) vs still-deferred (`STALE_EPOCH` registry, `request(n)` backpressure).
 
-- [ ] **Step 3: Commit + FP STOP/NEXT**
+- [x] **Step 3: Commit + FP STOP/NEXT**
 
 ```bash
 git add project-forward-notes.md
