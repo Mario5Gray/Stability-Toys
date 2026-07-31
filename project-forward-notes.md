@@ -64,23 +64,12 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
 - **`STABL-cchxvuhs` — global GPU identity** (UUID-keyed, not local index): governor
   allocates by UUID; `CUDA_VISIBLE_DEVICES` per worker. Not blocking the Governor's
   single-GPU path.
-- **Facet-3 — issues EXIST and M1 has LANDED.** The note that there was "no issue yet"
-  is obsolete.
-  - **`STABL-rgvxuedo`** (in-progress, revs `f997137d`, `e3ebebb3`) —
-    `backends/worker_handle_subprocess.py` exists; the Governor dispatch loop carries the
-    full subprocess path including OOM kill+respawn and frameless-death recovery;
-    `tests/test_subprocess_worker_handle.py` plus ~20 subprocess assertions in
-    `test_governor.py` cover it.
-  - **`STABL-ptoicrho`** (todo) — **THE LOAD-BEARING GAP.** Verified 2026-07-31: nothing
-    outside `worker_handle_subprocess.py` and the tests constructs
-    `SubprocessWorkerHandle`. No env switch, no config flag, no server wiring;
-    `Governor.__init__` defaults to `InProcessWorkerHandle`. So this umbrella's headline
-    goal — durable OOM recovery via subprocess isolation, the only thing that can drop a
-    poisoned CUDA context — is written, tested, and **unreachable in production**. enigma
-    is not protected by it today. One wiring task, not a research task.
-  - The backplane's facet-3 carry-forwards (`cancel_job`→subscription wiring,
-    `STALE_EPOCH` reconstruction registry, IPC `request(n)`/`job_id`/`result()`
-    hardening) are tracked in the backplane plan's Deferred section.
+- **Facet-3 — LANDED AND PROVEN ON HARDWARE (2026-07-31).** See "Facet-3 subprocess
+  worker" under Recently landed. `STABL-rgvxuedo` M1/M2 merged as PR #23; the
+  `WORKER_ISOLATION=subprocess` wiring (`STABL-ptoicrho`) merged as PR #28, which is what
+  finally made the code reachable; Task 8's live acceptance passed on enigma the same
+  day. The backplane's facet-3 carry-forwards (`STALE_EPOCH` reconstruction registry,
+  IPC `request(n)` backpressure) remain in the backplane plan's Deferred section.
 
 **Timeout ↔ VRAM interaction, recorded 2026-07-31.** The umbrella's 2026-07-22 comment
 notes the flat WS result timeout abandons a long job *without stopping the backend*, so
@@ -110,6 +99,66 @@ Open, unowned (pre-existing):
 ---
 
 ## Recently landed
+
+### Facet-3 subprocess worker — durable OOM recovery — PROVEN (PR #23 + #28)
+
+**FP:** STABL-rgvxuedo, STABL-ptoicrho | **Merges:** `18a6bdb` (PR #23), `4e4673e` (PR #28)
+**Plan:** `docs/superpowers/plans/2026-07-26-facet-3-subprocess-worker.md`
+
+The umbrella's central claim is now demonstrated on hardware rather than argued. The CUDA
+context lives in a child process, so a poisoned context is dropped by **killing the
+process** — which in-process `empty_cache()`/`del` categorically cannot do.
+
+**Live acceptance, enigma RTX 3090, 2026-07-31** (`spikes/facet3_oom_acceptance.py`):
+
+```text
+handle = SubprocessWorkerHandle          <- via get_worker_pool(), the production path
+child pid after load: 153                   nvidia-smi: 153, 7652 MiB
+job 1: OK                                   hog pid 231 holds 15616 MiB
+OOM: 'Tried to allocate 96.00 MiB. GPU 0 has 98.81 MiB free'
+[Governor] Subprocess needs recovery (oom=True, alive=True); kill+respawn
+child pid before OOM: 153  ->  after: 261
+nvidia-smi after recovery: EMPTY         <- pid 153's 7652 MiB reclaimed
+job 3: OK on the fresh process
+```
+
+**Proven:** the per-process CUDA context reclaim. `nvidia-smi` went from `153, 7652 MiB`
+to nothing — that memory includes the ~0.5–1.5 GB residual this register has always said
+only process exit frees. And `oom=True, alive=True` shows the in-band-OOM branch firing:
+the child *survived* and was killed deliberately, not tidied up after a crash.
+
+**NOT proven, deliberately:** that the context was genuinely *poisoned*. The OOM was
+induced by external VRAM pressure, which makes allocation **fail** but does not make the
+context **sticky**. The next job might have succeeded without the kill. The recovery
+*policy* is proven correct; its *necessity* for that particular OOM is not. Real poisoning
+came from workloads at the ceiling and may not be synthesisable.
+
+Traps worth carrying:
+
+- **An oversized request cannot provoke an OOM in HunyuanDiT.** `use_resolution_binning=True`
+  bins everything to 1280×1280, so `size` is normalised away before it can exhaust
+  anything. Use `spikes/vram_hog.py` — pressure from a *separate* process, because
+  allocating in the parent would give the parent its own CUDA context and change the very
+  topology under test.
+- **`test_hunyuandit_acceptance.py` is not a vehicle for subprocess work.** It builds
+  `WorkerPool(...)` directly, while the env switch lives in `get_worker_pool()` — so
+  `WORKER_ISOLATION=subprocess` leaves it running in-proc, passing, and appearing to prove
+  something it never exercised.
+- **`ResolvedModel` cannot be pickled** (`MappingProxyType`). It crosses the spawn boundary
+  as its JSON dict via `resolved_model_to_json_dict` / `resolved_model_from_json_dict`.
+  Re-resolving in the child instead has no working configuration and silently defeats
+  parent-side `resolve_model` patching, since patches do not cross a spawn boundary.
+
+Open, filed, not fixed:
+
+- **`STABL-wotsqcjb`** — `start()` blocks on the `_READY` handshake with no timeout or
+  liveness check. Any child-side failure before `_READY` hangs the parent indefinitely
+  with VRAM held, 0% util, no error. This is what turns a small child-side bug into an
+  indefinite outage.
+- **`STABL-nstyyrhh`** — kill+respawn leaks multiprocessing semaphores (3 per cycle
+  observed). Now that respawn is the production recovery path, this accumulates over
+  uptime.
+
 
 ### Authority reservation — mode-switch admission race — merged (PR #26)
 
@@ -343,8 +392,13 @@ one family-by-platform binding table by lazy dotted reference. HunyuanDiT runs
 txt2img with zero or one Canny ControlNet through the production `WorkerPool`:
 `(supports_img2img=False, supports_controlnet=True, combined=False)`, native
 BERT+mT5 conditioning, `control_image`, `use_resolution_binning=True`, native
-DDPMScheduler. Live acceptance at 1024x1024 peaks at 18.80 GiB — 2.57 GiB under
-the spike observation, 5.2 GiB under the 24 GiB operator floor.
+DDPMScheduler. **Live acceptance at 1024x1024 peaks at 9.88 GiB** (re-measured
+2026-07-31 on enigma, `peak_allocated_bytes=10604451328`, torch 2.10.0+cu128, reproduced
+identically twice). The previously recorded 18.80 GiB — and the "2.57 GiB under the spike
+observation, 5.2 GiB under the 24 GiB operator floor" arithmetic built on it — understated
+headroom by roughly half. The drop is consistent with `STABL-kfekehhc` stopping the fp32
+upcast of the ControlNet composition, though it is single-configuration evidence on a newer
+torch, not a controlled A/B against the pre-fix code.
 
 Three family-specific traps worth carrying forward to the next family:
 
