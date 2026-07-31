@@ -8,12 +8,20 @@ The proof is the CHILD PID. If it changes across the OOM, the process was killed
 and respawned; if it does not, recovery did not happen and any subsequent success
 is just the same poisoned context getting lucky.
 
-Run inside the CUDA test container, with the production models mounted:
+Run inside the CUDA test container, with the production models mounted. The OOM
+must come from EXTERNAL VRAM pressure — an oversized `size` cannot work, because
+HunyuanDiT bins every request to a supported shape (see step 2):
 
     TEST_MODELS_HOST_PATH=/media/cold1/ComfyUI/models \
     docker compose -f docker-compose.test.yml run --rm \
       -e WORKER_ISOLATION=subprocess test-cuda \
-      python spikes/facet3_oom_acceptance.py <mode-name>
+      bash -c 'python spikes/vram_hog.py 14 > /tmp/hog.log 2>&1 &
+               until grep -q HOG_READY /tmp/hog.log; do sleep 1; done
+               python spikes/facet3_oom_acceptance.py <mode-name>'
+
+Tune the hog to leave a WINDOW: enough free VRAM for the 1024x1024 baseline job,
+not enough for the binned 1280x1280. On a 24GB card 14 GiB works and 15 does not
+(15 OOMs the baseline job itself, which proves nothing — see step 1).
 
 NOT a pytest test on purpose: it must own its process (see STABL-sgdavnvz — a
 shared pytest session can leave stub modules resident) and it needs a real
@@ -82,7 +90,22 @@ def main() -> int:
     nvidia_smi("model loaded")
 
     print("\n--- step 1: a job that should SUCCEED ---", flush=True)
-    png, seed = submit(pool, mode_name, "1024x1024", timeout=900.0)
+    try:
+        png, seed = submit(pool, mode_name, "1024x1024", timeout=900.0)
+    except Exception as exc:            # noqa: BLE001 — turn this into guidance
+        oom = "out of memory" in str(exc).lower()
+        print(f"\nSTEP 1 FAILED: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
+        if oom:
+            # Too much external pressure: the baseline job needs headroom ABOVE the
+            # resident model, and the acceptance needs a window where 1024x1024 fits
+            # but the binned 1280x1280 does not. Squeezing past both proves nothing.
+            print("\nThe baseline job OOMed, so the acceptance cannot distinguish "
+                  "'recovery works' from 'there was never enough VRAM'.", flush=True)
+            print("Lower the hog and re-run — you need a window where 1024x1024 "
+                  "fits but the binned 1280x1280 does not:", flush=True)
+            print("    python spikes/vram_hog.py 14     # 15 is too much on a 24GB card",
+                  flush=True)
+        return 4
     print(f"OK: {len(png)} bytes, seed={seed}", flush=True)
 
     print(f"\n--- step 2: force an OOM at {oom_size} ---", flush=True)
