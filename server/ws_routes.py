@@ -526,9 +526,15 @@ async def _run_generate_from_future(ws: WebSocket, client_id: str, job_id: str, 
         await hub.send(client_id, error_frame)
 
 
-def _resolve_backend_future_result(fut, timeout: float):
+def _resolve_backend_future_result(pool, fut):
+    """Resolve a generate's future under the Governor's two budgets (STABL-atzqpcte).
+
+    The pool is passed in rather than the old flat timeout: only the Governor knows
+    whether the job is still QUEUED (behind a mode switch's model load) or genuinely
+    EXECUTING, and that distinction is the whole fix.
+    """
     try:
-        return fut.result(timeout=timeout)
+        return pool.wait_for_result(fut)
     except concurrent.futures.CancelledError as e:
         raise _BackendCancelledError() from e
 
@@ -537,11 +543,14 @@ async def _finish_generate(ws: WebSocket, client_id: str, job_id: str, req, fut)
     state = _get_app_state(ws)
     from server.lcm_sr_server import _store_image_blob
 
-    timeout = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
-
-    # Run blocking future in thread
+    # STABL-atzqpcte: two budgets, split at true execution start. A flat
+    # fut.result(timeout=DEFAULT_TIMEOUT) here charged queue wait AND the mode
+    # switch's model load to a budget meant for generation — the field failure was a
+    # WebSocket timeout during a HunyuanDiT load on the first inline --mode generate.
     loop = asyncio.get_running_loop()
-    png_bytes, seed = await loop.run_in_executor(None, _resolve_backend_future_result, fut, timeout)
+    png_bytes, seed = await loop.run_in_executor(
+        None, _resolve_backend_future_result, state.worker_pool, fut
+    )
 
     out_bytes = png_bytes
     did_sr = False

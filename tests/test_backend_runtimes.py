@@ -17,6 +17,9 @@ def test_generate_uses_provider_runtime(monkeypatch):
         is_model_loaded=lambda: False,
         get_queue_size=lambda: 0,
         submit_generate=lambda req: fut,
+        # STABL-atzqpcte: waiting is part of the runtime protocol now — the
+        # transports no longer apply a flat timeout of their own.
+        wait_for_result=lambda f: f.result(),
     )
     monkeypatch.setattr(lcm_sr_server.app.state, "generation_runtime", runtime, raising=False)
     monkeypatch.setattr(lcm_sr_server.app.state, "sr_service", None, raising=False)
@@ -37,6 +40,9 @@ def test_run_generate_from_dict_uses_provider_runtime(monkeypatch):
 
     runtime = SimpleNamespace(
         submit_generate=lambda req: fut,
+        # STABL-atzqpcte: waiting is part of the runtime protocol now — the
+        # transports no longer apply a flat timeout of their own.
+        wait_for_result=lambda f: f.result(),
     )
     monkeypatch.setattr(lcm_sr_server.app.state, "generation_runtime", runtime, raising=False)
     monkeypatch.setattr(lcm_sr_server.app.state, "sr_service", None, raising=False)

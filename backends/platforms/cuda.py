@@ -21,6 +21,12 @@ class CudaGenerationRuntime:
     def get_active_model_snapshot(self) -> Any:
         return self._pool.get_active_model_snapshot()
 
+    def wait_for_result(self, fut: Any) -> Any:
+        """Two budgets (STABL-atzqpcte). This backend's queue CAN contain a mode
+        switch's model load ahead of the job, so queue wait must not be charged to
+        the generation budget."""
+        return self._pool.wait_for_result(fut)
+
     def submit_generate(
         self,
         req: Any,

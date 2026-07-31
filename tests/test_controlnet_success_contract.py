@@ -137,6 +137,10 @@ def test_ws_job_complete_includes_controlnet_artifacts():
     mock_ws.app.state = SimpleNamespace(
         storage=None,
         sr_service=None,
+        # STABL-atzqpcte: _finish_generate hands the pool to the waiter, so the fake
+        # state must carry one even though run_in_executor is stubbed below — the
+        # argument expression is still evaluated.
+        worker_pool=SimpleNamespace(wait_for_result=lambda f, **kw: f.result()),
     )
     sent: list[dict] = []
 

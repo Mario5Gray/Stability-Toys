@@ -18,6 +18,13 @@ class PlaceholderGenerationRuntime:
     def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         raise NotImplementedError(f"BACKEND={self._backend_id} generation is not implemented")
 
+    def wait_for_result(self, fut: Any) -> Any:
+        """Unreachable in practice — submit_generate raises before any future exists.
+        Present so this class still satisfies GenerationRuntimeProtocol."""
+        from backends.governor import DEFAULT_EXECUTION_TIMEOUT_S
+
+        return fut.result(timeout=DEFAULT_EXECUTION_TIMEOUT_S)
+
     def get_current_mode(self) -> None:
         return None
 

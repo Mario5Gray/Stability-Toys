@@ -22,7 +22,8 @@ Env:
   DEFAULT_SIZE=512x512
   DEFAULT_STEPS=4
   DEFAULT_GUIDANCE=1.0
-  DEFAULT_TIMEOUT=120
+  DEFAULT_TIMEOUT=120          (EXECUTION budget: bounds generation itself)
+  ADMISSION_TIMEOUT_S=900      (queue wait, incl. a mode switch's model load)
 
   # CUDA Backend (auto-detects SD1.5 vs SDXL):
   MODEL_ROOT=/path/to/models
@@ -347,7 +348,9 @@ MODEL_ROOT = os.path.join(os.environ.get('MODEL_ROOT', ''), os.environ.get('MODE
 NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "1"))
 QUEUE_MAX = int(os.environ.get("QUEUE_MAX", "64"))
 PORT = int(os.environ.get("PORT", "4200"))
-REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_TIMEOUT", "120"))
+# DEFAULT_TIMEOUT / ADMISSION_TIMEOUT_S are read by backends.governor and applied by
+# Governor.wait_for_result — a module constant here would be a second, flat ceiling of
+# exactly the kind STABL-atzqpcte removed.
 UI_DIST = bool(os.environ.get("UI_DIST", False))
 
 USE_RKNN_CONTEXT_CFGS = os.environ.get("USE_RKNN_CONTEXT_CFGS", "1") not in ("0", "false", "False")
@@ -661,9 +664,12 @@ def generate(req: GenerateRequest):
 
     mode_used = snapshot.mode_name if snapshot is not None else None
 
-    # Wait for generation result
+    # Wait for generation result under the two budgets (STABL-atzqpcte): a flat
+    # REQUEST_TIMEOUT here charged queue wait + model load to a budget meant for
+    # generation. runtime.submit_generate() returns only a future, which is why the
+    # waiter keys off future identity rather than a job id.
     try:
-        png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
+        png_bytes, seed = runtime.wait_for_result(fut)
     except Exception as e:
         logger.error(f"Generate endpoint failed: {e}", exc_info=True)
         msg = str(e)
@@ -861,7 +867,9 @@ def _run_generate_from_dict(gen_req: dict):
         fut = runtime.submit_generate(req, snapshot=snapshot)
     else:
         fut = runtime.submit_generate(req)
-    png_bytes, seed = fut.result(timeout=REQUEST_TIMEOUT)
+    # Two budgets (STABL-atzqpcte) — the compat endpoints queue behind the same
+    # Governor, so a flat wait here has the same defect as the primary path.
+    png_bytes, seed = runtime.wait_for_result(fut)
 
     # ---- optional SR postprocess ----
     out_bytes = png_bytes
