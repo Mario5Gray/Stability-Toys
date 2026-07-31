@@ -66,6 +66,16 @@ class GenerationRuntimeProtocol(Protocol):
     def submit_generate(self, req: Any, *, timeout_s: float | None = None) -> Any:
         ...
 
+    def wait_for_result(self, fut: Any) -> Any:
+        """Wait for a submitted job's result (STABL-atzqpcte).
+
+        On the protocol because `submit_generate` returns only a future — a caller
+        holding it has no job id to wait by. Backends with a queue that can contain a
+        model load bound queue wait separately from execution; backends without one
+        apply the execution budget flat.
+        """
+        ...
+
     def get_current_mode(self) -> Optional[str]:
         ...
 

@@ -66,11 +66,16 @@ def make_mode_backed_runtime(mode, *, family_id: str = "sdxl", epoch: int = 1):
 
     rt = MagicMock(spec=[
         "switch_mode", "get_current_mode", "get_active_model_snapshot", "submit_generate",
+        # STABL-atzqpcte: waiting is part of the runtime protocol now. The spec list is
+        # what makes this fake honest — omitting it here would let a caller that never
+        # waits pass, which is the regression this seam exists to catch.
+        "wait_for_result",
     ])
     rt.get_current_mode.return_value = getattr(mode, "name", None) or "test-mode"
     rt.get_active_model_snapshot.return_value = make_active_snapshot(
         mode, family_id=family_id, epoch=epoch
     )
+    rt.wait_for_result.side_effect = lambda fut, **kwargs: fut.result()
     return rt
 
 
@@ -83,6 +88,10 @@ def install_mode_backed(state, pool, mode, *, family_id="sdxl", epoch=1, **caps)
     # switch it returns the same authority get_active_model_snapshot() does.
     pool.admit_generation.return_value = snapshot
     pool.get_pending_mode.return_value = None
+    # Result waiting now goes through the two-budget waiter (STABL-atzqpcte). The mock
+    # must actually resolve the future, exactly as the real Governor does — a bare Mock
+    # return would hand callers a MagicMock where a (png, seed) tuple is expected.
+    pool.wait_for_result.side_effect = lambda fut, **kwargs: fut.result()
     # Display-only: the connect-time system:status frame reads get_current_mode();
     # keep it JSON-serializable so the status frame doesn't break the socket.
     pool.get_current_mode.return_value = snapshot.mode_name

@@ -1830,3 +1830,48 @@ class TestTargetModeAdmission:
             app.state.use_mode_system = False
             app.state.worker_pool = None
             app.state.backend_provider = None
+
+
+# ---------------------------------------------------------------------------
+# Both transports wait under the two budgets (STABL-atzqpcte Task 3).
+# ---------------------------------------------------------------------------
+
+
+def test_neither_transport_applies_default_timeout_to_the_whole_wait():
+    """No wait site may read DEFAULT_TIMEOUT and hand it to fut.result().
+
+    That is the defect: the future does not resolve until everything ahead of it in
+    the queue has run, so a budget meant for GENERATION also bounded QUEUE WAIT and
+    MODEL LOAD. Both transports must resolve through Governor.wait_for_result.
+
+    The HTTP half of this assertion is the load-bearing one. A waiter keyed on job id
+    would have fixed ws_routes and silently left lcm_sr_server on the old semantics,
+    because runtime.submit_generate() returns only a future.
+    """
+    import inspect
+    import server.ws_routes as ws_mod
+    import server.lcm_sr_server as http_mod
+
+    # Match the defect SIGNATURE (the env read), not the token — a comment that
+    # explains why the old behaviour was wrong legitimately names the variable.
+    ws_src = inspect.getsource(ws_mod._finish_generate)
+    assert 'environ.get("DEFAULT_TIMEOUT"' not in ws_src, (
+        "ws_routes._finish_generate still reads DEFAULT_TIMEOUT and applies it to "
+        "the whole wait"
+    )
+    ws_wait_src = inspect.getsource(ws_mod._resolve_backend_future_result)
+    assert "wait_for_result" in ws_wait_src, (
+        "the WS wait helper does not use the two-budget waiter"
+    )
+    assert "fut.result(timeout=" not in ws_wait_src, (
+        "the WS wait helper still applies a flat timeout to the whole wait"
+    )
+
+    http_src = inspect.getsource(http_mod)
+    assert "fut.result(timeout=REQUEST_TIMEOUT)" not in http_src, (
+        "lcm_sr_server still applies the flat REQUEST_TIMEOUT to the whole wait — "
+        "the HTTP transport was left on the old semantics"
+    )
+    assert "wait_for_result" in http_src, (
+        "lcm_sr_server does not use the two-budget waiter"
+    )

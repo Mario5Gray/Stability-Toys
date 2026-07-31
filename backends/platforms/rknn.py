@@ -45,6 +45,14 @@ class RknnGenerationRuntime:
         effective = DEFAULT_QUEUE_TIMEOUT_S if timeout_s is None else timeout_s
         return self._service.submit(req, timeout_s=effective)
 
+    def wait_for_result(self, fut: Any) -> Any:
+        """Flat execution budget (STABL-atzqpcte). PipelineService has no Governor and
+        no ModeSwitchJob, so nothing in this queue is a model load — there is no queue
+        wait to separate out, and the execution budget applies directly."""
+        from backends.governor import DEFAULT_EXECUTION_TIMEOUT_S
+
+        return fut.result(timeout=DEFAULT_EXECUTION_TIMEOUT_S)
+
     def get_current_mode(self) -> None:
         return None
 
