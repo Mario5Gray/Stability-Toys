@@ -71,16 +71,24 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   day. The backplane's facet-3 carry-forwards (`STALE_EPOCH` reconstruction registry,
   IPC `request(n)` backpressure) remain in the backplane plan's Deferred section.
 
-**Timeout ↔ VRAM interaction, recorded 2026-07-31.** The umbrella's 2026-07-22 comment
-notes the flat WS result timeout abandons a long job *without stopping the backend*, so
-the worker keeps denoising and holds VRAM with the result discarded. The
-`STABL-ltefhpkk` acceptance required `DEFAULT_TIMEOUT=600`, so an abandoned job now holds
-VRAM for **ten** minutes rather than two. That workaround is correct for the admission
-race and actively worse for this umbrella's goal. Both need the same fix: start the
-timeout clock when the job begins *executing* (`STABL-atzqpcte`) plus a real reap — which
-is another argument for facet-3, since Python cannot interrupt a running worker thread.
-(The comment cites `STABL-qvmdayhb`; that ID does not resolve. The reap concern is
-tracked nowhere but that comment and `STABL-atzqpcte`.)
+**Timeout ↔ VRAM interaction — clock half FIXED 2026-07-31, reap half open.** The
+umbrella's 2026-07-22 comment notes the flat WS result timeout abandons a long job
+*without stopping the backend*, so the worker keeps denoising and holds VRAM with the
+result discarded. The `STABL-ltefhpkk` acceptance required `DEFAULT_TIMEOUT=600`, making
+an abandoned job hold VRAM for **ten** minutes rather than two — correct for the admission
+race, actively worse for this umbrella's goal.
+
+The clock is fixed (`STABL-atzqpcte`, `4646005`, PR #32): two budgets split at
+`JobRecord.executing_since`, so waiting is no longer charged to a generation budget.
+**`DEFAULT_TIMEOUT=600` is therefore obsolete and should be removed wherever it was
+applied** — it now buys nothing and still costs the ten-minute VRAM hold.
+
+The reap is still open and is now tracked properly as **`STABL-jredufxb`**: a timed-out
+generation runs to completion regardless, because `cancel_requested` is read only at job
+boundaries and `run_job` never checks it. Python cannot interrupt a running worker thread,
+so `handle.stop()` — facet-3's kill+respawn, now a production path — is the only real
+mechanism. (The 2026-07-22 comment cites `STABL-qvmdayhb`, which does not resolve; that is
+why the concern needed re-filing.)
 
 `STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
 predecessor (`a3c1c64`): fixed retained ControlNet weights but not the accounting or
@@ -187,6 +195,43 @@ fixed cost until the variable actually moving turned out to be **load count**, n
 respawn count. Two runs agreeing is not a controlled comparison.
 
 
+### Timeout semantics — bound execution, not queue wait — merged (PR #32)
+
+**FP:** STABL-atzqpcte (done) | **Merge:** `4646005` (PR #32, `fix/execution-timeout-semantics` → `main`)
+**Spec:** `docs/superpowers/specs/2026-07-31-execution-timeout-semantics-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-31-execution-timeout-semantics.md`
+
+One clock became two, split at the moment the job actually starts executing:
+
+| budget    | env                   | default               | bounds                                       |
+| --------- | --------------------- | --------------------- | -------------------------------------------- |
+| execution | `DEFAULT_TIMEOUT`     | `120` (**unchanged**) | the generation itself                        |
+| admission | `ADMISSION_TIMEOUT_S` | `900`                 | queue wait, incl. a mode switch's model load |
+
+`Governor.wait_for_result(fut)` polls the future and picks the budget from
+`JobRecord.executing_since`. Admission is **bounded** rather than unbounded so a job
+wedged behind a hung `ModeSwitchJob` still fails instead of pinning a connection forever.
+
+**`DEFAULT_TIMEOUT=600` is now obsolete** — remove it wherever it was applied.
+
+Three things worth carrying:
+
+- **`state == "running"` is the wrong clock signal, and moving it is also wrong.** It is
+  set *before* the demand reload and the stale-epoch barrier, so an execution clock there
+  charges a model reload to the execution budget. And `cancel_job` branches on
+  `state == "queued"` to cancel the future outright, so moving the transition later
+  widens a cancel/fulfilment race — trading a timeout bug for a cancel bug. Hence the
+  separate `executing_since` timestamp, which leaves cancellation untouched.
+- **The waiter keys on FUTURE IDENTITY, not job id.** `runtime.submit_generate()` returns
+  only a future; an id-keyed API fixes WebSocket and silently leaves HTTP broken.
+- **There were THREE wait sites, not two.** `_run_generate_from_dict` (external compat
+  endpoints) had its own `fut.result(timeout=REQUEST_TIMEOUT)`. It was found by a
+  module-wide assertion, not by reading — scope a call-site test to the module, not to
+  the function you already decided to change.
+
+Cancel-on-timeout takes a **queued** job off the queue entirely. It does **not** stop a
+running generation — that is `STABL-jredufxb`.
+
 ### Authority reservation — mode-switch admission race — merged (PR #26)
 
 **FP:** STABL-ltefhpkk (done), STABL-iuiwzthc (done) | **Merge:** `ff1a300` (PR #26, `fix/governor-authority-reservation` → `main`)
@@ -247,12 +292,7 @@ And `shutdown()` begins with `q.join()`, so anything left queued must be cleared
 
 Deferred / filed, NOT fixed here:
 
-- **`STABL-atzqpcte`** — `DEFAULT_TIMEOUT` (120s) bounds queue-wait + model load, not
-  generation time. Confirmed in the field during acceptance; `DEFAULT_TIMEOUT=600`
-  cleared it. Pre-existing but previously unreachable, because the racing generate used
-  to fail fast in milliseconds. **The in-repo default is deliberately unchanged** — the
-  number is not the problem, the thing being measured is. Fix = start the clock when the
-  job begins executing (the Governor already tracks `JobRecord` queued→running).
+- **`STABL-atzqpcte` — FIXED** (`4646005`, PR #32). See the timeout-semantics entry below.
 - **`STABL-anxqlxkm`** (under `STABL-sgdavnvz`) — cross-file test isolation; two
   `gc`/`empty_cache` mock assertions fail when `test_governor.py` runs first.
 - **Unload-after-gen cause not isolated.** The symptom is verified gone (inline `--mode`

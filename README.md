@@ -179,7 +179,8 @@ QUEUE_MAX=64           # Maximum queue size
 DEFAULT_SIZE=512x512
 DEFAULT_STEPS=4
 DEFAULT_GUIDANCE=1.0
-DEFAULT_TIMEOUT=120
+DEFAULT_TIMEOUT=120     # EXECUTION budget: bounds the generation itself
+ADMISSION_TIMEOUT_S=900 # queue wait, including a mode switch's model load
 
 # CUDA (GPU backend) — all optional, safe to omit
 CUDA_DEVICE=cuda:0         # Which GPU to use
