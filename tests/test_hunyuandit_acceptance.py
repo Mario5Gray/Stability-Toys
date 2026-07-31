@@ -14,6 +14,7 @@ import importlib
 import io
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -134,7 +135,13 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
     # run this test would otherwise load a mock scheduler and fail with
     # "MagicMock has no attribute from_config" -- an error that reads as a
     # worker defect and costs a GPU cycle to investigate. See STABL-tmrnepae.
-    conftest.restore_pristine_modules()
+    # Only repair when the session is actually contaminated. In a clean
+    # single-module run there is nothing to undo, and popping torch would
+    # force a re-execution of torch/__init__.py, which re-registers the
+    # triton TORCH_LIBRARY namespace and raises.
+    if type(sys.modules.get("diffusers")).__module__.startswith("unittest.mock"):
+        conftest.restore_pristine_modules()
+
     real_diffusers = importlib.import_module("diffusers")
     assert not type(real_diffusers).__module__.startswith("unittest.mock"), (
         "a test stub still occupies sys.modules['diffusers']; the live "

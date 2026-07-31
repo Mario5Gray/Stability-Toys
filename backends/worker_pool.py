@@ -65,6 +65,7 @@ class WorkerPool:
         mode_config: Optional[ModeConfigManager] = None,
         registry: Optional[ModelRegistryProtocol] = None,
         device_memory=None,
+        handle=None,
     ):
         from backends.governor import Governor
         self._governor = Governor(
@@ -74,6 +75,7 @@ class WorkerPool:
             mode_config=mode_config,
             registry=registry,
             device_memory=device_memory,
+            handle=handle,
         )
 
     # --- Delegating public methods ---
@@ -208,6 +210,7 @@ def get_worker_pool(
     mode_config: Optional[ModeConfigManager] = None,
     registry: Optional[ModelRegistryProtocol] = None,
     device_memory=None,
+    handle=None,
 ) -> WorkerPool:
     """
     Get global worker pool instance.
@@ -221,6 +224,7 @@ def get_worker_pool(
         mode_config: Optional mode configuration manager (for testing)
         registry: Optional model registry (for testing)
         device_memory: Optional DeviceMemory authority (for testing)
+        handle: Optional WorkerHandle to inject (overrides env selection)
 
     Returns:
         Global WorkerPool instance
@@ -244,6 +248,11 @@ def get_worker_pool(
     if _worker_pool is None:
         queue_max = int(os.environ.get("QUEUE_MAX", "64"))
         queue_timeout_s = DEFAULT_QUEUE_TIMEOUT_S
+        # M-A: opt-in process isolation. Default stays in-proc for zero risk to
+        # existing deployments; subprocess handle enables durable OOM recovery.
+        if handle is None and worker_factory is None and os.environ.get("WORKER_ISOLATION", "inproc").lower() == "subprocess":
+            from backends.worker_handle_subprocess import SubprocessWorkerHandle
+            handle = SubprocessWorkerHandle("backends.worker_factory.create_cuda_worker")
         _worker_pool = WorkerPool(
             queue_max=queue_max,
             queue_timeout_s=queue_timeout_s,
@@ -251,6 +260,7 @@ def get_worker_pool(
             mode_config=mode_config,
             registry=registry,
             device_memory=device_memory,
+            handle=handle,
         )
     return _worker_pool
 
