@@ -153,6 +153,11 @@ class JobRecord:
     job: GenerationJob
     cancel_requested: bool = False
     sink: Optional[JobSink] = None  # backplane producer handle (attached in submit_job)
+    # STABL-atzqpcte: monotonic timestamp of TRUE execution start, stamped after the
+    # demand reload and after the stale-epoch barrier so neither is charged to the
+    # execution budget. Deliberately NOT `state == "running"`, which is set earlier
+    # (before both) and whose transition cancel_job depends on for queued-job cancel.
+    executing_since: Optional[float] = None
 
 
 class _FutureBridge(Subscriber):
@@ -764,6 +769,12 @@ class Governor:
                             )
 
                     if isinstance(job, GenerationJob):
+                        # STABL-atzqpcte: the execution clock starts HERE — after the
+                        # demand reload above and after the stale-epoch barrier, so
+                        # neither is charged to the execution budget. A waiter reads
+                        # this to tell "still queued" from "actually running".
+                        if job_record is not None:
+                            job_record.executing_since = time.monotonic()
                         if self._handle.worker is not None:
                             # --- IN-PROC PATH (v1, unchanged) ---
                             result = job.execute(self._handle.worker)
