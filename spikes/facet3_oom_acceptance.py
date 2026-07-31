@@ -15,6 +15,11 @@ Run inside the CUDA test container, with the production models mounted:
       -e WORKER_ISOLATION=subprocess test-cuda \
       python spikes/facet3_oom_acceptance.py <mode-name>
 
+HOG_GIB (default 14) sizes the synthetic VRAM pressure used to provoke the
+OOM. An oversized request does NOT work for HunyuanDiT: use_resolution_binning
+bins everything to 1280x1280, so the size is normalised away before it can
+exhaust anything.
+
 NOT a pytest test on purpose: it must own its process (see STABL-sgdavnvz — a
 shared pytest session can leave stub modules resident) and it needs a real
 model directory, so it cannot run in CI as-is.
@@ -61,9 +66,32 @@ def submit(pool, mode_name: str, size: str, *, timeout: float):
     return pool.submit_job(job).result(timeout=timeout)
 
 
+def spawn_hog(gib: float):
+    """Hold `gib` GiB of VRAM from a SEPARATE process so the worker's next
+    allocation genuinely fails.
+
+    An oversized `size` does NOT work for this family: HunyuanDiT sets
+    use_resolution_binning=True and bins every request to 1280x1280, so the
+    request is normalised away before it can exhaust anything. Squeezing free
+    VRAM from outside is the only lever that reaches the child.
+    """
+    proc = subprocess.Popen(
+        [sys.executable, "spikes/vram_hog.py", str(gib)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(f"  [hog] {line.rstrip()}", flush=True)
+        if line.startswith("HOG_READY"):
+            return proc, True
+        if line.startswith("HOG_FAILED"):
+            return proc, False
+    return proc, False
+
+
 def main() -> int:
     mode_name = sys.argv[1] if len(sys.argv) > 1 else "HunyuanDiT"
-    oom_size = os.environ.get("OOM_SIZE", "3072x3072")
+    hog_gib = float(os.environ.get("HOG_GIB", "14"))
 
     from backends.worker_handle_subprocess import SubprocessWorkerHandle
     from backends.worker_pool import get_worker_pool
@@ -85,12 +113,22 @@ def main() -> int:
     png, seed = submit(pool, mode_name, "1024x1024", timeout=900.0)
     print(f"OK: {len(png)} bytes, seed={seed}", flush=True)
 
-    print(f"\n--- step 2: force an OOM at {oom_size} ---", flush=True)
+    print(f"\n--- step 2: force an OOM by holding {hog_gib} GiB elsewhere ---",
+          flush=True)
+    hog, ready = spawn_hog(hog_gib)
+    if not ready:
+        print(f"WARNING: hog did not reach {hog_gib} GiB; the OOM may not fire. "
+              f"Lower HOG_GIB if the model itself is now starved.", flush=True)
+    nvidia_smi("hog holding")
     t0 = time.monotonic()
     try:
-        submit(pool, mode_name, oom_size, timeout=900.0)
-        print(f"NO OOM at {oom_size} after {time.monotonic() - t0:.0f}s — "
-              f"raise it via OOM_SIZE=4096x4096 and re-run", flush=True)
+        try:
+            submit(pool, mode_name, "1024x1024", timeout=900.0)
+        finally:
+            hog.kill()          # release the pressure before recovery is judged
+            hog.wait(timeout=30)
+        print(f"NO OOM after {time.monotonic() - t0:.0f}s — raise HOG_GIB and "
+              f"re-run (free VRAM was still sufficient)", flush=True)
         return 2
     except Exception as exc:  # noqa: BLE001 — the OOM is the point
         print(f"job failed as intended: {type(exc).__name__}: "
