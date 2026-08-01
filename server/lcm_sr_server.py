@@ -786,7 +786,13 @@ async def superres(
         raise HTTPException(status_code=400, detail="Empty upload")
 
     try:
-        out_bytes = submit_superres(
+        # Offload the blocking CUDA upscale off the event loop — otherwise this
+        # async handler freezes the single asyncio loop for the whole upscale
+        # (seconds at mag 2), stalling every other request incl. /status and
+        # /health. superres is a 2nd in-parent GPU consumer, so WORKER_ISOLATION
+        # does not help it (STABL-qfjfflrx); the generate path already offloads.
+        out_bytes = await asyncio.to_thread(
+            submit_superres,
             sr_service=sr,
             image_bytes=data,
             out_format=out_format,
