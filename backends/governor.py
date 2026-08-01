@@ -163,6 +163,10 @@ class JobRecord:
     job: GenerationJob
     cancel_requested: bool = False
     sink: Optional[JobSink] = None  # backplane producer handle (attached in submit_job)
+    # STABL-zueslhah: the WS progress consumer, stored at submit so the SUBPROCESS
+    # dispatch path (which builds the bridge later, in _dispatch_loop) can attach it
+    # to _SubprocessFutureBridge. The in-proc path passes it to _FutureBridge directly.
+    on_progress: Optional[Callable] = None
     # STABL-atzqpcte: monotonic timestamp of TRUE execution start, stamped after the
     # demand reload and after the stale-epoch barrier so neither is charged to the
     # execution budget. Deliberately NOT `state == "running"`, which is set earlier
@@ -914,7 +918,8 @@ class Governor:
                         else:
                             # --- SUBPROCESS PATH (facet-3): handle owns the IPC channel ---
                             from backends.worker_handle_subprocess import _SubprocessFutureBridge
-                            bridge = _SubprocessFutureBridge(job.fut)
+                            _op = job_record.on_progress if job_record is not None else None
+                            bridge = _SubprocessFutureBridge(job.fut, on_progress=_op)
                             self._handle.submit(job).subscribe(bridge)
                             # Serialize (recon #5E): the single subprocess runs one job at
                             # a time — block on THIS job's terminal before dequeuing the next.
@@ -1010,16 +1015,22 @@ class Governor:
         effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
         try:
             self._register_job(job)
-            if isinstance(job, GenerationJob) and self._handle.worker is not None:
-                # Open the backplane channel and attach the compat Subscriber NOW —
-                # strictly before the job is enqueued (spec §3.3 ordering invariant).
-                # Subprocess path: handle.submit() owns the IPC channel; do NOT open
-                # an in-proc channel here (recon #2).
-                sink, publisher = InProcBackplane(job.job_id).open()
+            if isinstance(job, GenerationJob):
+                # Store on_progress on the record so BOTH paths reach it: the in-proc
+                # branch below passes it to _FutureBridge; the subprocess dispatch
+                # (which builds _SubprocessFutureBridge later) reads record.on_progress.
                 record = self._get_job_record(job.job_id)
                 if record is not None:
-                    record.sink = sink
-                publisher.subscribe(_FutureBridge(job.fut, on_progress=on_progress))
+                    record.on_progress = on_progress
+                if self._handle.worker is not None:
+                    # Open the backplane channel and attach the compat Subscriber NOW —
+                    # strictly before the job is enqueued (spec §3.3 ordering invariant).
+                    # Subprocess path: handle.submit() owns the IPC channel; do NOT open
+                    # an in-proc channel here (recon #2).
+                    sink, publisher = InProcBackplane(job.job_id).open()
+                    if record is not None:
+                        record.sink = sink
+                    publisher.subscribe(_FutureBridge(job.fut, on_progress=on_progress))
             if effective_timeout_s > 0:
                 self.q.put(job, timeout=effective_timeout_s)
             else:
