@@ -21,6 +21,7 @@ from backends.conditioning.artifacts import (
     MaterializedConditioning,
 )
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
+from backends.step_progress import inject_step_progress
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
 from backends.family_profiles import (
@@ -1026,7 +1027,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, 'init_image', None)
 
@@ -1129,6 +1130,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     conditioning_artifact,
                 )
                 with torch.inference_mode():
+                    inject_step_progress(pipe, pipe_kwargs, progress, req.num_inference_steps)
                     out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
@@ -1401,7 +1403,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         """
         Execute an SDXL generation job.
 
@@ -1514,6 +1516,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     conditioning_artifact,
                 )
                 with torch.inference_mode():
+                    inject_step_progress(pipe, pipe_kwargs, progress, req.num_inference_steps)
                     out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
@@ -1751,7 +1754,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, "init_image", None)
         if init_image is not None:
@@ -1848,6 +1851,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                 print(f"[hunyuandit-cuda] debug dump written to {debug_dir}")
 
             with torch.inference_mode():
+                inject_step_progress(pipe, pipe_kwargs, progress, req.num_inference_steps)
                 out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]

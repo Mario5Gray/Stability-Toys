@@ -30,7 +30,7 @@ from backends.model_resolution import resolved_model_to_json_dict
 from backends.job_envelope import encode_job, decode_job
 from backends.backplane.ipc import IpcJobSink, drain_to_subscriber
 from backends.backplane.reactivestreams import Publisher, Subscriber
-from backends.backplane.frames import Result
+from backends.backplane.frames import Progress, Result
 
 _READY = b"\x00READY"
 _FAILED = b"\x00FAILED"
@@ -210,7 +210,10 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
         )
         sink = IpcJobSink(conn, job_id=d.job_id)
         try:
-            result = worker.run_job(job)              # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
+            # STABL-zueslhah Task 3: thread the IpcJobSink's progress emitter so the
+            # diffusion step callback streams Progress over the pipe that
+            # drain_to_subscriber already reads.
+            result = worker.run_job(job, progress=sink.progress)  # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
             sink.result(0, pickle.dumps(result))      # recon #5C: pickle the opaque return into the blob
             sink.complete()
         except Exception as e:   # noqa: BLE001 — rides the sink terminal
@@ -223,14 +226,21 @@ class _SubprocessFutureBridge(Subscriber):
     return (recon #5C), and records terminal_error_code (recon #5E) so the Governor
     distinguishes in-band OOM (child alive -> must kill) from success/other errors."""
 
-    def __init__(self, fut):
+    def __init__(self, fut, on_progress=None):
         self._fut = fut
         self.terminal_error_code = None
+        # STABL-zueslhah: forward non-terminal Progress to a consumer (WS in Task 4)
+        # instead of dropping it; None preserves today's Future-only behaviour.
+        self._on_progress = on_progress
 
     def on_subscribe(self, subscription):
         subscription.request(1 << 62)
 
     def on_next(self, value):
+        if isinstance(value, Progress):
+            if self._on_progress is not None:
+                self._on_progress(value.step, value.total, value.stage)
+            return
         if isinstance(value, Result) and not self._fut.done():
             self._fut.set_result(pickle.loads(value.image.read_sync()))
 

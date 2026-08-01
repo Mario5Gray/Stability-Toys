@@ -486,7 +486,7 @@ class TestJobSubmission:
         started = threading.Event()
         release = threading.Event()
 
-        def blocking_run_job(job):
+        def blocking_run_job(job, progress=None):
             started.set()
             release.wait(timeout=5.0)
             return "blocked"
@@ -552,7 +552,7 @@ class TestJobSubmission:
         started = threading.Event()
         release = threading.Event()
         worker = mock_worker_factory.return_value
-        def run_job(job):
+        def run_job(job, progress=None):
             started.set()
             release.wait(timeout=5.0)
             return ("png", 123)
@@ -678,7 +678,7 @@ class TestWorkerLifecycle:
             def configure_conditioning(self, config):
                 events.append(("configure", config.service))
 
-            def run_job(self, job):
+            def run_job(self, job, progress=None):
                 del job
                 return b"png", 1
 
@@ -716,7 +716,7 @@ class TestWorkerLifecycle:
         class IncompatibleWorker:
             worker_id = 0
 
-            def run_job(self, job):
+            def run_job(self, job, progress=None):
                 del job
                 return b"png", 1
 
@@ -745,7 +745,7 @@ class TestWorkerLifecycle:
         class IncompatibleWorker:
             worker_id = 0
 
-            def run_job(self, job):
+            def run_job(self, job, progress=None):
                 del job
                 return b"png", 1
 
