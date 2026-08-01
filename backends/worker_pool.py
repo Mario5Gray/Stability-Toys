@@ -262,7 +262,8 @@ def get_worker_pool(
         queue_timeout_s = DEFAULT_QUEUE_TIMEOUT_S
         # M-A: opt-in process isolation. Default stays in-proc for zero risk to
         # existing deployments; subprocess handle enables durable OOM recovery.
-        if handle is None and worker_factory is None and os.environ.get("WORKER_ISOLATION", "inproc").lower() == "subprocess":
+        isolate = os.environ.get("WORKER_ISOLATION", "inproc").lower() == "subprocess"
+        if handle is None and worker_factory is None and isolate:
             from backends.worker_handle_subprocess import SubprocessWorkerHandle
             handle = SubprocessWorkerHandle("backends.worker_factory.create_cuda_worker")
         _worker_pool = WorkerPool(
@@ -274,6 +275,21 @@ def get_worker_pool(
             device_memory=device_memory,
             handle=handle,
         )
+        if isolate:
+            # STABL-xtkhoidu: in subprocess mode the parent still holds GPU memory of
+            # its own — superres above all — while the child holds the worker. Two
+            # processes, two consumers, no overlap.
+            #
+            # NOT registered in inproc mode: there the parent IS the worker's process,
+            # and a second consumer would report the same process-global torch
+            # counters twice, clamping unattributed_bytes to zero over a negative
+            # residual. One registered consumer per process.
+            from backends.device_memory import ProcessMemoryConsumer, get_device_memory
+
+            dm = device_memory or get_device_memory()
+            consumer = ProcessMemoryConsumer("server")
+            _worker_pool._parent_consumers = [consumer]
+            _worker_pool._parent_registrations = [dm.register(consumer)]
     return _worker_pool
 
 
@@ -286,6 +302,14 @@ def reset_worker_pool():
     """
     global _worker_pool
     if _worker_pool is not None:
+        # Close the parent-process registration first: a consumer left registered
+        # after reset would be fanned out to on the NEXT pool's snapshots, reporting
+        # the same process a second time (STABL-xtkhoidu).
+        for reg in getattr(_worker_pool, "_parent_registrations", []):
+            try:
+                reg.close()
+            except Exception:
+                pass
         try:
             _worker_pool.shutdown()
         except Exception:

@@ -281,3 +281,78 @@ def test_worker_consumer_reclaim_calls_empty_cache(monkeypatch):
 
     WorkerMemoryConsumer(worker=object()).reclaim()
     torch_mock.cuda.empty_cache.assert_called_once()
+
+
+# --- Per-process attribution (STABL-xtkhoidu) --------------------------------
+#
+# pool_stats() reads torch.cuda.memory_allocated()/memory_reserved(), which are
+# PROCESS-GLOBAL. Two consumers registered in one process therefore report the
+# same bytes twice. The invariant is ONE registered consumer per process.
+
+
+def test_two_consumers_in_one_process_double_count_the_same_bytes():
+    """The reason superres cannot simply be registered alongside the worker.
+
+    Both would report the same process-global torch counters, so sum(reserved)
+    doubles, unattributed_bytes clamps to zero, and the residual goes negative —
+    accounting that is WORSE than leaving superres out, and silent apart from a
+    debug log. This test exists so the one-per-process invariant has a failing
+    test behind it rather than a comment.
+    """
+    used = 14 * 1024**3          # total 24, free 10
+    each = ConsumerMemory(label="worker", pid=1, allocated_bytes=8 * 1024**3,
+                          reserved_bytes=used)
+
+    honest = _snap(consumers=(each,))
+    assert honest.unattributed_bytes == 0
+
+    doubled = _snap(consumers=(each, replace_label(each, "superres")))
+    residual = doubled.used_bytes - sum(c.reserved_bytes for c in doubled.consumers)
+    assert residual == -used, "the same bytes must be counted twice to prove the hazard"
+    assert doubled.unattributed_bytes == 0, (
+        "unattributed_bytes clamps at zero, so the over-count is INVISIBLE in the "
+        "reported number — it only shows up as a negative residual in a debug log"
+    )
+
+
+def replace_label(cm: ConsumerMemory, label: str) -> ConsumerMemory:
+    from dataclasses import replace
+    return replace(cm, label=label)
+
+
+def test_process_consumer_reports_this_process_with_its_pid(monkeypatch):
+    """ProcessMemoryConsumer attributes to a PROCESS, which is the granularity the
+    driver actually provides. The label names what the process hosts."""
+    import os
+    import sys as _sys
+    from unittest.mock import MagicMock
+    from backends.device_memory import ProcessMemoryConsumer
+
+    torch_mock = MagicMock()
+    torch_mock.cuda.memory_allocated.return_value = 2 * 1024**3
+    torch_mock.cuda.memory_reserved.return_value = 4 * 1024**3
+    monkeypatch.setitem(_sys.modules, "torch", torch_mock)
+
+    cm = ProcessMemoryConsumer("server").pool_stats()
+    assert cm.label == "server"
+    assert cm.pid == os.getpid()
+    assert cm.allocated_bytes == 2 * 1024**3
+    assert cm.reserved_bytes == 4 * 1024**3
+    assert cm.stale is False
+
+
+def test_worker_label_still_resolves_for_the_registry_lookup(monkeypatch):
+    """ModelRegistry._worker_entry() selects on `label == "worker"`, and
+    get_reserved_vram / get_used_vram / the /status stale flag all hang off it.
+    The spelling is load-bearing; only its MEANING widened to 'the process
+    hosting the worker'."""
+    import sys as _sys
+    from unittest.mock import MagicMock
+    from backends.device_memory import ProcessMemoryConsumer
+
+    torch_mock = MagicMock()
+    torch_mock.cuda.memory_allocated.return_value = 1
+    torch_mock.cuda.memory_reserved.return_value = 2
+    monkeypatch.setitem(_sys.modules, "torch", torch_mock)
+
+    assert ProcessMemoryConsumer("worker").pool_stats().label == "worker"
