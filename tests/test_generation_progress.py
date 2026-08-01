@@ -63,6 +63,71 @@ def test_subprocess_bridge_forwards_progress_and_fulfills_future():
     assert fut.result() == "PNG"
 
 
+def test_demand_reload_emits_load_stage_progress():
+    """Model-load progress: when a generation job's own dispatch triggers a demand
+    reload (worker evicted), emit a 'load' stage Progress via on_progress so the
+    client sees loading instead of silence (STABL-zueslhah)."""
+    import pickle
+    from unittest.mock import Mock, patch
+    from backends.governor import Governor, GenerationJob
+    from backends.worker_handle import WorkerHealth
+    from backends.conditioning.contracts import ConditioningConfig
+    from backends.model_resolution import LocalModelBinding
+    from backends.backplane.inproc import InProcBackplane
+    from backends.backplane.blob import InProcBlob
+    from tests.test_governor import StubHandle
+
+    class _EvictableHandle(StubHandle):
+        def __init__(self):
+            super().__init__()
+            self.available = True  # set True after the __init__ load's start()
+
+        def start(self, resolved_mode, binding, mode):
+            super().start(resolved_mode, binding, mode)
+            self.available = True  # a (re)load restores availability
+
+        def health(self):
+            state = "ready" if self.available else "dead"
+            return WorkerHealth(state=state, vram_free_bytes=0, vram_total_bytes=0, mode=None)
+
+        def submit(self, job):
+            sink, pub = InProcBackplane(job.job_id).open()
+            sink.result(0, InProcBlob(pickle.dumps("R")))
+            sink.complete()
+            return pub
+
+    def _resolve(model_path, mode):
+        return Mock(), LocalModelBinding(model_path)
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve):
+        mode = Mock()
+        mode.model_path = "/models/test.safetensors"
+        mode.loras = []
+        mode.conditioning = ConditioningConfig()
+        mode_config = Mock()
+        mode_config.get_mode.return_value = mode
+        mode_config.get_default_mode.return_value = "test-mode"
+        registry = Mock()
+        registry.get_used_vram.return_value = 0
+        registry.get_allocated_vram.return_value = 0
+        registry.get_total_vram.return_value = 8 * 1024**3
+        registry.register_model = Mock()
+
+        handle = _EvictableHandle()
+        gov = Governor(worker_factory=Mock(), handle=handle,
+                       mode_config=mode_config, registry=registry)
+        handle.available = False  # evict: the next dispatch must demand-reload
+
+        got = []
+        job = GenerationJob(req=Mock(), resolution_epoch=gov.current_resolution_epoch())
+        fut = gov.submit_job(job, on_progress=lambda s, t, st: got.append((s, t, st)))
+        assert fut.result(timeout=2.0) == "R"
+        gov.shutdown()
+
+    stages = [st for (_s, _t, st) in got]
+    assert "load" in stages  # the demand reload surfaced a load-stage frame
+
+
 def test_subprocess_dispatch_threads_on_progress_to_bridge():
     """The Governor's SUBPROCESS dispatch path (handle.worker is None) must attach
     _SubprocessFutureBridge with the submit_job on_progress, so subprocess-mode

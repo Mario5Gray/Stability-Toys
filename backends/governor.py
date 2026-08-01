@@ -842,10 +842,25 @@ class Governor:
 
                     # Demand reload
                     if not self._worker_available() and self._active_snapshot is not None:
+                        # STABL-zueslhah: model-load progress. This generate triggers
+                        # its own (re)load, so surface a 'load' stage over on_progress
+                        # (parent-side, mode-agnostic) — the client sees loading, not
+                        # silence, before denoise steps stream. total=-1 => indeterminate.
+                        _op = job_record.on_progress if job_record is not None else None
+                        if _op is not None:
+                            try:
+                                _op(0, -1, "load")
+                            except Exception:
+                                pass
                         try:
                             self._reload_from_snapshot()
                         except Exception as load_err:
                             raise RuntimeError(f"Demand reload failed: {load_err}") from load_err
+                        if _op is not None:
+                            try:
+                                _op(1, 1, "load")
+                            except Exception:
+                                pass
 
                     # Stale-epoch barrier. The dead-epoch / no-authority guard runs
                     # FIRST: a job whose target mode failed to load has no authority to
