@@ -44,6 +44,25 @@ def test_future_bridge_without_consumer_still_works():
     assert fut.result() == "BYTES"
 
 
+def test_subprocess_bridge_forwards_progress_and_fulfills_future():
+    """Subprocess path: _SubprocessFutureBridge mirrors _FutureBridge — forwards
+    Progress to on_progress, unpickles the opaque Result for the Future."""
+    import pickle
+    from backends.worker_handle_subprocess import _SubprocessFutureBridge
+
+    fut = Future()
+    got = []
+    bridge = _SubprocessFutureBridge(fut, on_progress=lambda step, total, stage: got.append((step, total, stage)))
+    bridge.on_subscribe(_Sub())
+
+    bridge.on_next(Progress("j", 2, 20, "denoise"))
+    assert got == [(2, 20, "denoise")]
+    assert not fut.done()
+
+    bridge.on_next(Result("j", 0, InProcBlob(pickle.dumps("PNG"))))
+    assert fut.result() == "PNG"
+
+
 def test_generation_job_execute_threads_progress_to_run_job():
     seen = {}
 
