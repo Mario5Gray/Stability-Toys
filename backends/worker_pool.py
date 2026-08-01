@@ -125,6 +125,12 @@ class WorkerPool:
         meant for generation."""
         return self._governor.wait_for_result(fut, **kwargs)
 
+    def get_vram_stats(self):
+        """Driver-truth VRAM through the seam (STABL-qfjfflrx). Transports must read
+        this rather than calling torch.cuda directly — a direct read bypasses
+        DeviceMemory's accounting and keeps the parent process bound to CUDA."""
+        return self._registry.get_vram_stats()
+
     def cancel_job(self, job_id: str) -> bool:
         return self._governor.cancel_job(job_id)
 
