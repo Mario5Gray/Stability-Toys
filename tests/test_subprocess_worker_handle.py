@@ -471,3 +471,105 @@ def test_a_v1_envelope_is_rejected_rather_than_default_filled():
     with pytest.raises(ValueError) as exc_info:
         decode_job(stale)
     assert "schema_version" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# The CHILD's VRAM is attributed to the child (STABL-xtkhoidu).
+#
+# SubprocessWorkerHandle registered NO DeviceMemory consumer, so on the
+# production isolation path 100% of worker VRAM landed in unattributed_bytes.
+# DeviceMemory (STABL-hjldxurg) predates the facet-3 wiring.
+# ---------------------------------------------------------------------------
+
+
+def test_subprocess_consumer_reports_the_CHILD_process_not_the_parent():
+    """Attribution must name the process that actually holds the memory.
+
+    Reported across a REAL spawn boundary: a mocked transport would happily
+    return the parent's pid and look correct, which is how STABL-spxwqlan
+    survived review.
+    """
+    import os
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    h.start(None, None, None)
+    try:
+        consumer = h.memory_consumer()
+        assert consumer is not None, "subprocess handle exposes no memory consumer"
+        assert consumer.label == "worker", (
+            "ModelRegistry._worker_entry() selects on label == 'worker'; "
+            "get_reserved_vram/get_used_vram/the /status stale flag all depend on it"
+        )
+
+        cm = consumer.pool_stats()
+        assert cm.pid == h._proc.pid, (
+            f"consumer reported pid {cm.pid}; the memory lives in the CHILD "
+            f"({h._proc.pid}), not the parent ({os.getpid()})"
+        )
+        assert cm.pid != os.getpid()
+        assert cm.stale is False, "consumers never self-declare staleness"
+    finally:
+        h.stop()
+
+
+def test_a_stats_request_does_not_corrupt_an_in_flight_job():
+    """Why the control channel is a SEPARATE pipe, not a preference.
+
+    The data pipe is being read concurrently by drain_to_subscriber while a job
+    runs; a stats request/reply interleaved there would be consumed as a job
+    frame and corrupt the stream.
+    """
+    h = SubprocessWorkerHandle("tests._fault_worker.make_payload_echo_worker")
+    h.start(None, None, None)
+    try:
+        consumer = h.memory_consumer()
+        job = GenerationJob(
+            req=_req("concurrent"),
+            resolution_epoch=0,
+            init_image=b"INIT-BYTES",
+        )
+        fut = Future()
+        h.submit(job).subscribe(_SubprocessFutureBridge(fut))
+
+        # Hammer the control channel while the job is in flight.
+        for _ in range(5):
+            consumer.pool_stats()
+
+        seen = fut.result(timeout=20)
+        assert seen["prompt"] == "concurrent"
+        assert seen["init_image"] == b"INIT-BYTES", (
+            "the job's payload did not survive concurrent stats traffic — the "
+            "control channel is interleaving with the data pipe"
+        )
+    finally:
+        h.stop()
+
+
+def test_an_unresponsive_child_degrades_to_stale_not_an_exception():
+    """A dead child must not raise out of pool_stats into DeviceMemory's fan-out.
+
+    The registry bounds every consumer at POOL_STATS_TIMEOUT_S and substitutes
+    last-known with stale=True — the path already built for a wedged worker
+    (STABL-hjldxurg). This asserts the consumer participates in it rather than
+    inventing its own failure mode.
+    """
+    from backends.device_memory import get_device_memory, reset_device_memory
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    h.start(None, None, None)
+    consumer = h.memory_consumer()
+    h.stop()                      # child is now dead; the control pipe answers nothing
+
+    reset_device_memory()
+    dm = get_device_memory()
+    reg = dm.register(consumer)
+    try:
+        snap = dm.snapshot()
+        entry = next((c for c in snap.consumers if c.label == "worker"), None)
+        assert entry is not None, "the dead child's consumer vanished from the snapshot"
+        assert entry.stale is True, (
+            "a dead child must surface as stale, not as a zero that reads as truth"
+        )
+    finally:
+        reg.close()
+        reset_device_memory()

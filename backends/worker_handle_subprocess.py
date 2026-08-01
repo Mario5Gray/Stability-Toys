@@ -34,6 +34,13 @@ from backends.backplane.frames import Result
 
 _READY = b"\x00READY"
 _FAILED = b"\x00FAILED"
+_STATS = b"\x00STATS"
+
+# STABL-xtkhoidu. DeviceMemory's fan-out bounds every consumer at
+# POOL_STATS_TIMEOUT_S (0.5s) and substitutes last-known with stale=True, so the
+# reply wait must expire INSIDE that budget — otherwise the fan-out times out
+# first and we lose the distinction between "child is busy" and "child is gone".
+_STATS_REPLY_TIMEOUT_S = 0.25
 
 # STABL-wotsqcjb. Generous because the spawn child imports torch + diffusers cold
 # before it can signal READY. It costs nothing in the common failure: the liveness
@@ -55,7 +62,78 @@ def _resolve_ref(dotted: str):
     return getattr(importlib.import_module(mod), name)
 
 
-def _worker_main(conn, factory_ref, wire_resolved, binding, mode):
+def _serve_stats(control_conn):
+    """Child-side control server: answer VRAM stats requests (STABL-xtkhoidu).
+
+    Runs on its own daemon thread reading its OWN pipe. It cannot share the data
+    pipe: `drain_to_subscriber` reads that concurrently while a job runs, so an
+    interleaved request/reply would be consumed as a job frame and corrupt the
+    stream.
+
+    A separate thread is also what lets stats answer DURING a generation — torch
+    releases the GIL across CUDA calls, so the reply lands inside the fan-out
+    budget instead of queueing behind the denoise.
+    """
+    import torch
+
+    while True:
+        try:
+            if control_conn.recv_bytes() != _STATS:
+                continue
+            control_conn.send_bytes(pickle.dumps({
+                "pid": os.getpid(),
+                "allocated_bytes": int(torch.cuda.memory_allocated()),
+                "reserved_bytes": int(torch.cuda.memory_reserved()),
+            }))
+        except (EOFError, OSError):
+            break                      # parent closed the pipe: the child is going away
+        except Exception:              # noqa: BLE001 — never kill the child over stats
+            try:
+                control_conn.send_bytes(pickle.dumps(None))
+            except Exception:          # noqa: BLE001
+                break
+
+
+class _SubprocessMemoryConsumer:
+    """The CHILD process as a DeviceMemory consumer.
+
+    Label is "worker" because that spelling is load-bearing:
+    `ModelRegistry._worker_entry()` selects on it, and `get_reserved_vram()`,
+    `get_used_vram()` and the `/status` stale flag all hang off that lookup.
+
+    Raising on an unreachable child is the CORRECT behaviour, not a gap:
+    `_ConsumerRegistry._read_consumer` catches it and substitutes last-known with
+    `stale=True` — the path built for a wedged worker. Returning zeros instead
+    would report "the worker holds no VRAM", which reads as truth.
+    """
+
+    label = "worker"
+
+    def __init__(self, handle):
+        self._handle = handle
+
+    def pool_stats(self):
+        from backends.device_memory import ConsumerMemory
+
+        stats = self._handle.request_stats(timeout_s=_STATS_REPLY_TIMEOUT_S)
+        if stats is None:
+            raise RuntimeError("subprocess worker did not report memory stats")
+        return ConsumerMemory(
+            label=self.label,
+            pid=stats["pid"],
+            allocated_bytes=stats["allocated_bytes"],
+            reserved_bytes=stats["reserved_bytes"],
+            stale=False,   # consumers never self-declare staleness (spec §2.3)
+        )
+
+    def reclaim(self) -> None:
+        # No-op: trimming the child's allocator needs a control verb of its own, and
+        # the Governor's OOM recovery already reclaims by KILLING the process, which
+        # is strictly more effective than empty_cache (the facet-3 thesis).
+        return None
+
+
+def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=None):
     """Spawn-child entrypoint: rebuild the resolution, build + condition the worker,
     signal READY.
 
@@ -105,6 +183,11 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode):
         except Exception:       # noqa: BLE001 — a broken pipe leaves guard A to notice
             pass
         raise
+
+    # Start the control server only after the worker is built: answering stats for a
+    # half-constructed child would report numbers nobody can act on.
+    if control_conn is not None:
+        threading.Thread(target=_serve_stats, args=(control_conn,), daemon=True).start()
 
     conn.send_bytes(_READY)
     while True:
@@ -172,11 +255,18 @@ class _SubprocPublisher(Publisher):
 
 
 class SubprocessWorkerHandle(WorkerHandle):
-    def __init__(self, worker_factory_ref: str, start_timeout_s: Optional[float] = None):
+    def __init__(self, worker_factory_ref: str, start_timeout_s: Optional[float] = None,
+                 device_memory=None):
         self._factory_ref = worker_factory_ref
+        self._dm = device_memory
+        self._registration = None
         self._ctx = mp.get_context("spawn")
         self._proc = None
         self._parent_conn = None
+        self._control_conn = None
+        # Serialises control round-trips: DeviceMemory fans out on a thread pool, so
+        # two concurrent snapshots could otherwise interleave request and reply.
+        self._control_lock = threading.Lock()
         self._liveness: Optional[SubprocessLiveness] = None
         self._state = "starting"
         # None => the env-driven module constant. The argument exists so tests can
@@ -199,9 +289,14 @@ class SubprocessWorkerHandle(WorkerHandle):
             resolved_model_to_json_dict(resolved_mode) if resolved_mode is not None else None
         )
         self._parent_conn, child_conn = self._ctx.Pipe()
+        # A SECOND pipe for control/stats (STABL-xtkhoidu). Not a preference: the data
+        # pipe above is read concurrently by drain_to_subscriber while a job runs, so a
+        # stats request/reply sharing it would be consumed as a job frame.
+        self._control_conn, child_control = self._ctx.Pipe()
         self._proc = self._ctx.Process(
             target=_worker_main,
-            args=(child_conn, self._factory_ref, wire_resolved, binding, mode),
+            args=(child_conn, self._factory_ref, wire_resolved, binding, mode,
+                  child_control),
             daemon=True,
         )
         self._proc.start()
@@ -211,6 +306,12 @@ class SubprocessWorkerHandle(WorkerHandle):
         self._await_ready()
         self._liveness.note_heartbeat()
         self._state = "ready"
+        # Register AFTER ready, mirroring InProcessWorkerHandle: a snapshot must never
+        # sample a half-built consumer (spec §5, event 1).
+        if self._dm is None:
+            from backends.device_memory import get_device_memory
+            self._dm = get_device_memory()
+        self._registration = self._dm.register(self.memory_consumer())
 
     def _await_ready(self) -> None:
         """Wait for the child's READY, bounded by liveness AND a deadline (guard A).
@@ -261,6 +362,29 @@ class SubprocessWorkerHandle(WorkerHandle):
             f"subprocess worker '{self._factory_ref}' sent {frame[:64]!r} instead of READY"
         )
 
+    def memory_consumer(self):
+        """This child as a DeviceMemory consumer (STABL-xtkhoidu).
+
+        Without it the subprocess path registers nothing, so 100% of worker VRAM
+        lands in unattributed_bytes — DeviceMemory predates the facet-3 wiring.
+        """
+        return _SubprocessMemoryConsumer(self)
+
+    def request_stats(self, *, timeout_s: float) -> Optional[dict]:
+        """Bounded control round-trip. Returns None if the child does not answer in
+        time; the caller turns that into the registry's stale substitution."""
+        conn = self._control_conn
+        if conn is None or self._proc is None or not self._proc.is_alive():
+            return None
+        with self._control_lock:
+            try:
+                conn.send_bytes(_STATS)
+                if not conn.poll(timeout_s):
+                    return None
+                return pickle.loads(conn.recv_bytes())
+            except (EOFError, OSError):
+                return None
+
     def submit(self, job) -> Publisher:
         self._state = "busy"
         self._parent_conn.send_bytes(encode_job(job))
@@ -275,6 +399,11 @@ class SubprocessWorkerHandle(WorkerHandle):
         self.stop()
 
     def stop(self) -> None:
+        # Deregister BEFORE the kill so no snapshot fan-out samples a dying child
+        # (spec §5, event 2 — the same ordering InProcessWorkerHandle.unload uses).
+        if self._registration is not None:
+            self._registration.close()
+            self._registration = None
         if self._proc is not None and self._proc.is_alive():
             self._proc.kill()
             self._proc.join(timeout=5.0)

@@ -282,12 +282,25 @@ class CudaDeviceMemory:
 
 # --- consumer adapter --------------------------------------------------------
 
-class WorkerMemoryConsumer:
-    """Adapter: the generation worker as a DeviceMemory consumer (spec §6).
-    torch imported lazily inside methods — the module stays torch-free."""
+class ProcessMemoryConsumer:
+    """A PROCESS as a DeviceMemory consumer (STABL-xtkhoidu).
 
-    def __init__(self, worker, label: str = "worker"):
-        self._worker = worker
+    torch's `memory_allocated()` / `memory_reserved()` are process-global: they cannot
+    attribute below a process, so the process is the unit of attribution. Registering
+    two consumers in one process reports the same bytes twice, driving
+    `unattributed_bytes` to a clamped zero over a negative residual — worse accounting
+    than registering nothing. **Exactly one registered consumer per process.**
+
+    `label` names what the process hosts, not who is asking. `"worker"` is
+    load-bearing: `ModelRegistry._worker_entry()` selects on it and
+    `get_reserved_vram()`, `get_used_vram()` and the `/status` stale flag all depend
+    on that lookup. Under `inproc` that process also holds superres — a limit of the
+    measurement, not a modelling choice.
+
+    torch imported lazily inside methods — the module stays torch-free.
+    """
+
+    def __init__(self, label: str):
         self.label = label
 
     def pool_stats(self) -> ConsumerMemory:
@@ -304,6 +317,13 @@ class WorkerMemoryConsumer:
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
+
+def WorkerMemoryConsumer(worker=None, label: str = "worker") -> ProcessMemoryConsumer:
+    """Back-compat shim. The old name implied the numbers were the worker's alone;
+    they were always the whole process's. `worker` was never read."""
+    del worker
+    return ProcessMemoryConsumer(label)
 
 
 # --- singleton ---------------------------------------------------------------
