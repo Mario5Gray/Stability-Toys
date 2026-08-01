@@ -34,8 +34,10 @@ class GenSpec:
 class PipelineWorker(Protocol):
     worker_id: int
 
-    def run_job(self, job: Any) -> Tuple[bytes, int]:
-        """Return (png_bytes, seed_used)."""
+    def run_job(self, job: Any, progress=None) -> Tuple[bytes, int]:
+        """Return (png_bytes, seed_used). `progress(step, total, stage)`, when
+        provided, is the sink's Progress emitter for the diffusion step callback
+        (STABL-zueslhah)."""
         ...
 
     def run_job_with_latents(self, job: Any) -> Tuple[bytes, int, bytes]:

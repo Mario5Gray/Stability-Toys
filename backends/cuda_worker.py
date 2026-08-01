@@ -1026,7 +1026,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, 'init_image', None)
 
@@ -1401,7 +1401,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         """
         Execute an SDXL generation job.
 
@@ -1751,7 +1751,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def run_job(self, job) -> tuple[bytes, int]:
+    def run_job(self, job, progress=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, "init_image", None)
         if init_image is not None:

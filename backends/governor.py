@@ -34,7 +34,7 @@ from backends.model_resolution import (
 )
 from backends.backplane.inproc import InProcBackplane
 from backends.backplane.blob import InProcBlob
-from backends.backplane.frames import Result, BackplaneError, BackplaneErrorCode
+from backends.backplane.frames import Progress, Result, BackplaneError, BackplaneErrorCode
 from backends.backplane.interface import JobSink
 from backends.backplane.reactivestreams import Subscriber
 
@@ -118,7 +118,7 @@ class Job(ABC):
             self.fut = Future()
 
     @abstractmethod
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
+    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
         """
         Execute the job.
 
@@ -147,11 +147,13 @@ class GenerationJob(Job):
         super().__post_init__()
         self.job_type = JobType.GENERATION
 
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
-        """Execute generation job."""
+    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
+        """Execute generation job. `progress(step, total, stage)` is the sink's
+        Progress emitter, threaded into run_job so the diffusion step callback can
+        report (STABL-zueslhah); None when no consumer is attached."""
         if worker is None:
             raise RuntimeError("No worker available for generation")
-        return worker.run_job(self)  # type: ignore[arg-type]
+        return worker.run_job(self, progress=progress)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -184,13 +186,21 @@ class _FutureBridge(Subscriber):
     to the streaming/IPC consumers that actually need seed + PNG separated.
     """
 
-    def __init__(self, fut: Future):
+    def __init__(self, fut: Future, on_progress=None):
         self._fut = fut
+        # STABL-zueslhah: forward non-terminal Progress frames to a consumer
+        # (the WS streamer in Task 4) instead of dropping them. None preserves
+        # today's Future-only behaviour exactly.
+        self._on_progress = on_progress
 
     def on_subscribe(self, subscription):
         subscription.request(1 << 62)  # unbounded — the Future is single-valued
 
     def on_next(self, value):
+        if isinstance(value, Progress):
+            if self._on_progress is not None:
+                self._on_progress(value.step, value.total, value.stage)
+            return
         if isinstance(value, Result) and not self._fut.done():
             self._fut.set_result(value.image.read_sync())  # opaque passthrough
 
@@ -224,7 +234,7 @@ class ModeSwitchJob(Job):
         super().__post_init__()
         self.job_type = JobType.MODE_SWITCH
 
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
+    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
         """
         Execute mode switch.
 
@@ -253,7 +263,7 @@ class CustomJob(Job):
         if self.kwargs is None:
             self.kwargs = {}
 
-    def execute(self, worker: Optional[PipelineWorker]) -> Any:
+    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
         """Execute custom handler."""
         return self.handler(*self.args, **self.kwargs)  # type: ignore[arg-type]
 
@@ -875,7 +885,14 @@ class Governor:
                             job_record.executing_since = time.monotonic()
                         if self._handle.worker is not None:
                             # --- IN-PROC PATH (v1, unchanged) ---
-                            result = job.execute(self._handle.worker)
+                            # STABL-zueslhah: pass the sink's Progress emitter so
+                            # the worker's step callback streams through the same
+                            # channel _FutureBridge already drives. None-safe.
+                            _sink = job_record.sink if job_record is not None else None
+                            result = job.execute(
+                                self._handle.worker,
+                                progress=(_sink.progress if _sink is not None else None),
+                            )
 
                             sink = job_record.sink if job_record is not None else None
                             if job_record is not None and job_record.cancel_requested:

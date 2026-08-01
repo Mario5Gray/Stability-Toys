@@ -14,7 +14,7 @@ class FaultWorker:
     def __init__(self, *args, **kwargs):
         pass
 
-    def run_job(self, job):
+    def run_job(self, job, progress=None):
         prompt = getattr(job.req, "prompt", "")
         if prompt == "__OOM__":
             import torch
@@ -42,7 +42,7 @@ class RecordingWorker:
     def configure_conditioning(self, config):
         self.conditioning_config = config
 
-    def run_job(self, job):
+    def run_job(self, job, progress=None):
         if self.conditioning_config is None:
             raise RuntimeError("configure_conditioning was not called in child")
         return b"PNG:" + getattr(job.req, "prompt", "").encode()
@@ -65,7 +65,7 @@ class PayloadEchoWorker:
     def __init__(self, *args, **kwargs):
         pass
 
-    def run_job(self, job):
+    def run_job(self, job, progress=None):
         bindings = getattr(job, "controlnet_bindings", []) or []
         init_image = getattr(job, "init_image", None)
         return {
