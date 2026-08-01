@@ -63,6 +63,39 @@ def test_subprocess_bridge_forwards_progress_and_fulfills_future():
     assert fut.result() == "PNG"
 
 
+async def test_ws_progress_forwarder_schedules_job_progress_send(monkeypatch):
+    """Task 4: the WS forwarder turns an on_progress call (on a worker thread)
+    into a thread-safe hub.send of a job:progress frame on the loop."""
+    import asyncio
+    from server import ws_routes
+
+    sent = []
+
+    class _Hub:
+        async def send(self, cid, msg):
+            sent.append((cid, msg))
+
+    monkeypatch.setattr(ws_routes, "hub", _Hub())
+
+    scheduled = []
+
+    class _Loop:
+        def call_soon_threadsafe(self, fn, arg):
+            scheduled.append((fn, arg))
+
+    fwd = ws_routes.make_generation_progress_forwarder(_Loop(), "client-1", "job-9")
+    fwd(3, 30, "denoise")
+
+    assert len(scheduled) == 1
+    fn, coro = scheduled[0]
+    assert fn is asyncio.ensure_future
+    await coro  # execute the scheduled hub.send coroutine
+    assert sent == [("client-1", {
+        "type": "job:progress", "jobId": "job-9",
+        "step": 3, "total": 30, "stage": "denoise",
+    })]
+
+
 def test_generation_job_execute_threads_progress_to_run_job():
     seen = {}
 

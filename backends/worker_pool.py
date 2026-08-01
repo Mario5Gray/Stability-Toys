@@ -80,8 +80,8 @@ class WorkerPool:
 
     # --- Delegating public methods ---
 
-    def submit_job(self, job: Job, *, timeout_s: float | None = None) -> Future:
-        return self._governor.submit_job(job, timeout_s=timeout_s)
+    def submit_job(self, job: Job, *, timeout_s: float | None = None, on_progress=None) -> Future:
+        return self._governor.submit_job(job, timeout_s=timeout_s, on_progress=on_progress)
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Future:
         return self._governor.switch_mode(mode_name, force=force)

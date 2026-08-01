@@ -37,6 +37,30 @@ ws_router = APIRouter()
 # Job update callback → WS push
 # ---------------------------------------------------------------------------
 
+def make_generation_progress_forwarder(loop, client_id: str, job_id: str):
+    """Return an on_progress(step, total, stage) that streams a job:progress frame
+    to ONE client for a generation (STABL-zueslhah).
+
+    The callback fires on the worker/drain thread (in-proc dispatch or the
+    subprocess drain), so it schedules the async hub.send onto the captured event
+    loop thread-safely — the same pattern _on_job_update uses. A dead loop
+    (client gone / shutdown) is swallowed: progress must never break generation.
+    """
+    def _forward(step: int, total: int, stage: str) -> None:
+        msg = {
+            "type": "job:progress",
+            "jobId": job_id,
+            "step": step,
+            "total": total,
+            "stage": stage,
+        }
+        try:
+            loop.call_soon_threadsafe(asyncio.ensure_future, hub.send(client_id, msg))
+        except RuntimeError:
+            pass  # event loop closed
+    return _forward
+
+
 def _on_job_update(job_id: str, snapshot: dict) -> None:
     """
     Called from invokers/jobs.py on every mutation (from any thread).
@@ -251,7 +275,10 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 resolution_epoch=snapshot.resolution_epoch,
             )
             try:
-                fut = state.worker_pool.submit_job(job)
+                _prog = make_generation_progress_forwarder(
+                    asyncio.get_running_loop(), client_id, job.job_id
+                )
+                fut = state.worker_pool.submit_job(job, on_progress=_prog)
             except queue.Full:
                 pre_submit_job_error = "Queue full"
             else:

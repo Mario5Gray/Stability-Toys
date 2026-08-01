@@ -998,12 +998,14 @@ class Governor:
 
     # --- Submit / mode switch / reload / unload / free ---
 
-    def submit_job(self, job: Job, *, timeout_s: float | None = None) -> Future:
+    def submit_job(self, job: Job, *, timeout_s: float | None = None, on_progress=None) -> Future:
         """Submit a job — VERBATIM from worker_pool.py:870-916.
 
         Opens the backplane channel + attaches _FutureBridge BEFORE enqueueing
         (the backplane's Task 4 no-op pattern). The dispatch loop drives
-        record.sink directly.
+        record.sink directly. `on_progress(step, total, stage)` (STABL-zueslhah),
+        when given, receives the streamed Progress via the bridge; None preserves
+        today's Future-only behaviour.
         """
         effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
         try:
@@ -1017,7 +1019,7 @@ class Governor:
                 record = self._get_job_record(job.job_id)
                 if record is not None:
                     record.sink = sink
-                publisher.subscribe(_FutureBridge(job.fut))
+                publisher.subscribe(_FutureBridge(job.fut, on_progress=on_progress))
             if effective_timeout_s > 0:
                 self.q.put(job, timeout=effective_timeout_s)
             else:
