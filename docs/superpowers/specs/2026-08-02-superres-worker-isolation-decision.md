@@ -74,12 +74,33 @@ implementation is how they silently drift apart.
 **Proof obligation:** the generation child's behavior must not change. A re-run of
 `spikes/facet3_oom_acceptance.py` with the same verdict lines is the evidence.
 
-### Wire form
+### Wire form — new work, not a reuse
 
-Images, not job descriptions. The acceptance run produced 3.4 MB out of a 0.4 MB input at
-magnitude 1. Reuse `backends/backplane`'s `BlobRef` over `shared_memory` — read-once
-`close()` + unlink, already proven across a real spawn boundary — rather than pickling
-multi-MB payloads down a pipe or inventing a second blob path.
+Images, not job descriptions, and in both directions: the acceptance run produced 3.4 MB
+out of a 0.4 MB input at magnitude 1, and magnitude scales that hard.
+
+**The backplane has no request-side blob lane.** `backends/job_envelope.py` says so
+outright — `SharedMemBlob` exists for the **result** path, and `init_image` rides the pipe
+with the pickled body, with a note to "revisit if init images become multi-MB". Superres
+outputs already are. `encode_frame` asserts a `Result` carries a `SharedMemBlob`; nothing
+else may. And the frame vocabulary is generation-shaped: `Result` carries a `seed`, which
+an upscale has no concept of, and `Progress` carries a denoise `stage`.
+
+So this is a **new request-side contract**, not a lane that already exists:
+
+- an envelope shape for an SR request,
+- segment ownership, which **inverts** the result path — there the child creates and the
+  parent consumes; here the parent creates and the child consumes, so the unlink-on-error
+  reaper has to be re-thought rather than reused,
+- frame types for a job with no seed and no denoise progress.
+
+What is genuinely reused is the `SharedMemBlob` primitive and the versioned-frame
+discipline (leading `schema_version` byte). **Do not introduce a second blob primitive.**
+
+Two things deliberately left open, because a codec written months before it is built is
+speculation: the concrete frame set, and whether shared memory is warranted at all at
+these sizes. A few MB over a pipe may well be cheaper than segment setup plus unlink
+bookkeeping — measure before assuming the result path's answer transfers.
 
 ### Attribution
 
@@ -93,6 +114,23 @@ reporting zero is *evidence* that the parent holds nothing; an absent consumer i
 silence. The one-consumer-per-process invariant is unaffected — three processes, three
 consumers.
 
+**This needs no new consumer contract, and the reason is measured rather than assumed.**
+`ProcessMemoryConsumer.pool_stats()` reads `torch.cuda.memory_allocated()` /
+`memory_reserved()`, and the concern worth checking is whether that read would itself
+initialise CUDA — which would pin a ~300 MiB context in the very process the move exists
+to empty, the measurement defeating the thing it measures. It does not. In the CUDA
+container on enigma, in a process that has never touched the GPU:
+
+```text
+is_initialized BEFORE read : False
+pool_stats() -> label='server' pid=1 allocated=0 reserved=0 stale=False
+is_initialized AFTER read  : False
+smi AFTER read             : <no compute apps>
+```
+
+Zeros, CUDA still uninitialised, no context, across repeated reads. The existing adapter
+already *is* the passive zero-byte entry.
+
 ## Non-goals
 
 - **No change to Governor admission, epochs, or the barrier.** The SR path never touches
@@ -101,11 +139,15 @@ consumers.
 - **Exposing the consumer list over HTTP.** Nothing today surfaces consumer labels, pids,
   or `unattributed_bytes` — which is why the acceptance had to be a spike rather than a
   `curl`. Real gap, separate issue.
-- **On-demand or per-request child.** Considered and set aside: the deployed
-  `CUDA_SR_LIFECYCLE=per_request` already reloads the model per upscale, so an exiting
-  child would add only spawn cost and would leave a genuinely zero-context parent. Sticky
-  is chosen for one reason — it is easier to reason about — and this paragraph exists so
-  the alternative is not rediscovered from scratch.
+- **On-demand or per-request child.** Considered and set aside, and the trade is not the
+  obvious one. `CUDA_SR_LIFECYCLE=per_request` does **not** mean what its name suggests
+  for context purposes: the job loop's `finally` calls `_unload_worker()`, which drops the
+  upsampler and `empty_cache()`s, but the process — and therefore its CUDA context —
+  survives. So a per-request *child* is not "today's cost plus a spawn". It would
+  additionally pay **context creation per upscale**, and it would gain something today's
+  `per_request` never delivers: the context actually reclaimed between requests, since only
+  process exit frees it. Sticky is chosen because it is easier to reason about, on a thin
+  margin; recorded here so the alternative is not rediscovered from scratch.
 
 ## Triggers
 
