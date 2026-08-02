@@ -70,6 +70,12 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   finally made the code reachable; Task 8's live acceptance passed on enigma the same
   day. The backplane's facet-3 carry-forwards (`STALE_EPOCH` reconstruction registry,
   IPC `request(n)` backpressure) remain in the backplane plan's Deferred section.
+- **`STABL-xtkhoidu` — superres, the 2nd in-parent GPU consumer** (split out of
+  `STABL-qfjfflrx`). **Accounting half PROVEN ON HARDWARE (2026-08-01)** — see
+  "Per-process VRAM attribution" under Recently landed; the parent and the child are now
+  separately attributed consumers. **The CUDA-free-parent half is still open**: superres
+  is the last CUDA holder in the parent, and the choice between giving it its own child
+  and sharing the generation child is unmade.
 
 **Timeout ↔ VRAM interaction — clock half FIXED 2026-07-31, reap half open.** The
 umbrella's 2026-07-22 comment notes the flat WS result timeout abandons a long job
@@ -107,6 +113,74 @@ Open, unowned (pre-existing):
 ---
 
 ## Recently landed
+
+### Per-process VRAM attribution — PROVEN (PR #36 + #41)
+
+**FP:** STABL-xtkhoidu (in-progress — acceptance 2 open by design)
+**Merges:** `287674f` (PR #36, implementation), `c0a2f65` (PR #41, live acceptance)
+**Spec:** `docs/superpowers/specs/2026-07-31-per-process-vram-attribution-design.md`
+**Acceptance:** `spikes/xtkhoidu_attribution_acceptance.py`
+
+The unit of attribution is the **PROCESS**, because `torch.cuda.memory_allocated()` /
+`memory_reserved()` are process-global and cannot attribute below one.
+`ProcessMemoryConsumer(label)` reports the current process's counters with its pid;
+`SubprocessWorkerHandle` registers a child-backed consumer over a **dedicated** control
+pipe; `get_worker_pool()` registers a parent consumer labelled `"server"` **in subprocess
+mode only**.
+
+**The filed fix (register superres as a second consumer in the same process) would have
+made accounting WORSE** — two consumers in one process double `sum(reserved)`, so
+`unattributed_bytes` clamps to zero over a negative residual, silent apart from a debug
+log. **Exactly one registered consumer per process**, with a test pinning the hazard.
+The larger hole was elsewhere: `SubprocessWorkerHandle` registered **nothing**, so on the
+production isolation path 100% of worker VRAM was unattributed — DeviceMemory predates the
+facet-3 wiring.
+
+Live acceptance, enigma RTX 3090, `WORKER_ISOLATION=subprocess`:
+
+```text
+- label='server'  pid=1    reserved=0.12 GiB  stale=False   <- superres, in the parent
+- label='worker'  pid=154  reserved=2.01 GiB  stale=False   <- the model, in the child
+unattributed : 1.93 GiB          (24.00 total / 4.06 used)
+nvidia-smi   : pid=1 -> 426 MiB, pid=154 -> 2374 MiB
+
+unattributed WITH the child       : 1.93 GiB
+unattributed WITHOUT it (pre-#36) : 3.93 GiB
+delta                             : 2.01 GiB == the child's reserved pool
+```
+
+**The delta is the proof, not the consumer count.** Two entries only show that something
+registered; deregistering the child reproduces the pre-#36 state and shows exactly how
+many bytes the fix explains. Each pool sits ~300 MiB under its `nvidia-smi` per-pid figure
+— that process's CUDA context, correctly left unattributed.
+
+**Subprocess isolation therefore IMPROVES attribution fidelity**: in-proc, `"worker"`
+necessarily includes superres, because the driver cannot attribute below process
+granularity. A limit of the measurement, stated rather than hidden.
+
+Traps worth carrying:
+
+- **`/api/models/status` cannot verify any of this.** It surfaces the `"worker"` entry's
+  reserved bytes via `ModelRegistry._worker_entry()` and nothing else — no consumer list,
+  no pids, no `unattributed_bytes`. The snapshot must be read inside the server's own
+  process; hence a spike that owns its process and builds the pool through the production
+  `get_worker_pool()` path.
+- **`env.cuda` ships `CUDA_SR_LIFECYCLE=per_request`**, which frees the upscaler before a
+  snapshot can see it. Run as deployed, the parent reads 0.00 GiB and the run looks like
+  broken attribution when it only shows the model is not resident. Force `sticky` when
+  measuring superres.
+- **The control channel is a separate pipe by necessity, not preference.** The data pipe
+  is read concurrently by `drain_to_subscriber` during a job, so an interleaved stats
+  request/reply would be consumed as a job frame.
+- **The label `"worker"` keeps its exact spelling** — `ModelRegistry._worker_entry()`
+  selects on it, and `get_reserved_vram`/`get_used_vram`/the `/status` stale flag all hang
+  off that lookup. Renaming it silently zeroes those. Its *meaning* widens to "the process
+  hosting the worker".
+
+**Still open, by design:** acceptance 2 — the explicit choice between option 2 (superres
+gets its own child) and option 3 (share the generation child) for a CUDA-free parent. The
+input it was waiting on is now measured: the parent holds a **~300 MiB CUDA context of its
+own purely for superres**, on top of the 0.12 GiB upscaler.
 
 ### Facet-3 subprocess worker — durable OOM recovery — PROVEN (PR #23 + #28)
 
