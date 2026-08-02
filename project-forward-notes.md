@@ -73,9 +73,14 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
 - **`STABL-xtkhoidu` — superres, the 2nd in-parent GPU consumer** (split out of
   `STABL-qfjfflrx`). **Accounting half PROVEN ON HARDWARE (2026-08-01)** — see
   "Per-process VRAM attribution" under Recently landed; the parent and the child are now
-  separately attributed consumers. **The CUDA-free-parent half is still open**: superres
-  is the last CUDA holder in the parent, and the choice between giving it its own child
-  and sharing the generation child is unmade.
+  separately attributed consumers. **The CUDA-free-parent half is DECIDED but UNBUILT
+  (2026-08-02)** — superres gets its own long-lived subprocess child (option 2, sticky);
+  sharing the generation child is rejected on the record. Spec:
+  `docs/superpowers/specs/2026-08-02-superres-worker-isolation-decision.md`; trigger-gated
+  build filed as **`STABL-jylvadvb`**. **The measurement inverted the filed framing:** the
+  box already runs two CUDA contexts, so option 2 *moves* the parent's rather than adding
+  one, and option 3's entire material win is ~300 MiB of 24 GB. Do not start the build
+  without one of the spec's three triggers.
 
 **Timeout ↔ VRAM interaction — clock half FIXED 2026-07-31, reap half open.** The
 umbrella's 2026-07-22 comment notes the flat WS result timeout abandons a long job
