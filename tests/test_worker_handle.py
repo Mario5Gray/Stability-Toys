@@ -128,7 +128,7 @@ def test_handle_health_reports_busy_during_job():
     # This test uses a slow worker to observe the busy state
     worker = _make_mock_worker()
     done_event = threading.Event()
-    def slow_run_job(job, progress=None):
+    def slow_run_job(job, progress=None, should_cancel=None):
         done_event.wait(timeout=2.0)
         return "done"
     worker.run_job = slow_run_job

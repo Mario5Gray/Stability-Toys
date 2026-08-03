@@ -147,13 +147,17 @@ class GenerationJob(Job):
         super().__post_init__()
         self.job_type = JobType.GENERATION
 
-    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
+    def execute(self, worker: Optional[PipelineWorker], progress=None,
+                should_cancel=None) -> Any:
         """Execute generation job. `progress(step, total, stage)` is the sink's
         Progress emitter, threaded into run_job so the diffusion step callback can
-        report (STABL-zueslhah); None when no consumer is attached."""
+        report (STABL-zueslhah); None when no consumer is attached.
+
+        `should_cancel()` is the reap predicate (STABL-jredufxb), consulted at the
+        same step boundary; None when the job is not cancellable."""
         if worker is None:
             raise RuntimeError("No worker available for generation")
-        return worker.run_job(self, progress=progress)  # type: ignore[arg-type]
+        return worker.run_job(self, progress=progress, should_cancel=should_cancel)  # type: ignore[arg-type]
 
 
 @dataclass
