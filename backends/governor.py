@@ -706,6 +706,14 @@ class Governor:
         )
 
     def cancel_job(self, job_id: str) -> bool:
+        """Request cancellation.
+
+        A QUEUED job is taken off the queue outright, so the work is never done.
+        A RUNNING job has the flag flipped that the in-proc reap predicate reads,
+        and — for a locality that cannot see that flag — the handle is signalled
+        by job id (STABL-jredufxb).
+        """
+        signal_handle = False
         with self._job_lock:
             record = self._job_records.get(job_id)
             if record is None or record.job.fut.done():
@@ -715,7 +723,22 @@ class Governor:
                 record.state = "cancelled"
                 return True
             record.state = "running"
-            return True
+            signal_handle = True
+
+        # OUTSIDE _job_lock, deliberately. The subprocess handle's cancel takes
+        # _control_lock, which an in-flight stats reply can hold for
+        # _STATS_REPLY_TIMEOUT_S — signalling under _job_lock would let a
+        # /api/models/status fan-out stall the dispatch loop.
+        if signal_handle:
+            handle_cancel = getattr(self._handle, "cancel_job", None)
+            if callable(handle_cancel):
+                try:
+                    handle_cancel(job_id)
+                except Exception:  # noqa: BLE001 — a failed signal must not fail the cancel
+                    logger.warning(
+                        "[Governor] handle.cancel_job(%s) failed", job_id, exc_info=True
+                    )
+        return True
 
     # --- VRAM cleanup / recovery ---
 
