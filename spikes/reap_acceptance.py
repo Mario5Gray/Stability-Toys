@@ -39,9 +39,13 @@ import time
 
 os.environ.setdefault("BACKEND", "cuda")
 
-# Long enough that an UN-reaped run is unmistakably longer than the budget. If
-# these are close, the wall-time signal proves nothing.
-LONG_STEPS = int(os.environ.get("REAP_LONG_STEPS", "150"))
+# GenerateRequest caps num_inference_steps at 50 (pydantic le=50), so the long
+# job cannot simply be made arbitrarily long. The wall-time signal is therefore
+# calibrated against a MEASURED un-reaped run rather than against the budget: on
+# a fast LCM model a full 50-step run can finish inside `budget * 4` and would
+# read as a pass with no reap at all.
+LONG_STEPS = int(os.environ.get("REAP_LONG_STEPS", "50"))
+LONG_SIZE = os.environ.get("REAP_LONG_SIZE", "1024x1024")
 
 
 def child_pid(pool):
@@ -85,12 +89,33 @@ def main() -> int:
     pid_before = child_pid(pool)
     print(f"child pid after load: {pid_before}", flush=True)
 
+    def long_job():
+        authority = pool.admit_generation(mode_name)
+        req = GenerateRequest(prompt="a quiet harbour at dawn", size=LONG_SIZE,
+                              num_inference_steps=LONG_STEPS, guidance_scale=2.0)
+        return GenerationJob(req=req, controlnet_bindings=[],
+                             resolution_epoch=authority.resolution_epoch)
+
+    # --- baseline: how long does this job take when NOBODY reaps it? -----------
+    # Self-calibration, not decoration. num_inference_steps is capped at 50, so on
+    # a fast model the full run can finish inside any fixed multiple of the budget
+    # — and a "stopped early" verdict measured against the budget alone would then
+    # be true of a job that was never reaped.
+    print("\n--- baseline: the same job, un-reaped ---", flush=True)
+    tb = time.monotonic()
+    pool.wait_for_result(pool.submit_job(long_job()), execution_timeout_s=600.0)
+    full_run_s = time.monotonic() - tb
+    print(f"un-reaped run: {full_run_s:.1f}s", flush=True)
+    if full_run_s < budget * 2:
+        print(f"\nFAIL: the un-reaped run ({full_run_s:.1f}s) is not comfortably "
+              f"longer than the {budget:g}s budget, so a reap cannot be "
+              f"distinguished from normal completion.", flush=True)
+        print("Lower DEFAULT_TIMEOUT, or raise REAP_LONG_SIZE (steps are capped "
+              "at 50).", flush=True)
+        return 6
+
     print("\n--- a job that must exceed its execution budget ---", flush=True)
-    authority = pool.admit_generation(mode_name)
-    req = GenerateRequest(prompt="a quiet harbour at dawn", size="1024x1024",
-                          num_inference_steps=LONG_STEPS, guidance_scale=2.0)
-    job = GenerationJob(req=req, controlnet_bindings=[],
-                        resolution_epoch=authority.resolution_epoch)
+    job = long_job()
 
     t0 = time.monotonic()
     fut = pool.submit_job(job)
@@ -100,8 +125,8 @@ def main() -> int:
         elapsed = time.monotonic() - t0
         print(f"\nFAIL: the job COMPLETED in {elapsed:.1f}s — it was never reaped.",
               flush=True)
-        print(f"Lower DEFAULT_TIMEOUT or raise REAP_LONG_STEPS so the generation is "
-              f"comfortably longer than the {budget:g}s budget.", flush=True)
+        print(f"The budget is {budget:g}s and the un-reaped baseline was "
+              f"{full_run_s:.1f}s, so the waiter should have expired.", flush=True)
         return 2
     except TimeoutError as exc:
         elapsed = time.monotonic() - t0
@@ -125,7 +150,9 @@ def main() -> int:
     next_job_s = time.monotonic() - t1
 
     # --- verdict ---------------------------------------------------------------
-    stopped_early = elapsed < budget * 4
+    # Half the un-reaped run is a wide margin that still cannot be satisfied by a
+    # job that ran to completion.
+    stopped_early = elapsed < full_run_s / 2
     terminal_cancelled = type(terminal).__name__ == "CancelledError"
     same_process = (not subprocess_mode) or (pid_after is not None
                                              and pid_after == pid_before)
@@ -133,8 +160,9 @@ def main() -> int:
     print("\n==================== VERDICT ====================", flush=True)
     print(f"isolation                  : {isolation}", flush=True)
     print(f"waiter raised TimeoutError  : {timed_out}", flush=True)
+    print(f"un-reaped baseline          : {full_run_s:.1f}s", flush=True)
     print(f"wall time to timeout        : {elapsed:.1f}s (budget {budget:g}s)", flush=True)
-    print(f"stopped near the budget     : {stopped_early}", flush=True)
+    print(f"stopped well short of a run : {stopped_early}", flush=True)
     print(f"terminal is CancelledError  : {terminal_cancelled} "
           f"({type(terminal).__name__})", flush=True)
     if subprocess_mode:
@@ -147,8 +175,9 @@ def main() -> int:
           f"{next_job_s:.1f}s)", flush=True)
 
     if not stopped_early:
-        print("\nFAIL: the wait returned but the wall clock says the generation kept "
-              "running. The predicate is not reaching the denoise loop.", flush=True)
+        print(f"\nFAIL: the wait returned after {elapsed:.1f}s against an un-reaped "
+              f"baseline of {full_run_s:.1f}s — the generation kept running. The "
+              f"predicate is not reaching the denoise loop.", flush=True)
         return 3
     if not terminal_cancelled:
         print("\nFAIL: the job's terminal is not CancelledError. If it is a generic "
