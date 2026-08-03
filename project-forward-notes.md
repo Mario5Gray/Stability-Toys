@@ -82,7 +82,7 @@ The enigma logs separated one apparent "leak" into three distinct failures — s
   one, and option 3's entire material win is ~300 MiB of 24 GB. Do not start the build
   without one of the spec's three triggers.
 
-**Timeout ↔ VRAM interaction — clock half FIXED 2026-07-31, reap half open.** The
+**Timeout ↔ VRAM interaction — BOTH HALVES FIXED (clock 2026-07-31, reap 2026-08-03).** The
 umbrella's 2026-07-22 comment notes the flat WS result timeout abandons a long job
 *without stopping the backend*, so the worker keeps denoising and holds VRAM with the
 result discarded. The `STABL-ltefhpkk` acceptance required `DEFAULT_TIMEOUT=600`, making
@@ -91,15 +91,81 @@ race, actively worse for this umbrella's goal.
 
 The clock is fixed (`STABL-atzqpcte`, `4646005`, PR #32): two budgets split at
 `JobRecord.executing_since`, so waiting is no longer charged to a generation budget.
-**`DEFAULT_TIMEOUT=600` is therefore obsolete and should be removed wherever it was
-applied** — it now buys nothing and still costs the ten-minute VRAM hold.
+`DEFAULT_TIMEOUT=600` was obsolete from that moment; **verified 2026-08-03 that it is set
+nowhere** — no env file, compose file or config carries it. Nothing to remove.
 
-The reap is still open and is now tracked properly as **`STABL-jredufxb`**: a timed-out
-generation runs to completion regardless, because `cancel_requested` is read only at job
-boundaries and `run_job` never checks it. Python cannot interrupt a running worker thread,
-so `handle.stop()` — facet-3's kill+respawn, now a production path — is the only real
-mechanism. (The 2026-07-22 comment cites `STABL-qvmdayhb`, which does not resolve; that is
-why the concern needed re-filing.)
+The reap is **FIXED AND PROVEN ON HARDWARE (2026-08-03)** — `STABL-jredufxb`, branch
+`fix/jredufxb-reap`. It was filed because a timed-out generation ran to completion
+regardless: `cancel_requested` is read only at job boundaries and `run_job` never checked
+it. (The 2026-07-22 comment cites `STABL-qvmdayhb`, which does not resolve; that is why
+the concern needed re-filing.)
+
+**Live acceptance, enigma RTX 3090** (`spikes/reap_acceptance.py`), both isolation modes:
+
+```text
+                              subprocess          inproc
+un-reaped baseline            7.4s                7.3s
+wall time to timeout          2.0s (budget 2s)    2.1s (budget 2s)
+terminal                      CancelledError      CancelledError
+child pid                     153 -> 153          n/a (no pid)
+next job on the SAME worker   OK, 0.4s            OK, 0.4s
+```
+
+**`pid 153 -> 153` is the load-bearing line.** The job stopped without the process being
+killed, so the model stayed resident — the next job returned in 0.4s with no reload. A
+kill+respawn would also have "stopped" the job, at the cost of a full reload.
+
+Spec: `docs/superpowers/specs/2026-08-03-timed-out-job-reap-design.md`.
+Plan: `docs/superpowers/plans/2026-08-03-timed-out-job-reap.md`.
+
+**The issue's premise — that kill+respawn is the only real mechanism — was already out
+of date when it was filed, in the cheap direction.** It was written 2026-07-31, before
+`STABL-zueslhah` landed. Progress work installed
+`inject_step_progress` (`backends/step_progress.py`) into **every family's denoise loop** —
+`callback_on_step_end` where the pipeline supports it, the legacy `callback`/
+`callback_steps=1` pair otherwise. That is a per-step re-entry point into a running
+generation: cooperative cancellation at **step granularity**, without killing the process
+and therefore **without a model reload**. Two of the reap issue's three open design
+questions were framed around a cost that has largely evaporated, and "inproc cannot reap"
+is no longer true. That is what the fix is built on.
+
+**Traps carried out of the implementation:**
+
+- **A bare cancel flag cleared at job start is WRONG, and it looks right.** The job and
+  the cancel travel down two DIFFERENT pipes, so a cancel can reach the child before it
+  dequeues the job the cancel names — reliably so, because the child's first job start
+  waits on the import lock held by the control thread's `import torch`. Clearing at job
+  start discards exactly that cancel. Cancel is therefore **job-scoped**: the control
+  message carries the job id and the child keeps a bounded ring of cancelled ids.
+- **The exception must be `concurrent.futures.CancelledError`.** `classify_exception()`
+  maps only that (or a class literally named `CancelledError`) to `CANCELLED`, and the
+  subprocess parent path does no `cancel_requested` remap — a bespoke type arrives as a
+  GENERIC failure. `asyncio.CancelledError` is `BaseException`-derived and would escape
+  both `except Exception` handlers; `concurrent.futures.CancelledError` is not an alias of
+  it and does not.
+- **`num_inference_steps` is capped at 50** (pydantic `le=50`), so a "make the job long"
+  acceptance cannot work by raising steps. Worse, a fast LCM run then finishes inside any
+  fixed multiple of the budget, making "stopped early" true of a job that was never
+  reaped. The spike measures an un-reaped baseline first and refuses to run when it is
+  under 2x the budget.
+
+**Original trap, still true:** `_emit` swallows every exception on purpose — *"a bad consumer
+must never break generation"*. A cancel raised through the progress emitter is therefore
+silently eaten. The check belongs in the `_modern` / `_legacy` wrapper, outside that
+swallow.
+
+**Umbrella triage, 2026-08-03 — the reap is the last VRAM-pressure gap.** Of the three
+children still `todo`, none is about VRAM pressure and none should be started to close the
+umbrella: `STABL-govweiat` (CustomJob callable) says in its own text *do not do this
+speculatively* — re-audited, nothing broken, nothing blocked, a shape problem;
+`STABL-cchxvuhs` (UUID GPU identity) is the multi-GPU future and cannot collide on a
+one-card box; `STABL-jylvadvb` (superres child) is deliberately trigger-gated. All three
+are long tail. `STABL-jredufxb` is the one live gap and it maps directly onto the
+umbrella's own title.
+
+**`STABL-jredufxb` is deliberately NOT parented under the umbrella**, so it will not appear
+in `fp tree STABL-nvmieaxh`. It is tracked here instead, precisely because the concern has
+already been lost once — the 2026-07-22 comment pointed at an id that does not resolve.
 
 `STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
 predecessor (`a3c1c64`): fixed retained ControlNet weights but not the accounting or

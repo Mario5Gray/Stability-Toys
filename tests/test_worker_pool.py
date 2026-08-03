@@ -486,7 +486,7 @@ class TestJobSubmission:
         started = threading.Event()
         release = threading.Event()
 
-        def blocking_run_job(job, progress=None):
+        def blocking_run_job(job, progress=None, should_cancel=None):
             started.set()
             release.wait(timeout=5.0)
             return "blocked"
@@ -552,7 +552,7 @@ class TestJobSubmission:
         started = threading.Event()
         release = threading.Event()
         worker = mock_worker_factory.return_value
-        def run_job(job, progress=None):
+        def run_job(job, progress=None, should_cancel=None):
             started.set()
             release.wait(timeout=5.0)
             return ("png", 123)
@@ -566,6 +566,71 @@ class TestJobSubmission:
         with pytest.raises(concurrent.futures.CancelledError):
             fut.result(timeout=1.0)
         assert worker_pool._get_job_record("job-2") is None
+
+    def test_running_generation_stops_at_the_step_boundary(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        """STABL-jredufxb. The sibling test above proves the RESULT is discarded;
+        this one proves the WORK stops. Without the predicate the loop runs all
+        500 iterations and only then finds out nobody wanted the answer."""
+        started = threading.Event()
+        steps = {"n": 0}
+        worker = mock_worker_factory.return_value
+
+        def run_job(job, progress=None, should_cancel=None):
+            started.set()
+            for _ in range(500):
+                if should_cancel is not None and should_cancel():
+                    raise concurrent.futures.CancelledError(
+                        "job cancelled at step boundary"
+                    )
+                steps["n"] += 1
+                time.sleep(0.002)
+            return ("png", 123)
+
+        worker.run_job.side_effect = run_job
+        fut = worker_pool.submit_job(_gen_job(worker_pool, job_id="job-reap"))
+        assert started.wait(timeout=2.0)
+        assert worker_pool.cancel_job("job-reap") is True
+
+        with pytest.raises(concurrent.futures.CancelledError):
+            fut.result(timeout=5.0)
+        assert steps["n"] < 500, (
+            f"worker ran all {steps['n']} steps — it never saw the flag"
+        )
+
+    def test_reaped_job_trims_the_allocator_pool(
+        self,
+        worker_pool,
+        mock_worker_factory,
+    ):
+        """Unwinding returns the intermediates to torch's caching allocator, not to
+        the driver. Without the trim the reaped bytes stay invisible as free VRAM."""
+        started = threading.Event()
+        worker = mock_worker_factory.return_value
+
+        def run_job(job, progress=None, should_cancel=None):
+            started.set()
+            for _ in range(500):
+                if should_cancel is not None and should_cancel():
+                    raise concurrent.futures.CancelledError(
+                        "job cancelled at step boundary"
+                    )
+                time.sleep(0.002)
+            return ("png", 123)
+
+        worker.run_job.side_effect = run_job
+        with patch.object(worker_pool._governor._dm, "reclaim") as reclaim:
+            fut = worker_pool.submit_job(_gen_job(worker_pool, job_id="job-trim"))
+            assert started.wait(timeout=2.0)
+            assert worker_pool.cancel_job("job-trim") is True
+            with pytest.raises(concurrent.futures.CancelledError):
+                fut.result(timeout=5.0)
+            worker_pool.q.join()
+
+        assert reclaim.called, "a reaped job must trim the allocator pool"
 
     def test_get_queue_size(self, worker_pool):
         """Test getting queue size."""
@@ -678,7 +743,7 @@ class TestWorkerLifecycle:
             def configure_conditioning(self, config):
                 events.append(("configure", config.service))
 
-            def run_job(self, job, progress=None):
+            def run_job(self, job, progress=None, should_cancel=None):
                 del job
                 return b"png", 1
 
@@ -716,7 +781,7 @@ class TestWorkerLifecycle:
         class IncompatibleWorker:
             worker_id = 0
 
-            def run_job(self, job, progress=None):
+            def run_job(self, job, progress=None, should_cancel=None):
                 del job
                 return b"png", 1
 
@@ -745,7 +810,7 @@ class TestWorkerLifecycle:
         class IncompatibleWorker:
             worker_id = 0
 
-            def run_job(self, job, progress=None):
+            def run_job(self, job, progress=None, should_cancel=None):
                 del job
                 return b"png", 1
 

@@ -34,10 +34,11 @@ class GenSpec:
 class PipelineWorker(Protocol):
     worker_id: int
 
-    def run_job(self, job: Any, progress=None) -> Tuple[bytes, int]:
+    def run_job(self, job: Any, progress=None, should_cancel=None) -> Tuple[bytes, int]:
         """Return (png_bytes, seed_used). `progress(step, total, stage)`, when
         provided, is the sink's Progress emitter for the diffusion step callback
-        (STABL-zueslhah)."""
+        (STABL-zueslhah). `should_cancel()`, when provided, is the reap predicate
+        consulted at the same step boundary (STABL-jredufxb)."""
         ...
 
     def run_job_with_latents(self, job: Any) -> Tuple[bytes, int, bytes]:

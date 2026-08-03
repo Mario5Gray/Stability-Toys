@@ -63,6 +63,105 @@ def test_subprocess_handle_propagates_oom_as_oom_code():
     h.stop()
 
 
+def test_cancel_stops_the_child_mid_job_as_CANCELLED():
+    """STABL-jredufxb. THE decision-pinning test for the exception type.
+
+    classify_exception() maps only concurrent.futures.CancelledError (or a class
+    literally named CancelledError) to CANCELLED, and the subprocess parent path
+    does NO cancel_requested remap — so a bespoke JobCancelled would arrive here
+    as GENERIC, i.e. as a failure rather than a cancel. If this assertion ever
+    reads GENERIC, the exception type has drifted.
+    """
+    import time
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_cancellable_worker")
+    h.start(None, None, None)
+    try:
+        pid_before = h._proc.pid
+        job = GenerationJob(req=_req("long"), resolution_epoch=0)
+        pub = h.submit(job)
+        time.sleep(0.5)                      # let the child get well into the job
+
+        assert h.cancel_job(job.job_id) is True
+        fut = Future()
+        bridge = _SubprocessFutureBridge(fut)
+        pub.subscribe(bridge)
+        with pytest.raises(Exception):
+            fut.result(timeout=15)
+
+        assert bridge.terminal_error_code is BackplaneErrorCode.CANCELLED
+        # Cooperative, not a kill: the Governor's recovery keys off OOM-or-dead,
+        # so a respawn here would mean the reap destroyed the loaded model.
+        assert h._proc.pid == pid_before
+        assert h._proc.is_alive()
+    finally:
+        h.stop()
+
+
+def test_cancel_between_jobs_does_not_corrupt_the_job_stream():
+    """The test that justifies the CONTROL pipe over the data pipe.
+
+    The child blocks on the data pipe's recv_bytes() awaiting its next job. A
+    cancel sent there while nothing is running would be handed to decode_job()
+    as though it were a job frame. On the control pipe it is read out-of-band by
+    the daemon thread and recorded against a job id nobody is about to run.
+    """
+    import time
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_payload_echo_worker")
+    h.start(None, None, None)
+    try:
+        # Nothing is running; the child is blocked in recv_bytes() on the DATA pipe.
+        assert h.cancel_job("no-such-job") is True
+        time.sleep(0.2)
+
+        job = GenerationJob(req=_req("after-stray-cancel"), resolution_epoch=0)
+        fut = Future()
+        bridge = _SubprocessFutureBridge(fut)
+        h.submit(job).subscribe(bridge)
+        seen = fut.result(timeout=20)
+
+        assert bridge.terminal_error_code is None, "the stray cancel corrupted the stream"
+        assert seen["prompt"] == "after-stray-cancel"
+    finally:
+        h.stop()
+
+
+def test_a_cancel_does_not_leak_into_the_next_job():
+    """A cancel names ONE job id, so the cancel that reaped job 1 must not reap
+    job 2. The first shape of this — a bare flag cleared at job start — got this
+    right but lost the pre-start cancel below; job-scoping gets both."""
+    import time
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_cancellable_worker")
+    h.start(None, None, None)
+    try:
+        job1 = GenerationJob(req=_req("first"), resolution_epoch=0)
+        pub1 = h.submit(job1)
+        time.sleep(0.3)
+        assert h.cancel_job(job1.job_id) is True
+        fut1 = Future()
+        bridge1 = _SubprocessFutureBridge(fut1)
+        pub1.subscribe(bridge1)
+        with pytest.raises(Exception):
+            fut1.result(timeout=15)
+        assert bridge1.terminal_error_code is BackplaneErrorCode.CANCELLED
+
+        # Second job on the SAME child: it must run, not inherit job1's cancel.
+        job2 = GenerationJob(req=_req("second"), resolution_epoch=0)
+        pub2 = h.submit(job2)
+        time.sleep(0.3)
+        assert h.cancel_job(job2.job_id) is True   # cancel it too, so the test stays fast
+        fut2 = Future()
+        bridge2 = _SubprocessFutureBridge(fut2)
+        pub2.subscribe(bridge2)
+        with pytest.raises(Exception):
+            fut2.result(timeout=15)
+        assert bridge2.terminal_error_code is BackplaneErrorCode.CANCELLED
+    finally:
+        h.stop()
+
+
 def test_subprocess_handle_configures_conditioning_in_child():
     """The spawn child calls configure_conditioning(mode.conditioning) just like
     InProcessWorkerHandle.start() does (M-A conditioning gap)."""
@@ -573,3 +672,29 @@ def test_an_unresponsive_child_degrades_to_stale_not_an_exception():
     finally:
         reg.close()
         reset_device_memory()
+
+
+def test_a_cancel_that_arrives_before_the_job_starts_still_reaps_it():
+    """REGRESSION. The job and the cancel travel down two DIFFERENT pipes, so the
+    cancel can reach the child first — reliably so here, because the child's
+    first job start waits on the import lock held by the control thread's
+    `import torch`.
+
+    A bare flag cleared at job start discards exactly this cancel and the job
+    runs to completion. Job-scoped state remembers it, so the reap still lands.
+    """
+    h = SubprocessWorkerHandle("tests._fault_worker.make_cancellable_worker")
+    h.start(None, None, None)
+    try:
+        job = GenerationJob(req=_req("cancel-first"), resolution_epoch=0)
+        pub = h.submit(job)
+        assert h.cancel_job(job.job_id) is True   # NO sleep: race the job start
+
+        fut = Future()
+        bridge = _SubprocessFutureBridge(fut)
+        pub.subscribe(bridge)
+        with pytest.raises(Exception):
+            fut.result(timeout=20)
+        assert bridge.terminal_error_code is BackplaneErrorCode.CANCELLED
+    finally:
+        h.stop()

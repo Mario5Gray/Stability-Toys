@@ -147,6 +147,103 @@ class StubHandle(WorkerHandle):
         self._state = "dead"
 
 
+class CancelRecordingHandle(StubHandle):
+    """StubHandle that records cancel_job calls AND whether `_job_lock` was held
+    at the moment of the call (STABL-jredufxb)."""
+
+    def __init__(self, result="stub_result"):
+        super().__init__(result)
+        self.cancelled_ids = []
+        self.lock_was_held = None
+        self.governor = None            # set by the test after construction
+
+    def cancel_job(self, job_id):
+        gov = self.governor
+        if gov is not None:
+            acquired = gov._job_lock.acquire(blocking=False)
+            self.lock_was_held = not acquired
+            if acquired:
+                gov._job_lock.release()
+        self.cancelled_ids.append(job_id)
+        return True
+
+
+def _governor_with_recorded_cancel(state="running", handle=None):
+    """A Governor holding ONE job record in `state`, with no dispatch work queued.
+
+    Shapes copied from test_governor_accepts_custom_handle below — same mock mode
+    config and registry, so nothing here can drift from the real constructors.
+    """
+    from backends.governor import GenerationJob, JobRecord
+
+    mode_config = Mock()
+    mode_config.get_default_mode.return_value = "none"
+    mode_config.get_mode.side_effect = KeyError("no mode")
+    registry = Mock()
+    registry.get_total_vram.return_value = 0
+    handle = handle if handle is not None else CancelRecordingHandle()
+    gov = Governor(
+        worker_factory=Mock(),
+        handle=handle,
+        mode_config=mode_config,
+        registry=registry,
+    )
+    if isinstance(handle, CancelRecordingHandle):
+        handle.governor = gov
+
+    job = GenerationJob(req=Mock(), resolution_epoch=0)
+    record = JobRecord(job_id=job.job_id, state=state, job=job)
+    with gov._job_lock:
+        gov._job_records[job.job_id] = record
+    return gov, handle, job.job_id
+
+
+def test_cancel_job_signals_a_running_job_on_the_handle():
+    """STABL-jredufxb. The subprocess child cannot see cancel_requested, so the
+    reap only reaches it if the Governor forwards the id."""
+    gov, handle, job_id = _governor_with_recorded_cancel(state="running")
+    try:
+        assert gov.cancel_job(job_id) is True
+        assert handle.cancelled_ids == [job_id]
+    finally:
+        gov.shutdown()
+
+
+def test_cancel_job_releases_job_lock_before_signalling():
+    """_control_lock can be held for _STATS_REPLY_TIMEOUT_S by an in-flight stats
+    reply. Signalling under _job_lock would let a /status fan-out stall the
+    dispatch loop behind a lock it has no business waiting on."""
+    gov, handle, job_id = _governor_with_recorded_cancel(state="running")
+    try:
+        gov.cancel_job(job_id)
+        assert handle.lock_was_held is False
+    finally:
+        gov.shutdown()
+
+
+def test_cancel_job_does_not_signal_for_a_queued_job():
+    """A queued job is taken off the queue outright — there is nothing running to
+    reap, and signalling would name a job the child never started."""
+    gov, handle, job_id = _governor_with_recorded_cancel(state="queued")
+    try:
+        gov.cancel_job(job_id)
+        assert handle.cancelled_ids == []
+    finally:
+        gov.shutdown()
+
+
+def test_cancel_job_tolerates_a_handle_without_cancel_job():
+    """InProcessWorkerHandle has no cancel_job — the in-proc reap goes through the
+    predicate instead, and cancel_job must not raise."""
+    gov, handle, job_id = _governor_with_recorded_cancel(
+        state="running", handle=StubHandle()
+    )
+    try:
+        assert gov.cancel_job(job_id) is True
+    finally:
+        gov.shutdown()
+
+
 def test_governor_accepts_custom_handle():
     """A second WorkerHandle impl (stub) requires no Governor change (acceptance #4)."""
     mode_config = Mock()

@@ -14,7 +14,7 @@ class FaultWorker:
     def __init__(self, *args, **kwargs):
         pass
 
-    def run_job(self, job, progress=None):
+    def run_job(self, job, progress=None, should_cancel=None):
         prompt = getattr(job.req, "prompt", "")
         if prompt == "__OOM__":
             import torch
@@ -42,7 +42,7 @@ class RecordingWorker:
     def configure_conditioning(self, config):
         self.conditioning_config = config
 
-    def run_job(self, job, progress=None):
+    def run_job(self, job, progress=None, should_cancel=None):
         if self.conditioning_config is None:
             raise RuntimeError("configure_conditioning was not called in child")
         return b"PNG:" + getattr(job.req, "prompt", "").encode()
@@ -65,7 +65,7 @@ class PayloadEchoWorker:
     def __init__(self, *args, **kwargs):
         pass
 
-    def run_job(self, job, progress=None):
+    def run_job(self, job, progress=None, should_cancel=None):
         bindings = getattr(job, "controlnet_bindings", []) or []
         init_image = getattr(job, "init_image", None)
         return {
@@ -110,3 +110,32 @@ def make_hanging_worker(worker_id, resolved, binding):
     import time
 
     time.sleep(3600)
+
+
+class CancellableWorker:
+    """Polls should_cancel the way a denoise loop polls it at each step, so a
+    spawn-boundary test can prove the child stops MID-JOB rather than at a job
+    boundary (STABL-jredufxb).
+
+    Raises concurrent.futures.CancelledError deliberately: classify_exception()
+    maps only that (or a class literally named CancelledError) to
+    BackplaneErrorCode.CANCELLED, and the subprocess parent path does no
+    cancel_requested remap — a bespoke type would arrive as GENERIC.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def run_job(self, job, progress=None, should_cancel=None):
+        import time
+        from concurrent.futures import CancelledError
+
+        for _ in range(500):
+            if should_cancel is not None and should_cancel():
+                raise CancelledError("job cancelled at step boundary")
+            time.sleep(0.01)
+        return b"PNG:finished"
+
+
+def make_cancellable_worker(worker_id, resolved, binding):
+    return CancellableWorker()

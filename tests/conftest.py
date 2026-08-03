@@ -150,7 +150,7 @@ def mock_pipeline_worker():
     worker = Mock()
     worker.worker_id = 1
 
-    def run_job(spec, progress=None):
+    def run_job(spec, progress=None, should_cancel=None):
         seed = spec.seed or 12345
         np.random.seed(seed)
         width, height = map(int, spec.size.split('x'))

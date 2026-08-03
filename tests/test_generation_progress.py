@@ -218,7 +218,7 @@ def test_generation_job_execute_threads_progress_to_run_job():
     seen = {}
 
     class _Worker:
-        def run_job(self, job, progress=None):
+        def run_job(self, job, progress=None, should_cancel=None):
             seen["progress"] = progress
             if progress is not None:
                 progress(5, 10, "denoise")

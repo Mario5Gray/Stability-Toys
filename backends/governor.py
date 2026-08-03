@@ -147,13 +147,17 @@ class GenerationJob(Job):
         super().__post_init__()
         self.job_type = JobType.GENERATION
 
-    def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
+    def execute(self, worker: Optional[PipelineWorker], progress=None,
+                should_cancel=None) -> Any:
         """Execute generation job. `progress(step, total, stage)` is the sink's
         Progress emitter, threaded into run_job so the diffusion step callback can
-        report (STABL-zueslhah); None when no consumer is attached."""
+        report (STABL-zueslhah); None when no consumer is attached.
+
+        `should_cancel()` is the reap predicate (STABL-jredufxb), consulted at the
+        same step boundary; None when the job is not cancellable."""
         if worker is None:
             raise RuntimeError("No worker available for generation")
-        return worker.run_job(self, progress=progress)  # type: ignore[arg-type]
+        return worker.run_job(self, progress=progress, should_cancel=should_cancel)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -172,6 +176,20 @@ class JobRecord:
     # execution budget. Deliberately NOT `state == "running"`, which is set earlier
     # (before both) and whose transition cancel_job depends on for queued-job cancel.
     executing_since: Optional[float] = None
+
+
+def _cancel_predicate(record: JobRecord) -> Callable[[], bool]:
+    """The reap predicate handed to the worker (STABL-jredufxb).
+
+    Read LOCK-FREE by design. `cancel_job` writes `cancel_requested` under
+    `_job_lock`, but the worker must never acquire that lock — the backplane
+    Subscriber<->lock invariant. A bool read is atomic under the GIL, and a
+    one-step-late read is harmless: the next denoise step catches it.
+
+    A named factory rather than an inline lambda so the record is captured per
+    call, not per dispatch-loop iteration.
+    """
+    return lambda: record.cancel_requested
 
 
 class _FutureBridge(Subscriber):
@@ -688,6 +706,14 @@ class Governor:
         )
 
     def cancel_job(self, job_id: str) -> bool:
+        """Request cancellation.
+
+        A QUEUED job is taken off the queue outright, so the work is never done.
+        A RUNNING job has the flag flipped that the in-proc reap predicate reads,
+        and — for a locality that cannot see that flag — the handle is signalled
+        by job id (STABL-jredufxb).
+        """
+        signal_handle = False
         with self._job_lock:
             record = self._job_records.get(job_id)
             if record is None or record.job.fut.done():
@@ -697,7 +723,22 @@ class Governor:
                 record.state = "cancelled"
                 return True
             record.state = "running"
-            return True
+            signal_handle = True
+
+        # OUTSIDE _job_lock, deliberately. The subprocess handle's cancel takes
+        # _control_lock, which an in-flight stats reply can hold for
+        # _STATS_REPLY_TIMEOUT_S — signalling under _job_lock would let a
+        # /api/models/status fan-out stall the dispatch loop.
+        if signal_handle:
+            handle_cancel = getattr(self._handle, "cancel_job", None)
+            if callable(handle_cancel):
+                try:
+                    handle_cancel(job_id)
+                except Exception:  # noqa: BLE001 — a failed signal must not fail the cancel
+                    logger.warning(
+                        "[Governor] handle.cancel_job(%s) failed", job_id, exc_info=True
+                    )
+        return True
 
     # --- VRAM cleanup / recovery ---
 
@@ -911,6 +952,10 @@ class Governor:
                             result = job.execute(
                                 self._handle.worker,
                                 progress=(_sink.progress if _sink is not None else None),
+                                should_cancel=(
+                                    _cancel_predicate(job_record)
+                                    if job_record is not None else None
+                                ),
                             )
 
                             sink = job_record.sink if job_record is not None else None
@@ -990,6 +1035,11 @@ class Governor:
                             elif not job.fut.done():
                                 job.fut.set_exception(CancelledError())
                             job_record.state = "cancelled"
+                            # STABL-jredufxb: unwinding returned the intermediates to
+                            # torch's caching allocator, not to the driver. Trim so the
+                            # reaped bytes show up as free VRAM again. No-op for a
+                            # subprocess consumer by design — see the spec.
+                            self._dm.reclaim()
                         else:
                             if sink is not None:
                                 sink.error(BackplaneError.from_exc(e))

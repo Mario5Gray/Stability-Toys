@@ -22,6 +22,7 @@ import pickle
 import threading
 import time
 import multiprocessing as mp
+from collections import deque
 from typing import Optional
 
 from backends.worker_handle import WorkerHandle, WorkerHealth
@@ -35,6 +36,10 @@ from backends.backplane.frames import Progress, Result
 _READY = b"\x00READY"
 _FAILED = b"\x00FAILED"
 _STATS = b"\x00STATS"
+# STABL-jredufxb: the reap signal, followed by the job id it names. Deliberately
+# NOT the backplane's own _CANCEL, which travels on the DATA pipe — see
+# _serve_control for why that lane cannot carry a cancel safely.
+_CANCEL_JOB = b"\x00CANCELJOB"
 
 # STABL-xtkhoidu. DeviceMemory's fan-out bounds every consumer at
 # POOL_STATS_TIMEOUT_S (0.5s) and substitutes last-known with stale=True, so the
@@ -62,15 +67,47 @@ def _resolve_ref(dotted: str):
     return getattr(importlib.import_module(mod), name)
 
 
-def _serve_stats(control_conn):
-    """Child-side control server: answer VRAM stats requests (STABL-xtkhoidu).
+class _ChildCancelState:
+    """Job-scoped cancel bookkeeping for the spawn child (STABL-jredufxb).
+
+    JOB-SCOPED, not a bare flag, and the difference is load-bearing. The job and
+    the cancel travel down two DIFFERENT pipes, so their arrival order at the
+    child is not guaranteed — a cancel can land before the child has dequeued the
+    job it names. A flag cleared at job start silently discards exactly that
+    cancel, and the job then runs to completion: the very failure this issue
+    exists to fix, reintroduced by the fix.
+
+    Bounded, so a long-lived child cannot accumulate ids for jobs that never ran.
+    """
+
+    _MAX_REMEMBERED = 64
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cancelled = deque(maxlen=self._MAX_REMEMBERED)
+
+    def cancel(self, job_id: str) -> None:
+        with self._lock:
+            if job_id not in self._cancelled:
+                self._cancelled.append(job_id)
+
+    def is_cancelled(self, job_id: str) -> bool:
+        with self._lock:
+            return job_id in self._cancelled
+
+
+def _serve_control(control_conn, cancel_state=None):
+    """Child-side control server: VRAM stats (STABL-xtkhoidu) and job cancel
+    (STABL-jredufxb).
 
     Runs on its own daemon thread reading its OWN pipe. It cannot share the data
     pipe: `drain_to_subscriber` reads that concurrently while a job runs, so an
     interleaved request/reply would be consumed as a job frame and corrupt the
-    stream.
+    stream. For CANCEL the same hazard bites from the other side — the child
+    blocks on the data pipe awaiting its NEXT job, so a cancel sent there between
+    jobs would be handed straight to `decode_job()`.
 
-    A separate thread is also what lets stats answer DURING a generation — torch
+    A separate thread is also what lets both verbs land DURING a generation — torch
     releases the GIL across CUDA calls, so the reply lands inside the fan-out
     budget instead of queueing behind the denoise.
     """
@@ -78,7 +115,14 @@ def _serve_stats(control_conn):
 
     while True:
         try:
-            if control_conn.recv_bytes() != _STATS:
+            msg = control_conn.recv_bytes()
+            if msg.startswith(_CANCEL_JOB):
+                # Fire-and-forget: no reply. The terminal rides the DATA pipe as
+                # the job's CANCELLED error frame, from the child's own except path.
+                if cancel_state is not None:
+                    cancel_state.cancel(msg[len(_CANCEL_JOB):].decode())
+                continue
+            if msg != _STATS:
                 continue
             control_conn.send_bytes(pickle.dumps({
                 "pid": os.getpid(),
@@ -186,8 +230,10 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
 
     # Start the control server only after the worker is built: answering stats for a
     # half-constructed child would report numbers nobody can act on.
+    cancel_state = _ChildCancelState()
     if control_conn is not None:
-        threading.Thread(target=_serve_stats, args=(control_conn,), daemon=True).start()
+        threading.Thread(target=_serve_control, args=(control_conn, cancel_state),
+                         daemon=True).start()
 
     conn.send_bytes(_READY)
     while True:
@@ -213,7 +259,13 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
             # STABL-zueslhah Task 3: thread the IpcJobSink's progress emitter so the
             # diffusion step callback streams Progress over the pipe that
             # drain_to_subscriber already reads.
-            result = worker.run_job(job, progress=sink.progress)  # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
+            # STABL-jredufxb: the predicate is scoped to THIS job id, so a cancel
+            # that arrived before the child dequeued the job still reaps it, and a
+            # cancel for the previous job cannot reap this one.
+            result = worker.run_job(
+                job, progress=sink.progress,
+                should_cancel=lambda jid=d.job_id: cancel_state.is_cancelled(jid),
+            )  # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
             sink.result(0, pickle.dumps(result))      # recon #5C: pickle the opaque return into the blob
             sink.complete()
         except Exception as e:   # noqa: BLE001 — rides the sink terminal
@@ -394,6 +446,36 @@ class SubprocessWorkerHandle(WorkerHandle):
                 return pickle.loads(conn.recv_bytes())
             except (EOFError, OSError):
                 return None
+
+    def cancel_job(self, job_id: str) -> bool:
+        """Ask the child to abandon `job_id` (STABL-jredufxb).
+
+        Fire-and-forget: there is no reply. The terminal arrives on the DATA pipe
+        as that job's CANCELLED error frame, driven by the child's own except path.
+
+        Named by JOB ID rather than "cancel whatever is running": the job and this
+        message travel down two different pipes, so a cancel can reach the child
+        BEFORE the job it names. The child remembers the id, so the reap still
+        happens when the job starts — and a cancel for a finished job can never
+        reap its successor.
+
+        Takes `_control_lock` because this pipe also carries the `_STATS`
+        request/reply — an unserialized write is exactly the interleaving that lock
+        exists to prevent.
+
+        MUST be called OUTSIDE `_job_lock`: `_control_lock` can be held for up to
+        `_STATS_REPLY_TIMEOUT_S` by an in-flight stats reply, so cancelling under
+        `_job_lock` would let a /status fan-out stall the dispatch loop.
+        """
+        conn = self._control_conn
+        if conn is None or self._proc is None or not self._proc.is_alive():
+            return False
+        with self._control_lock:
+            try:
+                conn.send_bytes(_CANCEL_JOB + job_id.encode())
+                return True
+            except (EOFError, OSError):
+                return False
 
     def submit(self, job) -> Publisher:
         self._state = "busy"
