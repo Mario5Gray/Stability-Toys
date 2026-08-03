@@ -91,8 +91,8 @@ race, actively worse for this umbrella's goal.
 
 The clock is fixed (`STABL-atzqpcte`, `4646005`, PR #32): two budgets split at
 `JobRecord.executing_since`, so waiting is no longer charged to a generation budget.
-**`DEFAULT_TIMEOUT=600` is therefore obsolete and should be removed wherever it was
-applied** — it now buys nothing and still costs the ten-minute VRAM hold.
+`DEFAULT_TIMEOUT=600` was obsolete from that moment; **verified 2026-08-03 that it is set
+nowhere** — no env file, compose file or config carries it. Nothing to remove.
 
 The reap is still open and is now tracked properly as **`STABL-jredufxb`**: a timed-out
 generation runs to completion regardless, because `cancel_requested` is read only at job
@@ -100,6 +100,34 @@ boundaries and `run_job` never checks it. Python cannot interrupt a running work
 so `handle.stop()` — facet-3's kill+respawn, now a production path — is the only real
 mechanism. (The 2026-07-22 comment cites `STABL-qvmdayhb`, which does not resolve; that is
 why the concern needed re-filing.)
+
+**That "only real mechanism" claim is now OUT OF DATE, and in the cheap direction.** It
+was written 2026-07-31, before `STABL-zueslhah` landed. Progress work installed
+`inject_step_progress` (`backends/step_progress.py`) into **every family's denoise loop** —
+`callback_on_step_end` where the pipeline supports it, the legacy `callback`/
+`callback_steps=1` pair otherwise. That is a per-step re-entry point into a running
+generation: cooperative cancellation at **step granularity**, without killing the process
+and therefore **without a model reload**. Two of the reap issue's three open design
+questions were framed around a cost that has largely evaporated, and "inproc cannot reap"
+is no longer true.
+
+**Trap when wiring it:** `_emit` swallows every exception on purpose — *"a bad consumer
+must never break generation"*. A cancel raised through the progress emitter is therefore
+silently eaten. The check belongs in the `_modern` / `_legacy` wrapper, outside that
+swallow.
+
+**Umbrella triage, 2026-08-03 — the reap is the last VRAM-pressure gap.** Of the three
+children still `todo`, none is about VRAM pressure and none should be started to close the
+umbrella: `STABL-govweiat` (CustomJob callable) says in its own text *do not do this
+speculatively* — re-audited, nothing broken, nothing blocked, a shape problem;
+`STABL-cchxvuhs` (UUID GPU identity) is the multi-GPU future and cannot collide on a
+one-card box; `STABL-jylvadvb` (superres child) is deliberately trigger-gated. All three
+are long tail. `STABL-jredufxb` is the one live gap and it maps directly onto the
+umbrella's own title.
+
+**`STABL-jredufxb` is deliberately NOT parented under the umbrella**, so it will not appear
+in `fp tree STABL-nvmieaxh`. It is tracked here instead, precisely because the concern has
+already been lost once — the 2026-07-22 comment pointed at an id that does not resolve.
 
 `STABL-xdsdhmov` (ControlNet cache freed on unload/free-vram) is the merged
 predecessor (`a3c1c64`): fixed retained ControlNet weights but not the accounting or
