@@ -178,6 +178,20 @@ class JobRecord:
     executing_since: Optional[float] = None
 
 
+def _cancel_predicate(record: JobRecord) -> Callable[[], bool]:
+    """The reap predicate handed to the worker (STABL-jredufxb).
+
+    Read LOCK-FREE by design. `cancel_job` writes `cancel_requested` under
+    `_job_lock`, but the worker must never acquire that lock — the backplane
+    Subscriber<->lock invariant. A bool read is atomic under the GIL, and a
+    one-step-late read is harmless: the next denoise step catches it.
+
+    A named factory rather than an inline lambda so the record is captured per
+    call, not per dispatch-loop iteration.
+    """
+    return lambda: record.cancel_requested
+
+
 class _FutureBridge(Subscriber):
     """Compat Subscriber: fulfils a concurrent.futures.Future from the backplane
     stream, reproducing today's fut.set_result / fut.set_exception exactly.
@@ -915,6 +929,10 @@ class Governor:
                             result = job.execute(
                                 self._handle.worker,
                                 progress=(_sink.progress if _sink is not None else None),
+                                should_cancel=(
+                                    _cancel_predicate(job_record)
+                                    if job_record is not None else None
+                                ),
                             )
 
                             sink = job_record.sink if job_record is not None else None
@@ -994,6 +1012,11 @@ class Governor:
                             elif not job.fut.done():
                                 job.fut.set_exception(CancelledError())
                             job_record.state = "cancelled"
+                            # STABL-jredufxb: unwinding returned the intermediates to
+                            # torch's caching allocator, not to the driver. Trim so the
+                            # reaped bytes show up as free VRAM again. No-op for a
+                            # subprocess consumer by design — see the spec.
+                            self._dm.reclaim()
                         else:
                             if sink is not None:
                                 sink.error(BackplaneError.from_exc(e))
