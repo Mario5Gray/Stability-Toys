@@ -547,7 +547,7 @@ next: Task 3 JobRecord.enqueued_at + terminal observation"
 - Consumes: `get_metrics()` from Task 1; `job_terminal_total`, `job_queue_wait_seconds`, `job_execution_seconds` from Task 2.
 - Produces: `JobRecord.enqueued_at: Optional[float]`; `Governor._observe_job_terminal(record) -> None` (never raises); module function `_terminal_outcome(fut) -> str`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_governor_metrics.py
@@ -699,12 +699,12 @@ def governor_with_stub_handle():
     gov.shutdown()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_governor_metrics.py -v`
 Expected: FAIL — `ImportError: cannot import name '_terminal_outcome'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `backends/governor.py`, add to the imports near `:41`:
 
@@ -793,18 +793,18 @@ Replace `_finalize_job_record` and add the observer:
             logger.debug("[Governor] terminal metrics failed", exc_info=True)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_governor_metrics.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Run the existing Governor suite for regressions**
+- [x] **Step 5: Run the existing Governor suite for regressions**
 
 Run: `python -m pytest tests/test_governor.py tests/test_worker_pool.py -q`
 Expected: same pass count as before this task. `_finalize_job_record` changed shape;
 this proves no caller depended on its old return.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/governor.py tests/test_governor_metrics.py
@@ -834,7 +834,7 @@ next: Task 4 Governor lifecycle counters"
 - Consumes: `get_metrics()`; families from Task 2.
 - Produces: no new symbols — call sites only.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_governor_metrics.py`:
 
@@ -891,12 +891,12 @@ from tests.test_governor import (
 )
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_governor_metrics.py -k "load or expire or recovery or lifecycle" -v`
 Expected: FAIL — `AttributeError: 'Governor' object has no attribute '_count_worker_recovery'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add one non-raising helper to `Governor` (place it directly after `_observe_job_terminal`):
 
@@ -1005,17 +1005,17 @@ In the dispatch loop's subprocess recovery branch, directly after the existing
                                 self._count_worker_recovery(oom=oom)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_governor_metrics.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Run the full Governor suite**
+- [x] **Step 5: Run the full Governor suite**
 
 Run: `python -m pytest tests/test_governor.py tests/test_worker_pool.py tests/test_device_memory.py -q`
 Expected: no new failures.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/governor.py tests/test_governor_metrics.py
