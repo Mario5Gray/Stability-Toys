@@ -23,6 +23,7 @@ from concurrent.futures import Future, CancelledError
 from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
+from server.metrics import get_metrics
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
@@ -176,6 +177,10 @@ class JobRecord:
     # execution budget. Deliberately NOT `state == "running"`, which is set earlier
     # (before both) and whose transition cancel_job depends on for queued-job cancel.
     executing_since: Optional[float] = None
+    # STABL-asawxgvp: monotonic enqueue time, stamped in _register_job. Paired with
+    # executing_since this splits the two budgets into two observable durations —
+    # queue wait and execution — which nothing could derive before.
+    enqueued_at: Optional[float] = None
 
 
 def _is_oom(exc: BaseException) -> bool:
@@ -196,6 +201,29 @@ def _is_oom(exc: BaseException) -> bool:
     if isinstance(oom_cls, type) and isinstance(exc, oom_cls):
         return True
     return "out of memory" in str(exc).lower()
+
+
+def _terminal_outcome(fut) -> str:
+    """Terminal outcome from a RESOLVED future (STABL-asawxgvp).
+
+    `fut.cancelled()` is checked FIRST because `fut.exception()` raises
+    CancelledError on a cancelled future — the obvious ordering is a bug.
+
+    `timeout` is deliberately NOT an outcome here. A timeout is a waiter-side
+    budget breach raised by `_expire`, counted by `st_governor_wait_expired_total`;
+    what subsequently reaches the dispatch loop for that job is a CANCEL. Counting
+    both would double-count the same job.
+    """
+    if fut.cancelled():
+        return "cancelled"
+    exc = fut.exception()
+    if exc is None:
+        return "ok"
+    if isinstance(exc, CancelledError):
+        return "cancelled"
+    if _is_oom(exc):
+        return "oom"
+    return "error"
 
 
 def _cancel_predicate(record: JobRecord) -> Callable[[], bool]:
@@ -587,11 +615,45 @@ class Governor:
             with self._job_lock:
                 self._job_records[job.job_id] = JobRecord(
                     job_id=job.job_id, state="queued", job=job,
+                    enqueued_at=time.monotonic(),
                 )
 
     def _finalize_job_record(self, job_id: str):
         with self._job_lock:
-            self._job_records.pop(job_id, None)
+            record = self._job_records.pop(job_id, None)
+        # Observed OUTSIDE _job_lock: the backplane's Subscriber<->lock invariant,
+        # and there is no reason to hold the lock across a metrics write.
+        if record is not None:
+            self._observe_job_terminal(record)
+
+    def _observe_job_terminal(self, record) -> None:
+        """Emit terminal metrics for a finished job (STABL-asawxgvp).
+
+        This is the SINGLE instrumentation point for job terminals: every branch
+        of the dispatch loop — early cancel, in-proc success, post-execute cancel,
+        subprocess terminal, and _deliver_job_failure — funnels through
+        _finalize_job_record, and by then the future is resolved on all of them.
+
+        MUST NOT raise (STABL-hdzggeir): a throw here reaches the dispatch loop's
+        try, kills the thread, and permanently deadens the queue. The whole body
+        is guarded, not just the metric calls — a malformed record must not
+        escape either.
+        """
+        try:
+            fut = record.job.fut
+            if record.enqueued_at is None or not fut.done():
+                return          # e.g. the submit_job queue.Full rollback
+            mode = self._current_mode or "unknown"
+            met = get_metrics()
+            if record.executing_since is not None:
+                met.job_queue_wait_seconds.labels(mode=mode).observe(
+                    max(0.0, record.executing_since - record.enqueued_at))
+                met.job_execution_seconds.labels(mode=mode).observe(
+                    max(0.0, time.monotonic() - record.executing_since))
+            met.job_terminal_total.labels(
+                mode=mode, outcome=_terminal_outcome(fut)).inc()
+        except Exception:
+            logger.debug("[Governor] terminal metrics failed", exc_info=True)
 
     def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
         with self._job_lock:
