@@ -1411,3 +1411,72 @@ def test_waiter_budgets_default_to_the_module_constants():
 
     assert gov_mod.DEFAULT_EXECUTION_TIMEOUT_S == 120.0
     assert gov_mod.DEFAULT_ADMISSION_TIMEOUT_S == 900.0
+
+
+def test_oom_classification_survives_a_non_type_oom_class():
+    """STABL-hdzggeir. `torch.cuda.OutOfMemoryError` is not guaranteed to be a TYPE.
+
+    In a shared pytest session `backends.governor.torch` can be a MagicMock — every
+    backend module binds whatever sys.modules['torch'] held when IT was first
+    imported, so importing test_worker_pool.py first leaves the governor holding the
+    stub. `isinstance(e, <MagicMock>)` then raises TypeError INSIDE the dispatch
+    loop's except handler, before the real error can be delivered, and the caller's
+    future is left unresolved forever.
+    """
+    import backends.governor as g
+    from unittest.mock import MagicMock as _MM
+    from backends.governor import ModeLoadFailedError
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        with patch.object(g, "torch", _MM()):
+            gov = _reservation_governor("mode-a", default="mode-a")
+            try:
+                with gov._job_lock:
+                    gov._active_snapshot = None
+                exc = _submit_and_capture(gov, 1)
+                assert isinstance(exc, ModeLoadFailedError), (
+                    f"got {exc!r} — the error handler raised before delivering"
+                )
+            finally:
+                gov.shutdown()
+
+
+def test_a_failure_inside_the_error_handler_does_not_wedge_the_dispatch_loop():
+    """STABL-hdzggeir. If the except handler itself raises, the exception escapes the
+    while loop and the dispatch THREAD DIES. The queue is then permanently dead: every
+    later job hangs until its own timeout with no error surfaced, and shutdown() —
+    which begins with q.join() — never returns either.
+
+    Asserted on thread liveness rather than by submitting a second job, precisely
+    because a second job WEDGES the test instead of failing it (verified: the run had
+    to be killed by pytest-timeout at 300s).
+
+    Injected at _finalize_job_record because the handler always reaches it for a
+    GenerationJob. In production the same shape occurs if BackplaneError.from_exc or
+    sink.error raises on a broken pipe — not only under a mocked torch.
+    """
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", default="mode-a")
+        try:
+            with gov._job_lock:
+                gov._active_snapshot = None
+
+            with patch.object(Governor, "_finalize_job_record",
+                              side_effect=RuntimeError("handler boom")):
+                exc = _submit_and_capture(gov, 1)
+                assert exc is not None and not isinstance(exc, TimeoutError), (
+                    f"future left unresolved by a failing handler: got {exc!r}"
+                )
+
+            # The future resolves BEFORE the thread unwinds, so an immediate
+            # is_alive() check races and reads True either way. Give the thread a
+            # window to die; if it is still alive at the end of it, it survived.
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline and gov._worker_thread.is_alive():
+                time.sleep(0.05)
+            assert gov._worker_thread.is_alive(), (
+                "dispatch thread died inside its own error handler — the queue is now "
+                "permanently dead and shutdown() will block on q.join()"
+            )
+        finally:
+            gov.shutdown()
