@@ -438,8 +438,26 @@ And `shutdown()` begins with `q.join()`, so anything left queued must be cleared
 Deferred / filed, NOT fixed here:
 
 - **`STABL-atzqpcte` — FIXED** (`4646005`, PR #32). See the timeout-semantics entry below.
-- **`STABL-anxqlxkm`** (under `STABL-sgdavnvz`) — cross-file test isolation; two
-  `gc`/`empty_cache` mock assertions fail when `test_governor.py` runs first.
+- **`STABL-anxqlxkm` — FIXED** (`9da1c19`, PR #45), and it exposed a second bug,
+  **`STABL-hdzggeir` — FIXED** (`8af2f59`, PR #46). Both were the same root cause:
+  **every backend module binds whatever `sys.modules['torch']` held when IT was first
+  imported**, so two backend modules can hold DIFFERENT torch objects in one pytest
+  session depending on file order. Consequences worth carrying:
+  - **Patch where the call happens, not on a facade.** `empty_cache()` is called by
+    `InProcessWorkerHandle.unload()`, so patching `backends.worker_pool.torch...` landed
+    on a MagicMock while the guard read the real `is_available() == False` and the work
+    never ran. The assertion failed because the work did not happen, not because the
+    mock was bypassed.
+  - **It reaches PRODUCTION code.** `isinstance(e, torch.cuda.OutOfMemoryError)` raises
+    `TypeError` against a Mock, and that ran inside the dispatch loop's own `except`
+    handler — so the handler died before delivering the error, the future never
+    resolved, the dispatch thread ended, the queue went permanently dead, and
+    `shutdown()` blocked forever on `q.join()`. An error handler that can itself raise
+    is a wedge waiting to happen; `_deliver_job_failure` is now wrapped and `_is_oom()`
+    cannot raise.
+  - **A green full suite does not clear this class.** Both instances were masked at
+    full-suite scope (1150+ passed, 0 failed) and reproduced only on a narrower file
+    selection. Reproduce with the two-file command, not with CI.
 - **Unload-after-gen cause not isolated.** The symptom is verified gone (inline `--mode`
   is now sticky; the model stays resident and the next generate reuses it), but the
   cause was not discriminated between the registry-gap reporting artifact and a genuine
