@@ -44,3 +44,7 @@ websocket-client
 
 # JSON Canonicalization (RFC 8785) for portable model-resolution identity
 rfc8785==0.1.4
+
+# Prometheus metrics (STABL-asawxgvp). Pure Python, no transitive deps.
+# Imported ONLY by server/metrics.py; runtime code goes through that facade.
+prometheus_client==0.21.1

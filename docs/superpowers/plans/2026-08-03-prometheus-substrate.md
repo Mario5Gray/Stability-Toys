@@ -310,12 +310,19 @@ def reset_metrics() -> None:
         _metrics = None
 ```
 
-- [ ] **Step 5: Run tests — expect the two `_declare` tests to fail**
+- [ ] **Step 5: Run tests — expect all but one to fail**
 
 Run: `python -m pytest tests/test_metrics.py -v`
-Expected: `test_disabled_by_default`, `test_warns_when_multiple_web_workers`,
-`test_module_does_not_import_prometheus_at_module_scope` PASS; the rest FAIL with
-`NotImplementedError`. That is correct — Task 2 declares the families.
+Expected: **1 passed, 6 failed** — only
+`test_module_does_not_import_prometheus_at_module_scope` passes, because it reads the
+source file and never constructs a `Metrics`. Every other test calls `get_metrics()`,
+which constructs `Metrics` and hits `NotImplementedError` in `_declare` / `_declare_noop`.
+
+**Task 1 has no independently green state**, and that is by design: the facade's gate is
+only observable once there is at least one family to observe it through. Task 2 turns the
+file green. Do not try to "fix" the failures here.
+
+(Corrected during execution — this step previously claimed three tests would pass.)
 
 - [ ] **Step 6: Commit**
 
