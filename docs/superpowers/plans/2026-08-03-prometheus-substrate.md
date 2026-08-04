@@ -1213,6 +1213,31 @@ logger = logging.getLogger(__name__)
 DEFAULT_INTERVAL_S = 15.0
 
 
+def _coerce_interval(value, source: str) -> float:
+    """Added during execution — see the note in __init__ below.
+
+    Rejects non-numbers (a config typo must not stop the server starting) and
+    non-positive values (Event.wait(<=0) returns immediately, spinning the sampler
+    against the worker control pipe). Small POSITIVE values remain legal.
+    """
+    if value is None:
+        return DEFAULT_INTERVAL_S
+    try:
+        interval = float(value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "%s=%r is not a number; using %.1fs", source, value, DEFAULT_INTERVAL_S)
+        return DEFAULT_INTERVAL_S
+    if interval <= 0:
+        logger.warning(
+            "%s=%r must be positive (a non-positive interval spins the sampler "
+            "against the worker control pipe); using %.1fs",
+            source, value, DEFAULT_INTERVAL_S,
+        )
+        return DEFAULT_INTERVAL_S
+    return interval
+
+
 class MetricsSampler:
     def __init__(
         self,
@@ -1222,9 +1247,20 @@ class MetricsSampler:
     ):
         self._snapshot_fn = snapshot_fn
         self._runtime_stats_fn = runtime_stats_fn
+        # CORRECTED DURING EXECUTION — the version above shipped two defects:
+        #   1. float() raises on a malformed env value, so a config typo killed
+        #      startup instead of degrading;
+        #   2. nothing rejected a NON-POSITIVE interval, and Event.wait(0)/wait(<0)
+        #      return immediately — measured at ~12,000 snapshot_fn calls in 0.2s,
+        #      i.e. a self-inflicted DoS on the worker's control pipe that presents
+        #      as "the server is busy" rather than as an error.
+        # Both paths are validated because the explicit argument bypasses the env
+        # parser. Small POSITIVE values stay legal (the suite samples at 0.01s).
         self.interval_s = (
-            float(interval_s) if interval_s is not None
-            else float(os.getenv("METRICS_SAMPLE_INTERVAL_S", DEFAULT_INTERVAL_S))
+            _coerce_interval(interval_s, "interval_s")
+            if interval_s is not None
+            else _coerce_interval(
+                os.getenv("METRICS_SAMPLE_INTERVAL_S"), "METRICS_SAMPLE_INTERVAL_S")
         )
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None

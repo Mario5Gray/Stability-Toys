@@ -56,19 +56,38 @@ class _SnapshotLike(Protocol):
     def unattributed_bytes(self) -> int: ...
 
 
-def _interval_from_env() -> float:
-    """A typo in deployment config must not stop the server from starting."""
-    raw = os.getenv("METRICS_SAMPLE_INTERVAL_S")
-    if raw is None:
+def _coerce_interval(value, source: str) -> float:
+    """Every interval — env or explicit argument — goes through here.
+
+    Two rejections, for different reasons:
+
+    - NOT A NUMBER: a typo in deployment config must not stop the server starting.
+    - NOT POSITIVE: `Event.wait(0)` and `wait(<0)` return IMMEDIATELY, so a
+      non-positive interval turns `_loop` into a tight loop calling `snapshot_fn`
+      as fast as the GIL allows — measured at ~12,000 iterations in 0.2s. Since
+      `snapshot_fn` is the child control-pipe round-trip, that is a self-inflicted
+      denial of service on the worker, and it presents as "the server is busy"
+      rather than as an error.
+
+    Small positive values are deliberately allowed: the test suite runs the
+    sampler at 0.01s and sub-second sampling is a legitimate deployment choice.
+    """
+    if value is None:
         return DEFAULT_INTERVAL_S
     try:
-        return float(raw)
-    except ValueError:
+        interval = float(value)
+    except (TypeError, ValueError):
         logger.warning(
-            "METRICS_SAMPLE_INTERVAL_S=%r is not a number; using %.1fs",
-            raw, DEFAULT_INTERVAL_S,
+            "%s=%r is not a number; using %.1fs", source, value, DEFAULT_INTERVAL_S)
+        return DEFAULT_INTERVAL_S
+    if interval <= 0:
+        logger.warning(
+            "%s=%r must be positive (a non-positive interval spins the sampler "
+            "against the worker control pipe); using %.1fs",
+            source, value, DEFAULT_INTERVAL_S,
         )
         return DEFAULT_INTERVAL_S
+    return interval
 
 
 class MetricsSampler:
@@ -80,8 +99,14 @@ class MetricsSampler:
     ):
         self._snapshot_fn = snapshot_fn
         self._runtime_stats_fn = runtime_stats_fn
+        # Both paths are validated: the explicit argument bypasses the env parser,
+        # so guarding only the env var would leave the caller-supplied value
+        # unchecked.
         self.interval_s = (
-            float(interval_s) if interval_s is not None else _interval_from_env()
+            _coerce_interval(interval_s, "interval_s")
+            if interval_s is not None
+            else _coerce_interval(
+                os.getenv("METRICS_SAMPLE_INTERVAL_S"), "METRICS_SAMPLE_INTERVAL_S")
         )
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None

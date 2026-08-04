@@ -264,6 +264,48 @@ def test_a_garbage_interval_falls_back_to_the_default(monkeypatch):
     assert MetricsSampler(snapshot_fn=_snap).interval_s == DEFAULT_INTERVAL_S
 
 
+@pytest.mark.parametrize("raw", ["0", "0.0", "-1", "-0.5"])
+def test_a_non_positive_env_interval_falls_back_to_the_default(monkeypatch, raw):
+    """Event.wait(0) and wait(<0) return IMMEDIATELY, so a non-positive interval
+    turns the sampler into a tight loop hammering snapshot_fn — and snapshot_fn is
+    the child control-pipe round-trip. Worse than a crash, because it looks like
+    the server is merely busy."""
+    monkeypatch.setenv("METRICS_SAMPLE_INTERVAL_S", raw)
+    assert MetricsSampler(snapshot_fn=_snap).interval_s == DEFAULT_INTERVAL_S
+
+
+@pytest.mark.parametrize("bad", [0, 0.0, -1, -0.5])
+def test_a_non_positive_explicit_interval_falls_back_to_the_default(bad):
+    """The explicit argument bypasses the env parser, so it needs the same guard."""
+    assert MetricsSampler(snapshot_fn=_snap, interval_s=bad).interval_s == DEFAULT_INTERVAL_S
+
+
+@pytest.mark.parametrize("good", [0.01, 0.5, 1, 900])
+def test_small_positive_intervals_are_honoured(good):
+    """The guard rejects non-positive, NOT small — the test suite itself runs the
+    sampler at 0.01s and deployments may legitimately want sub-second sampling."""
+    assert MetricsSampler(snapshot_fn=_snap, interval_s=good).interval_s == float(good)
+
+
+def test_a_non_positive_interval_does_not_spin(monkeypatch):
+    """The consequence, asserted directly rather than inferred from the value."""
+    monkeypatch.setenv("METRICS_SAMPLE_INTERVAL_S", "0")
+    calls = []
+
+    def _count():
+        calls.append(1)
+        return _snap()
+
+    s = MetricsSampler(snapshot_fn=_count)
+    s.start()
+    try:
+        time.sleep(0.2)
+    finally:
+        s.stop()
+    # at 15s fallback: one sample. at 0s: thousands.
+    assert len(calls) <= 2, f"sampler span {len(calls)} times in 0.2s — tight loop"
+
+
 def test_the_structural_mirror_matches_the_real_dataclasses():
     """server/metrics_sampler.py declares _SnapshotLike/_ConsumerLike instead of
     importing from backends/. A field rename on the real dataclass would otherwise
