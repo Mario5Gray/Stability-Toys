@@ -1365,7 +1365,7 @@ next: Task 6 /metrics route + app wiring"
 - Consumes: `get_metrics()`, `MetricsSampler`.
 - Produces: `server.metrics_routes.router` serving `GET /metrics`; `server.metrics_routes.build_runtime_stats_fn(pool_getter)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_metrics_route.py
@@ -1454,12 +1454,12 @@ def test_scrape_does_not_fan_out(monkeypatch):
         assert client.get("/metrics").status_code == 200
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics_route.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'server.metrics_routes'`.
 
-- [ ] **Step 3: Write the route module**
+- [x] **Step 3: Write the route module**
 
 ```python
 # server/metrics_routes.py
@@ -1522,7 +1522,7 @@ def build_runtime_stats_fn(pool_getter: Callable[[], object]) -> Callable[[], Op
     return _stats
 ```
 
-- [ ] **Step 4: Wire it into the app**
+- [x] **Step 4: Wire it into the app**
 
 In `server/lcm_sr_server.py`, add to the imports:
 
@@ -1567,12 +1567,12 @@ In the `lifespan` handler (`:506` region), start the sampler on entry and stop i
 > `yield`, add `_sampler.stop()` to that `finally` rather than nesting another one. Read
 > `lcm_sr_server.py` around `:480-510` before editing.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics_route.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 6: Verify by hand, both gate positions**
+- [x] **Step 6: Verify by hand, both gate positions**
 
 ```bash
 conda activate stability-toys
@@ -1599,12 +1599,12 @@ with TestClient(app) as c:
 
 Expected: `404` — inert by default.
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `python -m pytest tests/ -q`
 Expected: no new failures against the pre-task baseline. Capture the counts for the FP comment.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add server/metrics_routes.py server/lcm_sr_server.py tests/test_metrics_route.py
