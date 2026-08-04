@@ -73,13 +73,106 @@ class Metrics:
                 return
         self._declare_noop()
 
-    # --- family declarations (Task 2 fills these in) ---
+    # --- family declarations ---
 
     def _declare(self, prom):
-        raise NotImplementedError  # Task 2
+        C, G, H = prom.Counter, prom.Gauge, prom.Histogram
+        r = self._registry
+
+        # --- Governor: queue pressure ---
+        self.queue_depth = G(
+            "st_governor_queue_depth", "Jobs currently queued", registry=r)
+        self.jobs_in_flight = G(
+            "st_governor_jobs_in_flight", "Jobs currently executing", registry=r)
+        self.job_queue_wait_seconds = H(
+            "st_governor_job_queue_wait_seconds",
+            "Seconds between enqueue and execution start",
+            ["mode"], buckets=QUEUE_WAIT_BUCKETS, registry=r)
+
+        # --- Governor: execution cost ---
+        self.job_execution_seconds = H(
+            "st_governor_job_execution_seconds",
+            "Seconds spent executing a job",
+            ["mode"], buckets=EXECUTION_BUCKETS, registry=r)
+        self.mode_load_seconds = H(
+            "st_governor_mode_load_seconds",
+            "Seconds to load a mode's worker",
+            ["mode"], buckets=MODE_LOAD_BUCKETS, registry=r)
+
+        # --- Governor: failure paths ---
+        self.job_terminal_total = C(
+            "st_governor_job_terminal_total",
+            "Jobs by terminal outcome (ok|cancelled|oom|error)",
+            ["mode", "outcome"], registry=r)
+        self.wait_expired_total = C(
+            "st_governor_wait_expired_total",
+            "Waiters that exceeded their budget (admission|execution)",
+            ["budget"], registry=r)
+        self.worker_recovery_total = C(
+            "st_governor_worker_recovery_total",
+            "Worker kill+respawn recoveries by cause (oom|dead)",
+            ["reason"], registry=r)
+
+        # --- Governor: churn ---
+        self.mode_switch_total = C(
+            "st_governor_mode_switch_total",
+            "Mode switches, labelled by TARGET mode",
+            ["mode"], registry=r)
+        self.demand_reload_total = C(
+            "st_governor_demand_reload_total",
+            "Reloads from a retained snapshot after idle eviction",
+            ["mode"], registry=r)
+        self.unload_total = C(
+            "st_governor_unload_total", "Model unloads by reason",
+            ["mode", "reason"], registry=r)
+
+        # --- Governor: authority ---
+        self.mode_active = G(
+            "st_governor_mode_active",
+            "1 for the loaded mode, 0 for every other configured mode",
+            ["mode"], registry=r)
+        self.resolution_epoch = G(
+            "st_governor_resolution_epoch", "Current resolution epoch", registry=r)
+
+        # --- DeviceMemory: capacity truth ---
+        self.device_total_bytes = G(
+            "st_device_total_bytes", "Device total bytes",
+            ["device_uuid"], registry=r)
+        self.device_free_bytes = G(
+            "st_device_free_bytes", "Driver-truth free bytes",
+            ["device_uuid"], registry=r)
+        self.device_used_bytes = G(
+            "st_device_used_bytes", "Driver-truth used bytes",
+            ["device_uuid"], registry=r)
+        self.device_unattributed_bytes = G(
+            "st_device_unattributed_bytes",
+            "Used bytes not attributed to any registered consumer pool "
+            "(CUDA contexts, non-torch workspaces, other processes)",
+            ["device_uuid"], registry=r)
+        self.consumer_reserved_bytes = G(
+            "st_consumer_reserved_bytes", "Per-consumer framework pool, reserved",
+            ["device_uuid", "consumer"], registry=r)
+        self.consumer_allocated_bytes = G(
+            "st_consumer_allocated_bytes", "Per-consumer framework pool, allocated",
+            ["device_uuid", "consumer"], registry=r)
+        self.device_snapshot_stale = G(
+            "st_device_snapshot_stale",
+            "1 when the last snapshot substituted last-known values after a "
+            "consumer fan-out timeout (i.e. a consumer is not answering)",
+            ["device_uuid"], registry=r)
 
     def _declare_noop(self):
-        raise NotImplementedError  # Task 2
+        for name in (
+            "queue_depth", "jobs_in_flight", "job_queue_wait_seconds",
+            "job_execution_seconds", "job_terminal_total", "wait_expired_total",
+            "mode_load_seconds", "mode_switch_total", "demand_reload_total",
+            "unload_total", "worker_recovery_total", "mode_active",
+            "resolution_epoch", "device_total_bytes", "device_free_bytes",
+            "device_used_bytes", "device_unattributed_bytes",
+            "consumer_reserved_bytes", "consumer_allocated_bytes",
+            "device_snapshot_stale",
+        ):
+            setattr(self, name, _NoopMetric())
 
     def render(self) -> tuple[bytes, str]:
         if not self.enabled or self._registry is None:
