@@ -993,8 +993,23 @@ class TestWorkerLifecycle:
         unregister_calls = [call for call in mock_registry.unregister_model.call_args_list]
         assert len(unregister_calls) > 0
 
-    @patch('backends.worker_pool.torch.cuda.empty_cache')
-    def test_mode_switch_clears_cuda_cache(self, mock_empty_cache, worker_pool):
+    # STABL-anxqlxkm: patch the module that actually MAKES the call, not the
+    # facade. `empty_cache()` is invoked by InProcessWorkerHandle.unload()
+    # (backends/worker_handle.py), behind a `torch.cuda.is_available()` guard.
+    #
+    # Patching `backends.worker_pool.torch...` only works while worker_pool and
+    # worker_handle happen to hold the SAME torch object, and they do not always:
+    # each module binds whatever sys.modules['torch'] held when IT was first
+    # imported. Import test_governor.py first and the backends chain binds the
+    # REAL torch, while test_worker_pool.py's module-level MagicMock reaches only
+    # worker_pool — so the patch landed on the mock, the guard read real
+    # is_available() == False on a machine without CUDA, and empty_cache was never
+    # called. Patching both names on worker_handle's own torch removes the
+    # cross-module assumption entirely, so file order stops mattering.
+    @patch('backends.worker_handle.torch.cuda.is_available', return_value=True)
+    @patch('backends.worker_handle.torch.cuda.empty_cache')
+    def test_mode_switch_clears_cuda_cache(self, mock_empty_cache, mock_is_available,
+                                           worker_pool):
         """Test that mode switching clears CUDA cache."""
         worker_pool.switch_mode("sd15-fast").result(timeout=5.0)
 
