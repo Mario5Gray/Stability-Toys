@@ -83,7 +83,7 @@ genuinely different lifecycles (a thread vs. a route) and different test setups.
 - Consumes: nothing.
 - Produces: `get_metrics() -> Metrics`, `reset_metrics() -> None`, `Metrics.enabled: bool`, `Metrics.render() -> tuple[bytes, str]`. The singleton pattern deliberately mirrors `get_device_memory()` / `reset_device_memory()` in `backends/device_memory.py`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_metrics.py
@@ -156,12 +156,12 @@ def test_module_does_not_import_prometheus_at_module_scope():
     )
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_metrics.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'server.metrics'`
 
-- [ ] **Step 3: Add the dependency**
+- [x] **Step 3: Add the dependency**
 
 Append to `requirements.txt`:
 
@@ -174,7 +174,7 @@ Pure Python, no transitive dependencies — unlike the Compel situation that for
 
 Install into the dev env: `conda activate stability-toys && python -m pip install prometheus_client==0.21.1`
 
-- [ ] **Step 4: Write the facade**
+- [x] **Step 4: Write the facade**
 
 ```python
 # server/metrics.py
@@ -310,7 +310,7 @@ def reset_metrics() -> None:
         _metrics = None
 ```
 
-- [ ] **Step 5: Run tests — expect all but one to fail**
+- [x] **Step 5: Run tests — expect all but one to fail**
 
 Run: `python -m pytest tests/test_metrics.py -v`
 Expected: **1 passed, 6 failed** — only
@@ -324,7 +324,7 @@ file green. Do not try to "fix" the failures here.
 
 (Corrected during execution — this step previously claimed three tests would pass.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/metrics.py tests/test_metrics.py requirements.txt
@@ -355,7 +355,7 @@ next: Task 2 declare the metric families"
   `device_unattributed_bytes`, `consumer_reserved_bytes`, `consumer_allocated_bytes`,
   `device_snapshot_stale`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_metrics.py`:
 
@@ -406,12 +406,12 @@ def test_histogram_buckets_cover_generation_timescales(monkeypatch):
     assert b'st_governor_job_execution_seconds_bucket' in body
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics.py -v`
 Expected: FAIL with `NotImplementedError` from `_declare` / `_declare_noop`.
 
-- [ ] **Step 3: Implement the declarations**
+- [x] **Step 3: Implement the declarations**
 
 Replace the two placeholder methods in `server/metrics.py`:
 
@@ -516,12 +516,12 @@ Replace the two placeholder methods in `server/metrics.py`:
             setattr(self, name, _NoopMetric())
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/metrics.py tests/test_metrics.py
