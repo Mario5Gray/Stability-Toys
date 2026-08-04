@@ -1045,7 +1045,7 @@ next: Task 5 MetricsSampler"
 - Consumes: `get_metrics()`; the `DeviceMemorySnapshot` / `ConsumerMemory` shapes from `backends/device_memory.py` (duck-typed — the sampler imports nothing from `backends/`).
 - Produces: `MetricsSampler(snapshot_fn, runtime_stats_fn=None, interval_s=None)` with `.start()`, `.stop()`, `.sample_once()`. `runtime_stats_fn` returns `{"queue_depth": int, "jobs_in_flight": int}` or `None`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_metrics_sampler.py
@@ -1176,12 +1176,12 @@ def test_default_interval_is_15(monkeypatch):
     assert MetricsSampler(snapshot_fn=_snap).interval_s == 15.0
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics_sampler.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'server.metrics_sampler'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # server/metrics_sampler.py
@@ -1293,12 +1293,12 @@ class MetricsSampler:
             logger.debug("[Metrics] runtime stats failed", exc_info=True)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics_sampler.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/metrics_sampler.py tests/test_metrics_sampler.py
