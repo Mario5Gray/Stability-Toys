@@ -178,6 +178,26 @@ class JobRecord:
     executing_since: Optional[float] = None
 
 
+def _is_oom(exc: BaseException) -> bool:
+    """OOM classification that CANNOT raise (STABL-hdzggeir).
+
+    `torch.cuda.OutOfMemoryError` is not guaranteed to be a type. In a shared pytest
+    session this module's `torch` can be a MagicMock — every backend module binds
+    whatever `sys.modules['torch']` held when IT was first imported — and
+    `isinstance(exc, <MagicMock>)` raises `TypeError: isinstance() arg 2 must be a
+    type`. Raising here is far worse than misclassifying: this runs inside the
+    dispatch loop's error handler, so the throw escaped the loop and killed the
+    dispatch thread.
+
+    The `isinstance(oom_cls, type)` guard is the fix; the message-substring check is
+    the pre-existing fallback and still covers OOMs raised as plain RuntimeError.
+    """
+    oom_cls = getattr(getattr(torch, "cuda", None), "OutOfMemoryError", None)
+    if isinstance(oom_cls, type) and isinstance(exc, oom_cls):
+        return True
+    return "out of memory" in str(exc).lower()
+
+
 def _cancel_predicate(record: JobRecord) -> Callable[[], bool]:
     """The reap predicate handed to the worker (STABL-jredufxb).
 
@@ -1012,49 +1032,68 @@ class Governor:
 
             except Exception as e:
                 logger.error(f"[Governor] Job failed: {e}", exc_info=True)
-                _oom = (
-                    hasattr(torch.cuda, "OutOfMemoryError")
-                    and isinstance(e, torch.cuda.OutOfMemoryError)
-                ) or "out of memory" in str(e).lower()
-                if _oom:
-                    logger.warning("[Governor] OOM recovery: cancelling + unloading")
-                    self._cleanup_vram(reason="oom", cancel_running=False)
-                if isinstance(job, GenerationJob):
-                    job_record = self._get_job_record(job.job_id)
-                    if job_record is not None:
-                        sink = job_record.sink
-                        if _oom:
-                            if sink is not None:
-                                sink.error(BackplaneError.from_exc(e))
-                            elif not job.fut.done():
-                                job.fut.set_exception(e)
-                            job_record.state = "failed"
-                        elif job_record.cancel_requested:
-                            if sink is not None:
-                                sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
-                            elif not job.fut.done():
-                                job.fut.set_exception(CancelledError())
-                            job_record.state = "cancelled"
-                            # STABL-jredufxb: unwinding returned the intermediates to
-                            # torch's caching allocator, not to the driver. Trim so the
-                            # reaped bytes show up as free VRAM again. No-op for a
-                            # subprocess consumer by design — see the spec.
-                            self._dm.reclaim()
-                        else:
-                            if sink is not None:
-                                sink.error(BackplaneError.from_exc(e))
-                            elif not job.fut.done():
-                                job.fut.set_exception(e)
-                            job_record.state = "failed"
-                        self._finalize_job_record(job.job_id)
-                    elif not job.fut.done():
+                # STABL-hdzggeir: the handler is wrapped because a raise INSIDE it
+                # escapes this try, escapes the while loop, and kills the dispatch
+                # thread — after which the queue is permanently dead, every later job
+                # hangs until its own timeout with no error surfaced, and shutdown()
+                # blocks forever on q.join(). Whatever fails here, the caller's future
+                # must still be resolved and the loop must still be running.
+                try:
+                    self._deliver_job_failure(job, e)
+                except Exception:
+                    logger.exception(
+                        "[Governor] job error handling itself failed; delivering the "
+                        "original error so the caller is not left waiting"
+                    )
+                    if not job.fut.done():
                         job.fut.set_exception(e)
-                elif not job.fut.done():
-                    job.fut.set_exception(e)
             finally:
                 self._last_activity = time.monotonic()
                 self.q.task_done()
         logger.info("[Governor] Dispatch loop stopped")
+
+    def _deliver_job_failure(self, job, e: Exception) -> None:
+        """Classify a failed job, drive its terminal, and finalize its record.
+
+        Extracted from the dispatch loop's except handler (STABL-hdzggeir) so the
+        caller can wrap it: nothing in here may be allowed to kill the loop.
+        """
+        oom = _is_oom(e)
+        if oom:
+            logger.warning("[Governor] OOM recovery: cancelling + unloading")
+            self._cleanup_vram(reason="oom", cancel_running=False)
+        if isinstance(job, GenerationJob):
+            job_record = self._get_job_record(job.job_id)
+            if job_record is not None:
+                sink = job_record.sink
+                if oom:
+                    if sink is not None:
+                        sink.error(BackplaneError.from_exc(e))
+                    elif not job.fut.done():
+                        job.fut.set_exception(e)
+                    job_record.state = "failed"
+                elif job_record.cancel_requested:
+                    if sink is not None:
+                        sink.error(BackplaneError(BackplaneErrorCode.CANCELLED, "cancelled"))
+                    elif not job.fut.done():
+                        job.fut.set_exception(CancelledError())
+                    job_record.state = "cancelled"
+                    # STABL-jredufxb: unwinding returned the intermediates to
+                    # torch's caching allocator, not to the driver. Trim so the
+                    # reaped bytes show up as free VRAM again. No-op for a
+                    # subprocess consumer by design — see the spec.
+                    self._dm.reclaim()
+                else:
+                    if sink is not None:
+                        sink.error(BackplaneError.from_exc(e))
+                    elif not job.fut.done():
+                        job.fut.set_exception(e)
+                    job_record.state = "failed"
+                self._finalize_job_record(job.job_id)
+            elif not job.fut.done():
+                job.fut.set_exception(e)
+        elif not job.fut.done():
+            job.fut.set_exception(e)
 
     def _start_dispatch_thread(self):
         if hasattr(self, '_worker_thread') and self._worker_thread and self._worker_thread.is_alive():
