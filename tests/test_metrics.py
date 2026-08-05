@@ -160,6 +160,52 @@ def test_all_families_carry_the_st_namespace(monkeypatch):
     )
 
 
+def _registry_family_names(met) -> set[str]:
+    """Names as they appear in scraped output.
+
+    Sourced from the REGISTRY, not from a rendered body: a labelled family with no
+    observations yet renders no sample lines at all, so a body-derived set would
+    silently shrink to the three unlabelled gauges and the contract test would
+    pass while checking almost nothing.
+
+    prometheus_client strips `_total` from a Counter's family name, so both
+    spellings are offered and the caller accepts either.
+    """
+    names = set()
+    for family in met._registry.collect():
+        names.add(family.name)
+        if family.type == "counter":
+            names.add(f"{family.name}_total")
+    return names
+
+
+def test_every_family_is_documented_in_the_contract(monkeypatch):
+    """The contract doc is the cross-repo interface. A family that ships without
+    an entry is invisible to whoever writes the dashboards in ../continuous."""
+    import pathlib
+    import re
+
+    monkeypatch.setenv("METRICS_ENABLED", "1")
+    met = m.get_metrics()
+    doc = pathlib.Path("docs/observability-contract.md").read_text()
+
+    undocumented = []
+    for family in met._registry.collect():
+        spellings = {family.name}
+        if family.type == "counter":
+            spellings.add(f"{family.name}_total")
+        if not any(s in doc for s in spellings):
+            undocumented.append(family.name)
+    assert not undocumented, f"undocumented metric families: {sorted(undocumented)}"
+
+    # ...and the other direction: a doc entry for a metric that no longer exists
+    # sends ../continuous chasing a series that will never appear.
+    known = _registry_family_names(met)
+    documented = set(re.findall(r"\bst_[a-z0-9_]+", doc))
+    stale = sorted(n for n in documented if n not in known)
+    assert not stale, f"contract documents metrics that do not exist: {stale}"
+
+
 def test_outcome_enum_excludes_timeout(monkeypatch):
     """Ratified amendment (spec §5, 2026-08-03): a timeout is a waiter-side budget
     breach counted by wait_expired_total; the job that follows it reaches the
