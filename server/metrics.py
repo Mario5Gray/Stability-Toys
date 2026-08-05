@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 QUEUE_WAIT_BUCKETS = (0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600, 900)
 EXECUTION_BUCKETS = (0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600)
 MODE_LOAD_BUCKETS = (1, 2, 5, 10, 20, 30, 60, 120, 300)
+# /health answers in single-digit ms, /generate runs for minutes - one histogram
+# spans both. prometheus_client's DEFAULT_BUCKETS stop at 10s.
+HTTP_DURATION_BUCKETS = (
+    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600
+)
 
 _PLAIN_TEXT = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -161,6 +166,39 @@ class Metrics:
             "consumer fan-out timeout (i.e. a consumer is not answering)",
             ["device_uuid"], registry=r)
 
+        # --- HTTP (STABL-xmsrxvto) ---
+        self.http_requests_total = C(
+            "st_http_requests_total",
+            "HTTP requests by method, route and status",
+            ["method", "route", "status"],
+            registry=r,
+        )
+        self.http_request_duration_seconds = H(
+            "st_http_request_duration_seconds",
+            "HTTP request duration",
+            ["method", "route"],
+            buckets=HTTP_DURATION_BUCKETS,
+            registry=r,
+        )
+
+        # --- WebSocket (STABL-xmsrxvto) ---
+        self.ws_connections_active = G(
+            "st_ws_connections_active",
+            "Currently connected WebSocket clients",
+            registry=r,
+        )
+        self.ws_sessions_total = C(
+            "st_ws_sessions_total",
+            "WebSocket sessions accepted",
+            registry=r,
+        )
+        self.ws_messages_total = C(
+            "st_ws_messages_total",
+            "WebSocket messages by type and direction",
+            ["type", "direction"],
+            registry=r,
+        )
+
     def _declare_noop(self):
         for name in (
             "queue_depth", "jobs_in_flight", "job_queue_wait_seconds",
@@ -170,7 +208,9 @@ class Metrics:
             "resolution_epoch", "device_total_bytes", "device_free_bytes",
             "device_used_bytes", "device_unattributed_bytes",
             "consumer_reserved_bytes", "consumer_allocated_bytes",
-            "device_snapshot_stale",
+            "device_snapshot_stale", "http_requests_total",
+            "http_request_duration_seconds", "ws_connections_active",
+            "ws_sessions_total", "ws_messages_total",
         ):
             setattr(self, name, _NoopMetric())
 
@@ -223,3 +263,17 @@ def reset_metrics() -> None:
     global _metrics
     with _metrics_lock:
         _metrics = None
+
+
+def record(fn) -> None:
+    """Run a metrics side effect that must never reach the caller.
+
+    The facade's no-op objects already make a DISABLED call site inert; this
+    guards the ENABLED one, where a label-cardinality error or a typo'd
+    attribute would otherwise propagate into a request handler or drop a
+    WebSocket connection.
+    """
+    try:
+        fn(get_metrics())
+    except Exception:
+        logger.debug("[Metrics] side effect failed", exc_info=True)
