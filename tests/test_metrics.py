@@ -168,7 +168,8 @@ def test_all_families_carry_the_st_namespace(monkeypatch):
     met.http_request_duration_seconds.labels(method="GET", route="/health").observe(0.01)
     met.ws_connections_active.set(1)
     met.ws_sessions_total.inc()
-    met.ws_messages_total.labels(type="ping", direction="inbound").inc()
+    # "in"/"out" is the vocabulary ws_hub and ws_routes actually emit (Task 3)
+    met.ws_messages_total.labels(type="ping", direction="in").inc()
 
     body, _ = met.render()
     emitted = {
