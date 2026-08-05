@@ -23,6 +23,7 @@ from concurrent.futures import Future, CancelledError
 from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
+from server.metrics import get_metrics
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
@@ -176,6 +177,10 @@ class JobRecord:
     # execution budget. Deliberately NOT `state == "running"`, which is set earlier
     # (before both) and whose transition cancel_job depends on for queued-job cancel.
     executing_since: Optional[float] = None
+    # STABL-asawxgvp: monotonic enqueue time, stamped in _register_job. Paired with
+    # executing_since this splits the two budgets into two observable durations —
+    # queue wait and execution — which nothing could derive before.
+    enqueued_at: Optional[float] = None
 
 
 def _is_oom(exc: BaseException) -> bool:
@@ -196,6 +201,29 @@ def _is_oom(exc: BaseException) -> bool:
     if isinstance(oom_cls, type) and isinstance(exc, oom_cls):
         return True
     return "out of memory" in str(exc).lower()
+
+
+def _terminal_outcome(fut) -> str:
+    """Terminal outcome from a RESOLVED future (STABL-asawxgvp).
+
+    `fut.cancelled()` is checked FIRST because `fut.exception()` raises
+    CancelledError on a cancelled future — the obvious ordering is a bug.
+
+    `timeout` is deliberately NOT an outcome here. A timeout is a waiter-side
+    budget breach raised by `_expire`, counted by `st_governor_wait_expired_total`;
+    what subsequently reaches the dispatch loop for that job is a CANCEL. Counting
+    both would double-count the same job.
+    """
+    if fut.cancelled():
+        return "cancelled"
+    exc = fut.exception()
+    if exc is None:
+        return "ok"
+    if isinstance(exc, CancelledError):
+        return "cancelled"
+    if _is_oom(exc):
+        return "oom"
+    return "error"
 
 
 def _cancel_predicate(record: JobRecord) -> Callable[[], bool]:
@@ -493,12 +521,13 @@ class Governor:
         generate admitted against the reservation carries the epoch this publishes.
         """
         logger.info(f"[Governor] Loading mode: {mode_name}")
+        _load_started = time.monotonic()
         if reservation is None:
             reservation = self._reserve_authority(mode_name)
         mode = reservation.mode
         resolved, binding = reservation.resolved, reservation.binding
 
-        self._unload_current_worker()  # unregister old mode + tear down worker
+        self._unload_current_worker(reason="switch")  # unregister old mode + tear down worker
         with self._job_lock:
             self._active_snapshot = None
 
@@ -550,6 +579,16 @@ class Governor:
 
         logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={reservation.resolution_epoch})")
 
+        # STABL-asawxgvp. Reached only on a SUCCESSFUL load — a load that raises has
+        # no duration to report, and its failure is visible as mode_active staying 0.
+        _epoch = reservation.resolution_epoch
+        self._metric(lambda met: (
+            met.mode_load_seconds.labels(mode=mode_name).observe(
+                time.monotonic() - _load_started),
+            met.resolution_epoch.set(_epoch),
+            self._publish_mode_active(met, mode_name),
+        ))
+
         # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
         self._start_dispatch_thread()
 
@@ -567,6 +606,11 @@ class Governor:
             worker_id=0,
             loras=[lora.path for lora in snapshot.mode.loras],
         )
+        _mode_name = snapshot.mode_name
+        self._metric(lambda met: (
+            met.demand_reload_total.labels(mode=_mode_name).inc(),
+            self._publish_mode_active(met, _mode_name),
+        ))
 
     # --- Snapshot / epoch accessors ---
 
@@ -587,11 +631,71 @@ class Governor:
             with self._job_lock:
                 self._job_records[job.job_id] = JobRecord(
                     job_id=job.job_id, state="queued", job=job,
+                    enqueued_at=time.monotonic(),
                 )
 
     def _finalize_job_record(self, job_id: str):
         with self._job_lock:
-            self._job_records.pop(job_id, None)
+            record = self._job_records.pop(job_id, None)
+        # Observed OUTSIDE _job_lock: the backplane's Subscriber<->lock invariant,
+        # and there is no reason to hold the lock across a metrics write.
+        if record is not None:
+            self._observe_job_terminal(record)
+
+    def _observe_job_terminal(self, record) -> None:
+        """Emit terminal metrics for a finished job (STABL-asawxgvp).
+
+        This is the SINGLE instrumentation point for job terminals: every branch
+        of the dispatch loop — early cancel, in-proc success, post-execute cancel,
+        subprocess terminal, and _deliver_job_failure — funnels through
+        _finalize_job_record, and by then the future is resolved on all of them.
+
+        MUST NOT raise (STABL-hdzggeir): a throw here reaches the dispatch loop's
+        try, kills the thread, and permanently deadens the queue. The whole body
+        is guarded, not just the metric calls — a malformed record must not
+        escape either.
+        """
+        try:
+            fut = record.job.fut
+            if record.enqueued_at is None or not fut.done():
+                return          # e.g. the submit_job queue.Full rollback
+            mode = self._current_mode or "unknown"
+            met = get_metrics()
+            if record.executing_since is not None:
+                met.job_queue_wait_seconds.labels(mode=mode).observe(
+                    max(0.0, record.executing_since - record.enqueued_at))
+                met.job_execution_seconds.labels(mode=mode).observe(
+                    max(0.0, time.monotonic() - record.executing_since))
+            met.job_terminal_total.labels(
+                mode=mode, outcome=_terminal_outcome(fut)).inc()
+        except Exception:
+            logger.debug("[Governor] terminal metrics failed", exc_info=True)
+
+    def _metric(self, fn) -> None:
+        """Run a metrics side effect that must never reach the dispatch loop.
+
+        Every lifecycle counter goes through here rather than growing its own
+        try/except at the call site — one place to be certain about, and the call
+        sites stay one line (STABL-hdzggeir).
+        """
+        try:
+            fn(get_metrics())
+        except Exception:
+            logger.debug("[Governor] metrics side effect failed", exc_info=True)
+
+    def _count_worker_recovery(self, *, oom: bool) -> None:
+        self._metric(lambda met: met.worker_recovery_total.labels(
+            reason="oom" if oom else "dead").inc())
+
+    def _publish_mode_active(self, met, active: Optional[str]) -> None:
+        """0/1 for EVERY configured mode.
+
+        A single gauge labelled with the current mode leaves a stale 1 on the
+        previous mode's series forever. conf/modes.yml holds 4 modes, so
+        reporting all of them is cheap (spec resolved question 3).
+        """
+        for name in self._mode_config.list_modes():
+            met.mode_active.labels(mode=name).set(1 if name == active else 0)
 
     def _get_job_record(self, job_id: str) -> Optional[JobRecord]:
         with self._job_lock:
@@ -718,6 +822,10 @@ class Governor:
         the queue entirely, so the work is never done at all."""
         knob = "ADMISSION_TIMEOUT_S" if budget == "admission" else "DEFAULT_TIMEOUT"
         who = f"job {record.job_id}" if record is not None else "job"
+        # STABL-asawxgvp: a timeout is a WAITER-side budget breach, counted here and
+        # deliberately not as a job_terminal_total outcome — what reaches the
+        # dispatch loop for this job afterwards is a cancel.
+        self._metric(lambda met: met.wait_expired_total.labels(budget=budget).inc())
         if record is not None:
             self.cancel_job(record.job_id)
         raise TimeoutError(
@@ -777,20 +885,37 @@ class Governor:
         except Exception:
             return self._handle.worker is not None
 
-    def _unload_current_worker(self) -> None:
+    def _unload_current_worker(self, reason: str = "explicit") -> None:
         """Unload the current worker. Registry-unregister is Governor authority
         (mirrors WorkerPool._unload_current_worker:322); worker + ControlNet-cache
         teardown is delegated to the handle. Guarded on worker-presence like the
-        original, so a no-worker pool still clears the cache without unregistering."""
-        if self._worker_available() and self._current_mode:
-            self._registry.unregister_model(self._current_mode)
+        original, so a no-worker pool still clears the cache without unregistering.
+
+        `reason` labels st_governor_unload_total (STABL-asawxgvp). It is a parameter
+        rather than a constant because the five callers are operationally distinct —
+        a mode switch, an idle eviction and an OOM cleanup are not the same event,
+        and a hardcoded label would make the dimension dead weight.
+        """
+        mode = self._current_mode
+        if self._worker_available() and mode:
+            self._registry.unregister_model(mode)
         self._handle.unload()
+        # Only when something was actually loaded: _load_mode unloads before every
+        # load, and the first-ever load has no outgoing mode to report churn for.
+        if mode:
+            self._metric(lambda met: (
+                met.unload_total.labels(mode=mode, reason=reason).inc(),
+                # Nothing is loaded now. _load_mode calls this before every load and
+                # republishes the new mode on success, so a switch reads 0 -> 1 and a
+                # failed load correctly leaves every mode at 0.
+                self._publish_mode_active(met, None),
+            ))
 
     def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
         cancelled = self.cancel_pending_generation_jobs(reason=reason)
         if cancel_running:
             cancelled.extend(self._mark_running_generation_jobs_cancel_requested(reason=reason))
-        self._unload_current_worker()
+        self._unload_current_worker(reason=reason)
         gc.collect()
         self._dm.reclaim()  # soft pool-trim of LIVE consumers; teardown already flushed inline
         return cancelled
@@ -859,7 +984,7 @@ class Governor:
         if not self._worker_available():
             return {"status": "skipped", "reason": "already_unloaded"}
         logger.info(f"[Governor] Evicting idle model '{self._current_mode}'")
-        self._unload_current_worker()
+        self._unload_current_worker(reason="idle_evict")
         return {"status": "evicted"}
 
     # --- Dispatch loop (verbatim _worker_loop with self._worker -> self._handle.worker) ---
@@ -1019,6 +1144,7 @@ class Governor:
                                     "[Governor] Subprocess needs recovery "
                                     f"(oom={oom}, alive={self._worker_available()}); kill+respawn"
                                 )
+                                self._count_worker_recovery(oom=oom)
                                 if self._current_mode:
                                     self._registry.unregister_model(self._current_mode)  # idempotent; recon #4 dirty-death complement
                                 self._handle.stop()                     # kills the poisoned-but-alive OR already-dead process
@@ -1215,7 +1341,13 @@ class Governor:
                 f"[Governor] Mode switch queued: {mode_name} "
                 f"(epoch={reservation.resolution_epoch})"
             )
-            return job.fut
+        # Counted OUTSIDE the critical section (STABL-asawxgvp). Moving the return
+        # past the `with` is behaviour-preserving — nothing else sits between — and
+        # keeps a metrics write out of the one lock the dispatch loop contends on.
+        # Labelled by TARGET only: a {from,to} pair squares the cardinality to buy a
+        # transition matrix nobody asked for.
+        self._metric(lambda met: met.mode_switch_total.labels(mode=mode_name).inc())
+        return job.fut
 
     def admit_generation(self, target_mode: Optional[str]) -> Optional[ActiveModelSnapshot]:
         """The authority a generate admitted NOW will execute against (spec §3.4).
@@ -1292,5 +1424,5 @@ class Governor:
             self._worker_thread.join(timeout=5.0)
         if hasattr(self, '_watchdog_thread') and self._watchdog_thread and self._watchdog_thread.is_alive():
             self._watchdog_thread.join(timeout=5.0)
-        self._unload_current_worker()
+        self._unload_current_worker(reason="shutdown")
         logger.info("[Governor] Shutdown complete")

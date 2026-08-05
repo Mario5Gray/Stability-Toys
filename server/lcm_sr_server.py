@@ -96,6 +96,8 @@ from server.advisor_routes import router as advisor_router
 from server.telemetry_routes import router as telemetry_router
 from server.workflow_routes import router as workflow_router
 from server.keymap_routes import router as keymap_router
+from server.metrics_routes import router as metrics_router, build_runtime_stats_fn
+from server.metrics_sampler import MetricsSampler
 from server.file_watcher import start_config_watcher, stop_config_watcher
 from server.generation_constraints import finalize_mode_generate_request
 from backends.platform_registry import get_backend_provider
@@ -459,12 +461,36 @@ async def lifespan(app: FastAPI):
     status_broadcast_task = asyncio.create_task(_status_broadcaster(app))
     logger.info("WebSocket hub, upload cleanup, and status broadcaster started")
 
+    # STABL-asawxgvp: the sampler owns ALL DeviceMemory fan-out. It is inert unless
+    # METRICS_ENABLED is set (start() returns without spawning a thread).
+    #
+    # The pool is READ from app.state — deliberately not get_worker_pool(), which is
+    # a CONSTRUCTING singleton accessor and would build a worker (loading a model)
+    # just to read a queue depth on a backend that has none.
+    def _device_snapshot():
+        from backends.device_memory import get_device_memory
+        return get_device_memory().snapshot()
+
+    app.state.metrics_sampler = MetricsSampler(
+        snapshot_fn=_device_snapshot,
+        runtime_stats_fn=build_runtime_stats_fn(
+            lambda: getattr(app.state, "worker_pool", None)),
+    )
+    app.state.metrics_sampler.start()
+
     logger.info("Server startup complete")
     yield
 
     # Cancel background tasks
     upload_cleanup_task.cancel()
     status_broadcast_task.cancel()
+
+    sampler = getattr(app.state, "metrics_sampler", None)
+    if sampler is not None:
+        try:
+            sampler.stop()
+        except Exception as e:
+            logger.error(f"Error stopping metrics sampler: {e}", exc_info=True)
 
     # shutdown
     logger.info("Starting server shutdown...")
@@ -946,6 +972,14 @@ def storage_get(key: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+# STABL-asawxgvp: /metrics MUST be registered here, before the UI static mount
+# further down. app.mount("/", StaticFiles(...)) matches every path and Starlette
+# matches routes in registration order, so anything registered after it is
+# unreachable whenever the UI dist is present. That is true in the deployed image
+# and false on a dev box (no ui-dist -> mount skipped), so moving this line below
+# the mount fails ONLY in production.
+app.include_router(metrics_router)
 
 # OpenAI compatible endpoint
 CompatEndpoints(app=app, run_generate=_run_generate_from_dict).mount()
