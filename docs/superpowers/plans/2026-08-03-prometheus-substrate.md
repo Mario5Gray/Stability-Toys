@@ -1633,7 +1633,7 @@ next: Task 7 observability contract doc"
 - Consumes: the family names from Task 2.
 - Produces: the document `../continuous` reads to write scrape config and dashboards.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/test_metrics.py`:
 
@@ -1656,12 +1656,12 @@ def test_every_family_is_documented_in_the_contract(monkeypatch):
     assert not missing, f"undocumented metric families: {missing}"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_metrics.py::test_every_family_is_documented_in_the_contract -v`
 Expected: FAIL — `FileNotFoundError: docs/observability-contract.md`
 
-- [ ] **Step 3: Write the contract doc**
+- [x] **Step 3: Write the contract doc**
 
 ```markdown
 # Observability contract — metrics exported by Stability-Toys
@@ -1762,12 +1762,12 @@ compatible; renames and label changes are breaking and must be announced to
 it appears in this document.
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_metrics.py -v`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Check drift bindings**
+- [x] **Step 5: Check drift bindings**
 
 Run: `drift refs docs/observability-contract.md && drift check`
 
@@ -1775,7 +1775,7 @@ The new doc has no anchors, so it binds nothing. `drift check` currently reports
 pre-existing stale anchors** repo-wide and exits 1 — that is unrelated to this work
 (tracked separately). Confirm the count did not grow.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/observability-contract.md tests/test_metrics.py
@@ -1793,13 +1793,13 @@ next: FP comment + drift check, then STABL-xmsrxvto (HTTP/WS metrics)"
 
 ## Closeout
 
-- [ ] **Run the full suite and record the numbers**
+- [x] **Run the full suite and record the numbers**
 
 ```bash
 conda activate stability-toys && python -m pytest tests/ -q 2>&1 | tail -5
 ```
 
-- [ ] **Update FP**
+- [x] **Update FP**
 
 ```bash
 fp issue assign STABL-asawxgvp --rev <sha>
@@ -1817,7 +1817,7 @@ into the spec — they are settled, not open, and the comment should record them
    from the scrape target. `hostname` remains a structured-log field under
    `STABL-bpsfmoke`.
 
-- [ ] **Report ready for review.** Do not self-advance waveplan state or call `fin`.
+- [x] **Report ready for review.** Do not self-advance waveplan state or call `fin`.
 
 ---
 
