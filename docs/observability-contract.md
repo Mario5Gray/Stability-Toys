@@ -120,6 +120,65 @@ alerting on where `topology=DISCRETE`.
 first pass; a scrape in the first moments of startup, or one taken while metrics
 were just enabled, legitimately shows none.
 
+## HTTP and WebSocket families
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `st_http_requests_total` | counter | `method`, `route`, `status` | HTTP requests |
+| `st_http_request_duration_seconds` | histogram | `method`, `route` | request duration |
+| `st_ws_connections_active` | gauge | — | currently connected WS clients |
+| `st_ws_sessions_total` | counter | — | WS sessions accepted |
+| `st_ws_messages_total` | counter | `type`, `direction` | WS messages, `in` / `out` |
+
+**`route` is the matched route TEMPLATE, never the raw path.** `/api/models/SDXL`
+and `/api/models/HunyuanDiT` are one series, `/api/models/{name}`. A request that
+matched no route is `route="__unmatched__"` — do not expect literal paths there,
+and do not add them: that is the unbounded set a scanner probes.
+
+**`/metrics` counts itself, one scrape behind.** The counter increments after the
+response body has been rendered, so scrape N reports N−1 scrapes and the first
+scrape after a restart shows no `route="/metrics"` series at all. That is not a
+lost request. Expect a baseline request rate equal to the scrape interval once
+steady.
+
+**An unhandled server exception is counted as `status="500"`.** The request
+happened; dropping it would hide exactly the traffic being investigated.
+
+**WebSocket upgrades are not HTTP requests here.** They have no status, so they
+appear only in the WebSocket families above — a WS-heavy deployment will show a
+low HTTP request rate and that is correct.
+
+**`st_ws_messages_total{direction="in"}` has a bounded `type`.** Values are the
+server's own handler names plus exactly two fallbacks: `unknown` (a type the
+server has no handler for) and `invalid_json` (a payload that did not parse). The
+client controls that field, so its raw value never reaches a label. The two
+fallbacks are deliberately distinct — a broken client and a client asking for
+something that does not exist are different operational events.
+
+**`st_ws_messages_total{direction="out"}` counts per RECIPIENT**, not per
+broadcast call: the status broadcaster fans one message out to every client every
+5s, and the per-recipient number is the one that reflects actual socket writes.
+Both directions count *delivered* messages — a send that raised is not counted.
+
+**`st_ws_connections_active` is set from the hub's own client count**, so it
+cannot drift out of step with `st_ws_sessions_total` minus disconnects.
+
+## A note on `_created` series
+
+`prometheus_client` emits a companion gauge for every counter in this document,
+named by replacing the counter's `_total` suffix with `_created` and carrying the
+Unix timestamp at which that child series was first observed.
+
+These are a client-library artifact, not part of this contract: they are not
+listed above, they carry no operational meaning here, and dashboards should
+ignore them. Setting `PROMETHEUS_DISABLE_CREATED_SERIES=1` suppresses them
+globally — verified against `prometheus_client==0.21.1`, where it took a sample
+render from three such series to zero.
+
+(This section deliberately names no example series. The contract test checks both
+directions, so any `st_`-prefixed token appearing in this file must be a real
+metric family — naming one of these as an illustration would fail the build.)
+
 ## Stability
 
 Metric names and label sets are a stable interface. Additions are compatible;
