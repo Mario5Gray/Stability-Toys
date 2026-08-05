@@ -85,7 +85,7 @@ middleware should not be the thing that prevents adding one.
   `.ws_connections_active`, `.ws_sessions_total`, `.ws_messages_total`;
   module-level `record(fn) -> None`; `HTTP_DURATION_BUCKETS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/test_metrics.py` — extend the existing `_ALL_FAMILIES` list:
 
@@ -144,13 +144,13 @@ def test_record_swallows_anything():
     m.record(lambda met: met.nope.labels(x=1))  # returns normally
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_metrics.py -q`
 Expected: FAIL — `AttributeError` on the five new names, and
 `AttributeError: module 'server.metrics' has no attribute 'record'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `server/metrics.py`, add the bucket constant beside the existing ones:
 
@@ -209,14 +209,14 @@ def record(fn) -> None:
         logger.debug("[Metrics] side effect failed", exc_info=True)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics.py -q`
 Expected: all pass **except** `test_every_family_is_documented_in_the_contract`, which
 fails until Task 4 — the contract test is bidirectional and the five new families have no
 doc entries yet. That is the intended RED for Task 4; do not weaken the test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/metrics.py tests/test_metrics.py
@@ -245,7 +245,7 @@ next: Task 2 HTTP middleware"
 - Consumes: `get_metrics()`, `record()` from Task 1.
 - Produces: `MetricsMiddleware(app)` — a pure ASGI callable; `route_label(scope) -> str`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_metrics_http.py
@@ -386,12 +386,12 @@ def test_route_label_helper():
     assert route_label({}) == "__unmatched__"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics_http.py -q`
 Expected: FAIL — `ModuleNotFoundError: No module named 'server.metrics_middleware'`.
 
-- [ ] **Step 3: Implement the middleware**
+- [x] **Step 3: Implement the middleware**
 
 ```python
 # server/metrics_middleware.py
@@ -461,7 +461,7 @@ class MetricsMiddleware:
             ))
 ```
 
-- [ ] **Step 4: Wire it into the app**
+- [x] **Step 4: Wire it into the app**
 
 In `server/lcm_sr_server.py`, add to the imports beside the other metrics imports:
 
@@ -478,12 +478,12 @@ and add it next to the CORS middleware (around `:1016`):
 app.add_middleware(MetricsMiddleware)
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics_http.py -q`
 Expected: ALL PASS.
 
-- [ ] **Step 6: Verify against the real app**
+- [x] **Step 6: Verify against the real app**
 
 ```bash
 conda activate stability-toys
@@ -513,7 +513,7 @@ scrape 2: st_http_requests_total{method="GET",route="/metrics",status="200"} 1.0
 rather than "the scrape counts itself", which would have an operator reading the first
 scrape after a restart as a lost request.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/metrics_middleware.py server/lcm_sr_server.py tests/test_metrics_http.py
@@ -545,7 +545,7 @@ next: Task 3 WebSocket metrics"
 - Produces: no new public symbols — instrumentation only. `ws_routes` gains a
   module-level `_inbound_type(raw_type) -> str`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_metrics_ws.py
@@ -686,12 +686,12 @@ No asyncio marker is needed: `pytest.ini:44` sets `asyncio_mode = auto` (and `:2
 `--asyncio-mode=auto`), so bare `async def test_*` functions run as-is.
 `pytest-asyncio>=0.21.0` is already in `requirements-test.txt`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics_ws.py -q`
 Expected: FAIL — `ImportError: cannot import name '_inbound_type'`.
 
-- [ ] **Step 3: Instrument the hub**
+- [x] **Step 3: Instrument the hub**
 
 In `server/ws_hub.py`, add the import:
 
@@ -760,7 +760,7 @@ def _count_out(msg: dict) -> None:
         type=msg_type, direction="out").inc())
 ```
 
-- [ ] **Step 4: Instrument inbound in the message loop**
+- [x] **Step 4: Instrument inbound in the message loop**
 
 In `server/ws_routes.py`, add near `HANDLERS`:
 
@@ -831,18 +831,18 @@ def _count_in(raw_type) -> None:
 
 and `from server.metrics import record` added to the imports.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics_ws.py -q`
 Expected: ALL PASS.
 
-- [ ] **Step 6: Run the WS regression suite**
+- [x] **Step 6: Run the WS regression suite**
 
 Run: `python -m pytest tests/test_ws_hub.py tests/test_ws_routes.py tests/test_ws_build_generate_request.py -q`
 Expected: no new failures. `test_ws_hub.py` is the one most likely to notice — it
 constructs `WSHub` directly, which now emits metrics on connect/disconnect.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/ws_hub.py server/ws_routes.py tests/test_metrics_ws.py
@@ -875,13 +875,13 @@ next: Task 4 contract doc"
 - Consumes: the family names from Task 1.
 - Produces: the doc entries `../continuous` reads.
 
-- [ ] **Step 1: Confirm the contract test is currently RED**
+- [x] **Step 1: Confirm the contract test is currently RED**
 
 Run: `python -m pytest tests/test_metrics.py::test_every_family_is_documented_in_the_contract -q`
 Expected: FAIL listing the five undocumented families. This has been red since Task 1 —
 it is the task's own RED, not a regression.
 
-- [ ] **Step 2: Add the entries**
+- [x] **Step 2: Add the entries**
 
 Append to `docs/observability-contract.md`, after the DeviceMemory section:
 
@@ -922,12 +922,12 @@ broadcast call: `_status_broadcaster` fans one message out to every client every
 5s, and the per-recipient number is the one that reflects actual socket writes.
 ```
 
-- [ ] **Step 3: Run the contract test to verify it passes**
+- [x] **Step 3: Run the contract test to verify it passes**
 
 Run: `python -m pytest tests/test_metrics.py -q`
 Expected: ALL PASS, including both directions of the contract check.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/observability-contract.md
@@ -946,7 +946,7 @@ next: closeout"
 
 ## Closeout
 
-- [ ] **Run the full suite and record the numbers**
+- [x] **Run the full suite and record the numbers**
 
 ```bash
 conda activate stability-toys && python -m pytest tests/ -q 2>&1 | tail -3
@@ -954,7 +954,7 @@ conda activate stability-toys && python -m pytest tests/ -q 2>&1 | tail -3
 
 Baseline before this issue: **1265 passed, 9 skipped, 1 xfailed**.
 
-- [ ] **Check drift**
+- [x] **Check drift**
 
 ```bash
 drift refs server/lcm_sr_server.py && drift check
@@ -965,7 +965,7 @@ Editing `lcm_sr_server.py`, `ws_routes.py` and `ws_hub.py` will stale their boun
 accurate; update prose first where it is not. Baseline: 24 stale, none attributable to
 the metrics work.
 
-- [ ] **Update FP**
+- [x] **Update FP**
 
 ```bash
 fp issue assign STABL-xmsrxvto --rev <sha>   # per commit, in order — see below
@@ -976,7 +976,7 @@ fp comment STABL-xmsrxvto "<what landed / decisions / next step>"
 baseline from the first-listed revision, so back-filling earlier commits after the tip
 inverts the range and the diff silently reports no changes.
 
-- [ ] **Report ready for review.** Do not self-advance state or call `fin`.
+- [x] **Report ready for review.** Do not self-advance state or call `fin`.
 
 ---
 
