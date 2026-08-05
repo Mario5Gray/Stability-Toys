@@ -498,8 +498,20 @@ for l in body.splitlines():
 "
 ```
 
-Expected: a `/health` series with value 2, an `__unmatched__` series with value 1, and a
-`/metrics` series — the scrape counts itself, which is correct and intentional.
+Expected: a `/health` series with value 2 and an `__unmatched__` series with value 1.
+
+**Corrected during execution — there is NO `/metrics` series on the first scrape.** The
+counter increments in the middleware's `finally`, which runs after the response body has
+already been rendered, so scrape N reports N−1 scrapes. Verified:
+
+```text
+scrape 1: (no /metrics series)
+scrape 2: st_http_requests_total{method="GET",route="/metrics",status="200"} 1.0
+```
+
+`/metrics` does count itself, one scrape behind. Task 4's contract entry must say that
+rather than "the scrape counts itself", which would have an operator reading the first
+scrape after a restart as a lost request.
 
 - [ ] **Step 7: Commit**
 
