@@ -185,6 +185,83 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### Prometheus substrate — first observability pillar — merged (PR #48)
+
+**FP:** STABL-asawxgvp (done) — first child of umbrella **STABL-oxbwjwvu**
+**Merge:** `dd633e6` (PR #48, `feat/asawxgvp-prometheus-substrate` → `main`)
+**Spec:** `docs/superpowers/specs/2026-08-03-server-observability-seams-design.md`
+**Plan:** `docs/superpowers/plans/2026-08-03-prometheus-substrate.md`
+**Contract:** `docs/observability-contract.md` ← what `../continuous` consumes
+
+The server now exports metrics. `server/metrics.py` (facade + gate + 20 families),
+`server/metrics_sampler.py` (the only thing that fans out), `server/metrics_routes.py`
+(`/metrics` + runtime-stats adapter), Governor instrumentation, 103 new tests.
+**Inert by default:** `METRICS_ENABLED` unset → 404, no sampler thread, no-op metric
+objects at every call site. Suite 1265 passed (baseline 1183).
+
+Three decisions worth carrying:
+
+- **The gate lives INSIDE the facade.** Disabled returns `_NoopMetric` whose `labels()`
+  returns self, so ~30 instrumentation sites carry no branches. `if enabled:` at each
+  site puts a live boolean in hot paths that drift apart the first time someone adds one.
+- **The scrape path NEVER fans out.** `DeviceMemory.snapshot()` round-trips every
+  consumer, and under subprocess isolation that is a control-pipe request/reply. A
+  sampler thread owns the cadence; `/metrics` renders memory only. Ten scrapers cost
+  the same as one, and no blocking round-trip sits in an ASGI handler — the starvation
+  shape that already makes `/status` time out during a job.
+- **Job terminals are derived at ONE choke point.** Every dispatch-loop terminal branch
+  funnels through `_finalize_job_record` with the future already resolved, so the
+  outcome is read there rather than passed from five sites inside the loop's `try`.
+  New `JobRecord.enqueued_at` — `executing_since` existed, the enqueue stamp did not,
+  so queue wait was not derivable at all.
+
+Traps worth carrying to the next pillar:
+
+- **`/metrics` MUST be registered before `app.mount("/", StaticFiles)`**
+  (`lcm_sr_server.py:982` vs `:1008`). That mount matches every path and Starlette
+  routes in registration order. **Invisible on a dev box** — no `ui-dist`, mount
+  skipped — and 404s only in the deployed image.
+- **`fut.exception()` RAISES on a cancelled future**, so `_terminal_outcome` checks
+  `cancelled()` first. Not hypothetical: `cancel_pending_generation_jobs` calls
+  `fut.cancel()` on queued jobs (`governor.py:683`).
+- **`pid` looks like a bounded label and is not** — the subprocess handle mints a new
+  one per kill+respawn, leaking a dead series per recovery. Excluded alongside
+  `job_id` (unbounded) and `hostname` (Prometheus supplies `instance` from the target).
+- **Prometheus default buckets stop at 10s**, which bins every real generation and
+  mode load into `+Inf`. Explicit buckets per histogram.
+- **`prometheus_client` strips `_total` from Counter family names** in `collect()`.
+- **`Mock` is the wrong double wherever production branches on `getattr(x, name, default)`** —
+  it auto-creates the attribute, so a negative test can pass without exercising anything.
+  Cost a test that was green for the wrong reason.
+- **`get_worker_pool()` CONSTRUCTS a pool** (loading a model). Never call it to read
+  state; read `app.state.worker_pool`.
+- **`_publish_mode_active` iterates `mode_config.list_modes()`**, and most Governor
+  tests supply a `Mock` whose `list_modes()` is not iterable. Production survives only
+  because the call sits inside `Governor._metric`. That guard is load-bearing — anyone
+  adding a metrics call to `governor.py` outside `_metric` will find out the hard way.
+
+**Two spec amendments, ratified at review.** `timeout` is NOT a terminal outcome — it is
+a waiter-side budget breach counted by `st_governor_wait_expired_total{budget}`, and the
+job that follows reaches the dispatch loop as a *cancel*; counting both double-counts.
+And no `hostname` label, per above.
+
+**Method note.** Four of the seven planned tasks contained defects that only surfaced in
+execution: a disabled sampler that still fanned out, a non-positive interval that spun at
+~62k control-pipe round-trips/sec (`Event.wait(0)` returns immediately — measured 12,472
+samples in 0.2s), a sampler wired to the model-loading singleton accessor, and a contract
+test that checked 3 of 20 families because it read a *rendered body* rather than the
+registry. Each was fixed with a test and the plan doc patched so a re-run does not
+reproduce them. **A plan is a hypothesis, not a specification.**
+
+Remaining umbrella children, all unblocked by this: **`STABL-xmsrxvto`** (HTTP/WS
+metrics — depends on this facade; label on the matched route template, never
+`request.url.path`), **`STABL-cxbwwgly`** (leaked sem/shm/fd gauges — sibling, sample
+INSIDE the container), **`STABL-bpsfmoke`** (structured logging — must also cover
+`_worker_main` in the spawned child and the materialised `/app/logging_config.json` dev
+path; `job_id` needs a contextvar RESET per dispatch-loop iteration), **`STABL-qnlaclof`**
+(tracing — `OTEL_PROXY_ENDPOINT` is a full `/v1/traces` path for the browser proxy and
+cannot be reused by an SDK exporter).
+
 ### Per-process VRAM attribution — PROVEN (PR #36 + #41)
 
 **FP:** STABL-xtkhoidu (in-progress — acceptance 2 open by design)
