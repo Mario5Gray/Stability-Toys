@@ -32,7 +32,6 @@
 | `server/logging_config.py` *(modify)* | Formatters become `"()"` factory references to `StabilityFormatter`. |
 | `backends/governor.py` *(modify)* | Bind `job_id` per dispatch-loop iteration; publish `mode` on load/unload. |
 | `server/ws_routes.py` *(modify)* | Clear `job_id` per inbound message; set it where the id is minted. |
-| `server/compat_endpoints.py` *(modify)* | Bind `job_id` on the HTTP generate path. |
 | `backends/worker_handle_subprocess.py` *(modify)* | `_worker_main` applies `LOGGING_CONFIG` before anything heavy is imported. |
 | `server/lcm_sr_server.py`, `server/superres_service.py`, `backends/cuda_worker.py`, `backends/rknnlcm.py` *(modify)* | `print()` → `logger`. |
 | `docs/observability-contract.md` *(modify)* | The log field set — the cross-repo half of this work. |
@@ -983,19 +982,30 @@ git commit -m "feat(logging): bind job_id per dispatch iteration, publish mode (
 - Modify: `server/ws_routes.py` (the message loop's handler invocation at `:902`; `handle_job_submit` `:227` and `:320`)
 - Test: `tests/test_ws_log_context.py` *(create)*
 
-### The HTTP compat path is out of reach, by prior design
+### Every HTTP generation path is out of reach, by prior design
 
-`_run_generate_from_dict` (`server/lcm_sr_server.py:883`) never holds a job id.
-`runtime.submit_generate(req)` returns **only a future** — that is deliberate and
-load-bearing: `STABL-atzqpcte` established that the waiter keys on *future identity*,
-not job id, precisely because an id-keyed API fixes WebSocket and silently leaves
-HTTP broken.
+Not just the compat endpoints — **both** HTTP entry points have the same shape, and
+the limitation is structural rather than an oversight in either one:
 
-So binding `job_id` there would mean adding an id to the runtime's return, which is
-an API change with its own review, not a logging change. **Do not do it in this
-task.** The dispatch-thread lines for an HTTP-submitted job still carry the id the
-Governor minted (Task 3); what is missing is correlation on the HTTP *handler's own*
-lines. Stated in the contract doc as a known gap rather than left to be discovered.
+| Handler | Submits | Waits | Logs without an id |
+|---|---|---|---|
+| `POST /generate` | `lcm_sr_server.py:678` / `:682` | `:699` | `:701` `logger.error("Generate endpoint failed: ...")` |
+| compat runner `_run_generate_from_dict` | `:900` / `:902` | `:905` | anything it raises through |
+
+`runtime.submit_generate(req)` returns **only a future** in both. That is deliberate
+and load-bearing: `STABL-atzqpcte` established that the waiter keys on *future
+identity*, not job id, precisely because an id-keyed API fixes WebSocket and silently
+leaves HTTP broken. The comment at `lcm_sr_server.py:696-697` already says so in
+place.
+
+Binding `job_id` on either path means adding an id to the runtime's return — an API
+change with its own review, not a logging change. **Do not do it in this task.** The
+dispatch-thread lines for an HTTP-submitted job still carry the id the Governor
+minted (Task 3); what is missing is correlation on the HTTP *handlers' own* lines.
+
+This is stated in the contract doc as a known gap covering **both** paths. Scoping it
+to "the compat endpoints" would understate it, and an operator seeing no `job_id` on
+a `/generate` failure line would read a documented limitation as a regression.
 
 **Interfaces:**
 - Consumes: `server.log_context.job_id_var`, `server.log_context.bind_job_id`.
@@ -1456,17 +1466,24 @@ them.
 | `hostname` | yes | Deliberately a log field and NOT a metric label — see the label policy above |
 | `mode` | while a mode is resident | Active mode name. Absent when nothing is loaded |
 | `device_uuid` | when a device is resolved | Stable GPU identity |
-| `job_id` | during a job | Correlation id. Present on the WebSocket handler AND on the dispatch-thread lines for the same job. **Known gap:** the HTTP compat endpoints' own handler lines have no `job_id` — that path never holds one (see below) |
+| `job_id` | during a job | Correlation id. Present on the WebSocket handler AND on the dispatch-thread lines for the same job. **Known gap:** no HTTP handler line carries it — see below |
 | `exception` | on a failing record | Formatted traceback |
 | `stack` | on `stack_info=True` | Formatted stack |
 
 Any field a caller attaches via `logging`'s `extra=` appears alongside these.
 
-**The HTTP compat endpoints are a known gap.** `_run_generate_from_dict` never holds a
-job id: `submit_generate()` returns only a future, deliberately (`STABL-atzqpcte` — an
-id-keyed waiter API fixes WebSocket and silently leaves HTTP broken). The generation's
-own dispatch-thread lines still carry the id; the HTTP handler's do not. Closing this
-needs an API change, not a formatter change.
+**No HTTP handler line carries `job_id`. This is a documented limitation, not a
+regression.** It applies to **both** HTTP generation paths — `POST /generate` and the
+compat endpoints' runner — and for the same reason: `submit_generate()` returns only a
+future, deliberately (`STABL-atzqpcte` — an id-keyed waiter API fixes WebSocket and
+silently leaves HTTP broken). So a `/generate` failure line has no `job_id` by design.
+
+The generation's own **dispatch-thread** lines still carry the id, so the work is
+correlatable; what is not correlatable is the HTTP request that asked for it. Closing
+this needs a runtime API change, not a formatter change.
+
+Correlate a WebSocket job end to end; for an HTTP request, correlate by time and mode
+against the dispatch-thread lines.
 
 **`job_id` correlation spans two threads.** The WS handler runs on the event loop and
 the generation runs on the Governor's dispatch thread; contextvars do not cross that
@@ -1542,7 +1559,7 @@ fp comment STABL-bpsfmoke "STOP: ... NEXT: ... DECIDED: ..."
 |---|---|
 | Runtime `LOG_LEVEL` on the dev path | Same build-time-materialisation problem the formatter solves, but `level` is a plain value in the dict with no factory hook. `dictConfig` has no env interpolation. Needs its own decision — a `()` filter, or an entrypoint that regenerates the file. |
 | `server/lcm_sr_server.py:1032`'s `from logging_config import LOGGING_CONFIG` | Missing the `server.` prefix, so `python server/lcm_sr_server.py` would `ImportError`. Dead path (the dev CMD imports the app; prod uses `run.py`), pre-existing, and fixing it is not a logging-format change. File separately if it matters. |
-| `job_id` on the HTTP compat handler's own lines | `submit_generate()` returns only a future by design (`STABL-atzqpcte`). Needs a runtime API change with its own review. Documented as a known gap in the contract. |
+| `job_id` on HTTP handler lines — **both** `POST /generate` and the compat runner | `submit_generate()` returns only a future by design (`STABL-atzqpcte`). Needs a runtime API change with its own review. Documented as a known gap in the contract, scoped to both paths so a missing id on `/generate` does not read as a regression. |
 | `server/superres_cli.py` | Out of scope by decision, not by omission. |
 | Promtail / alloy / Grafana | `../continuous` owns log shipping. Explicit non-goal. |
 | Tracing | `STABL-qnlaclof`. |
