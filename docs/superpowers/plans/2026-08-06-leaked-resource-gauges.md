@@ -74,7 +74,7 @@ puts this query in the contract so `../continuous` does not have to derive it.
 - Consumes: stdlib + `psutil`. Imports nothing from `backends/` and nothing from `server/metrics*`.
 - Produces: `ResourceCounts(leaked_semaphores: Optional[int], shm_segments: Optional[int], open_fds: Optional[int])` and `probe_resources(shm_root: str = "/dev/shm") -> ResourceCounts`. `None` means "could not be read here", never `0`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_resource_probe.py
@@ -162,12 +162,12 @@ def test_module_imports_nothing_from_backends_or_metrics():
     assert not any("backends" in ln or "server.metrics" in ln for ln in head)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_resource_probe.py -q`
 Expected: FAIL — `ModuleNotFoundError: No module named 'server.resource_probe'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # server/resource_probe.py
@@ -245,12 +245,12 @@ def probe_resources(shm_root: str = DEFAULT_SHM_ROOT) -> ResourceCounts:
     return ResourceCounts(leaked_semaphores=sems, shm_segments=segments, open_fds=fds)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_resource_probe.py -q`
 Expected: ALL PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/resource_probe.py tests/test_resource_probe.py
@@ -281,7 +281,7 @@ next: Task 2 gauges + sampler wiring"
 - Consumes: `probe_resources`, `ResourceCounts` from Task 1.
 - Produces: `Metrics.process_leaked_semaphores`, `.process_shm_segments`, `.process_open_fds`; `MetricsSampler(..., resource_probe_fn=None)` defaulting to `probe_resources`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Extend `_ALL_FAMILIES` in `tests/test_metrics.py`:
 
@@ -354,13 +354,13 @@ def test_disabled_sampler_never_probes(monkeypatch):
     MetricsSampler(snapshot_fn=_snap, resource_probe_fn=_must_not_run).sample_once()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest tests/test_metrics.py tests/test_metrics_sampler.py -q`
 Expected: FAIL — `AttributeError` on the three new names and `TypeError` on the
 unexpected `resource_probe_fn` keyword.
 
-- [ ] **Step 3: Declare the gauges**
+- [x] **Step 3: Declare the gauges**
 
 In `server/metrics.py` `_declare`, after the WebSocket block:
 
@@ -400,7 +400,7 @@ and add the three names to the `_declare_noop` tuple.
 > question the contract would otherwise answer only in prose — whose counts these
 > are — and leaves room for the deferred worker-side probe.
 
-- [ ] **Step 4: Wire the sampler**
+- [x] **Step 4: Wire the sampler**
 
 In `server/metrics_sampler.py`, import at module top:
 
@@ -452,13 +452,13 @@ and add a third **independently guarded** block at the end of `sample_once`:
 > to get wrong**, and `test_sample_once_writes_resource_gauges` (which passes no
 > `runtime_stats_fn`) is what catches it.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_metrics.py tests/test_metrics_sampler.py -q`
 Expected: all pass **except** `test_every_family_is_documented_in_the_contract`, which
 stays RED until Task 3.
 
-- [ ] **Step 6: Verify against the real app**
+- [x] **Step 6: Verify against the real app**
 
 ```bash
 conda activate stability-toys
@@ -477,7 +477,7 @@ Expected **on this macOS dev box**: `st_process_open_fds` only. The semaphore an
 segment series are **absent**, which is the correct rendering of "no `/dev/shm` here" —
 if you see them at 0, the absent-never-zero rule has been broken.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/metrics.py server/metrics_sampler.py tests/test_metrics.py tests/test_metrics_sampler.py
@@ -506,12 +506,12 @@ next: Task 3 contract doc"
 - Modify: `docs/observability-contract.md`
 - Test: `tests/test_metrics.py` (the existing bidirectional test)
 
-- [ ] **Step 1: Confirm the contract test is RED**
+- [x] **Step 1: Confirm the contract test is RED**
 
 Run: `python -m pytest tests/test_metrics.py::test_every_family_is_documented_in_the_contract -q`
 Expected: FAIL listing the three undocumented families.
 
-- [ ] **Step 2: Add the entries**
+- [x] **Step 2: Add the entries**
 
 Append to `docs/observability-contract.md`, before `## A note on _created series`:
 
@@ -551,7 +551,7 @@ within the container's mount namespace, so the semaphore and segment counts DO
 include anything the worker child created there.
 ```
 
-- [ ] **Step 3: Widen the contract test to accept histogram children**
+- [x] **Step 3: Widen the contract test to accept histogram children**
 
 **Verified before writing this step: the PromQL above FAILS the contract test as it
 stands.** `_registry_family_names()` adds `family.name` plus a `_total` variant for
@@ -602,12 +602,12 @@ def test_the_contract_may_reference_histogram_children(monkeypatch):
     assert "st_governor_mode_load_seconds_created" not in known
 ```
 
-- [ ] **Step 4: Run the contract test**
+- [x] **Step 4: Run the contract test**
 
 Run: `python -m pytest tests/test_metrics.py -q`
 Expected: ALL PASS, both directions.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/observability-contract.md
@@ -625,13 +625,13 @@ next: closeout"
 
 ## Closeout
 
-- [ ] **Run the full suite.** Baseline before this issue: **1302 passed, 9 skipped, 1 xfailed.**
+- [x] **Run the full suite.** Baseline before this issue: **1302 passed, 9 skipped, 1 xfailed.**
 
-- [ ] **Check drift.** `drift refs` the touched files; read each binding's prose BEFORE relinking. Baseline: 18 stale, none attributable to the metrics work.
+- [x] **Check drift.** `drift refs` the touched files; read each binding's prose BEFORE relinking. Baseline: 18 stale, none attributable to the metrics work.
 
-- [ ] **Update FP.** Assign each commit as you make it, in chronological order — `fp issue diff` derives its baseline from the first-listed revision.
+- [x] **Update FP.** Assign each commit as you make it, in chronological order — `fp issue diff` derives its baseline from the first-listed revision.
 
-- [ ] **Report ready for review.** Do not self-advance state or call `fin`.
+- [x] **Report ready for review.** Do not self-advance state or call `fin`.
 
 ---
 
