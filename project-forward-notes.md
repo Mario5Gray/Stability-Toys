@@ -185,6 +185,76 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### Leaked OS resource gauges — the semaphore watch — merged (PR #52)
+
+**FP:** STABL-cxbwwgly (done) — child of **STABL-oxbwjwvu**, built on STABL-asawxgvp
+**Merge:** `ec6075a` (PR #52, `feat/cxbwwgly-leaked-resource-gauges` → `main`)
+**Plan:** `docs/superpowers/plans/2026-08-06-leaked-resource-gauges.md` (21/21 steps)
+**Contract:** `docs/observability-contract.md` — the three families + the leak ratio
+
+`STABL-nstyyrhh` accepted the one-semaphore-per-model-load leak **specifically because
+it is cheap to watch**. This is the watch, so that half of the bargain is no longer
+outstanding. `server/resource_probe.py` (stdlib + psutil) feeds three gauges through the
+existing sampler: `st_process_leaked_semaphores`, `st_process_shm_segments`,
+`st_process_open_fds`, all labelled `process="server"`. Suite 1323 passed (baseline 1302).
+
+**ABSENT, NEVER ZERO — and the label is what makes it possible.** A `0` for leaked
+semaphores on a host with no `/dev/shm` is indistinguishable from a healthy Linux box.
+The plan specified **unlabelled** gauges and was wrong: an unlabelled prometheus `Gauge`
+renders its default `0.0` from declaration, so the rule is unachievable that way. A
+labelled family emits nothing until a child is created. Measured:
+
+```text
+before any set:  bare_g 0.0                    <- renders immediately
+                 (labelled)                    <- nothing
+after set:       lab_g{process="server"} 7.0
+```
+
+The `process` label also answers what the contract would otherwise answer only in prose
+(whose counts these are), matches the DeviceMemory `consumer` vocabulary, and leaves room
+for the deferred worker-side probe. Live on macOS, where `/dev/shm` does not exist, the
+scrape shows `st_process_open_fds{process="server"}` **and nothing else**.
+
+**Both of the issue's stated requirements are satisfied structurally, not by discipline:**
+
+- *"Sample inside the container"* — putting the probe in `MetricsSampler` satisfies it
+  **by construction**. The sampler thread runs in the server process inside the container;
+  there is no configuration to get wrong and no way to read the host's mount namespace,
+  which is the mistake that cost time in the original investigation.
+- *"Report the trend, not the instant"* — needed no new counter. The contract ships
+  `increase(st_process_leaked_semaphores[1h]) / increase(st_governor_mode_load_seconds_count[1h])`;
+  near 1 reproduces the original finding.
+
+Traps worth carrying:
+
+- **An early `return` in a multi-reader function orphans every reader added after it.**
+  `sample_once`'s `if self._runtime_stats_fn is None: return` would have put the resource
+  block behind "was a runtime stats reader injected?" — true in production, false in most
+  tests. Dead code that looks healthy in the app. Now a guarded branch.
+- **The contract test had to be widened to accept histogram children.**
+  `st_governor_mode_load_seconds_count` failed its reverse direction; `_count` is the
+  normal way to query a histogram, and a contract that cannot name it cannot explain how
+  to use its own histograms. `_created` stays excluded as a client-library artifact.
+- **Import concretely when the layer allows it.** `resource_probe` is imported as a real
+  type rather than structurally mirrored like `_SnapshotLike` — same layer, no
+  import-direction reason to mirror, and a real type cannot drift out of step.
+- **An observability component that hides its own failure is the worst kind.** The probe's
+  outer guards log with `exc_info`, pinned by a test asserting both message and traceback
+  presence — without it, an absent series reads identically whether the source is
+  unavailable or the probe broke.
+
+**Process note worth more than the code.** The suite figure in one commit message and in
+the FP closeout was measured on a tree that predated that very commit's change — the run
+finished, then the code changed, then both were committed together. Corrected to 1323 on
+the real tip. The FP copy mattered more than the commit copy: a stale number in immutable
+history can be spoken to by a later comment, but the issue's audit trail is what a future
+agent reconstructs state from *without re-deriving it*. **Run the suite on the tree you are
+about to summarise, not the tree you had when you started typing.**
+
+**NOT done: fixing the leak.** This is the watch, not the cure. `spikes/sem_creator_trace.py`
+names the owning library in about a minute by patching
+`multiprocessing.synchronize.SemLock.__init__` — the creator was never identified.
+
 ### HTTP + WebSocket metrics — second observability pillar — merged (PR #50)
 
 **FP:** STABL-xmsrxvto (done) — child of **STABL-oxbwjwvu**, built on STABL-asawxgvp
