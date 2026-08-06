@@ -62,7 +62,7 @@ Spec §7.3 lists `server/advisor_service.py` among the in-scope files. **It cont
 - Consumes: nothing.
 - Produces: `job_id_var: ContextVar[Optional[str]]`, `bind_job_id(job_id) -> contextmanager`, `current_job_id() -> Optional[str]`, `set_static_field(name: str, value: Optional[Any]) -> None`, `static_fields() -> Dict[str, Any]`, `refresh_process_fields() -> None`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_log_context.py
@@ -140,12 +140,12 @@ def test_set_static_field_with_None_REMOVES_the_field():
     assert "mode" not in log_context.static_fields()
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `conda activate stability-toys && python -m pytest tests/test_log_context.py -q`
 Expected: collection error — `ModuleNotFoundError: No module named 'server.log_context'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 # server/log_context.py
@@ -237,12 +237,12 @@ def bind_job_id(job_id: Optional[str]) -> Iterator[None]:
 refresh_process_fields()
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `python -m pytest tests/test_log_context.py -q`
 Expected: 8 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/log_context.py tests/test_log_context.py
