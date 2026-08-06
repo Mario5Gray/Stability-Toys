@@ -62,6 +62,22 @@ def test_probe_never_raises(monkeypatch):
     assert counts == ResourceCounts(None, None, None)
 
 
+def test_unexpected_probe_failures_are_debug_logged(monkeypatch, caplog):
+    import logging
+    import server.resource_probe as rp
+
+    monkeypatch.setattr(rp, "_count_shm", lambda root: (_ for _ in ()).throw(OSError("shm nope")))
+    monkeypatch.setattr(rp, "_count_fds", lambda: (_ for _ in ()).throw(OSError("fds nope")))
+
+    with caplog.at_level(logging.DEBUG):
+        counts = probe_resources(shm_root="/definitely/not/here")
+
+    assert counts == ResourceCounts(None, None, None)
+    assert any("[ResourceProbe] shm count failed" in r.message for r in caplog.records)
+    assert any("[ResourceProbe] fd count failed" in r.message for r in caplog.records)
+    assert all(r.exc_info is not None for r in caplog.records if "[ResourceProbe]" in r.message)
+
+
 def test_an_unreadable_shm_root_reports_none(tmp_path, monkeypatch):
     """Permission denied is unreadable, not empty."""
     import server.resource_probe as rp
