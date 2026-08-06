@@ -22,10 +22,21 @@ import threading
 from typing import Callable, Optional, Protocol, Sequence
 
 from server.metrics import get_metrics
+# Imported concretely, not structurally mirrored like _SnapshotLike below:
+# resource_probe is same-layer (server/, stdlib + psutil, no backends), so there
+# is no import-direction reason to mirror it — and a real type cannot drift out
+# of step with the dataclass the way a mirror can.
+from server.resource_probe import ResourceCounts, probe_resources
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_INTERVAL_S = 15.0
+
+# The `process` label value for counts taken in THIS process. Matches the
+# DeviceMemory consumer vocabulary, where "server" is the parent that also hosts
+# superres. A future worker-side probe would add "worker" (deferred — it needs a
+# control-pipe round trip per sample).
+SELF_PROCESS_LABEL = "server"
 
 
 class _ConsumerLike(Protocol):
@@ -96,9 +107,13 @@ class MetricsSampler:
         snapshot_fn: Callable[[], _SnapshotLike],
         runtime_stats_fn: Optional[Callable[[], Optional[dict]]] = None,
         interval_s: Optional[float] = None,
+        resource_probe_fn: Optional[Callable[[], ResourceCounts]] = None,
     ):
         self._snapshot_fn = snapshot_fn
         self._runtime_stats_fn = runtime_stats_fn
+        # Defaults to the real probe: an injectable with no default would sample
+        # nothing in production the day someone forgets to pass it.
+        self._resource_probe_fn = resource_probe_fn or probe_resources
         # Both paths are validated: the explicit argument bypasses the env parser,
         # so guarding only the env var would leave the caller-supplied value
         # unchecked.
@@ -177,12 +192,37 @@ class MetricsSampler:
             except Exception:
                 logger.debug("[Metrics] device gauge write failed", exc_info=True)
 
-        if self._runtime_stats_fn is None:
-            return
+        # Guarded branch, NOT an early return: a `return` here would put every
+        # reader added after it behind "was a runtime stats reader injected?",
+        # which is true in production and false in most tests — dead code that
+        # looks fine in the app.
+        if self._runtime_stats_fn is not None:
+            try:
+                stats = self._runtime_stats_fn()
+                if stats:
+                    met.queue_depth.set(stats.get("queue_depth", 0))
+                    met.jobs_in_flight.set(stats.get("jobs_in_flight", 0))
+            except Exception:
+                logger.debug("[Metrics] runtime stats failed", exc_info=True)
+
         try:
-            stats = self._runtime_stats_fn()
-            if stats:
-                met.queue_depth.set(stats.get("queue_depth", 0))
-                met.jobs_in_flight.set(stats.get("jobs_in_flight", 0))
+            counts = self._resource_probe_fn()
         except Exception:
-            logger.debug("[Metrics] runtime stats failed", exc_info=True)
+            logger.debug("[Metrics] resource probe failed", exc_info=True)
+            counts = None
+        if counts is not None:
+            try:
+                # ABSENT, never zero: a source that could not be read leaves its
+                # series unset, because "0 leaked semaphores" and "this host has
+                # no /dev/shm" are opposite findings that must not render alike
+                # (STABL-cxbwwgly). A readable-and-empty 0 DOES render.
+                for gauge_name, value in (
+                    ("process_leaked_semaphores", counts.leaked_semaphores),
+                    ("process_shm_segments", counts.shm_segments),
+                    ("process_open_fds", counts.open_fds),
+                ):
+                    if value is not None:
+                        getattr(met, gauge_name).labels(
+                            process=SELF_PROCESS_LABEL).set(value)
+            except Exception:
+                logger.debug("[Metrics] resource gauge write failed", exc_info=True)

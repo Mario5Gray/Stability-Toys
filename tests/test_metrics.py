@@ -86,6 +86,8 @@ _ALL_FAMILIES = [
     "consumer_allocated_bytes", "device_snapshot_stale",
     "http_requests_total", "http_request_duration_seconds",
     "ws_connections_active", "ws_sessions_total", "ws_messages_total",
+    # STABL-cxbwwgly
+    "process_leaked_semaphores", "process_shm_segments", "process_open_fds",
 ]
 
 
@@ -219,12 +221,21 @@ def _registry_family_names(met) -> set[str]:
 
     prometheus_client strips `_total` from a Counter's family name, so both
     spellings are offered and the caller accepts either.
+
+    Histogram CHILDREN are included for the same reason (STABL-cxbwwgly): `_count`
+    is a genuinely emitted series and the normal way to query a histogram, so a
+    contract that cannot name it cannot explain how to use its own histograms.
+    `_created` stays out — it is a client-library artifact, not part of the
+    contract.
     """
     names = set()
     for family in met._registry.collect():
         names.add(family.name)
         if family.type == "counter":
             names.add(f"{family.name}_total")
+        elif family.type == "histogram":
+            for suffix in ("_bucket", "_count", "_sum"):
+                names.add(f"{family.name}{suffix}")
     return names
 
 
@@ -243,6 +254,8 @@ def test_every_family_is_documented_in_the_contract(monkeypatch):
         spellings = {family.name}
         if family.type == "counter":
             spellings.add(f"{family.name}_total")
+        elif family.type == "histogram":
+            spellings.update(f"{family.name}{s}" for s in ("_bucket", "_count", "_sum"))
         if not any(s in doc for s in spellings):
             undocumented.append(family.name)
     assert not undocumented, f"undocumented metric families: {sorted(undocumented)}"
@@ -269,3 +282,20 @@ def test_outcome_enum_excludes_timeout(monkeypatch):
     # wait expiry is its own family, keyed on the budget that blew — not an outcome
     assert set(getattr(met.wait_expired_total, "_labelnames", ())) == {"budget"}
     assert set(getattr(met.job_terminal_total, "_labelnames", ())) == {"mode", "outcome"}
+
+
+def test_the_contract_may_reference_histogram_children(monkeypatch):
+    """_count is how you query a histogram. The contract documents a leak ratio
+    built on st_governor_mode_load_seconds_count (STABL-cxbwwgly); if the
+    known-set does not accept histogram children, that documentation cannot
+    exist and the tempting fix is to delete the query instead."""
+    monkeypatch.setenv("METRICS_ENABLED", "1")
+    known = _registry_family_names(m.get_metrics())
+    assert "st_governor_mode_load_seconds" in known
+    assert "st_governor_mode_load_seconds_count" in known
+    assert "st_governor_mode_load_seconds_sum" in known
+    assert "st_governor_mode_load_seconds_bucket" in known
+    # _created stays OUT: a client-library artifact, not part of the contract
+    assert "st_governor_mode_load_seconds_created" not in known
+    # and the widening must not have made the check vacuous
+    assert "st_governor_mode_load_seconds_nonsense" not in known

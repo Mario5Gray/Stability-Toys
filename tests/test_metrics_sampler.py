@@ -349,3 +349,91 @@ def test_module_imports_nothing_from_backends():
     assert not any("backends" in ln for ln in head), (
         "server/metrics_sampler.py must not import from backends/"
     )
+
+
+# ============================================================================
+# STABL-cxbwwgly: OS resource gauges
+# ============================================================================
+
+from server.resource_probe import ResourceCounts, probe_resources
+
+
+def _counts(sems=2, segments=1, fds=42):
+    return ResourceCounts(leaked_semaphores=sems, shm_segments=segments, open_fds=fds)
+
+
+def test_sample_once_writes_resource_gauges():
+    MetricsSampler(snapshot_fn=_snap, resource_probe_fn=_counts).sample_once()
+
+    assert _value("st_process_leaked_semaphores") == 2.0
+    assert _value("st_process_shm_segments") == 1.0
+    assert _value("st_process_open_fds") == 42.0
+
+
+def test_resource_gauges_fire_without_a_runtime_stats_reader():
+    """sample_once returns early when no runtime stats reader is injected. If the
+    resource block sits behind that return it silently never fires — and the
+    production sampler is the only caller that always passes one, so this would
+    look fine in the app and be dead in every test."""
+    s = MetricsSampler(snapshot_fn=_snap, resource_probe_fn=_counts)
+    assert s._runtime_stats_fn is None
+    s.sample_once()
+
+    assert _value("st_process_open_fds") == 42.0
+
+
+def test_an_unavailable_source_leaves_its_series_ABSENT():
+    """Absent, never zero — a 0 here reads as 'no leak' on a host that simply
+    cannot see /dev/shm, which is the exact mistake a host-side check made during
+    the STABL-nstyyrhh investigation."""
+    probe = lambda: ResourceCounts(
+        leaked_semaphores=None, shm_segments=None, open_fds=17)
+    MetricsSampler(snapshot_fn=_snap, resource_probe_fn=probe).sample_once()
+
+    assert not _lines("st_process_leaked_semaphores")
+    assert not _lines("st_process_shm_segments")
+    assert _value("st_process_open_fds") == 17.0     # per-source, not all-or-nothing
+
+
+def test_a_zero_reading_IS_rendered(tmp_path):
+    """Readable-and-empty is a real measurement and must render, or the absent
+    case would be indistinguishable from a genuinely clean host."""
+    probe = lambda: ResourceCounts(leaked_semaphores=0, shm_segments=0, open_fds=5)
+    MetricsSampler(snapshot_fn=_snap, resource_probe_fn=probe).sample_once()
+
+    assert _value("st_process_leaked_semaphores") == 0.0
+    assert _value("st_process_shm_segments") == 0.0
+
+
+def test_a_raising_probe_still_writes_device_gauges():
+    """The three readers are independent; one failing must not blank the others."""
+    def _boom():
+        raise RuntimeError("probe exploded")
+
+    MetricsSampler(snapshot_fn=_snap, resource_probe_fn=_boom).sample_once()
+    assert _value("st_device_total_bytes") == float(24 * GIB)
+
+
+def test_a_raising_snapshot_still_writes_resource_gauges():
+    def _boom():
+        raise RuntimeError("NVML exploded")
+
+    MetricsSampler(snapshot_fn=_boom, resource_probe_fn=_counts).sample_once()
+    assert _value("st_process_open_fds") == 42.0
+
+
+def test_the_default_probe_is_the_real_one():
+    """Wiring check: an injectable with no default would sample nothing in
+    production the day someone forgets to pass it."""
+    s = MetricsSampler(snapshot_fn=_snap)
+    assert s._resource_probe_fn is probe_resources
+
+
+def test_disabled_sampler_never_probes(monkeypatch):
+    monkeypatch.delenv("METRICS_ENABLED", raising=False)
+    m.reset_metrics()
+
+    def _must_not_run():
+        raise AssertionError("disabled sampler MUST NOT probe")
+
+    MetricsSampler(snapshot_fn=_snap, resource_probe_fn=_must_not_run).sample_once()
