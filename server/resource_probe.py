@@ -11,9 +11,12 @@ zero on any host without /dev/shm.
 Imports nothing from backends/ and nothing from server/metrics - it is a pure
 measurement, and the sampler decides what to do with it.
 """
+import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SHM_ROOT = "/dev/shm"
 _SEM_PREFIX = "sem."
@@ -48,14 +51,22 @@ def _count_shm(shm_root: str) -> tuple[Optional[int], Optional[int]]:
 
 def probe_resources(shm_root: str = DEFAULT_SHM_ROOT) -> ResourceCounts:
     """One measurement. Must never raise."""
+    # These two guards catch the UNEXPECTED — _count_shm and _count_fds already
+    # return None for every failure they anticipate. Logging matters here for the
+    # same reason the whole module exists: an absent series otherwise reads
+    # identically whether the source is legitimately unavailable (no /dev/shm) or
+    # the probe itself broke, and an observability component that hides its own
+    # failure is the worst kind.
     try:
         sems, segments = _count_shm(shm_root)
     except Exception:
+        logger.debug("[ResourceProbe] shm count failed unexpectedly", exc_info=True)
         sems, segments = None, None
 
     try:
         fds = _count_fds()
     except Exception:
+        logger.debug("[ResourceProbe] fd count failed unexpectedly", exc_info=True)
         fds = None
 
     return ResourceCounts(

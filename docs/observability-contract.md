@@ -163,6 +163,46 @@ Both directions count *delivered* messages — a send that raised is not counted
 **`st_ws_connections_active` is set from the hub's own client count**, so it
 cannot drift out of step with `st_ws_sessions_total` minus disconnects.
 
+## OS resource families
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `st_process_leaked_semaphores` | gauge | `process` | POSIX named semaphores visible to this process |
+| `st_process_shm_segments` | gauge | `process` | shared-memory segments, excluding semaphores |
+| `st_process_open_fds` | gauge | `process` | open file descriptors for this process |
+
+`process` currently takes one value, `server` — the parent process, matching the
+`consumer` vocabulary used by the DeviceMemory families. A worker-side probe
+would add `worker`; it is deferred because it needs a control-pipe round trip per
+sample.
+
+**These watch an ACCEPTED risk. They are not a fault indicator.** `STABL-nstyyrhh`
+established that the server leaks one POSIX named semaphore per **model load** —
+linear, never reclaimed — and accepted that risk precisely because it is cheap to
+watch. A count of 4 means nothing. The signal is growth per model load:
+
+```promql
+increase(st_process_leaked_semaphores[1h])
+  / increase(st_governor_mode_load_seconds_count[1h])
+```
+
+A value near 1 reproduces the original finding. Alert on that ratio, or on
+approaching the host's semaphore limit — **not** on the raw count.
+
+**An ABSENT series is not zero.** Where a source cannot be read, the series is not
+emitted at all — which is why these families are labelled: an unlabelled gauge
+would render `0` from process start and make "no `/dev/shm` here" indistinguishable
+from "no leak". `/dev/shm` is per-mount-namespace and absent on macOS, so a
+developer machine emits `st_process_open_fds` and neither of the other two. Treat
+absence as *not measurable here*, never as *no leak* — a host-side check reporting
+0 while the container held several is the exact mistake that cost time in the
+original investigation.
+
+**Scope: this process, this namespace.** The fd count is the server's own and does
+not cover the subprocess worker, which has its own fd table. `/dev/shm` is shared
+within the container's mount namespace, so the semaphore and segment counts **do**
+include anything the worker child created there.
+
 ## A note on `_created` series
 
 `prometheus_client` emits a companion gauge for every counter in this document,
