@@ -185,6 +185,73 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### HTTP + WebSocket metrics — second observability pillar — merged (PR #50)
+
+**FP:** STABL-xmsrxvto (done) — child of **STABL-oxbwjwvu**, built on STABL-asawxgvp
+**Merge:** `2205b74` (PR #50, `feat/xmsrxvto-http-ws-metrics` → `main`)
+**Plan:** `docs/superpowers/plans/2026-08-05-http-ws-metrics.md` (27/27 steps)
+**Contract:** `docs/observability-contract.md` — extended with the five new families
+
+Five families on the existing facade: `st_http_requests_total`,
+`st_http_request_duration_seconds`, `st_ws_connections_active`, `st_ws_sessions_total`,
+`st_ws_messages_total`. One pure ASGI middleware for HTTP; WS split between `ws_hub.py`
+(connections + every outbound message) and the `ws_routes.py` message loop (inbound).
+Still inert by default. Suite 1302 passed (baseline 1265, +45 tests).
+
+**Two places the approved spec's hook points were incomplete** — both worth remembering
+before instrumenting anything else in this codebase:
+
+- **Outbound WS goes in `ws_hub`, NOT `websocket_endpoint`.** `_status_broadcaster` calls
+  `hub.broadcast()` every 5s entirely outside the endpoint's loop. Hooking only the
+  endpoint would have made the single most frequent outbound message invisible.
+- **`ws_connections_active` is SET from `hub.client_count`, never inc/dec.**
+  `disconnect()` is idempotent, and BOTH `send()` and `broadcast()` reap dead clients
+  through it, so a paired counter drifts negative.
+
+Traps worth carrying:
+
+- **`route` must be the matched route TEMPLATE** (`scope["route"].path`, read AFTER the
+  downstream app runs), never `request.url.path` — the latter makes `/api/models/{name}`
+  one series per model. An unmatched request has `route=None` → `__unmatched__`, which is
+  load-bearing: that is the unbounded set a scanner probes.
+- **`/metrics` counts itself ONE SCRAPE BEHIND.** The counter increments after the body is
+  rendered, so scrape N reports N−1 and the first scrape after a restart shows no
+  `/metrics` series. Not a lost request.
+- **A client-controlled string must map through a bounded registry before it can be a
+  label.** Inbound WS `type` goes through `HANDLERS`; unrecognised → `unknown`,
+  unparseable → `invalid_json`, deliberately distinct.
+- **`raw in HANDLERS` and `HANDLERS.get(raw)` both HASH their argument.** A client sending
+  `{"type": {}}` raises `TypeError`. See `STABL-gzfzzsdq` below.
+- **FastAPI needs a WS handler parameter ANNOTATED as `WebSocket`** to inject it; without
+  the annotation it is treated as a required query param and the connection closes with
+  1008 before the handler runs. Presents as `WebSocketDisconnect`, which looks like
+  disconnect handling and is not — read the close frame's `reason`.
+- **`prometheus_client` strips `_total` from Counter names in `collect()`** and emits a
+  `_created` companion gauge per counter. `PROMETHEUS_DISABLE_CREATED_SERIES=1` suppresses
+  those (verified on 0.21.1).
+- **Pure ASGI middleware over `BaseHTTPMiddleware`** — no anyio task group per request, no
+  interaction with streaming or background tasks, explicit WebSocket/lifespan skip.
+
+**The bidirectional contract test earned its keep twice.** It caught this issue's own prose
+naming `st_`-prefixed example series that were not real families, and it is what forces the
+doc and the code to move together. Do not weaken it to accommodate wording.
+
+**Adjacent bug found and deliberately NOT fixed here: `STABL-gzfzzsdq`.** A client can drop
+its own WebSocket connection with `{"type": {}}` or `{"type": []}` — `HANDLERS.get()`
+(`ws_routes.py`) hashes a client-controlled value, the `TypeError` escapes to the loop's
+outer `except Exception`, and `finally: await hub.disconnect()` closes the socket. Verified
+end to end with controls (`ping` and an unknown STRING type both survive). Suggested fix is
+an `isinstance(msg_type, str)` guard. The `_inbound_type` guard added by this PR does NOT
+fix it — it only stops the metrics code being the first thing to raise.
+
+**Drift note worth carrying.** Relinking after review is correct even when the doc's prose
+does not change — `AGENTS.md` says "never relink without review", not "never relink without
+a prose edit". A review challenged this and was withdrawn on evidence: the bound-file diff
+was 48 lines with zero removals, none of the seven bound docs mentioned the middleware
+stack or message loop at all, and none of the eight symbols they assert about was touched.
+The lesson is that the evidence has to be produced, not asserted — grepping for filename
+mentions is weaker than the file-level claim a `drift.lock` entry makes.
+
 ### Prometheus substrate — first observability pillar — merged (PR #48)
 
 **FP:** STABL-asawxgvp (done) — first child of umbrella **STABL-oxbwjwvu**
