@@ -84,6 +84,8 @@ _ALL_FAMILIES = [
     "device_total_bytes", "device_free_bytes", "device_used_bytes",
     "device_unattributed_bytes", "consumer_reserved_bytes",
     "consumer_allocated_bytes", "device_snapshot_stale",
+    "http_requests_total", "http_request_duration_seconds",
+    "ws_connections_active", "ws_sessions_total", "ws_messages_total",
 ]
 
 
@@ -125,6 +127,21 @@ def test_histogram_buckets_cover_generation_timescales(monkeypatch):
     assert b"st_governor_job_execution_seconds_bucket" in body
 
 
+def test_http_duration_buckets_span_health_and_generate(monkeypatch):
+    """/health answers in single-digit ms; /generate runs for minutes. One
+    histogram covers both, so the buckets must too - prometheus defaults stop at
+    10s and would bin every generation into +Inf."""
+    monkeypatch.setenv("METRICS_ENABLED", "1")
+    assert min(m.HTTP_DURATION_BUCKETS) <= 0.01
+    assert max(m.HTTP_DURATION_BUCKETS) >= 600
+    met = m.get_metrics()
+    met.http_request_duration_seconds.labels(
+        method="POST", route="/generate"
+    ).observe(240.0)
+    body, _ = met.render()
+    assert b"st_http_request_duration_seconds_bucket" in body
+
+
 def test_all_families_carry_the_st_namespace(monkeypatch):
     monkeypatch.setenv("METRICS_ENABLED", "1")
     met = m.get_metrics()
@@ -147,6 +164,12 @@ def test_all_families_carry_the_st_namespace(monkeypatch):
         getattr(met, g).labels(device_uuid="GPU-x").set(1)
     met.consumer_reserved_bytes.labels(device_uuid="GPU-x", consumer="worker").set(1)
     met.consumer_allocated_bytes.labels(device_uuid="GPU-x", consumer="worker").set(1)
+    met.http_requests_total.labels(method="GET", route="/health", status="200").inc()
+    met.http_request_duration_seconds.labels(method="GET", route="/health").observe(0.01)
+    met.ws_connections_active.set(1)
+    met.ws_sessions_total.inc()
+    # "in"/"out" is the vocabulary ws_hub and ws_routes actually emit (Task 3)
+    met.ws_messages_total.labels(type="ping", direction="in").inc()
 
     body, _ = met.render()
     emitted = {
@@ -158,6 +181,32 @@ def test_all_families_carry_the_st_namespace(monkeypatch):
     assert all(n.startswith("st_") for n in emitted), (
         f"non-namespaced series: {sorted(n for n in emitted if not n.startswith('st_'))}"
     )
+
+
+def test_new_families_carry_no_client_controlled_labels(monkeypatch):
+    monkeypatch.setenv("METRICS_ENABLED", "1")
+    met = m.get_metrics()
+    assert set(met.http_requests_total._labelnames) == {"method", "route", "status"}
+    assert set(met.http_request_duration_seconds._labelnames) == {"method", "route"}
+    assert set(met.ws_messages_total._labelnames) == {"type", "direction"}
+    assert met.ws_connections_active._labelnames == ()
+    assert met.ws_sessions_total._labelnames == ()
+
+
+def test_record_runs_the_side_effect(monkeypatch):
+    monkeypatch.setenv("METRICS_ENABLED", "1")
+    m.record(lambda met: met.ws_sessions_total.inc())
+    body, _ = m.get_metrics().render()
+    assert any(
+        line.startswith("st_ws_sessions_total ") and line.endswith("1.0")
+        for line in body.decode().splitlines()
+    )
+
+
+def test_record_swallows_anything():
+    """Instrumentation must never break a request or drop a WS connection."""
+    m.record(lambda met: 1 / 0)
+    m.record(lambda met: met.nope.labels(x=1))
 
 
 def _registry_family_names(met) -> set[str]:

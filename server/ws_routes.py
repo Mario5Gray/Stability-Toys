@@ -24,6 +24,7 @@ from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
 from server.ws_hub import hub
 from server.upload_routes import resolve_file_ref
+from server.metrics import record
 from invokers.jobs import (
     jobs_put, jobs_get, set_on_update,
 )
@@ -169,6 +170,40 @@ def _handler(msg_type: str):
         HANDLERS[msg_type] = fn
         return fn
     return decorator
+
+
+# --- inbound metrics (STABL-xmsrxvto) ---
+
+_INVALID_JSON = object()
+
+
+def _inbound_type(raw_type) -> str:
+    """Map a client-supplied `type` onto a BOUNDED label value.
+
+    The client controls this string entirely, so it must never reach a label
+    unchecked — one 4 KB value or one million distinct ones would be equally
+    fatal. Malformed JSON gets its own value because it means something different
+    from an unrecognised type: a broken client versus a client asking for
+    something that does not exist.
+
+    `raw in HANDLERS` HASHES its argument, and an unhashable client value
+    (`{"type": {}}`) raises TypeError. NOTE: this guard does not fix
+    STABL-gzfzzsdq — `HANDLERS.get(msg_type)` in the message loop has the same
+    hazard and still drops the connection. This only stops the metrics code from
+    being the first thing to raise.
+    """
+    if raw_type is _INVALID_JSON:
+        return "invalid_json"
+    try:
+        return raw_type if raw_type in HANDLERS else "unknown"
+    except TypeError:            # unhashable type field, e.g. {"type": {"a": 1}}
+        return "unknown"
+
+
+def _count_in(raw_type) -> None:
+    label = _inbound_type(raw_type)
+    record(lambda met: met.ws_messages_total.labels(
+        type=label, direction="in").inc())
 
 
 # ---------------------------------------------------------------------------
@@ -852,10 +887,12 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 msg = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
+                _count_in(_INVALID_JSON)
                 await hub.send(client_id, _error("Invalid JSON"))
                 continue
 
             msg_type = msg.get("type")
+            _count_in(msg_type)
             handler = HANDLERS.get(msg_type)
             if handler is None:
                 await hub.send(client_id, _error(f"Unknown type: {msg_type}", msg.get("id")))

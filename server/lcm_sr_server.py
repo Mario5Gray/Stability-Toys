@@ -98,6 +98,7 @@ from server.workflow_routes import router as workflow_router
 from server.keymap_routes import router as keymap_router
 from server.metrics_routes import router as metrics_router, build_runtime_stats_fn
 from server.metrics_sampler import MetricsSampler
+from server.metrics_middleware import MetricsMiddleware
 from server.file_watcher import start_config_watcher, stop_config_watcher
 from server.generation_constraints import finalize_mode_generate_request
 from backends.platform_registry import get_backend_provider
@@ -1019,6 +1020,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# STABL-xmsrxvto: added AFTER CORSMiddleware, which makes it the OUTER of the two
+# (Starlette applies middleware in reverse registration order), so a request
+# rejected by CORS is still counted as the request it was. Inert unless
+# METRICS_ENABLED is set.
+app.add_middleware(MetricsMiddleware)
 
 if __name__ == "__main__":
     import uvicorn
