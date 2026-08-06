@@ -199,6 +199,33 @@ class Metrics:
             registry=r,
         )
 
+        # --- OS resources (STABL-cxbwwgly) ---
+        # These watch an ACCEPTED risk rather than reporting a fault: the server
+        # leaks one POSIX named semaphore per model load (STABL-nstyyrhh), which
+        # was accepted precisely because it is cheap to watch. The signal is
+        # growth per model load, not the absolute count.
+        #
+        # LABELLED on purpose, and the label is load-bearing twice over. An
+        # UNLABELLED Gauge renders its default 0.0 from the moment it is
+        # declared, which would make "this host has no /dev/shm" indistinguishable
+        # from "no leak" — the precise confusion this issue exists to prevent. A
+        # labelled family emits nothing until a child is created, so a source
+        # that cannot be read is genuinely ABSENT. The label also answers the
+        # question the contract would otherwise have to answer in prose — whose
+        # counts these are — and leaves room for the deferred worker probe.
+        self.process_leaked_semaphores = G(
+            "st_process_leaked_semaphores",
+            "POSIX named semaphores visible to this process "
+            "(one per model load is the known leak — STABL-nstyyrhh)",
+            ["process"], registry=r)
+        self.process_shm_segments = G(
+            "st_process_shm_segments",
+            "Shared-memory segments visible to this process, excluding semaphores",
+            ["process"], registry=r)
+        self.process_open_fds = G(
+            "st_process_open_fds", "Open file descriptors for this process",
+            ["process"], registry=r)
+
     def _declare_noop(self):
         for name in (
             "queue_depth", "jobs_in_flight", "job_queue_wait_seconds",
@@ -211,6 +238,8 @@ class Metrics:
             "device_snapshot_stale", "http_requests_total",
             "http_request_duration_seconds", "ws_connections_active",
             "ws_sessions_total", "ws_messages_total",
+            "process_leaked_semaphores", "process_shm_segments",
+            "process_open_fds",
         ):
             setattr(self, name, _NoopMetric())
 

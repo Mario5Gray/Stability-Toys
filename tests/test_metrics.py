@@ -86,6 +86,8 @@ _ALL_FAMILIES = [
     "consumer_allocated_bytes", "device_snapshot_stale",
     "http_requests_total", "http_request_duration_seconds",
     "ws_connections_active", "ws_sessions_total", "ws_messages_total",
+    # STABL-cxbwwgly
+    "process_leaked_semaphores", "process_shm_segments", "process_open_fds",
 ]
 
 

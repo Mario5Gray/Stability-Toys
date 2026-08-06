@@ -370,17 +370,35 @@ In `server/metrics.py` `_declare`, after the WebSocket block:
             "st_process_leaked_semaphores",
             "POSIX named semaphores visible to this process "
             "(one per model load is the known leak — STABL-nstyyrhh)",
-            registry=r)
+            ["process"], registry=r)
         self.process_shm_segments = G(
             "st_process_shm_segments",
             "Shared-memory segments visible to this process, excluding semaphores",
-            registry=r)
+            ["process"], registry=r)
         self.process_open_fds = G(
             "st_process_open_fds", "Open file descriptors for this process",
-            registry=r)
+            ["process"], registry=r)
 ```
 
 and add the three names to the `_declare_noop` tuple.
+
+> **CORRECTED DURING EXECUTION — the `["process"]` label is load-bearing, and this
+> plan originally specified these gauges without it.** An **unlabelled** `Gauge`
+> renders its default `0.0` from the moment it is declared, so
+> `test_an_unavailable_source_leaves_its_series_ABSENT` failed with
+> `['st_process_leaked_semaphores 0.0']` — the whole absent-never-zero rule is
+> unachievable that way. Verified:
+>
+> ```text
+> before any set:  bare_g 0.0          <- renders immediately
+>                  (labelled: nothing)
+> after set:       lab_g{process="server"} 7.0
+> ```
+>
+> A labelled family emits nothing until a child is created, which is what makes
+> absence real. The label is not a workaround dressed as design: it answers the
+> question the contract would otherwise answer only in prose — whose counts these
+> are — and leaves room for the deferred worker-side probe.
 
 - [ ] **Step 4: Wire the sampler**
 
@@ -421,7 +439,8 @@ and add a third **independently guarded** block at the end of `sample_once`:
                     ("process_open_fds", counts.open_fds),
                 ):
                     if value is not None:
-                        getattr(met, gauge_name).set(value)
+                        getattr(met, gauge_name).labels(
+                            process=SELF_PROCESS_LABEL).set(value)
             except Exception:
                 logger.debug("[Metrics] resource gauge write failed", exc_info=True)
 ```
