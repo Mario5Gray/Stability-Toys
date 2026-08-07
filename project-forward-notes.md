@@ -185,6 +185,124 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### Structured Loki-ready logging — third observability pillar — merged (PR #54)
+
+**FP:** STABL-bpsfmoke (done) — child of **STABL-oxbwjwvu**
+**Merge:** `872d92d` (PR #54, `feat/bpsfmoke-structured-logging` → `main`)
+**Plan:** `docs/superpowers/plans/2026-08-06-structured-logging.md` (50/50 steps)
+**Contract:** `docs/observability-contract.md` — now covers metrics **and** logs
+
+`LOG_FORMAT=json` emits one JSON object per line carrying `job_id` correlation, from
+**both** processes that write to the container's stdout — the server, and the spawned
+worker child where generation actually happens. Default `text`, byte-for-byte
+unchanged. Suite 1466 passed (baseline 1323, +143 tests).
+
+**THE TIMING IS THE ENTIRE DESIGN: `LOG_FORMAT` is resolved in
+`StabilityFormatter.__init__`, not at module import.** `docker/runtime/live-test.Dockerfile:34`
+materialises `LOGGING_CONFIG` to `/app/logging_config.json` at **build** time, so
+anything `logging_config.py` reads from the environment at import is baked into the
+image — which is exactly why `LOG_LEVEL` is *still* not runtime-settable on the dev
+path. A formatter **object** is constructed when `dictConfig` runs, i.e. container
+start, on both entry paths. The formatter is therefore a `"()"` dotted reference, not
+an imperatively attached instance.
+
+The wiring tests configure from `json.loads(json.dumps(LOGGING_CONFIG))`, never the
+Python object, because the dev path never sees the object. Confirmed RED without the
+change: 3 of 4 fail.
+
+**`job_id` spans two threads and the reset is the load-bearing half.** The WS handler
+runs on the event loop; generation runs on the dispatch thread, which inherits nothing
+from the submitter.
+
+- **Dispatch loop:** token set after `q.get()`, reset in the existing `finally` next to
+  `task_done()` — the only path that runs on every exit including the cancel-check
+  `continue`. 44 lines added to `governor.py`, **zero removals, zero indentation
+  change**; wrapping ~170 lines in a `with` would have made the diff unreviewable.
+- **WS:** binds `None` around the message loop's handler invocation (`ws_routes.py:902`).
+  One place, covers handlers added later. `asyncio.create_task` **copies the context**,
+  so the four `_run_*` tasks inherit the id for free — pinned by two tests, because if
+  that property lapsed every generation line would silently lose its `job_id`.
+
+Set-without-reset is the failure that matters: a stale id reads as *real* correlation
+and survives review. Observed via a log `Handler` — `emit()` runs on the **emitting**
+thread, the only way to read the dispatch loop's context from a test — asserting the
+loop's own `[Governor] Dispatch loop stopped` line carries no id.
+
+**Known gap, documented rather than hidden: no HTTP handler line carries `job_id`** —
+both `POST /generate` and the compat runner. `submit_generate()` returns only a future,
+deliberately (`STABL-atzqpcte`: an id-keyed waiter API fixes WebSocket and silently
+leaves HTTP broken). Dispatch-thread lines still carry the id. Closing it is a runtime
+API change, not a formatter change.
+
+**Six plan defects surfaced in execution** — the running theme since `STABL-asawxgvp`,
+now with a sixth instance. All patched back into the plan:
+
+- **`mode` needed a THIRD publication site.** `_reload_from_snapshot` restores the
+  worker after idle eviction *without* going through `_load_mode`, and the eviction
+  already cleared the field. **Rule: anywhere `_publish_mode_active` is republished, the
+  log field must be too.**
+- **A spawned-child test must report failures ON THE QUEUE.** A crashed child put
+  nothing, so RED took **122 seconds** to say `ImportError`. A test whose failure mode is
+  a two-minute timeout is a test people stop running.
+- **Calling the bootstrap directly does not test the WIRING** — that test passes if
+  `_worker_main` stops calling it. An `ast` test pins it as the first statement, and was
+  itself verified non-vacuous by parsing a copy with the call removed.
+- **The three `debug dump ... failed` lines were specced at DEBUG on false reasoning.**
+  `_hunyuan_debug_dir` returns `None` unless `HUNYUAN_DEBUG_DUMP=1` and both writers
+  return early on `None`, so they are *unreachable* with the dump off. DEBUG hides a
+  diagnostic's failure from the one person who enabled it. Now `warning`.
+- Two named test files do not exist (`test_cuda_worker.py`, `test_ws_metrics.py`).
+- The drift step was too coarse — below.
+
+**DRIFT: `drift link <doc>` relinks EVERY anchor in that doc, not just yours.** The
+eight bound docs also carried anchors already stale on `main` from `STABL-zueslhah` and
+`STABL-atzqpcte`, so the natural per-doc relink put fresh provenance on ten bindings
+nobody reviewed — the exact failure `AGENTS.md` warns about. Caught, `drift.lock`
+reverted, redone as `drift link <doc> <anchor>` one at a time.
+
+**And `drift check` is NOT clean on `main` — 18 stale, exit 1.** Without a baseline the
+number is unreadable. The procedure that works:
+
+```bash
+git worktree add /tmp/baseline main
+(cd /tmp/baseline && drift check) | awk '/^docs\//{d=$1} /STALE/{print d" -> "$2}' | sort > /tmp/main.txt
+drift check | awk '/^docs\//{d=$1} /STALE/{print d" -> "$2}' | sort > /tmp/branch.txt
+comm -13 /tmp/main.txt /tmp/branch.txt      # exactly the anchors YOU made stale
+```
+
+Relink only those, then assert **both** diff directions empty. Result here: 18 = 18,
+both empty, `drift.lock` churn 13 lines. Filed **`STABL-qjbqzwpe`** for the pre-existing
+condition (18 stale from five merged branches; `STABL-fdurqnnn` had it at 0 and it
+drifted back, unnoticed because the gate is prose in `AGENTS.md` and CI has never run).
+
+**Evidence-measurement trap, second instance.** `drift check | tail -20; echo $?` reports
+**`tail`'s** exit status, not `drift`'s — reported as `EXIT=0` in review when the real
+code is 1. Conclusions were unaffected because the load-bearing evidence was the *set*
+comparison, but the number was wrong. Same lesson as the suite-count correction on
+`STABL-cxbwwgly`: **measure what you claim to be measuring; a pipeline's exit status is
+the last command's.**
+
+**Two follow-ups filed, both real, neither fixed here:**
+
+- **`STABL-xqqqqvse`** — `LOG_FORMAT` is set in **no** env file, compose file or
+  Dockerfile. The feature ships dark: implemented, tested, documented, enabled nowhere.
+  Has a precondition — confirm with `../continuous` that something is scraping container
+  stdout, or turning on JSON only makes logs harder for a human with no gain.
+- **`STABL-ataigkdk`** — `LOG_LEVEL` and `LOG_FORMAT` now have **opposite semantics in
+  the same config file**: `LOG_FORMAT` is runtime on both paths, `LOG_LEVEL` is frozen at
+  image build on the dev path. Surprising beats broken for cost of diagnosis.
+  **Decided 2026-08-07: precedence is runtime `LOG_LEVEL` > baked value > `INFO`, applied
+  at the FastAPI `lifespan`** (`lcm_sr_server.py:390`, which runs on *both* entry paths)
+  plus `_configure_child_logging` for the child. The baked value stays — it is the
+  default, not the problem. **Rebaking the config file at build/entrypoint is rejected on
+  the record as a kludge.** Trap for the implementer: setting the root logger is not
+  enough and *will look like it worked* — `LOGGING_CONFIG` assigns explicit levels to
+  `comfy`, `comfy.jobs`, `uvicorn`, `uvicorn.error`, `uvicorn.access`, and an explicit
+  child level shadows root.
+
+Umbrella `STABL-oxbwjwvu` now has **four of five children done**; `STABL-qnlaclof`
+(tracing) is the last.
+
 ### Leaked OS resource gauges — the semaphore watch — merged (PR #52)
 
 **FP:** STABL-cxbwwgly (done) — child of **STABL-oxbwjwvu**, built on STABL-asawxgvp
