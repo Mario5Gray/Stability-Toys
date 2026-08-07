@@ -1139,8 +1139,11 @@ Expected: 3 passed.
 
 - [x] **Step 6: Run the WS suites**
 
-Run: `python -m pytest tests/test_ws_routes.py tests/test_ws_metrics.py -q`
-Expected: no new failures. (Adjust the file list to whatever `ls tests/test_ws*` shows.)
+> **Plan defect: `tests/test_ws_metrics.py` does not exist.** The WS metrics tests
+> live inside `test_ws_routes.py`. Corrected list below.
+
+Run: `python -m pytest tests/test_ws_routes.py tests/test_ws_hub.py tests/test_ws_build_generate_request.py -q`
+Expected: no new failures.
 
 - [x] **Step 7: Commit**
 
@@ -1398,7 +1401,21 @@ Expected: all parametrised cases pass.
 
 - [x] **Step 7: Run the worker suites**
 
-Run: `python -m pytest tests/test_cuda_worker.py tests/test_sdxl_worker.py tests/test_hunyuandit_worker.py -q`
+> **Plan defect: `tests/test_cuda_worker.py` does not exist.** The CUDA worker
+> tests are split across `test_cuda_worker_base.py`, `test_cuda_worker_capabilities.py`
+> and `test_cuda_worker_controlnet.py`. Corrected list below.
+
+Run:
+
+```bash
+python -m pytest \
+  tests/test_no_print_in_server_runtime.py \
+  tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py \
+  tests/test_cuda_worker_controlnet.py tests/test_sdxl_worker.py \
+  tests/test_hunyuandit_worker.py tests/test_worker_controlnet_metadata.py \
+  tests/test_superres_service.py tests/test_superres_http.py \
+  tests/test_backend_runtimes.py -q
+```
 Expected: no new failures. If a test asserted on captured stdout, it must move to
 `caplog` — note it in the commit if so.
 
@@ -1426,7 +1443,7 @@ already there. Log field names are the same kind of artifact — a downstream Lo
 query breaks the same way a broken metric name does — and the doc is the only place
 that is already a shared interface rather than a repo-local note.
 
-- [ ] **Step 1: Write the bidirectional field test**
+- [x] **Step 1: Write the bidirectional field test**
 
 ```python
 # append to tests/test_log_format.py
@@ -1469,13 +1486,13 @@ def test_every_documented_log_field_is_actually_emitted():
     assert not missing, f"documented but never emitted: {sorted(missing)}"
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_log_format.py -k log_field -q`
 Expected: FAIL — the contract has no `## Structured logs` section yet (IndexError
 on the split, or an empty documented set).
 
-- [ ] **Step 3: Write the contract section**
+- [x] **Step 3: Write the contract section**
 
 Append to `docs/observability-contract.md`:
 
@@ -1533,12 +1550,12 @@ Correlate a whole job with:
 ```
 ````
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `python -m pytest tests/test_log_format.py -q`
 Expected: all pass, including both contract directions.
 
-- [ ] **Step 5: Check drift bindings**
+- [x] **Step 5: Check drift bindings**
 
 ```bash
 drift refs docs/observability-contract.md
@@ -1550,7 +1567,42 @@ If the contract doc is bound and its prose is now stale, **update the prose firs
 then `drift link`, then `drift check` again. Never relink without reviewing the
 prose.
 
-- [ ] **Step 6: Run the full suite**
+> **Plan defect found in execution — the step was too coarse, and following it
+> literally violates the rule it quotes.**
+>
+> Neither `docs/observability-contract.md` nor `server/logging_config.py` is bound
+> at all. The bound files are `server/ws_routes.py`, `server/lcm_sr_server.py`,
+> `server/superres_service.py` and `backends/cuda_worker.py`, across eight docs.
+>
+> **`drift link <doc>` relinks EVERY anchor in that doc, not just yours.** Those
+> eight docs also carried anchors already stale on `main` from `STABL-zueslhah`
+> and `STABL-atzqpcte`. A bare per-doc relink refreshed provenance on ten bindings
+> whose prose was never reviewed against those other commits — exactly the "fresh
+> provenance on stale prose" failure `AGENTS.md` warns about. Reverted `drift.lock`
+> and redid it as `drift link <doc> <anchor>`, one anchor at a time.
+>
+> **Establish the baseline before touching anything.** `drift check` was NOT clean
+> on `main` — 18 stale anchors. Without a `git worktree` of `main` to diff against,
+> "31 stale" is unreadable and there is no way to tell which are yours. Procedure:
+>
+> ```bash
+> git worktree add /tmp/baseline main
+> (cd /tmp/baseline && drift check) | awk '/^docs\//{d=$1} /STALE/{print d" -> "$2}' | sort > /tmp/main.txt
+> drift check | awk '/^docs\//{d=$1} /STALE/{print d" -> "$2}' | sort > /tmp/branch.txt
+> comm -13 /tmp/main.txt /tmp/branch.txt      # exactly the anchors YOU made stale
+> ```
+>
+> Relink only those, then assert both directions of the diff are empty — no new
+> stale anchors, and none of `main`'s cleaned up as a side effect.
+>
+> **Review means producing evidence, not asserting it** (the `STABL-xmsrxvto`
+> precedent). What was produced here: no bound doc mentions `print`, stdout, the WS
+> handler dispatch, or `job_id` minting; and every removal in the three bound files
+> is a `print` replaced by a `logger` call with identical message text, or the
+> handler-dispatch pair re-indented under a `with` — same calls, same order, same
+> arguments. Zero symbols, signatures or protocol changed.
+
+- [x] **Step 6: Run the full suite**
 
 ```bash
 python -m pytest -q 2>&1 | tail -5
@@ -1560,7 +1612,7 @@ Baseline on `main` is **1323 passed, 9 skipped, 1 xfailed**. Record the number f
 **this** tree — run the suite on the tree you are about to summarise, not the one you
 had when you started typing.
 
-- [ ] **Step 7: Live verification, JSON on**
+- [x] **Step 7: Live verification, JSON on**
 
 ```bash
 LOG_FORMAT=json python -c "
@@ -1577,7 +1629,7 @@ with log_context.bind_job_id('abc123def456'):
 Expected: one JSON line carrying `job_id`, `mode`, `pid`, `hostname`. Then run it
 again with `LOG_FORMAT` unset and confirm the output is the unchanged text format.
 
-- [ ] **Step 8: Commit and close out**
+- [x] **Step 8: Commit and close out**
 
 ```bash
 git add docs/observability-contract.md docs/superpowers/plans/2026-08-06-structured-logging.md tests/test_log_format.py

@@ -2,6 +2,8 @@
 import json
 import logging
 import logging.config
+import pathlib
+import re
 import sys
 
 import pytest
@@ -149,3 +151,49 @@ def test_dictConfig_accepts_the_formatter_under_the_key_named_format():
     handler = logging.getLogger("st.probe").handlers[0]
     assert isinstance(handler.formatter, StabilityFormatter)
     assert handler.formatter.format(_record()).endswith("hello")
+
+
+# --- doc <-> code contract ---------------------------------------------------
+#
+# Bidirectional, like the metric-name contract in test_metrics.py. The reverse
+# direction is the one that earns its keep: it caught invented series names in
+# STABL-xmsrxvto, and prose drifts the same way for field names.
+
+CONTRACT = pathlib.Path(__file__).resolve().parent.parent / "docs" / "observability-contract.md"
+
+
+def _documented_log_fields():
+    """Field names from the contract's log-field table rows: | `name` | ... |"""
+    section = CONTRACT.read_text().split("## Structured logs")[1].split("\n## ")[0]
+    return set(re.findall(r"^\|\s*`([a-z_]+)`\s*\|", section, re.M))
+
+
+def _emitted_log_fields():
+    log_context.set_static_field("mode", "m")
+    log_context.set_static_field("device_uuid", "GPU-x")
+    try:
+        with log_context.bind_job_id("j"):
+            rec = logging.LogRecord("st.test", logging.ERROR, "/x.py", 1, "m", (), None)
+            payload = json.loads(StabilityFormatter(log_format="json").format(rec))
+    finally:
+        log_context.set_static_field("mode", None)
+        log_context.set_static_field("device_uuid", None)
+    return set(payload)
+
+
+def test_every_emitted_log_field_is_documented():
+    undocumented = _emitted_log_fields() - _documented_log_fields()
+    assert not undocumented, f"emitted but not in the contract: {sorted(undocumented)}"
+
+
+def test_every_documented_log_field_is_actually_emitted():
+    optional = {"exception", "stack"}   # only present on a failing record
+    missing = _documented_log_fields() - _emitted_log_fields() - optional
+    assert not missing, f"documented but never emitted: {sorted(missing)}"
+
+
+def test_the_contract_documents_the_OPTIONAL_fields_too():
+    """`exception` and `stack` are excluded from the reverse check above, so
+    without this they could be dropped from the doc unnoticed."""
+    documented = _documented_log_fields()
+    assert {"exception", "stack"} <= documented
