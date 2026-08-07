@@ -1045,7 +1045,7 @@ Governor's id, which is the one the dispatch-thread logs will carry. Set the var
 second time there so both halves of a job's life correlate on the same value. No
 second token is needed: the loop-level bind restores whatever was there.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_ws_log_context.py
@@ -1096,12 +1096,12 @@ def test_a_handler_that_sets_the_id_does_not_leak_it_to_the_next_message():
     # assert the probe saw None.
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_ws_log_context.py -q`
 Expected: the leak test FAILS (probe sees the submitted job's id).
 
-- [ ] **Step 3: Clear per inbound message**
+- [x] **Step 3: Clear per inbound message**
 
 In `server/ws_routes.py:902`, the message loop invokes the resolved handler as
 `result = await handler(ws, msg, client_id)`. Wrap exactly that call:
@@ -1117,7 +1117,7 @@ In `server/ws_routes.py:902`, the message loop invokes the resolved handler as
 
 Match the surrounding indentation — `:902` sits inside the loop's `try`.
 
-- [ ] **Step 4: Set it where the id is minted**
+- [x] **Step 4: Set it where the id is minted**
 
 In `handle_job_submit`, immediately after `job_id = uuid.uuid4().hex[:12]` (`:227`):
 
@@ -1132,17 +1132,17 @@ and immediately after `job_id = job.job_id` (`:320`):
                                              # dispatch-thread logs will carry
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [x] **Step 5: Run to verify it passes**
 
 Run: `python -m pytest tests/test_ws_log_context.py -q`
 Expected: 3 passed.
 
-- [ ] **Step 6: Run the WS suites**
+- [x] **Step 6: Run the WS suites**
 
 Run: `python -m pytest tests/test_ws_routes.py tests/test_ws_metrics.py -q`
 Expected: no new failures. (Adjust the file list to whatever `ls tests/test_ws*` shows.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/ws_routes.py tests/test_ws_log_context.py
