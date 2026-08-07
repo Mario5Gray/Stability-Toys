@@ -1304,9 +1304,16 @@ git commit -m "feat(logging): configure logging in the spawned worker child (STA
 - **Level by content, not by uniformity.** `[cuda] FAILED to load style LoRA` is
   `logger.error(..., exc_info=True)` where an exception is in hand;
   `[cuda] loading diffusers` is `logger.info`; the three `debug dump ... failed`
-  lines in `cuda_worker.py` (`:187`, `:236`, `:245`) are `logger.debug` — they are
-  diagnostics behind `HUNYUAN_DEBUG_DUMP`, and promoting them would make an opt-in
-  tool noisy for everyone who never enabled it.
+  lines in `cuda_worker.py` are **`logger.warning`**.
+
+  > **Plan defect found in execution.** The original text said `logger.debug`,
+  > reasoning that promoting them "would make an opt-in tool noisy for everyone who
+  > never enabled it." That reasoning is **wrong**: `_hunyuan_debug_dir` returns
+  > `None` unless `HUNYUAN_DEBUG_DUMP=1`, and both writers return early on `None`,
+  > so these lines are *unreachable* with the dump off. DEBUG would hide a
+  > diagnostic's failure from the one person who turned the diagnostic on. Verified
+  > by gating (`cuda_worker.py:174`, `:182`), and the worker suite now shows the
+  > line firing. `debug dump written to ...` is `info` for the same reason.
 - **Keep the message text identical**, including the `[cuda]` / `[sdxl-cuda]` /
   `[hunyuandit-cuda]` prefixes. They are grep targets in existing notes and
   acceptance scripts. The logger *name* additionally carries the module, which is
@@ -1319,7 +1326,7 @@ git commit -m "feat(logging): configure logging in the spawned worker child (STA
   added next to the existing imports if not already present.
 - Do **not** touch `server/superres_cli.py`.
 
-- [ ] **Step 1: Write the guard test**
+- [x] **Step 1: Write the guard test**
 
 ```python
 # tests/test_no_print_in_server_runtime.py
@@ -1358,25 +1365,25 @@ def test_no_print_calls(path):
     assert not offenders, f"{path.relative_to(ROOT)} prints at lines {offenders}"
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_no_print_in_server_runtime.py -q`
 Expected: 4 failures, naming the four files and their line numbers.
 
-- [ ] **Step 3: Convert `server/lcm_sr_server.py` and `server/superres_service.py`**
+- [x] **Step 3: Convert `server/lcm_sr_server.py` and `server/superres_service.py`**
 
 Three calls total. `lcm_sr_server.py:228` and `:231` are startup lines → `logger.info`.
 `superres_service.py:207` (`[SR] worker N loaded <path>`) is a lifecycle line →
 `logger.info`.
 
-- [ ] **Step 4: Convert `backends/rknnlcm.py`**
+- [x] **Step 4: Convert `backends/rknnlcm.py`**
 
 Five calls, all timing output on the RKNN job path (`:539`, `:589`, `:620`, `:623`,
 `:626`). These are per-job measurements → `logger.info` with lazy interpolation.
 `:620` uses positional `print("scale:", a, "vae_inf:", b, ...)` — rewrite as a
 single format string, do not pass multiple positional args to `logger.info`.
 
-- [ ] **Step 5: Convert `backends/cuda_worker.py`**
+- [x] **Step 5: Convert `backends/cuda_worker.py`**
 
 Twenty-six calls. Work top to bottom; the multi-line `print(` calls at `:474`,
 `:985`, `:1014`, `:1362`, `:1392`, `:1718` need their continuation lines checked.
@@ -1384,18 +1391,18 @@ Levels: `:187`/`:236`/`:245` → `debug`; `:486` (`xformers enable failed`),
 `:1004`/`:1382` (`FAILED to load style LoRA`) → `warning` or `error` with
 `exc_info=True` where an exception object is in scope; everything else → `info`.
 
-- [ ] **Step 6: Run to verify it passes**
+- [x] **Step 6: Run to verify it passes**
 
 Run: `python -m pytest tests/test_no_print_in_server_runtime.py -q`
 Expected: all parametrised cases pass.
 
-- [ ] **Step 7: Run the worker suites**
+- [x] **Step 7: Run the worker suites**
 
 Run: `python -m pytest tests/test_cuda_worker.py tests/test_sdxl_worker.py tests/test_hunyuandit_worker.py -q`
 Expected: no new failures. If a test asserted on captured stdout, it must move to
 `caplog` — note it in the commit if so.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backends/cuda_worker.py backends/rknnlcm.py server/lcm_sr_server.py server/superres_service.py tests/test_no_print_in_server_runtime.py

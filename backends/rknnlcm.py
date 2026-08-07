@@ -536,7 +536,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
             negative_prompt_embeds=negative_prompt_embeds,
         )
         encode_prompt_time = time.time() - start_time
-        print(f"Prompt encoding time: {encode_prompt_time:.2f}s")
+        logger.info("Prompt encoding time: %.2fs", encode_prompt_time)
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps, original_inference_steps=original_inference_steps)
@@ -586,7 +586,7 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
                 if callback is not None and i % callback_steps == 0:
                     callback(i, t, latents)  # type: ignore[arg-type]
         inference_time = time.time() - inference_start
-        print(f"Inference time: {inference_time:.2f}s")
+        logger.info("Inference time: %.2fs", inference_time)
 
         decode_start = time.time()
         t0 = t1 = t_inf0 = t_inf1 = t_cat0 = t_cat1 = 0.0
@@ -617,13 +617,16 @@ class RKNN2LatentConsistencyPipeline(DiffusionPipeline):
         image = self.postprocess(image, output_type=output_type, do_denormalize=do_denormalize)
         t_post1 = time.time()
 
-        print("scale:", t1-t0, "vae_inf:", t_inf1-t_inf0, "concat:", t_cat1-t_cat0, "post:", t_post1-t_post0)
+        logger.info(
+            "scale: %s vae_inf: %s concat: %s post: %s",
+            t1 - t0, t_inf1 - t_inf0, t_cat1 - t_cat0, t_post1 - t_post0,
+        )
 
         decode_time = time.time() - decode_start
-        print(f"Decode time: {decode_time:.2f}s")
+        logger.info("Decode time: %.2fs", decode_time)
 
         total_time = encode_prompt_time + inference_time + decode_time
-        print(f"Total time: {total_time:.2f}s")
+        logger.info("Total time: %.2fs", total_time)
 
         if not return_dict:
             return (image, has_nsfw_concept)

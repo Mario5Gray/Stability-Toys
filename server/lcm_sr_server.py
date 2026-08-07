@@ -225,10 +225,13 @@ class PipelineService:
 
         # 1) enforce sweet-spot policy
         if use_cuda and self.num_workers != 1:
-            print(f"[PipelineService] CUDA detected; forcing NUM_WORKERS {self.num_workers} -> 1")
+            logger.info("[PipelineService] CUDA detected; forcing NUM_WORKERS %s -> 1", self.num_workers)
             self.num_workers = 1
 
-        print(f"[PipelineService] BACKEND={BACKEND} use_cuda={use_cuda} workers={self.num_workers} queue_max={queue_max}")
+        logger.info(
+            "[PipelineService] BACKEND=%s use_cuda=%s workers=%s queue_max=%s",
+            BACKEND, use_cuda, self.num_workers, queue_max,
+        )
 
         # 2) only init RKNN assets if needed
         if not use_cuda:

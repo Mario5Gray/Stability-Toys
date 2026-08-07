@@ -204,7 +204,7 @@ class RknnSuperResWorker:
         ret = self.rknn.init_runtime()
         if ret != 0:
             raise RuntimeError(f"SR init_runtime failed: {ret}")
-        print(f"[SR] worker {self.worker_id} loaded {self.model_path}")
+        logger.info("[SR] worker %s loaded %s", self.worker_id, self.model_path)
 
     def close(self):
         rel = getattr(self.rknn, "release", None)
