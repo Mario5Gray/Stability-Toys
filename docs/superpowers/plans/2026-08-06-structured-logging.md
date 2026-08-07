@@ -699,7 +699,7 @@ The Governor setup below is `test_governor_submit_job_resolves_future_through_ha
 (`tests/test_governor.py:265`) with a recording `run_job`. Reuse it verbatim rather
 than inventing a second way to stand a Governor up.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_governor_log_context.py
@@ -830,12 +830,12 @@ def test_mode_is_REMOVED_on_unload_not_set_to_empty():
         log_context.set_static_field("mode", None)
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_governor_log_context.py -q`
 Expected: FAIL — `test_a_job_sees_its_own_id` gets `None`.
 
-- [ ] **Step 3: Bind in the dispatch loop**
+- [x] **Step 3: Bind in the dispatch loop**
 
 In `backends/governor.py`, add the import at module top alongside the existing
 `from server.metrics import get_metrics`:
@@ -873,7 +873,16 @@ and in the `finally` at `:1176`:
 `ContextVar.set`/`reset` cannot raise for a valid token, and `getattr(..., None)`
 cannot raise — so this satisfies the `STABL-hdzggeir` constraint without a wrapper.
 
-- [ ] **Step 4: Publish `mode` on load and unload**
+- [x] **Step 4: Publish `mode` on load, unload, AND demand reload**
+
+> **Plan defect found in execution.** The original step named only `_load_mode` and
+> `_unload_current_worker` and was **wrong**. `_reload_from_snapshot` (`:605`) brings
+> the worker back after an idle eviction *without* going through `_load_mode` — it is
+> the epoch-neutral path — and the eviction that preceded it already cleared the
+> field. Omit the third site and every line after an evict/reload cycle claims no
+> mode is resident while one is. The existing `_publish_mode_active` call in that
+> method is the tell: anywhere the metric is republished, the log field must be too.
+> Test: `test_a_DEMAND_RELOAD_republishes_mode`.
 
 Find the point in `_load_mode` where the load has SUCCEEDED and the new mode is
 recorded as current (`self._current_mode = ...`), and add immediately after it:
@@ -890,6 +899,13 @@ In `_unload_current_worker`, after the worker is torn down:
                 self._log_field("mode", None)   # REMOVE the field; see set_static_field
 ```
 
+And in `_reload_from_snapshot`, immediately before the existing
+`self._metric(...)` block that calls `_publish_mode_active`:
+
+```python
+        self._log_field("mode", _mode_name)
+```
+
 And add the guarded helper next to the existing `_metric`:
 
 ```python
@@ -904,7 +920,7 @@ And add the guarded helper next to the existing `_metric`:
             logger.debug("[Governor] log field %s failed", name, exc_info=True)
 ```
 
-- [ ] **Step 5: Publish `device_uuid` once, where the provider is selected**
+- [x] **Step 5: Publish `device_uuid` once, where the provider is selected**
 
 Without this the field is documented and never emitted in production — and Task 7's
 contract test would NOT catch it, because that test sets the field itself. A
@@ -957,17 +973,17 @@ returns a child Mock, so the absent-field test would pass without exercising
 anything. That exact failure cost a green-for-the-wrong-reason test in
 `STABL-asawxgvp`.
 
-- [ ] **Step 6: Run to verify it passes**
+- [x] **Step 6: Run to verify it passes**
 
 Run: `python -m pytest tests/test_governor_log_context.py -q`
 Expected: 7 passed.
 
-- [ ] **Step 7: Run the whole Governor suite**
+- [x] **Step 7: Run the whole Governor suite**
 
 Run: `python -m pytest tests/test_governor.py tests/test_worker_pool.py -q`
 Expected: no new failures against the baseline on `main`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backends/governor.py tests/test_governor_log_context.py
