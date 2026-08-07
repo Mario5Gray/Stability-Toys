@@ -1174,7 +1174,19 @@ omits the worker is not a logging story.
 `worker_pool.py:21`, and others), so there is no import-direction objection here —
 and this is a *process bootstrap*, not a layer dependency.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
+
+> **Two plan defects found in execution.**
+>
+> 1. **The child must report its failures on the queue.** As first written, a
+>    child that raised (which is exactly what RED is) put nothing on the queue, so
+>    the assertion became a `q.get` timeout: **122 seconds to learn `ImportError`**.
+>    Wrap the child body and put `("error", False, traceback)`.
+> 2. **Calling `_configure_child_logging()` directly does not test the wiring.**
+>    That test passes unchanged if `_worker_main` stops calling it. A second test
+>    parses `_worker_main` with `ast` and asserts the bootstrap is its **first**
+>    statement after the docstring — pinning both the call and the ordering torch's
+>    import-time logging depends on.
 
 ```python
 # tests/test_worker_child_logging.py
@@ -1213,12 +1225,12 @@ def test_the_child_gets_the_json_formatter_and_its_OWN_pid():
     assert payload["pid"] != os.getpid()
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_worker_child_logging.py -q`
 Expected: FAIL — `ImportError: cannot import name '_configure_child_logging'`.
 
-- [ ] **Step 3: Add the child bootstrap**
+- [x] **Step 3: Add the child bootstrap**
 
 In `backends/worker_handle_subprocess.py`, above `_worker_main`:
 
@@ -1260,17 +1272,17 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
         from backends.model_resolution import resolved_model_from_json_dict
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `python -m pytest tests/test_worker_child_logging.py -q`
 Expected: 1 passed.
 
-- [ ] **Step 5: Run the subprocess handle suite**
+- [x] **Step 5: Run the subprocess handle suite**
 
 Run: `python -m pytest tests/test_worker_handle_subprocess.py -q`
 Expected: no new failures.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/worker_handle_subprocess.py tests/test_worker_child_logging.py
