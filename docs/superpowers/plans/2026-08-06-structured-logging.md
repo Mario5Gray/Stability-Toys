@@ -274,7 +274,7 @@ container start, on both entry paths. Reading `LOG_FORMAT` in `__init__` makes i
 genuine runtime switch in dev and prod alike, from a dict that was serialised months
 earlier.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_log_format.py
@@ -431,12 +431,12 @@ def test_dictConfig_accepts_the_formatter_under_the_key_named_format():
     assert handler.formatter.format(_record()).endswith("hello")
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_log_format.py -q`
 Expected: collection error — `ModuleNotFoundError: No module named 'server.log_format'`.
 
-- [ ] **Step 3: Write the formatter**
+- [x] **Step 3: Write the formatter**
 
 ```python
 # server/log_format.py
@@ -543,7 +543,7 @@ class StabilityFormatter(logging.Formatter):
         return payload
 ```
 
-- [ ] **Step 4: Point `LOGGING_CONFIG` at it**
+- [x] **Step 4: Point `LOGGING_CONFIG` at it**
 
 In `server/logging_config.py`, replace the two formatter entries:
 
@@ -571,12 +571,12 @@ LOGGING_CONFIG = {
 }
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [x] **Step 5: Run to verify it passes**
 
 Run: `python -m pytest tests/test_log_format.py -q`
 Expected: 16 passed.
 
-- [ ] **Step 6: Prove the config still survives JSON round-tripping**
+- [x] **Step 6: Prove the config still survives JSON round-tripping**
 
 The dev image runs `json.dump(LOGGING_CONFIG, ...)`. If any value stopped being
 JSON-serialisable, the dev image would fail to build — a failure that appears at
@@ -627,7 +627,7 @@ def test_the_default_stays_TEXT_when_LOG_FORMAT_is_unset(monkeypatch):
 Run: `python -m pytest tests/test_logging_wiring.py -q`
 Expected: 4 passed.
 
-- [ ] **Step 7: Restore logging after these tests**
+- [x] **Step 7: Restore logging after these tests**
 
 `dictConfig` mutates global logging state and these tests run mid-suite. Add to
 `tests/test_logging_wiring.py`:
@@ -652,7 +652,7 @@ def _restore_logging():
 Run: `python -m pytest tests/test_logging_wiring.py tests/test_log_format.py tests/test_metrics.py -q`
 Expected: all pass — the third file is there to catch cross-file logging leakage.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add server/log_format.py server/logging_config.py tests/test_log_format.py tests/test_logging_wiring.py
