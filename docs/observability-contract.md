@@ -1,17 +1,19 @@
-# Observability contract — metrics exported by Stability-Toys
+# Observability contract — metrics and logs exported by Stability-Toys
 
-**Issue:** STABL-asawxgvp (umbrella STABL-oxbwjwvu)
+**Issues:** STABL-asawxgvp (metrics), STABL-bpsfmoke (logs) — umbrella STABL-oxbwjwvu
 **Spec:** `docs/superpowers/specs/2026-08-03-server-observability-seams-design.md`
 
-This repo owns **emission only**. Scrape config, collectors, dashboards, alert
-rules and retention live in `../continuous/docs` — see `AGENTS.md`. This document
-is the interface between the two: it is what `../continuous` reads instead of
-guessing or reverse-engineering a scrape.
+This repo owns **emission only**. Scrape config, collectors, log shipping,
+dashboards, alert rules and retention live in `../continuous/docs` — see
+`AGENTS.md`. This document is the interface between the two: it is what
+`../continuous` reads instead of guessing or reverse-engineering a scrape.
 
 Every family listed here is checked against the running facade by
 `tests/test_metrics.py::test_every_family_is_documented_in_the_contract`, in both
 directions — a metric that ships without an entry fails, and an entry for a
-metric that no longer exists fails too.
+metric that no longer exists fails too. The log field set in
+[Structured logs](#structured-logs) is checked the same way, by
+`tests/test_log_format.py`.
 
 ## Endpoint
 
@@ -219,9 +221,68 @@ render from three such series to zero.
 directions, so any `st_`-prefixed token appearing in this file must be a real
 metric family — naming one of these as an illustration would fail the build.)
 
+## Structured logs
+
+Emitted to **stdout**, one JSON object per line, when `LOG_FORMAT=json`. The
+default is `text` — the unchanged human format. `LOG_FORMAT` is read when the
+logging config is *applied* (container start), not when it is built, so it is a
+runtime switch on both the prod (`server/run.py`) and dev (`--log-config`) paths.
+
+**Two processes write to this stream.** The server, and — under
+`WORKER_ISOLATION=subprocess`, which is the production path — the spawned worker
+child, where generation actually happens. Both emit this shape; `pid`
+distinguishes them.
+
+| Field | Always? | Meaning |
+|---|---|---|
+| `timestamp` | yes | ISO 8601, UTC, milliseconds, `Z`-suffixed |
+| `level` | yes | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
+| `logger` | yes | Python logger name — the emitting module |
+| `thread` | yes | Thread name. The dispatch loop and the event loop are different threads, and this is how you tell them apart |
+| `message` | yes | Interpolated message text |
+| `pid` | yes | Emitting process. Server and worker child both write here |
+| `hostname` | yes | Deliberately a log field and **not** a metric label — see the label policy above |
+| `mode` | while a mode is resident | Active mode name. Absent when nothing is loaded, and republished after a demand reload |
+| `device_uuid` | when a device is resolved | Stable GPU identity. Same vocabulary as the metric label |
+| `job_id` | during a job | Correlation id. Present on the WebSocket handler **and** on the dispatch-thread lines for the same job. **Known gap:** no HTTP handler line carries it — see below |
+| `exception` | on a failing record | Formatted traceback |
+| `stack` | on `stack_info=True` | Formatted stack |
+
+Any field a caller attaches through `logging`'s `extra=` appears alongside these.
+Fields that cannot be determined are **omitted**, never emitted as `null` — the
+same absent-never-zero rule the OS resource gauges follow.
+
+### `job_id` correlation spans two threads
+
+The WebSocket handler runs on the event loop and the generation runs on the
+Governor's dispatch thread. Contextvars do not cross that boundary on their own,
+so the dispatch loop sets and **resets** the id per iteration. A missing `job_id`
+on a dispatch line is a bug; a *wrong* one would be worse, which is why the reset
+sits in the loop's `finally` next to `task_done()`.
+
+Correlate a whole job with:
+
+```logql
+{container="stability-toys"} | json | job_id = "<id>"
+```
+
+### No HTTP handler line carries `job_id` — a documented limitation, not a regression
+
+This applies to **both** HTTP generation paths — `POST /generate` and the compat
+endpoints' runner — and for the same reason: `submit_generate()` returns only a
+future, deliberately (`STABL-atzqpcte` — an id-keyed waiter API fixes WebSocket
+and silently leaves HTTP broken). So a `/generate` failure line has no `job_id`
+by design.
+
+The generation's own **dispatch-thread** lines still carry the id, so the work is
+correlatable; what is not correlatable is the HTTP request that asked for it.
+Closing this needs a runtime API change, not a formatter change. For an HTTP
+request, correlate by time and `mode` against the dispatch-thread lines.
+
 ## Stability
 
-Metric names and label sets are a stable interface. Additions are compatible;
-renames and label changes are breaking and must be announced to `../continuous`
-before landing. The bidirectional test named at the top of this document is what
-keeps this file and the code from drifting apart.
+Metric names and label sets are a stable interface, and so is the log field set
+above. Additions are compatible; renames, label changes and field removals are
+breaking and must be announced to `../continuous` before landing. The
+bidirectional tests named at the top of this document are what keep this file and
+the code from drifting apart.

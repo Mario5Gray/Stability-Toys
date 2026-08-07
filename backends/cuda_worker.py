@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass
@@ -32,6 +33,8 @@ from backends.family_profiles import (
 )
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=None)
@@ -184,7 +187,7 @@ def _hunyuan_debug_dir(job_id: str) -> Path | None:
         target.mkdir(parents=True, exist_ok=True)
         return target
     except Exception as e:
-        print(f"[hunyuandit-cuda] debug dump dir failed: {e!r}")
+        logger.warning("[hunyuandit-cuda] debug dump dir failed: %r", e)
         return None
 
 
@@ -233,7 +236,7 @@ def _hunyuan_debug_write_json(target: Path | None, name: str, payload: Any) -> N
     try:
         (target / name).write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
     except Exception as e:
-        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
+        logger.warning("[hunyuandit-cuda] debug dump %s failed: %r", name, e)
 
 
 def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> None:
@@ -242,7 +245,7 @@ def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> No
     try:
         image.save(target / name, format="PNG")
     except Exception as e:
-        print(f"[hunyuandit-cuda] debug dump {name} failed: {e!r}")
+        logger.warning("[hunyuandit-cuda] debug dump %s failed: %r", name, e)
 
 
 def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:
@@ -464,16 +467,19 @@ class CudaWorkerBase:
             for target in self._quantization_targets(pipe):
                 quantize(target, weights=qfloat8)
                 freeze(target)
-            print(f"[cuda] worker {self.worker_id}: fp8 quantization applied")
+            logger.info("[cuda] worker %s: fp8 quantization applied", self.worker_id)
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
         if not self.supports_attention_processor_swap:
             # Correctness beats the memory saving: a replaced processor drops
             # this family's positional-embedding kwarg without erroring.
             if self._attention_slicing or self._enable_xformers:
-                print(
-                    f"[cuda] worker {self.worker_id}: attention processor swaps skipped "
-                    f"(family {self.family_profile.family_id} requires its native processor)"
+                # WARNING, not info: the operator asked for slicing/xformers and
+                # is not getting it. Correctness beats the memory saving here.
+                logger.warning(
+                    "[cuda] worker %s: attention processor swaps skipped "
+                    "(family %s requires its native processor)",
+                    self.worker_id, self.family_profile.family_id,
                 )
         else:
             if self._attention_slicing:
@@ -481,9 +487,10 @@ class CudaWorkerBase:
             if self._enable_xformers:
                 try:
                     pipe.enable_xformers_memory_efficient_attention()
-                    print(f"[cuda] worker {self.worker_id}: xformers enabled")
+                    logger.info("[cuda] worker %s: xformers enabled", self.worker_id)
                 except Exception as e:
-                    print(f"[cuda] worker {self.worker_id}: xformers enable failed: {e!r}")
+                    logger.warning("[cuda] worker %s: xformers enable failed: %r",
+                                   self.worker_id, e, exc_info=True)
         gpu_id = self._device_index()
         if self._offload == "sequential":
             pipe.enable_sequential_cpu_offload(gpu_id=gpu_id)
@@ -928,7 +935,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
-        print(f"[cuda] ckpt_path={ckpt_path}")
+        logger.info("[cuda] ckpt_path=%s", ckpt_path)
 
         format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
@@ -938,7 +945,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         )
 
         if is_diffusers_dir:
-            print("loading diffusers")
+            logger.info("[cuda] loading diffusers")
             pipe = _sd_pipeline_cls().from_pretrained(
                 ckpt_path,
                 torch_dtype=self.dtype,
@@ -947,7 +954,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
             )
             format_name = "diffusers"
         else:
-            print("loading safetensors")
+            logger.info("[cuda] loading safetensors")
             pipe = _sd_pipeline_cls().from_single_file(
                 ckpt_path,
                 torch_dtype=self.dtype,
@@ -982,9 +989,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
             # --- Compatibility gate: cross-attention dim ---
             if sd.required_cross_attention_dim is not None and cad is not None:
                 if int(cad) != int(sd.required_cross_attention_dim):
-                    print(
-                        f"[cuda] skip style '{sid}': incompatible cross_attention_dim "
-                        f"(model={cad} style={sd.required_cross_attention_dim})"
+                    logger.warning(
+                        "[cuda] skip style '%s': incompatible cross_attention_dim "
+                        "(model=%s style=%s)",
+                        sid, cad, sd.required_cross_attention_dim,
                     )
                     self._style_loaded[sd.adapter_name] = False
                     continue
@@ -993,15 +1001,17 @@ class DiffusersCudaWorker(CudaWorkerBase):
                     # Newer diffusers supports adapter_name
                     self.pipe.load_lora_weights(sd.lora_path, adapter_name=sd.adapter_name)
                     self._style_loaded[sd.adapter_name] = True
-                    print(f"[cuda] loaded style LoRA: {sid} -> {sd.lora_path} (adapter={sd.adapter_name})")
+                    logger.info("[cuda] loaded style LoRA: %s -> %s (adapter=%s)",
+                                sid, sd.lora_path, sd.adapter_name)
                 except TypeError:
                     # Older diffusers: no adapter_name kwarg
                     self.pipe.load_lora_weights(sd.lora_path)
                     self._style_loaded[sd.adapter_name] = True
-                    print(f"[cuda] loaded style LoRA (no adapter_name API): {sid} -> {sd.lora_path}")
+                    logger.info("[cuda] loaded style LoRA (no adapter_name API): %s -> %s",
+                                sid, sd.lora_path)
             except Exception as e:
                 self._style_loaded[sd.adapter_name] = False
-                print(f"[cuda] FAILED to load style LoRA {sid}: {e!r}")
+                logger.error("[cuda] FAILED to load style LoRA %s: %r", sid, e, exc_info=True)
 
         # Detect best available runtime API for toggling
         if hasattr(self.pipe, "set_adapters") and hasattr(self.pipe, "disable_lora"):
@@ -1011,10 +1021,10 @@ class DiffusersCudaWorker(CudaWorkerBase):
         else:
             self._style_api = "none"
 
-        print(
-            f"[cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {self.device} dtype={self.dtype_str} "
-            f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
+        logger.info(
+            "[cuda] worker %s loaded: %s (%s) on %s dtype=%s quantize=%s offload=%s style_api=%s",
+            self.worker_id, os.path.basename(ckpt_path), format_name, self.device,
+            self.dtype_str, self._quantize, self._offload, self._style_api,
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
@@ -1292,7 +1302,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         super().__init__(worker_id, model_info=model_info, family_profile=family_profile)
 
         ckpt_path = model_path
-        print(f"[sdxl-cuda] ckpt_path={ckpt_path}")
+        logger.info("[sdxl-cuda] ckpt_path=%s", ckpt_path)
 
         format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
@@ -1346,22 +1356,25 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         te2_dim = getattr(getattr(self.pipe, "text_encoder_2", None), "config", None)
         te2_dim = getattr(te2_dim, "hidden_size", None)
 
-        print(f"[sdxl-cuda] text_encoder.hidden_size={te_dim}, text_encoder_2.hidden_size={te2_dim}")
+        logger.info("[sdxl-cuda] text_encoder.hidden_size=%s, text_encoder_2.hidden_size=%s",
+                    te_dim, te2_dim)
 
         # Get UNet cross-attention dim (should be 2048 for SDXL)
         cad = getattr(getattr(self.pipe, "unet", None), "config", None)
         cad = getattr(cad, "cross_attention_dim", None)
 
-        print(f"[sdxl-cuda] unet.cross_attention_dim={cad} pipeline={type(self.pipe).__name__}")
+        logger.info("[sdxl-cuda] unet.cross_attention_dim=%s pipeline=%s",
+                    cad, type(self.pipe).__name__)
 
         # Load SDXL-compatible style LoRAs
         for sid, sd in STYLE_REGISTRY.items():
             # Filter by cross-attention dimension (SDXL requires 2048)
             if sd.required_cross_attention_dim is not None and cad is not None:
                 if int(cad) != int(sd.required_cross_attention_dim):
-                    print(
-                        f"[sdxl-cuda] skip style '{sid}': incompatible cross_attention_dim "
-                        f"(model={cad} style={sd.required_cross_attention_dim})"
+                    logger.warning(
+                        "[sdxl-cuda] skip style '%s': incompatible cross_attention_dim "
+                        "(model=%s style=%s)",
+                        sid, cad, sd.required_cross_attention_dim,
                     )
                     self._style_loaded[sd.adapter_name] = False
                     continue
@@ -1371,15 +1384,17 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                     # Newer diffusers supports adapter_name
                     self.pipe.load_lora_weights(sd.lora_path, adapter_name=sd.adapter_name)
                     self._style_loaded[sd.adapter_name] = True
-                    print(f"[sdxl-cuda] loaded style LoRA: {sid} -> {sd.lora_path} (adapter={sd.adapter_name})")
+                    logger.info("[sdxl-cuda] loaded style LoRA: %s -> %s (adapter=%s)",
+                                sid, sd.lora_path, sd.adapter_name)
                 except TypeError:
                     # Older diffusers: no adapter_name kwarg
                     self.pipe.load_lora_weights(sd.lora_path)
                     self._style_loaded[sd.adapter_name] = True
-                    print(f"[sdxl-cuda] loaded style LoRA (no adapter_name API): {sid} -> {sd.lora_path}")
+                    logger.info("[sdxl-cuda] loaded style LoRA (no adapter_name API): %s -> %s",
+                                sid, sd.lora_path)
             except Exception as e:
                 self._style_loaded[sd.adapter_name] = False
-                print(f"[sdxl-cuda] FAILED to load style LoRA {sid}: {e!r}")
+                logger.error("[sdxl-cuda] FAILED to load style LoRA %s: %r", sid, e, exc_info=True)
 
         # Detect best available runtime API for toggling
         if hasattr(self.pipe, "set_adapters") and hasattr(self.pipe, "disable_lora"):
@@ -1389,10 +1404,10 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         else:
             self._style_api = "none"
 
-        print(
-            f"[sdxl-cuda] worker {self.worker_id} loaded: {os.path.basename(ckpt_path)} "
-            f"({format_name}) on {self.device} dtype={self.dtype_str} "
-            f"quantize={self._quantize} offload={self._offload} style_api={self._style_api}"
+        logger.info(
+            "[sdxl-cuda] worker %s loaded: %s (%s) on %s dtype=%s quantize=%s offload=%s style_api=%s",
+            self.worker_id, os.path.basename(ckpt_path), format_name, self.device,
+            self.dtype_str, self._quantize, self._offload, self._style_api,
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
@@ -1688,7 +1703,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         _hunyuandit_dependency_preflight()
 
         ckpt_path = model_path
-        print(f"[hunyuandit-cuda] ckpt_path={ckpt_path}")
+        logger.info("[hunyuandit-cuda] ckpt_path=%s", ckpt_path)
 
         format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
@@ -1715,10 +1730,10 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         # HunyuanDiT does not load SD/SDXL style LoRAs (different denoiser + CAD).
         self._style_api = "none"
 
-        print(
-            f"[hunyuandit-cuda] worker {self.worker_id} loaded: "
-            f"{os.path.basename(ckpt_path)} on {self.device} dtype={self.dtype_str} "
-            f"quantize={self._quantize} offload={self._offload}"
+        logger.info(
+            "[hunyuandit-cuda] worker %s loaded: %s on %s dtype=%s quantize=%s offload=%s",
+            self.worker_id, os.path.basename(ckpt_path), self.device,
+            self.dtype_str, self._quantize, self._offload,
         )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
@@ -1852,7 +1867,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                     "pipe_state_at_call.json",
                     _hunyuan_pipe_state(pipe, controlnet=controlnet_obj),
                 )
-                print(f"[hunyuandit-cuda] debug dump written to {debug_dir}")
+                logger.info("[hunyuandit-cuda] debug dump written to %s", debug_dir)
 
             with torch.inference_mode():
                 inject_step_progress(pipe, pipe_kwargs, progress,

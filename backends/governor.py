@@ -24,6 +24,7 @@ from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
 from server.metrics import get_metrics
+from server import log_context
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
@@ -401,6 +402,11 @@ class Governor:
             from backends.device_memory import get_device_memory
             device_memory = get_device_memory()
         self._dm = device_memory
+        # One publication point, because provider selection is a singleton and the
+        # uuid never changes for the life of the process (STABL-bpsfmoke). getattr,
+        # not attribute access: a provider without the attribute must degrade to an
+        # ABSENT field, not raise.
+        self._log_field("device_uuid", getattr(self._dm, "device_uuid", None))
 
         # Handle: inject for testing/pluggability, or build InProcessWorkerHandle
         # from the factory. Injected handles (stub/subprocess) never touch the
@@ -565,6 +571,10 @@ class Governor:
             loras=[lora.path for lora in mode.loras],
         )
 
+        # Process-global, not per-job: threads with no job of their own (sampler,
+        # watchdog, uvicorn) still belong to the resident mode (STABL-bpsfmoke).
+        self._log_field("mode", mode_name)
+
         with self._job_lock:
             self._current_mode = mode_name
             self._active_snapshot = reservation
@@ -607,6 +617,11 @@ class Governor:
             loras=[lora.path for lora in snapshot.mode.loras],
         )
         _mode_name = snapshot.mode_name
+        # Republished here for the same reason _publish_mode_active is: this path
+        # brings the worker back WITHOUT going through _load_mode, and the eviction
+        # that preceded it cleared the field. Omit this and every line after an
+        # evict/reload cycle claims no mode is resident while one is (STABL-bpsfmoke).
+        self._log_field("mode", _mode_name)
         self._metric(lambda met: (
             met.demand_reload_total.labels(mode=_mode_name).inc(),
             self._publish_mode_active(met, _mode_name),
@@ -682,6 +697,19 @@ class Governor:
             fn(get_metrics())
         except Exception:
             logger.debug("[Governor] metrics side effect failed", exc_info=True)
+
+    @staticmethod
+    def _log_field(name: str, value) -> None:
+        """Publish a process-wide structured-log field (STABL-bpsfmoke).
+
+        Guarded exactly like _metric, for the same reason: this runs on the
+        dispatch thread and inside lifecycle paths, and STABL-hdzggeir says nothing
+        added there may be allowed to raise.
+        """
+        try:
+            log_context.set_static_field(name, value)
+        except Exception:
+            logger.debug("[Governor] log field %s failed", name, exc_info=True)
 
     def _count_worker_recovery(self, *, oom: bool) -> None:
         self._metric(lambda met: met.worker_recovery_total.labels(
@@ -900,6 +928,11 @@ class Governor:
         if self._worker_available() and mode:
             self._registry.unregister_model(mode)
         self._handle.unload()
+        # Nothing is resident now. REMOVES the field rather than blanking it, and
+        # mirrors _publish_mode_active(met, None) below: _load_mode calls this
+        # before every load and republishes on success, so a failed load correctly
+        # leaves the field absent (STABL-bpsfmoke).
+        self._log_field("mode", None)
         # Only when something was actually loaded: _load_mode unloads before every
         # load, and the first-ever load has no outgoing mode to report churn for.
         if mode:
@@ -1003,6 +1036,16 @@ class Governor:
                 job = self.q.get(timeout=1.0)
             except queue.Empty:
                 continue
+            # STABL-bpsfmoke: bind the correlation id for THIS iteration. The token
+            # is set here rather than inside a `with` so the ~170-line body keeps
+            # its indentation and the diff stays reviewable; the reset lands in the
+            # existing finally, next to task_done(), which is the only place that
+            # runs on every exit path (including the `continue` at the cancel
+            # check). Without the reset, job N's id appears on job N+1's lines and
+            # on the loop's own idle lines — plausible, and wrong. Neither
+            # getattr(..., None) nor ContextVar.set can raise, so this needs no
+            # wrapper to satisfy STABL-hdzggeir.
+            _log_token = log_context.job_id_var.set(getattr(job, "job_id", None))
             try:
                 if isinstance(job, ModeSwitchJob):
                     # Mode-switch fast-path: a live worker already holds the target mode.
@@ -1174,6 +1217,7 @@ class Governor:
                     if not job.fut.done():
                         job.fut.set_exception(e)
             finally:
+                log_context.job_id_var.reset(_log_token)
                 self._last_activity = time.monotonic()
                 self.q.task_done()
         logger.info("[Governor] Dispatch loop stopped")

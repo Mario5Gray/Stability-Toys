@@ -177,6 +177,31 @@ class _SubprocessMemoryConsumer:
         return None
 
 
+def _configure_child_logging() -> None:
+    """Apply the server's logging config inside the spawned child (STABL-bpsfmoke).
+
+    The child inherits the parent's STDOUT but none of its logging configuration:
+    it never runs run.py's dictConfig and never sees uvicorn's --log-config. Under
+    WORKER_ISOLATION=subprocess that means the container's log stream is JSON from
+    the parent interleaved with default-formatted lines from the child — and the
+    child is where generation happens.
+
+    Imported lazily and wrapped: this is a process bootstrap that runs before the
+    worker exists, so a failure here must degrade to unconfigured logging rather
+    than take down a child the parent is blocked waiting on.
+    """
+    try:
+        import logging.config
+
+        from server.log_context import refresh_process_fields
+        from server.logging_config import LOGGING_CONFIG
+
+        logging.config.dictConfig(LOGGING_CONFIG)
+        refresh_process_fields()        # this process's OWN pid and hostname
+    except Exception:                   # noqa: BLE001 — a child that cannot
+        pass                            # configure logging must still run
+
+
 def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=None):
     """Spawn-child entrypoint: rebuild the resolution, build + condition the worker,
     signal READY.
@@ -199,6 +224,9 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
     the traceback back as a _FAILED frame before the child dies, so the parent raises
     with the real cause rather than an exit code. It cannot cover a hard kill — that
     is the parent's liveness check (guard A)."""
+    _configure_child_logging()      # BEFORE anything heavy imports: torch and
+                                    # diffusers both log at import, and those lines
+                                    # are worth having in the same shape.
     try:
         from backends.model_resolution import resolved_model_from_json_dict
 

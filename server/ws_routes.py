@@ -23,6 +23,7 @@ from backends.chat_client import ChatCompletionsClient, ChatConfig
 from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
 from server.ws_hub import hub
+from server import log_context
 from server.upload_routes import resolve_file_ref
 from server.metrics import record
 from invokers.jobs import (
@@ -225,6 +226,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
     job_type = msg.get("jobType", "generate")
     params = msg.get("params", {})
     job_id = uuid.uuid4().hex[:12]
+    log_context.job_id_var.set(job_id)   # reset by the message loop's bind
     state = _get_app_state(ws)
     fut = None
     req = None
@@ -318,6 +320,11 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
                 pre_submit_job_error = "Queue full"
             else:
                 job_id = job.job_id
+                # The Governor's id from here on — the one the dispatch-thread logs
+                # will carry, so both halves of the job's life correlate on one
+                # value. No second token needed: the loop's bind restores whatever
+                # was in place before this handler ran.
+                log_context.job_id_var.set(job_id)
 
     # Ack immediately
     await hub.send(client_id, {
@@ -899,9 +906,19 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             try:
-                result = await handler(ws, msg, client_id)
-                if result is not None:
-                    await hub.send(client_id, result)
+                # STABL-bpsfmoke: every message starts with a clean correlation id.
+                # Handlers SET it (job:submit does, once it has minted one); binding
+                # None here is what stops it surviving into the next message on the
+                # same connection. One place, so a handler added later cannot forget.
+                # Tasks the handler spawns are unaffected — create_task copies the
+                # context at creation, so they keep the id this bind later restores.
+                with log_context.bind_job_id(None):
+                    result = await handler(ws, msg, client_id)
+                    # Inside the bind: emitting a handler's reply is still part of
+                    # serving that message, so a send failure logs under the same
+                    # correlation id the handler established.
+                    if result is not None:
+                        await hub.send(client_id, result)
             except Exception as e:
                 logger.error("Handler %s failed: %s", msg_type, e, exc_info=True)
                 await hub.send(client_id, _error(str(e), msg.get("id")))
