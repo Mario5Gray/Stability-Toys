@@ -41,12 +41,18 @@ LOGGING_CONFIG = {
             "handlers": ["default"],
             "level": LOG_LEVEL,
         },
-        # Your app loggers
-        "comfy": {
-            "handlers": ["default"],
-            "level": LOG_LEVEL,
-            "propagate": False,
-        },
+        # Your app loggers.
+        #
+        # There is no "comfy" parent entry: nothing calls getLogger("comfy"),
+        # there is no comfy package, and the only child below sets
+        # propagate: False — so it configured a logger that could never exist
+        # and could never receive propagation. Removed rather than left as
+        # decoration (STABL-ataigkdk).
+        #
+        # "comfy.jobs" is pinned to DEBUG deliberately: it is a DECLARED DEFAULT
+        # for that one logger, in the Spring sense — the baked config states an
+        # intent, and the environment is expected to be able to override it per
+        # logger. It is live; server/comfy_routes.py:18 uses it.
         "comfy.jobs": {
             "handlers": ["default"],
             "level": "DEBUG",
