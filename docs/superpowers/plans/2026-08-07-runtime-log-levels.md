@@ -280,7 +280,7 @@ no error. Explicit keys have none of that.
 **`getLogger(name)` on an unknown name CREATES it**, which is a feature here: a
 level set for a logger whose module has not imported yet is waiting when it does.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # append to tests/test_log_levels.py
@@ -491,12 +491,12 @@ def test_an_internal_failure_is_swallowed_and_LOGGED(monkeypatch):
     assert any(r.exc_info for r in records), "the failure was swallowed silently"
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_log_levels.py -q`
 Expected: `ModuleNotFoundError: No module named 'server.log_levels'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 # server/log_levels.py
@@ -590,12 +590,12 @@ def apply_runtime_levels() -> Dict[str, str]:
     return applied
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `python -m pytest tests/test_log_levels.py -q`
 Expected: all pass (5 from Task 1 + ~14 here).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/log_levels.py tests/test_log_levels.py
