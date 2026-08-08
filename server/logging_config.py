@@ -3,6 +3,25 @@ import os
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
+# Loggers whose level IS LOG_LEVEL, as opposed to a declared literal like
+# comfy.jobs's DEBUG below.
+#
+# This tuple exists because the distinction is UNRECOVERABLE later. LOG_LEVEL is
+# substituted at import, and the dev image materializes this dict to JSON at BUILD
+# time, so a reader of that file sees "INFO" and "DEBUG" as equally literal. The
+# two are not equal in authority:
+#
+#   comfy.jobs: "DEBUG"  -> a SOURCE LITERAL. An intent. Survives.
+#   uvicorn:    "INFO"   -> a SNAPSHOT OF THE BUILD ENVIRONMENT. An accident.
+#
+# server/log_levels.py re-applies LOG_LEVEL to exactly these names at runtime and
+# leaves declared levels alone. The `loggers` dict below is built FROM this tuple
+# so the two cannot drift apart (STABL-ataigkdk).
+LEVEL_TRACKING_LOGGERS = ("", "uvicorn", "uvicorn.error", "uvicorn.access")
+
+# uvicorn.access is the one tracking logger that does not use the default handler.
+_TRACKING_HANDLERS = {"uvicorn.access": ["access"]}
+
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,  # <-- critical
@@ -36,10 +55,18 @@ LOGGING_CONFIG = {
         },
     },
     "loggers": {
-        # Root logger catches everything not explicitly configured
-        "": {
-            "handlers": ["default"],
-            "level": LOG_LEVEL,
+        # Root (name "") catches everything not explicitly configured; the
+        # uvicorn loggers are listed so their records are not double-emitted.
+        # All four are generated from LEVEL_TRACKING_LOGGERS above rather than
+        # written out, so the tuple and the dict cannot disagree.
+        **{
+            name: {
+                "handlers": _TRACKING_HANDLERS.get(name, ["default"]),
+                "level": LOG_LEVEL,
+                # Root takes no `propagate` key — it has nowhere to propagate to.
+                **({} if name == "" else {"propagate": False}),
+            }
+            for name in LEVEL_TRACKING_LOGGERS
         },
         # Your app loggers.
         #
@@ -56,23 +83,6 @@ LOGGING_CONFIG = {
         "comfy.jobs": {
             "handlers": ["default"],
             "level": "DEBUG",
-            "propagate": False,
-        },
-
-        # Uvicorn internal loggers
-        "uvicorn": {
-            "handlers": ["default"],
-            "level": LOG_LEVEL,
-            "propagate": False,
-        },
-        "uvicorn.error": {
-            "handlers": ["default"],
-            "level": LOG_LEVEL,
-            "propagate": False,
-        },
-        "uvicorn.access": {
-            "handlers": ["access"],
-            "level": LOG_LEVEL,
             "propagate": False,
         },
     },

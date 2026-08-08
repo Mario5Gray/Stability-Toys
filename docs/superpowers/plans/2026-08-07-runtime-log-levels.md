@@ -105,7 +105,7 @@ Handlers are all `NOTSET` (verified), so filtering is entirely at logger level. 
 
 This task is a **refactor with no behaviour change**. The rendered config must be byte-identical.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_log_levels.py
@@ -148,12 +148,12 @@ def test_the_config_is_still_json_serialisable():
     json.dumps(LOGGING_CONFIG)
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_log_levels.py -q`
 Expected: `ImportError: cannot import name 'LEVEL_TRACKING_LOGGERS'`.
 
-- [ ] **Step 3: Capture the current rendered config, to prove the refactor is a no-op**
+- [x] **Step 3: Capture the current rendered config, to prove the refactor is a no-op**
 
 ```bash
 python -c "
@@ -163,7 +163,7 @@ print(json.dumps(LOGGING_CONFIG, sort_keys=True, indent=2))
 " > /tmp/logging-config-before.json
 ```
 
-- [ ] **Step 4: Refactor `logging_config.py`**
+- [x] **Step 4: Refactor `logging_config.py`**
 
 ```python
 # logging_config.py
@@ -220,7 +220,7 @@ LOGGING_CONFIG = {
 **Keep the existing formatter comment block verbatim.** It explains why `LOG_FORMAT`
 is a `"()"` reference and is the reason that half works.
 
-- [ ] **Step 5: Prove the rendered config is unchanged**
+- [x] **Step 5: Prove the rendered config is unchanged**
 
 ```bash
 python -c "
@@ -235,12 +235,12 @@ Expected: `IDENTICAL`. **If it differs, the refactor changed behaviour** — mos
 likely `propagate` on root, or the `access` handler on `uvicorn.access`. Fix
 before continuing; do not accept a diff here.
 
-- [ ] **Step 6: Run to verify the tests pass**
+- [x] **Step 6: Run to verify the tests pass**
 
 Run: `python -m pytest tests/test_log_levels.py tests/test_logging_wiring.py -q`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add server/logging_config.py tests/test_log_levels.py
