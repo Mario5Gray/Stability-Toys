@@ -14,6 +14,9 @@
 
 - **The baked config stays.** It is the declared default, not the problem. `comfy.jobs: DEBUG` in particular must survive a runtime `LOG_LEVEL` change — it is a deliberate per-logger declaration.
 - **Precedence, exactly:** `LOG_LEVELS[name]` > declared per-logger level > `LOG_LEVEL` (root default) > `INFO`.
+- **`INFO` is a real floor, not a documentation flourish.** An absent *or invalid*
+  `LOG_LEVEL` resolves the tracking loggers to `INFO`. It does **not** leave them
+  at the baked value — see "Two kinds of baked value" below.
 - **Nothing here may raise.** This runs in `lifespan` (fails server startup) and in the spawned child's bootstrap (hangs a parent waiting on `_READY`). Every parse and every application is guarded.
 - **Test against `json.loads(json.dumps(LOGGING_CONFIG))`.** The dev path never sees the Python dict, and the dev path is the only place the frozen-level bug exists. A test against the in-memory object cannot reproduce it.
 - **Option 2 — regenerating `/app/logging_config.json` at build or entrypoint — is REJECTED on the record** as a kludge. Do not reintroduce it.
@@ -38,6 +41,31 @@ uvicorn.access   level='INFO'    <- from LOG_LEVEL
 `LOG_LEVEL` is substituted at import (`logging_config.py:4`), so by the time anything can read the config back, the provenance is gone. An override that re-applies `LOG_LEVEL` to every configured logger would silently stomp `comfy.jobs` — destroying the exact declaration the Spring model exists to protect.
 
 **Therefore `logging_config.py` must export the tracking set, and build its dict from it.** Two lists that must agree is a bug waiting; one tuple that generates both cannot drift.
+
+### 1b. Two kinds of baked value, and only one of them has authority
+
+The distinction above has a consequence the first draft of this plan missed, caught
+in review:
+
+| baked level | what it is | on absent/invalid `LOG_LEVEL` |
+|---|---|---|
+| `comfy.jobs: "DEBUG"` | a **source literal** — someone decided this logger is worth DEBUG | **survives**; it is an intent |
+| `uvicorn: "INFO"` | a **snapshot of whatever environment the build ran in** | **replaced** by `INFO`; it is an accident |
+
+A tracking logger's baked level is not a declaration. It is build-environment
+leakage frozen into an artifact — which is the entire bug this issue exists to fix.
+So "on invalid input, leave the baked value alone" **preserves exactly the frozen
+state**, in a costume. The floor in the precedence chain has to be real: absent or
+invalid `LOG_LEVEL` resolves the tracking loggers to `INFO`.
+
+This mirrors what `logging_config.py` already says — `os.getenv("LOG_LEVEL", "INFO")`
+means absent is `INFO`. Invalid gets the same answer, plus a warning.
+
+**`LOG_LEVELS` is deliberately different.** A malformed or unknown-level entry there
+is *skipped*, leaving the declared or tracking level in place. That is not
+inconsistent: a per-logger override that cannot be parsed simply does not apply,
+whereas a broken `LOG_LEVEL` still has to resolve to something for loggers whose
+level is defined as "whatever `LOG_LEVEL` says".
 
 ### 2. Setting the root logger is not enough, and it looks like it works
 
@@ -376,6 +404,58 @@ def test_a_STALE_BAKED_config_is_corrected_at_runtime(monkeypatch):
     assert logging.getLogger("comfy.jobs").level == logging.DEBUG  # declared, untouched
 
 
+def test_an_INVALID_LOG_LEVEL_falls_back_to_INFO_not_to_the_BAKED_value(monkeypatch):
+    """Caught in review. The precedence chain ends at INFO and that floor has to be
+    real.
+
+    For a TRACKING logger the baked level is a snapshot of the build environment,
+    not a declaration — so 'on invalid input, leave it alone' preserves exactly the
+    frozen state this issue exists to fix, in a costume. Baked at WARNING here
+    precisely so that 'left alone' and 'fell back to INFO' are distinguishable;
+    with a baked INFO the test would pass either way.
+    """
+    baked = json.loads(json.dumps(LOGGING_CONFIG))
+    for name in LEVEL_TRACKING_LOGGERS:
+        baked["loggers"][name]["level"] = "WARNING"     # frozen at build
+    logging.config.dictConfig(baked)
+    monkeypatch.setenv("LOG_LEVEL", "NOT_A_LEVEL")
+    monkeypatch.delenv("LOG_LEVELS", raising=False)
+
+    apply_runtime_levels()
+
+    for name in LEVEL_TRACKING_LOGGERS:
+        assert logging.getLogger(name).level == logging.INFO, name
+    # A DECLARED level is an intent and is untouched either way.
+    assert logging.getLogger("comfy.jobs").level == logging.DEBUG
+
+
+def test_an_ABSENT_LOG_LEVEL_also_resolves_to_INFO(monkeypatch):
+    """Same floor, the other way in. logging_config.py's own default is
+    os.getenv('LOG_LEVEL', 'INFO'); the override must not disagree with it."""
+    baked = json.loads(json.dumps(LOGGING_CONFIG))
+    for name in LEVEL_TRACKING_LOGGERS:
+        baked["loggers"][name]["level"] = "WARNING"
+    logging.config.dictConfig(baked)
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.delenv("LOG_LEVELS", raising=False)
+
+    apply_runtime_levels()
+
+    assert logging.getLogger("").level == logging.INFO
+
+
+def test_an_invalid_LOG_LEVELS_ENTRY_is_skipped_and_does_NOT_fall_back(monkeypatch):
+    """The deliberate asymmetry with LOG_LEVEL. A per-logger override that cannot
+    be parsed simply does not apply — it must not knock the logger to INFO."""
+    logging.config.dictConfig(json.loads(json.dumps(LOGGING_CONFIG)))
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.setenv("LOG_LEVELS", "comfy.jobs=LOUD")
+
+    apply_runtime_levels()
+
+    assert logging.getLogger("comfy.jobs").level == logging.DEBUG   # declared, kept
+
+
 def test_applying_twice_is_idempotent(monkeypatch):
     """The prod path already has correct levels from run.py's dictConfig, so this
     runs as a no-op there. It must stay one."""
@@ -478,17 +558,27 @@ def apply_runtime_levels() -> Dict[str, str]:
     """
     applied: Dict[str, str] = {}
     try:
-        root_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
-        if root_level in _VALID:
-            # Only the tracking loggers. A declared level (comfy.jobs) is an
-            # intent, not a default to overwrite — that distinction is the whole
-            # reason LEVEL_TRACKING_LOGGERS exists.
-            for name in LEVEL_TRACKING_LOGGERS:
-                applied[name] = root_level
-        elif os.getenv("LOG_LEVEL"):
-            logger.warning("[log_levels] ignoring unknown LOG_LEVEL %r", root_level)
+        raw = os.getenv("LOG_LEVEL")
+        root_level = (raw or "INFO").strip().upper()
+        if root_level not in _VALID:
+            # INFO, NOT the baked value. For a TRACKING logger the baked level is
+            # a snapshot of the build environment, not a declaration — leaving it
+            # in place would preserve exactly the frozen-config bug this module
+            # exists to fix. Absent already means INFO in logging_config.py;
+            # invalid gets the same answer, loudly.
+            logger.warning("[log_levels] unknown LOG_LEVEL %r; falling back to INFO", raw)
+            root_level = "INFO"
+
+        # Unconditional: every tracking logger resolves to SOMETHING on every run.
+        # A declared level (comfy.jobs) is an intent and is not in this set — that
+        # distinction is the whole reason LEVEL_TRACKING_LOGGERS exists.
+        for name in LEVEL_TRACKING_LOGGERS:
+            applied[name] = root_level
 
         # Per-logger overrides win over everything, including a declared level.
+        # Unparseable entries are SKIPPED rather than defaulted: an override that
+        # cannot be read simply does not apply, leaving the declared or tracking
+        # level intact. That asymmetry with LOG_LEVEL above is deliberate.
         applied.update(parse_log_levels(os.getenv("LOG_LEVELS")))
 
         for name, level in applied.items():
@@ -683,8 +773,20 @@ LOG_LEVELS="comfy.jobs=WARNING,backends.governor=DEBUG"
 
 `LOG_LEVELS` takes the **logger name verbatim** — no name mangling, so
 `server.ws_routes` is written exactly that way. A name that no module has imported
-yet is valid: the level is waiting when it does. Unparseable entries and unknown
-level names are skipped with a warning, never fatal.
+yet is valid: the level is waiting when it does.
+
+Bad input never fails startup, but the two variables recover differently, and the
+difference is deliberate:
+
+| bad input | result |
+|---|---|
+| `LOG_LEVEL` absent or unrecognised | tracking loggers resolve to **`INFO`**, with a warning |
+| a `LOG_LEVELS` entry malformed or unrecognised | **that entry is skipped**; the logger keeps its declared or tracking level |
+
+An override that cannot be read simply does not apply. `LOG_LEVEL` is different
+because the loggers it governs are *defined* as "whatever `LOG_LEVEL` says" — they
+have to resolve to something, and falling back to the value baked at image-build
+time would just reinstate a stale build environment.
 
 Applied at FastAPI startup and in the spawned worker child. Records emitted before
 that point — import-time logging and uvicorn's own startup lines — carry the baked
@@ -711,6 +813,23 @@ that did not exist).
 
 Then run it again with **neither** variable set and confirm the baked defaults —
 root `INFO`, `comfy.jobs` `DEBUG` — are what you get.
+
+Finally, the floor, with the baked value set to something other than `INFO` so the
+two outcomes are distinguishable:
+
+```bash
+LOG_LEVEL=NOT_A_LEVEL python -c "
+import json, logging, logging.config
+from server.logging_config import LOGGING_CONFIG, LEVEL_TRACKING_LOGGERS
+from server.log_levels import apply_runtime_levels
+baked = json.loads(json.dumps(LOGGING_CONFIG))
+for n in LEVEL_TRACKING_LOGGERS: baked['loggers'][n]['level'] = 'WARNING'
+logging.config.dictConfig(baked)
+apply_runtime_levels()
+print('root      :', logging.getLevelName(logging.getLogger('').level), '(expect INFO, NOT WARNING)')
+print('comfy.jobs:', logging.getLevelName(logging.getLogger('comfy.jobs').level), '(expect DEBUG)')
+"
+```
 
 - [ ] **Step 3: Check drift**
 
