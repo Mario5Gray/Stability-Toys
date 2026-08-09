@@ -749,7 +749,7 @@ git commit -m "feat(logging): apply runtime levels in lifespan and the spawned c
 **Files:**
 - Modify: `docs/observability-contract.md`
 
-- [ ] **Step 1: Document the two variables**
+- [x] **Step 1: Document the two variables**
 
 Add to the **Structured logs** section of `docs/observability-contract.md`:
 
@@ -793,7 +793,7 @@ that point — import-time logging and uvicorn's own startup lines — carry the
 level.
 ````
 
-- [ ] **Step 2: Live verification, all four precedence rungs**
+- [x] **Step 2: Live verification, all four precedence rungs**
 
 ```bash
 LOG_LEVEL=WARNING LOG_LEVELS="comfy.jobs=ERROR,st.demo=DEBUG" python -c "
@@ -831,7 +831,7 @@ print('comfy.jobs:', logging.getLevelName(logging.getLogger('comfy.jobs').level)
 "
 ```
 
-- [ ] **Step 3: Check drift**
+- [x] **Step 3: Check drift**
 
 ```bash
 drift refs server/lcm_sr_server.py
@@ -853,7 +853,7 @@ Review the prose behind each anchor that appears, then relink **per anchor** —
 `drift link <doc> <anchor>`, never `drift link <doc>`, which refreshes every anchor
 in the file including ones you did not review.
 
-- [ ] **Step 4: Full suite**
+- [x] **Step 4: Full suite**
 
 ```bash
 python -m pytest -q 2>&1 | tail -3
@@ -862,7 +862,7 @@ python -m pytest -q 2>&1 | tail -3
 Baseline on `main` is **1466 passed**, 9 skipped, 1 xfailed. Run it on the tree you
 are about to summarise.
 
-- [ ] **Step 5: Commit and close out**
+- [x] **Step 5: Commit and close out**
 
 ```bash
 git add docs/observability-contract.md docs/superpowers/plans/2026-08-07-runtime-log-levels.md

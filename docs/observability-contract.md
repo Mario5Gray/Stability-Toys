@@ -252,6 +252,44 @@ Any field a caller attaches through `logging`'s `extra=` appears alongside these
 Fields that cannot be determined are **omitted**, never emitted as `null` — the
 same absent-never-zero rule the OS resource gauges follow.
 
+### Log levels
+
+The baked config in `server/logging_config.py` ships **declared defaults**; the
+environment overrides them at startup. Precedence, highest first:
+
+| source | scope |
+|---|---|
+| `LOG_LEVELS` | named loggers |
+| declared level in `logging_config.py` | that logger (currently only `comfy.jobs`, at `DEBUG`) |
+| `LOG_LEVEL` | root and the `uvicorn*` loggers |
+| `INFO` | fallback |
+
+```bash
+LOG_LEVEL=WARNING
+LOG_LEVELS="comfy.jobs=WARNING,backends.governor=DEBUG"
+```
+
+`LOG_LEVELS` takes the **logger name verbatim** — no name mangling, so
+`server.ws_routes` is written exactly that way. A name that no module has imported
+yet is valid: the level is waiting when it does.
+
+Bad input never fails startup, but the two variables recover differently, and the
+difference is deliberate:
+
+| bad input | result |
+|---|---|
+| `LOG_LEVEL` absent or unrecognised | tracking loggers resolve to **`INFO`**, with a warning |
+| a `LOG_LEVELS` entry malformed or unrecognised | **that entry is skipped**; the logger keeps its declared or tracking level |
+
+An override that cannot be read simply does not apply. `LOG_LEVEL` is different
+because the loggers it governs are *defined* as "whatever `LOG_LEVEL` says" — they
+have to resolve to something, and falling back to the value baked at image-build
+time would just reinstate a stale build environment.
+
+Applied at FastAPI startup and in the spawned worker child. Records emitted before
+that point — import-time logging and uvicorn's own startup lines — carry the baked
+level.
+
 ### `job_id` correlation spans two threads
 
 The WebSocket handler runs on the event loop and the generation runs on the

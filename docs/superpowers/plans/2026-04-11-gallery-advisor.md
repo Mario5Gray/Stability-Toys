@@ -32,8 +32,8 @@
 
 ### Runtime Logging
 
-- Server logging is configured through `server/logging_config.py` and inherits the root `LOG_LEVEL` environment variable, which defaults to `INFO`.
-- The outbound chat request log in `backends/chat_client.py` only emits when `LOG_LEVEL=DEBUG` (or equivalent logger configuration enables debug for `backends.chat_client`).
+- Server logging is configured through `server/logging_config.py` and inherits the root `LOG_LEVEL` environment variable, which defaults to `INFO`. That config is a set of **declared defaults**; `LOG_LEVEL` and the per-logger `LOG_LEVELS` are re-applied at startup, so both are runtime settings on every entry path (`STABL-ataigkdk`; precedence documented in `docs/observability-contract.md`).
+- The outbound chat request log in `backends/chat_client.py` only emits when `LOG_LEVEL=DEBUG`, or when that one logger is raised on its own with `LOG_LEVELS="backends.chat_client=DEBUG"` — which is the preferable form, since it does not make the whole server verbose. (Before `STABL-ataigkdk` the `LOG_LEVEL=DEBUG` route did not work on the dev container path at all: its logging config was materialised at image-build time, so a runtime value was ignored.)
 - By default that log is metadata-only and records:
   - `url`
   - `model`
