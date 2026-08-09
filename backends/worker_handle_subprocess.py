@@ -194,10 +194,16 @@ def _configure_child_logging() -> None:
         import logging.config
 
         from server.log_context import refresh_process_fields
+        from server.log_levels import apply_runtime_levels
         from server.logging_config import LOGGING_CONFIG
 
         logging.config.dictConfig(LOGGING_CONFIG)
         refresh_process_fields()        # this process's OWN pid and hostname
+        # LOG_LEVEL is ALREADY live here — spawn re-imports logging_config in a
+        # fresh process, so its module-level os.getenv reads the real environment.
+        # This call is for the per-logger LOG_LEVELS half, which no amount of
+        # re-importing provides (STABL-ataigkdk).
+        apply_runtime_levels()
     except Exception:                   # noqa: BLE001 — a child that cannot
         pass                            # configure logging must still run
 

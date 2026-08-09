@@ -388,8 +388,24 @@ def _close_providers(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # FIRST, before anything else logs. dictConfig has already installed the baked
+    # config by now (run.py in prod, uvicorn --log-config in dev), so this is the
+    # point where "baked default, runtime wins" becomes realisable — on BOTH entry
+    # paths, since the dev CMD imports the app and prod's uvicorn.run(app) each
+    # fire lifespan (STABL-ataigkdk).
+    #
+    # Records emitted BEFORE this line — import-time logging and uvicorn's own
+    # startup output — keep the baked level. That window is small and mostly
+    # uvicorn's; closing it would mean configuring logging earlier than the app,
+    # which is the entrypoint approach rejected on this issue.
+    from server.log_levels import apply_runtime_levels
+    _applied = apply_runtime_levels()
+
     logger.info("Starting FastAPI server lifespan...")
-    logger.info(f"BACKEND={BACKEND}, NUM_WORKERS={NUM_WORKERS}, LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO')}")
+    logger.info(
+        "BACKEND=%s, NUM_WORKERS=%s, LOG_LEVEL=%s, log levels applied: %s",
+        BACKEND, NUM_WORKERS, os.getenv("LOG_LEVEL", "INFO"), _applied or "none",
+    )
 
     if os.environ.get("CONTROLNET_REGISTRY_VALIDATION", "strict").strip().lower() == "strict":
         _validate_controlnet_registry_for_startup()
