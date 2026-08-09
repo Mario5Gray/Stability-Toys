@@ -79,3 +79,45 @@ def test_worker_main_calls_the_bootstrap_FIRST():
         f"_worker_main's first statement is {ast.dump(first)[:80]}, not a call"
     )
     assert getattr(first.value.func, "id", None) == "_configure_child_logging"
+
+
+def _levels_child(queue):
+    """STABL-ataigkdk: does LOG_LEVELS survive the spawn boundary?
+
+    Same report-on-the-queue discipline as _child above — a crashed child must
+    return a traceback, not a timeout.
+    """
+    try:
+        os.environ["LOG_LEVEL"] = "WARNING"
+        os.environ["LOG_LEVELS"] = "st.childprobe=DEBUG"
+        from backends.worker_handle_subprocess import _configure_child_logging
+
+        _configure_child_logging()
+
+        queue.put((
+            "ok",
+            logging.getLogger("st.childprobe").level,   # from LOG_LEVELS
+            logging.getLogger("").level,                # from LOG_LEVEL
+        ))
+    except BaseException:
+        import traceback
+        queue.put(("error", traceback.format_exc(), None))
+
+
+def test_LOG_LEVELS_reaches_the_spawned_child():
+    """The existing test proves the FORMATTER crosses the spawn boundary; this
+    proves the LEVELS do. Under WORKER_ISOLATION=subprocess the child is where
+    generation happens, so a per-logger override that stopped at the parent would
+    be silently useless for exactly the logs that matter."""
+    ctx = mp.get_context("spawn")
+    q = ctx.Queue()
+    p = ctx.Process(target=_levels_child, args=(q,))
+    p.start()
+    try:
+        status, probe_level, root_level = q.get(timeout=120)
+    finally:
+        p.join(timeout=30)
+
+    assert status == "ok", f"child failed:\n{probe_level}"
+    assert probe_level == logging.DEBUG, "LOG_LEVELS did not reach the child"
+    assert root_level == logging.WARNING, "LOG_LEVEL did not reach the child"

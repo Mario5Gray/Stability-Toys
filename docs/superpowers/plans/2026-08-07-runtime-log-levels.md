@@ -622,7 +622,7 @@ runtime wins".
 *before* lifespan — import-time logging and uvicorn's own startup lines — keep the
 baked level. The window is small and mostly uvicorn's own output.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # append to tests/test_log_levels.py
@@ -660,12 +660,12 @@ def test_the_child_bootstrap_applies_runtime_levels():
     )
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_log_levels.py -q -k wiring or applies`
 Expected: both new tests FAIL.
 
-- [ ] **Step 3: Wire the lifespan**
+- [x] **Step 3: Wire the lifespan**
 
 In `server/lcm_sr_server.py`, `lifespan` currently opens:
 
@@ -700,7 +700,7 @@ Imported inside the function, not at module top: `lcm_sr_server` is imported by
 tests that do not want a logging side effect at import, and the cost is one lookup
 per process.
 
-- [ ] **Step 4: Wire the child bootstrap**
+- [x] **Step 4: Wire the child bootstrap**
 
 In `backends/worker_handle_subprocess.py`, `_configure_child_logging`, after the
 existing `refresh_process_fields()`:
@@ -717,12 +717,12 @@ existing `refresh_process_fields()`:
         apply_runtime_levels()
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [x] **Step 5: Run to verify it passes**
 
 Run: `python -m pytest tests/test_log_levels.py tests/test_worker_child_logging.py -q`
 Expected: all pass.
 
-- [ ] **Step 6: Prove it end-to-end in a real spawned child**
+- [x] **Step 6: Prove it end-to-end in a real spawned child**
 
 Extend `tests/test_worker_child_logging.py`'s `_child` to set
 `LOG_LEVELS=st.childprobe=DEBUG` before calling `_configure_child_logging()`, and
@@ -730,12 +730,12 @@ report `logging.getLogger("st.childprobe").level` back on the queue. Assert it i
 `logging.DEBUG`. The existing test already proves the formatter crosses the spawn
 boundary; this proves the levels do.
 
-- [ ] **Step 7: Run the server and worker suites**
+- [x] **Step 7: Run the server and worker suites**
 
 Run: `python -m pytest tests/test_ws_routes.py tests/test_subprocess_worker_handle.py tests/test_worker_handle.py tests/test_logging_wiring.py -q`
 Expected: no new failures.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add server/lcm_sr_server.py backends/worker_handle_subprocess.py tests/

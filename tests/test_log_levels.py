@@ -252,3 +252,43 @@ def test_the_return_value_reports_only_what_was_ACTUALLY_set(monkeypatch):
     monkeypatch.setattr(log_levels, "parse_log_levels",
                         lambda raw: (_ for _ in ()).throw(RuntimeError("boom")))
     assert apply_runtime_levels() == {}
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — the wiring
+#
+# ast-based on purpose. EVERY unit test above passes whether or not anything
+# actually calls apply_runtime_levels(), so behaviour tests cannot tell a wired
+# system from an unwired one. Same trap as the child bootstrap in STABL-bpsfmoke.
+# ---------------------------------------------------------------------------
+
+import ast
+import pathlib
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def _calls_in(path: pathlib.Path, func_name: str):
+    """Every function called by simple name anywhere inside `func_name`."""
+    tree = ast.parse(path.read_text(), filename=str(path))
+    fn = next((n for n in ast.walk(tree)
+               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and n.name == func_name), None)
+    assert fn is not None, f"{func_name} not found in {path.name}"
+    return {n.func.id for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+
+
+def test_lifespan_applies_runtime_levels():
+    assert "apply_runtime_levels" in _calls_in(
+        ROOT / "server" / "lcm_sr_server.py", "lifespan"
+    )
+
+
+def test_the_child_bootstrap_applies_runtime_levels():
+    """Under WORKER_ISOLATION=subprocess the child is where generation happens.
+    Its LOG_LEVEL is already live (fresh import after spawn), but the per-logger
+    LOG_LEVELS half still needs applying."""
+    assert "apply_runtime_levels" in _calls_in(
+        ROOT / "backends" / "worker_handle_subprocess.py", "_configure_child_logging"
+    )
