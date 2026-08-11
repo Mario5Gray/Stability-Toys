@@ -13,6 +13,9 @@
 ## Global Constraints
 
 - **Never raise.** These run at import time and inside `dataclass` field factories. A malformed value degrades to the default; it does not take down the process.
+- **`env_bool` preserves the old truthiness EXACTLY**, oddities included. Moving a
+  read must not change which deployments have a flag on. Normalisation is tracked
+  separately so that decision is made on its own evidence.
 - **Strip matching pairs only, one layer.** `"a,b"` → `a,b`. `"a` unchanged. `a"b` unchanged. `""` → empty string. `'a,b'` → `a,b`.
 - **Do not un-quote the env files.** That was the rejected alternative. The wrapper is what makes them portable.
 - **Do not migrate all 68 read sites.** Only values that are quoted today or are list-shaped.
@@ -176,16 +179,35 @@ def test_env_int_falls_back_and_WARNS_on_junk(monkeypatch, caplog):
     assert "ST_TEST" in caplog.text
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("1", True), ("true", True), ("True", True), ("yes", True), ('"1"', True),
-    ("0", False), ("false", False), ("False", False), ("no", False), ("No", False),
+def _old_env_bool(v: str) -> bool:
+    """utils/request_logger.py:15, verbatim, as the oracle."""
+    return v not in ("0", "false", "False", "no", "No")
+
+
+# Every case is checked against the ORACLE, not against a hand-written expectation,
+# so the test cannot drift from the thing it is protecting. The surprising rows —
+# '', '  ', ' false ', 'off', 'OFF', 'FALSE', 'NO' — are all TRUE under the old
+# semantics and are included deliberately: they are exactly the values a "tidy-up"
+# would flip.
+@pytest.mark.parametrize("raw", [
+    "1", "0", "true", "false", "False", "no", "No", "yes",
+    "", "  ", " false ", "off", "OFF", "FALSE", "NO",
 ])
-def test_env_bool_matches_the_EXISTING_request_logger_semantics(monkeypatch, raw, expected):
-    """utils/request_logger.py:15 treats everything except 0/false/False/no/No as
-    true. Preserve that exactly — this migration must not silently flip a flag in
-    a deployment that relies on the old behaviour."""
+def test_env_bool_matches_the_OLD_semantics_EXACTLY(monkeypatch, raw):
+    """This migration moves the read; it does not change which deployments have a
+    flag on. All three current flags are `1` everywhere, so a divergence would be
+    inert TODAY and would bite the first time someone wrote `LOG_REQUESTS=` or
+    `off` — and env.live-test:27 shows empty values do get written in these files.
+    """
     monkeypatch.setenv("ST_TEST", raw)
-    assert env_bool("ST_TEST", True) is expected
+    assert env_bool("ST_TEST", True) is _old_env_bool(raw)
+
+
+def test_env_bool_ignores_quotes_before_comparing(monkeypatch):
+    """The one intended difference from the old function: it never saw a quoted
+    value correctly under `docker run --env-file`."""
+    monkeypatch.setenv("ST_TEST", '"false"')
+    assert env_bool("ST_TEST", True) is False
 
 
 def test_env_bool_returns_the_default_when_unset(monkeypatch):
@@ -194,7 +216,10 @@ def test_env_bool_returns_the_default_when_unset(monkeypatch):
 
 
 def test_nothing_here_raises_on_hostile_input(monkeypatch):
-    for raw in ['"', "''", '"""', "\x00", " ", ","]:
+    # NOT "\x00": os.environ rejects embedded nulls, so monkeypatch.setenv would
+    # raise before the accessor ran — the test would be exercising the harness,
+    # not this module.
+    for raw in ['"', "''", '"""', " ", ",", "=", '"a', "a"]:
         monkeypatch.setenv("ST_TEST", raw)
         env_str("ST_TEST")
         env_list("ST_TEST")
@@ -305,20 +330,34 @@ def env_int(name: str, default: int, *, quotes: Quotes = Quotes.ALLOW) -> int:
         return default
 
 
-_FALSE = {"0", "false", "no", "off", ""}
+# VERBATIM from utils/request_logger.py's original `_env_bool`. Not a set, not
+# lowercased, not stripped — those would all be improvements, and every one of
+# them changes which deployments have a flag on.
+#
+# Measured divergences if this were "tidied" to {"0","false","no","off",""} with
+# .strip().lower():
+#
+#     ''  '  '  ' false '  'off'  'OFF'  'FALSE'  'NO'
+#
+# all flip from TRUE to FALSE. Empty is the dangerous one: `LOG_REQUESTS=` is
+# currently ON, and env.live-test:27 shows empty values do get written in these
+# files. Normalising is tracked separately so that decision is made on its own
+# evidence, not smuggled through a refactor (STABL-voqsoicx).
+_FALSE_VERBATIM = ("0", "false", "False", "no", "No")
 
 
 def env_bool(name: str, default: bool = True, *, quotes: Quotes = Quotes.ALLOW) -> bool:
-    """Everything except 0/false/no/off/empty is true.
+    """Everything except 0/false/False/no/No is true — including empty, 'off',
+    'FALSE' and 'NO'.
 
-    This mirrors utils/request_logger.py's original `_env_bool` (case-insensitive
-    there via explicit variants) so migrating a call site cannot silently flip a
-    flag in a deployment that relies on the old behaviour.
+    Those last four are surprising, and deliberately preserved: this module's job
+    in the migration is to move the read, not to change which deployments have a
+    flag on. See the note on _FALSE_VERBATIM.
     """
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return unquote(raw, quotes, name).strip().lower() not in _FALSE
+    return unquote(raw, quotes, name) not in _FALSE_VERBATIM
 ```
 
 - [ ] **Step 4: Run to verify it passes**
@@ -418,6 +457,18 @@ class RequestLoggerConfig:
 **`env_int` now takes an int default where the old code took a string** — the old
 `int(os.environ.get("LOG_BODY_MAX", "8192"))` would raise on junk input; the new one
 degrades. That is the intended change, not a slip.
+
+**Why `env_int` may widen while `env_bool` may not**, since the two look
+inconsistent otherwise:
+
+| | old behaviour on the diverging input | effect of the change |
+|---|---|---|
+| `env_bool` | returns `True` for `""`, `off`, `FALSE`, `NO` | a **working** deployment silently flips a flag |
+| `env_int` | **raises** at import | only the crash path changes; every value that parsed before parses identically |
+
+The test is not "is the old behaviour good", it is "can a deployment that works
+today start behaving differently". For `env_bool` the answer is yes, so it is
+preserved verbatim. For `env_int` it is no.
 
 - [ ] **Step 4: Migrate `server/log_levels.py` and `server/log_format.py`**
 
@@ -561,3 +612,4 @@ fp comment STABL-voqsoicx "STOP: ... NEXT: ... DECIDED: ..."
 | Migrating all 68 env read sites | Only values that are quoted today or list-shaped need it. Churn nobody asked for still has to be reviewed. |
 | Un-quoting the env files | The rejected alternative. The wrapper is the decision. |
 | `env.prod`'s two `export` lines | Harmless under compose, which is its only loader. Guarded against, not removed. |
+| Normalising `env_bool`'s truthiness | `STABL-cfyshjre`. Seven values (`""`, `"  "`, `" false "`, `off`, `OFF`, `FALSE`, `NO`) are currently TRUE. Changing that is a behaviour decision, not a migration detail, and gets its own evidence. |
