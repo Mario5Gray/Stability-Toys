@@ -103,31 +103,38 @@ def env_int(name: str, default: int, *, quotes: Quotes = Quotes.ALLOW) -> int:
         return default
 
 
-# VERBATIM from utils/request_logger.py's original `_env_bool`. Not a set, not
-# lowercased, not stripped — those would all be improvements, and every one of
-# them changes which deployments have a flag on.
+# NORMALISED, case-insensitively and after stripping whitespace (STABL-cfyshjre).
 #
-# Measured divergences if this were "tidied" to {"0","false","no","off",""} with
-# .strip().lower():
+# The original `_env_bool` in utils/request_logger.py compared against the literal
+# tuple ("0", "false", "False", "no", "No"), so SEVEN values were true that no one
+# writing them could have meant that way:
 #
 #     ''  '  '  ' false '  'off'  'OFF'  'FALSE'  'NO'
 #
-# all flip from TRUE to FALSE. Empty is the dangerous one: `LOG_REQUESTS=` is
-# currently ON, and env.live-test:27 (`MODEL=`) shows empty values do get written
-# into these files. Normalising is tracked as STABL-cfyshjre so that decision is
-# made on its own evidence, not smuggled through a refactor.
-_FALSE_VERBATIM = ("0", "false", "False", "no", "No")
+# `off` reading as ON is the worst of them: it turns a deliberate "off" into its
+# opposite. STABL-voqsoicx preserved the old behaviour verbatim because a
+# migration must not change which deployments have a flag on; this is the separate
+# decision that changes it, on its own evidence.
+#
+# Checked before landing: every env_bool caller reads LOG_REQUESTS,
+# LOG_REQUEST_HEADERS or LOG_REQUEST_BODY, all three are `1` in env.prod, env.dev
+# and env.live-test, and no env file contains any of the seven values above for a
+# boolean flag. No current deployment changes behaviour.
+_FALSE_VALUES = frozenset({"0", "false", "no", "off", ""})
 
 
 def env_bool(name: str, default: bool = True, *, quotes: Quotes = Quotes.ALLOW) -> bool:
-    """Everything except 0/false/False/no/No is true — including empty, 'off',
-    'FALSE' and 'NO'.
+    """Everything except 0/false/no/off/empty is true, case-insensitively.
 
-    Those last four are surprising, and deliberately preserved: this module's job
-    in the migration is to move the read, not to change which deployments have a
-    flag on. See the note on _FALSE_VERBATIM and STABL-cfyshjre.
+    Whitespace is stripped first, so ` false ` is false. Empty is FALSE: setting
+    `FLAG=` reads as an operator turning something off, which is the only sane
+    reading of it.
+
+    This is the STABL-cfyshjre normalisation. If you are chasing a flag that used
+    to be on and is now off, the value is one of: '', 'off', 'OFF', 'FALSE', 'NO',
+    or a value with surrounding whitespace.
     """
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return unquote(raw, quotes, name) not in _FALSE_VERBATIM
+    return unquote(raw, quotes, name).strip().lower() not in _FALSE_VALUES
