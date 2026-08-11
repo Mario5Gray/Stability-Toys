@@ -19,6 +19,7 @@ Env vars:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import threading
@@ -27,6 +28,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from persistence.storage_provider import StorageProvider, StorageItem, STORAGE_TTL_IMAGE
+
+logger = logging.getLogger(__name__)
 
 
 class FilesystemStorageProvider(StorageProvider):
@@ -71,7 +74,10 @@ class FilesystemStorageProvider(StorageProvider):
         )
         self._cleanup_thread.start()
 
-        print(f"[FSStorage] Initialized: dir={self.base_dir}, ttl={self.default_ttl_s}s, cleanup_interval={self.cleanup_interval_s}s")
+        logger.info(
+            "[FSStorage] Initialized: dir=%s, ttl=%ss, cleanup_interval=%ss",
+            self.base_dir, self.default_ttl_s, self.cleanup_interval_s,
+        )
 
     def _shard(self, key: str) -> str:
         """Extract 2-char shard from key UUID portion."""
@@ -234,10 +240,12 @@ class FilesystemStorageProvider(StorageProvider):
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[FSStorage] Cleanup error: {e}")
+            # WARNING, not info: this runs on a background thread whose failure
+            # is otherwise completely silent.
+            logger.warning("[FSStorage] Cleanup error: %r", e, exc_info=True)
 
         if deleted > 0:
-            print(f"[FSStorage] Cleanup: deleted {deleted} expired entries")
+            logger.info("[FSStorage] Cleanup: deleted %s expired entries", deleted)
 
     def health(self) -> Dict[str, Any]:
         """Health check with stats."""
