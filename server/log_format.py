@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from server import log_context
+from utils.env import Quotes, env_str
 
 TEXT = "text"
 JSON = "json"
@@ -36,7 +36,10 @@ def resolve_log_format(value: Optional[str] = None) -> str:
     logging, and a hard failure here would be invisible (there is nowhere to
     report it yet).
     """
-    raw = value if value is not None else os.getenv("LOG_FORMAT", _DEFAULT)
+    # env_str at the boundary; the normalisation below stays a pure function of
+    # its argument, so an explicit `value` still bypasses the environment entirely
+    # (which is what the formatter's `log_format=` kwarg relies on).
+    raw = value if value is not None else env_str("LOG_FORMAT", _DEFAULT, quotes=Quotes.ALLOW)
     candidate = (raw or "").strip().lower()
     return candidate if candidate in (TEXT, JSON) else _DEFAULT
 

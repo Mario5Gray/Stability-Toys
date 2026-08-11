@@ -14,10 +14,10 @@ entry paths) and from the spawned worker child's bootstrap.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Dict, Optional
 
 from server.logging_config import LEVEL_TRACKING_LOGGERS
+from utils.env import Quotes, env_str
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,11 @@ def apply_runtime_levels() -> Dict[str, str]:
     desired: Dict[str, str] = {}
     applied: Dict[str, str] = {}
     try:
-        raw = os.getenv("LOG_LEVEL")
+        # Read through the env accessor, then hand a clean string to the
+        # normalisation below. Quoting is TRANSPORT policy and belongs at the env
+        # boundary; parse_log_levels stays a pure function of its argument, which
+        # is what keeps its tests cheap (STABL-voqsoicx).
+        raw = env_str("LOG_LEVEL", "", quotes=Quotes.ALLOW) or None
         root_level = (raw or "INFO").strip().upper()
         if root_level not in _VALID:
             # INFO, NOT the baked value. For a TRACKING logger the baked level is
@@ -82,7 +86,7 @@ def apply_runtime_levels() -> Dict[str, str]:
         # Unparseable entries are SKIPPED rather than defaulted: an override that
         # cannot be read simply does not apply, leaving the declared or tracking
         # level intact. That asymmetry with LOG_LEVEL above is deliberate.
-        desired.update(parse_log_levels(os.getenv("LOG_LEVELS")))
+        desired.update(parse_log_levels(env_str("LOG_LEVELS", "", quotes=Quotes.ALLOW)))
 
         for name, level in desired.items():
             # getLogger CREATES an unknown logger, which is deliberate: a level
