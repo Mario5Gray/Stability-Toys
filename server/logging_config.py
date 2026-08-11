@@ -1,7 +1,12 @@
 # logging_config.py
-import os
+from utils.env import Quotes, env_str
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+# Through the accessor, NOT os.getenv: this value is substituted into the dict
+# below as a literal level name, so a quoted LOG_LEVEL used to land as '"DEBUG"'
+# and dictConfig raises `ValueError: Unable to configure logger ''` on it — the
+# server does not start. LOG_LEVEL is also the variable most likely to be quoted
+# once the project says quotes are acceptable (STABL-voqsoicx).
+LOG_LEVEL = env_str("LOG_LEVEL", "INFO", quotes=Quotes.ALLOW).upper()
 
 # Loggers whose level IS LOG_LEVEL, as opposed to a declared literal like
 # comfy.jobs's DEBUG below.

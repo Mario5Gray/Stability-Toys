@@ -97,44 +97,53 @@ def test_env_int_falls_back_and_WARNS_on_junk(monkeypatch, caplog):
     assert "ST_TEST" in caplog.text
 
 
-# --- env_bool: checked against the LIVE original, not a copy -------------------
+# --- env_bool: the FROZEN oracle -----------------------------------------------
 #
-# utils/request_logger._env_bool is the thing this must not change. While it still
-# exists, compare against IT rather than a hand-written truth table — a copied
-# table is a second source of truth that drifts silently, and the whole point of
-# these cases is that they are the ones a "tidy-up" would flip.
+# Until Task 2 this compared against the LIVE utils/request_logger._env_bool, so
+# no hand-written truth table existed to drift. Task 2 deleted that function, so
+# the oracle is frozen here — and it is provably faithful, because the identical
+# parametrisation passed against the real function in commit 50063d5 before the
+# function was removed.
 #
-# Task 2 deletes _env_bool. At that point the oracle is frozen into this file, and
-# it is provably faithful because THIS test passed against the real function first.
+# It is ALSO proven non-vacuous: injecting the "tidied" semantics
+# ({"0","false","no","off",""} with .strip().lower()) into utils/env.py produced
+# exactly 7 failures, one per divergent value below.
+#
+# DO NOT "fix" this to match modern taste. Every change to it changes which
+# deployments have a flag on. Normalising is STABL-cfyshjre, where the decision
+# gets its own evidence.
+
+
+def _original_env_bool(name: str, default: str = "1") -> bool:
+    """utils/request_logger.py's `_env_bool`, verbatim as of `50063d5`."""
+    import os
+
+    v = os.environ.get(name, default)
+    return v not in ("0", "false", "False", "no", "No")
+
 
 @pytest.mark.parametrize("raw", [
     "1", "0", "true", "false", "False", "no", "No", "yes",
     "", "  ", " false ", "off", "OFF", "FALSE", "NO",
 ])
-def test_env_bool_matches_the_LIVE_original_EXACTLY(monkeypatch, raw):
+def test_env_bool_matches_the_ORIGINAL_semantics_EXACTLY(monkeypatch, raw):
     """This migration moves the read; it does not change which deployments have a
     flag on. All three current flags are `1` everywhere, so a divergence would be
     inert TODAY and would bite the first time someone wrote `LOG_REQUESTS=` or
     `off` — and env.live-test:27 (`MODEL=`) shows empty values do get written into
     these files.
     """
-    from utils.request_logger import _env_bool as original
-
     monkeypatch.setenv("ST_TEST", raw)
-    assert env_bool("ST_TEST", True) is original("ST_TEST")
+    assert env_bool("ST_TEST", True) is _original_env_bool("ST_TEST")
 
 
-def test_the_oracle_is_the_REAL_function_not_a_reimplementation():
-    """Guards the guard. If _env_bool is ever removed or renamed without moving
-    the oracle deliberately, the test above would silently stop testing anything —
-    it would fail at import, which is what we want, but this states the intent."""
-    from utils import request_logger
+def test_the_frozen_oracle_still_matches_the_shipped_constant():
+    """Ties the frozen copy back to the code it protects. If someone edits
+    utils.env._FALSE_VERBATIM, this fails immediately rather than leaving two
+    truth tables quietly disagreeing."""
+    from utils.env import _FALSE_VERBATIM
 
-    assert callable(getattr(request_logger, "_env_bool", None)), (
-        "utils.request_logger._env_bool is gone. That is expected at Task 2 — "
-        "freeze the oracle into this file and note that it was verified against "
-        "the real function first."
-    )
+    assert _FALSE_VERBATIM == ("0", "false", "False", "no", "No")
 
 
 def test_env_bool_ignores_quotes_before_comparing(monkeypatch):
@@ -159,3 +168,106 @@ def test_nothing_here_raises_on_hostile_input(monkeypatch):
         env_list("ST_TEST")
         env_int("ST_TEST", 1)
         env_bool("ST_TEST", True)
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — the migrated readers
+# ---------------------------------------------------------------------------
+
+def test_request_logger_reads_a_QUOTED_allowlist_correctly(monkeypatch):
+    """The live bug: env.dev quotes this value and runner.sh passes the quotes
+    through, so the first entry was `"content-type` and the last `host"`."""
+    monkeypatch.setenv("LOG_HEADER_ALLOWLIST", '"content-type,host"')
+    from utils.request_logger import RequestLoggerConfig
+
+    cfg = RequestLoggerConfig()
+    assert cfg.header_allowlist == {"content-type", "host"}
+
+
+def test_request_logger_reads_a_QUOTED_path_prefix_list_correctly(monkeypatch):
+    monkeypatch.setenv("LOG_PATH_PREFIXES", '"/generate,/superres"')
+    from utils.request_logger import RequestLoggerConfig
+
+    assert RequestLoggerConfig().path_prefix_allowlist == {"/generate", "/superres"}
+
+
+def test_request_logger_body_max_survives_junk(monkeypatch):
+    """The old int(os.environ.get(...)) raised here, inside a dataclass field
+    factory at import. Widening is safe: every value that parsed before still
+    parses."""
+    monkeypatch.setenv("LOG_BODY_MAX", "not-a-number")
+    from utils.request_logger import RequestLoggerConfig
+
+    assert RequestLoggerConfig().body_max == 8192
+
+
+def test_apply_runtime_levels_reads_a_QUOTED_LOG_LEVELS(monkeypatch):
+    """Asserted at apply_runtime_levels, NOT parse_log_levels.
+
+    The seam is deliberate: unquoting is transport policy and belongs at the env
+    boundary; parse_log_levels stays a pure function of its argument, which is
+    what makes it cheap to test. A test that fed a quoted string straight to the
+    parser would be asserting the wrong contract.
+    """
+    import logging
+
+    from server.log_levels import apply_runtime_levels
+
+    monkeypatch.setenv("LOG_LEVELS", '"st.quoted.probe=DEBUG"')
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    try:
+        apply_runtime_levels()
+        assert logging.getLogger("st.quoted.probe").level == logging.DEBUG
+    finally:
+        logging.getLogger("st.quoted.probe").setLevel(logging.NOTSET)
+
+
+def test_apply_runtime_levels_reads_a_QUOTED_LOG_LEVEL(monkeypatch):
+    import json
+    import logging
+    import logging.config
+
+    from server.log_levels import apply_runtime_levels
+    from server.logging_config import LOGGING_CONFIG
+
+    logging.config.dictConfig(json.loads(json.dumps(LOGGING_CONFIG)))
+    monkeypatch.setenv("LOG_LEVEL", '"WARNING"')
+    monkeypatch.delenv("LOG_LEVELS", raising=False)
+    try:
+        apply_runtime_levels()
+        assert logging.getLogger("").level == logging.WARNING
+    finally:
+        logging.config.dictConfig(LOGGING_CONFIG)
+
+
+def test_resolve_log_format_reads_a_QUOTED_LOG_FORMAT(monkeypatch):
+    from server.log_format import JSON, resolve_log_format
+
+    monkeypatch.setenv("LOG_FORMAT", '"json"')
+    assert resolve_log_format() == JSON
+
+
+def test_a_QUOTED_LOG_LEVEL_does_not_break_dictConfig(monkeypatch):
+    """Found by Task 2 step 6, and the sharpest case in this issue.
+
+    LOG_LEVEL is substituted into LOGGING_CONFIG at import. A quoted value used to
+    land as the literal level name '"DEBUG"', and dictConfig raises
+    `ValueError: Unable to configure logger ''` on it — the server does not start.
+    LOG_LEVEL is also the variable most likely to be quoted once the project says
+    quotes are acceptable.
+    """
+    import importlib
+    import json
+    import logging.config
+
+    import server.logging_config as cfg
+
+    monkeypatch.setenv("LOG_LEVEL", '"DEBUG"')
+    try:
+        importlib.reload(cfg)
+        assert cfg.LOG_LEVEL == "DEBUG"
+        logging.config.dictConfig(json.loads(json.dumps(cfg.LOGGING_CONFIG)))
+    finally:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        importlib.reload(cfg)
+        logging.config.dictConfig(cfg.LOGGING_CONFIG)

@@ -399,12 +399,16 @@ async def lifespan(app: FastAPI):
     # uvicorn's; closing it would mean configuring logging earlier than the app,
     # which is the entrypoint approach rejected on this issue.
     from server.log_levels import apply_runtime_levels
+    from utils.env import Quotes, env_str
     _applied = apply_runtime_levels()
 
     logger.info("Starting FastAPI server lifespan...")
     logger.info(
         "BACKEND=%s, NUM_WORKERS=%s, LOG_LEVEL=%s, log levels applied: %s",
-        BACKEND, NUM_WORKERS, os.getenv("LOG_LEVEL", "INFO"), _applied or "none",
+        # Through the accessor so the REPORTED value matches the APPLIED one — a
+        # raw read here would print '"WARNING"' beside an applied WARNING.
+        BACKEND, NUM_WORKERS, env_str("LOG_LEVEL", "INFO", quotes=Quotes.ALLOW),
+        _applied or "none",
     )
 
     if os.environ.get("CONTROLNET_REGISTRY_VALIDATION", "strict").strip().lower() == "strict":

@@ -1,5 +1,4 @@
 # request_logger.py
-import os
 import json
 import time
 from dataclasses import dataclass, field
@@ -9,31 +8,36 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from utils.env import env_bool, env_int, env_list
 
-def _env_bool(name: str, default: str = "1") -> bool:
-    v = os.environ.get(name, default)
-    return v not in ("0", "false", "False", "no", "No")
+# NOTE: the former local `_env_bool` moved to utils.env.env_bool, semantics
+# preserved VERBATIM — everything except 0/false/False/no/No is true, empty and
+# 'off' and 'FALSE' included. Those oddities are deliberate; normalising them is
+# STABL-cfyshjre. The reads below now go through utils.env so a quoted value
+# behaves the same under `docker compose env_file` (strips quotes) and
+# `docker run --env-file` (does not) — env.dev is loaded BOTH ways, which is how
+# LOG_HEADER_ALLOWLIST came to have a literal quote on its first entry under
+# runner.sh (STABL-voqsoicx).
 
 
 @dataclass
 class RequestLoggerConfig:
-    enabled: bool = field(default_factory=lambda: _env_bool("LOG_REQUESTS", "1"))
-    log_headers: bool = field(default_factory=lambda: _env_bool("LOG_REQUEST_HEADERS", "1"))
-    log_body: bool = field(default_factory=lambda: _env_bool("LOG_REQUEST_BODY", "1"))
+    enabled: bool = field(default_factory=lambda: env_bool("LOG_REQUESTS", True))
+    log_headers: bool = field(default_factory=lambda: env_bool("LOG_REQUEST_HEADERS", True))
+    log_body: bool = field(default_factory=lambda: env_bool("LOG_REQUEST_BODY", True))
 
     # bytes of body to log (json/text). multipart becomes summary only.
-    body_max: int = field(default_factory=lambda: int(os.environ.get("LOG_BODY_MAX", "8192")))
+    body_max: int = field(default_factory=lambda: env_int("LOG_BODY_MAX", 8192))
 
     # only log these headers (lowercase). keep minimal by default.
     header_allowlist: Set[str] = field(
-        default_factory=lambda: set(
-            h.strip().lower()
-            for h in os.environ.get(
+        default_factory=lambda: {
+            h.lower()
+            for h in env_list(
                 "LOG_HEADER_ALLOWLIST",
                 "content-type,content-length,x-forwarded-for,x-real-ip,user-agent,host",
-            ).split(",")
-            if h.strip()
-        )
+            )
+        }
     )
 
     # redact sensitive headers even if allowlisted
@@ -41,23 +45,12 @@ class RequestLoggerConfig:
 
     # optional: only log these paths (comma-separated prefix match), e.g. "/generate,/superres"
     path_prefix_allowlist: Optional[Set[str]] = field(
-        default_factory=lambda: (
-            set(
-                p.strip()
-                for p in os.environ.get("LOG_PATH_PREFIXES", "").split(",")
-                if p.strip()
-            )
-            or None
-        )
+        default_factory=lambda: set(env_list("LOG_PATH_PREFIXES")) or None
     )
 
     # optional: skip these paths (comma-separated prefix match), e.g. "/health,/docs"
     path_prefix_denylist: Set[str] = field(
-        default_factory=lambda: set(
-            p.strip()
-            for p in os.environ.get("LOG_PATH_DENYLIST", "/docs,/openapi.json").split(",")
-            if p.strip()
-        )
+        default_factory=lambda: set(env_list("LOG_PATH_DENYLIST", "/docs,/openapi.json"))
     )
 
 

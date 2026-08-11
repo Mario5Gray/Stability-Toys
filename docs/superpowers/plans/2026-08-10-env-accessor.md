@@ -387,7 +387,7 @@ git commit -m "feat(env): typed accessors with a per-method quoting policy (STAB
 Only values that are quoted today or are list-shaped. The other ~60 read sites stay
 as they are — a migration nobody needs is churn that has to be reviewed.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # append to tests/test_env_accessor.py
@@ -418,12 +418,12 @@ def test_log_levels_reads_a_QUOTED_LOG_LEVELS_correctly(monkeypatch):
 > `parse_log_levels` reach into `os.environ` — its current purity is what makes it
 > cheap to test.
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_env_accessor.py -q -k QUOTED`
 Expected: both FAIL — quotes survive into the parsed values.
 
-- [ ] **Step 3: Migrate `utils/request_logger.py`**
+- [x] **Step 3: Migrate `utils/request_logger.py`**
 
 Replace the local `_env_bool` and the four `os.environ.get` reads:
 
@@ -472,7 +472,7 @@ The test is not "is the old behaviour good", it is "can a deployment that works
 today start behaving differently". For `env_bool` the answer is yes, so it is
 preserved verbatim. For `env_int` it is no.
 
-- [ ] **Step 4: Migrate `server/log_levels.py` and `server/log_format.py`**
+- [x] **Step 4: Migrate `server/log_levels.py` and `server/log_format.py`**
 
 In `log_levels.apply_runtime_levels`, read through the accessor rather than
 `os.getenv`, so `LOG_LEVEL` and `LOG_LEVELS` get the same treatment as everything
@@ -480,12 +480,12 @@ else. In `log_format.resolve_log_format`, the same for `LOG_FORMAT`.
 
 Keep `parse_log_levels(raw)` pure — pass it an already-unquoted string.
 
-- [ ] **Step 5: Run to verify it passes**
+- [x] **Step 5: Run to verify it passes**
 
 Run: `python -m pytest tests/test_env_accessor.py tests/test_log_levels.py tests/test_log_format.py tests/test_logging_wiring.py -q`
 Expected: all pass, including the existing logging suites unchanged.
 
-- [ ] **Step 6: Check for other readers of the migrated variables**
+- [x] **Step 6: Check for other readers of the migrated variables**
 
 ```bash
 grep -rn 'LOG_HEADER_ALLOWLIST\|LOG_PATH_PREFIXES\|LOG_PATH_DENYLIST\|LOG_BODY_MAX\|LOG_REQUESTS\|LOG_LEVELS\|LOG_FORMAT' --include='*.py' server backends utils
@@ -494,7 +494,7 @@ grep -rn 'LOG_HEADER_ALLOWLIST\|LOG_PATH_PREFIXES\|LOG_PATH_DENYLIST\|LOG_BODY_M
 Any site still using `os.environ` for these is a second source of truth. Migrate or
 justify each one in the commit message.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add utils/request_logger.py server/log_levels.py server/log_format.py tests/test_env_accessor.py
