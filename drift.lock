@@ -39,7 +39,7 @@ docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md -> server/ws_rou
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile sig:3f5c751353ad534a
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> Dockerfile.test sig:1c7416d42eeb64c2
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/base.py sig:2cf801471ea08b34
-docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/cuda_worker.py sig:b02d3712c3950df2
+docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/cuda_worker.py sig:cbd1bb6b38dd8259
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> backends/worker_pool.py sig:9f737cc5971aeb81
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md sig:198da7e7b6e7c7a9
 docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> requirements-test.txt sig:45a41769a2be9a1b
@@ -55,7 +55,7 @@ docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/ws_routes.py sig:093c2b9be3f58809
 docs/superpowers/specs/2026-04-16-dream-protocol-design.md -> yume_lab/server/ws_routes.py sig:59cceadfffb6cefc
-docs/superpowers/specs/2026-04-18-controlnet-design.md -> backends/cuda_worker.py sig:b02d3712c3950df2
+docs/superpowers/specs/2026-04-18-controlnet-design.md -> backends/cuda_worker.py sig:cbd1bb6b38dd8259
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/lcm_sr_server.py sig:a2c7153a5b8928dd
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/model_routes.py sig:eae9a3d42a0f1573
 docs/superpowers/specs/2026-04-18-controlnet-design.md -> server/upload_routes.py sig:7ceb203839ca71f8
@@ -81,7 +81,7 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/condi
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/invocation.py sig:a4fa9b843266ecf1
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/native.py sig:109eecdc334ced8b
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/conditioning/registry.py sig:448245685ce46c5c
-docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/cuda_worker.py sig:b02d3712c3950df2
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/cuda_worker.py sig:cbd1bb6b38dd8259
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> backends/worker_pool.py sig:9f737cc5971aeb81
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> docker-compose.test.yml sig:d74b3457f76f0969
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> requirements.txt sig:ab2fdc42f0d41f77
@@ -89,7 +89,7 @@ docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> scripts/st-dty
 docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md -> server/mode_config.py sig:92b4f910d75cb9c1
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/conditioning/artifacts.py sig:215b4c0a445b307c
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/conditioning/contracts.py sig:4be6c0d92c5fd702
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/cuda_worker.py sig:b02d3712c3950df2
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/cuda_worker.py sig:cbd1bb6b38dd8259
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/base.py sig:1cf48982feebd604
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/cuda.py sig:0edc1002d014692c
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
