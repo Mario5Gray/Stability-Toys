@@ -1,4 +1,5 @@
 # request_logger.py
+import logging
 import json
 import time
 from dataclasses import dataclass, field
@@ -18,6 +19,8 @@ from utils.env import env_bool, env_int, env_list
 # `docker run --env-file` (does not) — env.dev is loaded BOTH ways, which is how
 # LOG_HEADER_ALLOWLIST came to have a literal quote on its first entry under
 # runner.sh (STABL-voqsoicx).
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -146,12 +149,19 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
         if self.cfg.log_body:
             payload["body"] = self._summarize_body(ct, body)
 
-        print("[REQ]", json.dumps(payload, ensure_ascii=False))
+        # Through `logging`, not print: this fires on EVERY logged request, so it
+        # was the highest-volume unstructured writer into a stream a JSON parser
+        # reads (STABL-gjuxibsb). `enabled` and the path allow/denylists still gate
+        # it exactly as before — _want_log() has already run.
+        logger.info("[REQ] %s", json.dumps(payload, ensure_ascii=False))
 
         resp = await call_next(request)
 
         dt_ms = int((time.time() - t0) * 1000)
-        print(f"[RESP] {request.method} {request.url.path} -> {resp.status_code} ({dt_ms}ms)")
+        logger.info(
+            "[RESP] %s %s -> %s (%sms)",
+            request.method, request.url.path, resp.status_code, dt_ms,
+        )
 
         return resp
 

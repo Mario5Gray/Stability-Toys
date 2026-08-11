@@ -1,12 +1,15 @@
 # storage_provider.py
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 import time
 import threading
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 STORAGE_MAX_ITEMS = int(os.environ.get("STORAGE_MAX_ITEMS", "512"))
 STORAGE_TTL_IMAGE = int(os.environ.get("STORAGE_TTL_IMAGE", "3600"))
@@ -47,7 +50,7 @@ class StorageProvider:
     @staticmethod
     def make_storage_provider_from_env() -> Optional["StorageProvider"]:
         provider = os.environ.get("STORAGE_PROVIDER", "DISABLED").upper()
-        print("storage:", provider)
+        logger.info("[storage] provider=%s", provider)
         if provider == "MEMORY":
             return InMemoryStorageProvider(max_items=STORAGE_MAX_ITEMS)
         elif provider == "DISABLED":
