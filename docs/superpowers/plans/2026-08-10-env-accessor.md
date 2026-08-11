@@ -75,7 +75,7 @@ accepts quotes **silently** — that is the whole point of the wrapper. A quoted
 works, and the operator finds out. `LITERAL` exists for the value that genuinely
 begins and ends with a quote character, which is otherwise unrepresentable.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_env_accessor.py
@@ -179,16 +179,18 @@ def test_env_int_falls_back_and_WARNS_on_junk(monkeypatch, caplog):
     assert "ST_TEST" in caplog.text
 
 
-def _old_env_bool(v: str) -> bool:
-    """utils/request_logger.py:15, verbatim, as the oracle."""
-    return v not in ("0", "false", "False", "no", "No")
-
-
-# Every case is checked against the ORACLE, not against a hand-written expectation,
-# so the test cannot drift from the thing it is protecting. The surprising rows —
-# '', '  ', ' false ', 'off', 'OFF', 'FALSE', 'NO' — are all TRUE under the old
-# semantics and are included deliberately: they are exactly the values a "tidy-up"
-# would flip.
+# IMPROVED DURING EXECUTION, on review feedback: do NOT hand-copy the truth table.
+# utils/request_logger._env_bool still exists until Task 2 deletes it, so compare
+# against the LIVE function — a copied table is a second source of truth that
+# drifts silently, and these cases are precisely the ones a "tidy-up" would flip.
+#
+# Task 2 deletes _env_bool. At that point the oracle freezes into the test file,
+# and it is provably faithful because this test passed against the real function
+# first. A companion test asserts _env_bool still exists, so its removal fails
+# loudly rather than turning this into a no-op.
+#
+# The surprising rows — '', '  ', ' false ', 'off', 'OFF', 'FALSE', 'NO' — are all
+# TRUE under the old semantics and are in the parametrisation deliberately.
 @pytest.mark.parametrize("raw", [
     "1", "0", "true", "false", "False", "no", "No", "yes",
     "", "  ", " false ", "off", "OFF", "FALSE", "NO",
@@ -227,12 +229,12 @@ def test_nothing_here_raises_on_hostile_input(monkeypatch):
         env_bool("ST_TEST", True)
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `python -m pytest tests/test_env_accessor.py -q`
 Expected: `ModuleNotFoundError: No module named 'utils.env'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 # utils/env.py
@@ -360,12 +362,12 @@ def env_bool(name: str, default: bool = True, *, quotes: Quotes = Quotes.ALLOW) 
     return unquote(raw, quotes, name) not in _FALSE_VERBATIM
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `python -m pytest tests/test_env_accessor.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add utils/env.py tests/test_env_accessor.py
