@@ -33,6 +33,7 @@ from backends.family_profiles import (
 )
 from backends.styles import STYLE_REGISTRY
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
+from server.log_format import JSON, resolve_log_format
 
 logger = logging.getLogger(__name__)
 
@@ -452,6 +453,36 @@ class CudaWorkerBase:
         self._checkpoint_variant = getattr(self.model_info, "checkpoint_variant", "unknown")
         self._scheduler_profile = getattr(self.model_info, "scheduler_profile", "unknown")
 
+    @staticmethod
+    def _maybe_disable_progress_bar(pipe):
+        """Silence the diffusers tqdm bar when logs are being PARSED.
+
+        tqdm writes to the stream directly, not through `logging`, so no logging
+        configuration can capture it — under LOG_FORMAT=json it is the one
+        remaining non-JSON writer on the container's stdout. Found by the
+        STABL-xqqqqvse live container proof.
+
+        Gated rather than unconditional: the bar is genuinely useful to a human
+        watching a dev container in text mode, and is only corruption when
+        something is parsing.
+
+        Reads `resolve_log_format()` — the SAME function the formatter uses —
+        rather than re-deriving LOG_FORMAT here, so the gate and the actual
+        output format cannot drift apart.
+
+        Wrapped: suppressing a progress bar is cosmetic and must never be able to
+        cost a model load.
+        """
+        try:
+            if resolve_log_format() != JSON:
+                return pipe
+            configure = getattr(pipe, "set_progress_bar_config", None)
+            if callable(configure):
+                configure(disable=True)
+        except Exception:       # noqa: BLE001 — cosmetic; never fail a load
+            logger.debug("[cuda] could not disable the progress bar", exc_info=True)
+        return pipe
+
     def _setup_pipe_memory_opts(self, pipe):
         """Apply device placement and memory optimizations to a loaded pipeline.
 
@@ -459,6 +490,7 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
+        self._maybe_disable_progress_bar(pipe)
         should_quantize_runtime = self._quantize == "fp8" and self._checkpoint_precision != "fp8"
         if should_quantize_runtime:
             freeze = _import_attr("optimum.quanto", "freeze")

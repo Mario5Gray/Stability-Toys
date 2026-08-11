@@ -298,6 +298,27 @@ Applied at FastAPI startup and in the spawned worker child. Records emitted befo
 that point — import-time logging and uvicorn's own startup lines — carry the baked
 level.
 
+### Every line is JSON, including the ones logging cannot reach
+
+Under `LOG_FORMAT=json` the stream is JSON only — a parser does not need to
+tolerate stray lines.
+
+That is not automatic. The diffusers **tqdm progress bar**
+(`Loading pipeline components...: 45%|████ | ...`) writes to the stream directly
+rather than through `logging`, so no logging configuration can capture it. It was
+the last non-JSON writer, found by a live container run rather than by the suite.
+It is now **disabled when `LOG_FORMAT=json`** and left alone otherwise — the bar
+is useful to a human watching a dev container, and is only corruption when
+something is parsing.
+
+The gate reads the same `resolve_log_format()` the formatter uses, so it cannot
+disagree with the format actually being emitted.
+
+**If a non-JSON line ever appears, it is a bug — report it rather than working
+around it.** The two known classes are both closed: bare `print()` calls
+(guarded by `tests/test_no_print_in_server_runtime.py`) and direct stream writers
+like tqdm.
+
 ### Env file syntax
 
 **Values may be quoted or bare.** `utils/env.py` strips one layer of matching
