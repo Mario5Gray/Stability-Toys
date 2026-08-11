@@ -514,7 +514,7 @@ fails, it does not degrade. `env.prod` has two such lines and is compose-only to
 so it is fine; it breaks the moment anyone passes it to `runner.sh`. The wrapper
 cannot help with this one, because the file never reaches Python.
 
-- [ ] **Step 1: Write the failing-if-broken guard**
+- [x] **Step 1: Write the failing-if-broken guard**
 
 ```python
 # tests/test_env_file_contract.py
@@ -563,14 +563,14 @@ def test_the_file_list_still_matches_runner_sh():
 
 Add `import re` at the top.
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `python -m pytest tests/test_env_file_contract.py -q`
 Expected: PASS today — `env.cuda`/`env.custom`/`env.dev`/`env.rknn` have no
 `export` lines (`env.prod` does, and is deliberately not in the list). If the second
 test fails, `runner.sh` has changed and the list needs updating.
 
-- [ ] **Step 3: Document the policy**
+- [x] **Step 3: Document the policy**
 
 Append to the **Log levels** section of `docs/observability-contract.md`:
 
@@ -587,7 +587,7 @@ file**, failing the run rather than degrading. `tests/test_env_file_contract.py`
 guards this.
 ````
 
-- [ ] **Step 4: Full suite**
+- [x] **Step 4: Full suite**
 
 ```bash
 python -m pytest -q 2>&1 | tail -3
@@ -596,7 +596,7 @@ python -m pytest -q 2>&1 | tail -3
 Baseline is **1497 passed**, 9 skipped, 1 xfailed. Run it on the tree you are about
 to summarise.
 
-- [ ] **Step 5: Commit and close out**
+- [x] **Step 5: Commit and close out**
 
 ```bash
 git add tests/test_env_file_contract.py docs/observability-contract.md docs/superpowers/plans/2026-08-10-env-accessor.md

@@ -290,6 +290,29 @@ Applied at FastAPI startup and in the spawned worker child. Records emitted befo
 that point — import-time logging and uvicorn's own startup lines — carry the baked
 level.
 
+### Env file syntax
+
+**Values may be quoted or bare.** `utils/env.py` strips one layer of matching
+outer quotes, because the two loaders disagree and `env.dev` is loaded by both:
+
+| value form | `docker run --env-file` (`runner.sh`) | `docker compose env_file` |
+|---|---|---|
+| `LOG_LEVELS=a=1,b=2` | works | works |
+| `LOG_LEVELS="a=1,b=2"` | quotes kept literally | quotes stripped |
+| `export LOG_LEVEL=DEBUG` | **whole file rejected** | works |
+
+Measured against docker 29.6.2. Only a *matching outer pair* is removed, and only
+one layer — `"a` and `a"b` are left alone, because an unmatched or interior quote
+is data.
+
+**`export ` prefixes must not appear** in any file `runner.sh` passes to
+`docker run --env-file`. That loader rejects the **entire file**
+(`variable 'export X' contains whitespaces`) and the container never starts — no
+application-side tolerance can help, because Python never sees the file.
+`env.prod` is the exception: it carries `export` lines and is loaded only by
+compose. `tests/test_env_file_contract.py` guards both rules, including the
+condition that keeps `env.prod`'s exclusion safe.
+
 ### `job_id` correlation spans two threads
 
 The WebSocket handler runs on the event loop and the generation runs on the
