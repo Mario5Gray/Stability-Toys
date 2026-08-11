@@ -228,6 +228,14 @@ default is `text` — the unchanged human format. `LOG_FORMAT` is read when the
 logging config is *applied* (container start), not when it is built, so it is a
 runtime switch on both the prod (`server/run.py`) and dev (`--log-config`) paths.
 
+Checked-in env defaults currently do this:
+
+| env file | `LOG_FORMAT` | effect |
+|---|---|---|
+| `env.prod` | `json` | prod-family container runs emit JSON |
+| `env.live-test` | unset | live-test stays on the human text format |
+| `env.dev` | unset | dev stays on the human text format |
+
 **Two processes write to this stream.** The server, and — under
 `WORKER_ISOLATION=subprocess`, which is the production path — the spawned worker
 child, where generation actually happens. Both emit this shape; `pid`
