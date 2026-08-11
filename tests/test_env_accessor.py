@@ -97,53 +97,74 @@ def test_env_int_falls_back_and_WARNS_on_junk(monkeypatch, caplog):
     assert "ST_TEST" in caplog.text
 
 
-# --- env_bool: the FROZEN oracle -----------------------------------------------
+# --- env_bool: the oracle, and the seven values STABL-cfyshjre deliberately broke
 #
-# Until Task 2 this compared against the LIVE utils/request_logger._env_bool, so
-# no hand-written truth table existed to drift. Task 2 deleted that function, so
-# the oracle is frozen here — and it is provably faithful, because the identical
-# parametrisation passed against the real function in commit 50063d5 before the
-# function was removed.
+# HISTORY, because the shape of these tests is otherwise puzzling. In STABL-voqsoicx
+# this compared against the LIVE utils/request_logger._env_bool — no hand-written
+# truth table existed to drift. That function was deleted when its caller migrated,
+# so the oracle froze here, provably faithful because the identical parametrisation
+# had passed against the real function first (50063d5).
 #
-# It is ALSO proven non-vacuous: injecting the "tidied" semantics
-# ({"0","false","no","off",""} with .strip().lower()) into utils/env.py produced
-# exactly 7 failures, one per divergent value below.
+# STABL-cfyshjre then NORMALISED env_bool, which breaks the oracle for exactly
+# seven values. The oracle is kept rather than deleted, and split in two:
 #
-# DO NOT "fix" this to match modern taste. Every change to it changes which
-# deployments have a flag on. Normalising is STABL-cfyshjre, where the decision
-# gets its own evidence.
+#   - the canonical values must STILL match it — that is the parity guarantee,
+#     and it is the majority of the table
+#   - the seven that changed are listed explicitly, with the decision named
+#
+# Deleting the oracle would have thrown away the record of what the old behaviour
+# was, which is the only thing that makes the break reviewable.
 
 
 def _original_env_bool(name: str, default: str = "1") -> bool:
-    """utils/request_logger.py's `_env_bool`, verbatim as of `50063d5`."""
+    """utils/request_logger.py's `_env_bool`, verbatim as of `50063d5`.
+
+    Kept as the historical record. It is no longer what env_bool does for the
+    seven values below.
+    """
     import os
 
     v = os.environ.get(name, default)
     return v not in ("0", "false", "False", "no", "No")
 
 
-@pytest.mark.parametrize("raw", [
-    "1", "0", "true", "false", "False", "no", "No", "yes",
-    "", "  ", " false ", "off", "OFF", "FALSE", "NO",
-])
-def test_env_bool_matches_the_ORIGINAL_semantics_EXACTLY(monkeypatch, raw):
-    """This migration moves the read; it does not change which deployments have a
-    flag on. All three current flags are `1` everywhere, so a divergence would be
-    inert TODAY and would bite the first time someone wrote `LOG_REQUESTS=` or
-    `off` — and env.live-test:27 (`MODEL=`) shows empty values do get written into
-    these files.
-    """
+# Everything a person would actually write on purpose. Behaviour here is
+# UNCHANGED by the normalisation, and must stay that way.
+@pytest.mark.parametrize("raw", ["1", "0", "true", "false", "False", "no", "No", "yes"])
+def test_env_bool_still_matches_the_ORIGINAL_for_canonical_values(monkeypatch, raw):
     monkeypatch.setenv("ST_TEST", raw)
     assert env_bool("ST_TEST", True) is _original_env_bool("ST_TEST")
 
 
-def test_the_frozen_oracle_still_matches_the_shipped_constant():
-    """Ties the frozen copy back to the code it protects. If someone edits
-    utils.env._FALSE_VERBATIM, this fails immediately rather than leaving two
-    truth tables quietly disagreeing."""
-    from utils.env import _FALSE_VERBATIM
+# The deliberate break. Each of these was TRUE under the original function and is
+# FALSE now. `off` reading as ON is the one that justifies the change on its own:
+# it turned a deliberate "off" into its opposite.
+@pytest.mark.parametrize("raw", ["", "  ", " false ", "off", "OFF", "FALSE", "NO"])
+def test_env_bool_NORMALISES_the_seven_values_the_original_got_wrong(monkeypatch, raw):
+    monkeypatch.setenv("ST_TEST", raw)
+    assert env_bool("ST_TEST", True) is False
+    # ...and this is precisely where the two disagree. Asserting the difference,
+    # rather than just the new value, keeps the break visible to a reader who has
+    # not read STABL-cfyshjre.
+    assert _original_env_bool("ST_TEST") is True
 
-    assert _FALSE_VERBATIM == ("0", "false", "False", "no", "No")
+
+def test_the_oracle_split_covers_every_case_it_used_to():
+    """Guards the guard. The original parametrisation had 15 values; splitting it
+    into 8 canonical + 7 normalised must not quietly drop any."""
+    canonical = {"1", "0", "true", "false", "False", "no", "No", "yes"}
+    normalised = {"", "  ", " false ", "off", "OFF", "FALSE", "NO"}
+    assert len(canonical | normalised) == 15
+    assert not (canonical & normalised)
+
+
+def test_the_shipped_constant_is_the_NORMALISED_set():
+    """Ties the tests back to the code they protect. If someone edits
+    utils.env._FALSE_VALUES, this fails immediately rather than leaving two truth
+    tables quietly disagreeing."""
+    from utils.env import _FALSE_VALUES
+
+    assert _FALSE_VALUES == frozenset({"0", "false", "no", "off", ""})
 
 
 def test_env_bool_ignores_quotes_before_comparing(monkeypatch):
