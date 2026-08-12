@@ -252,7 +252,7 @@ distinguishes them.
 | `hostname` | yes | Deliberately a log field and **not** a metric label — see the label policy above |
 | `mode` | while a mode is resident | Active mode name. Absent when nothing is loaded, and republished after a demand reload |
 | `device_uuid` | when a device is resolved | Stable GPU identity. Same vocabulary as the metric label |
-| `job_id` | during a job | Correlation id. Present on the WebSocket handler **and** on the dispatch-thread lines for the same job. **Known gap:** no HTTP handler line carries it — see below |
+| `job_id` | during a job | Correlation id. Present on the WebSocket handler, on the dispatch-thread lines, **and** — under `WORKER_ISOLATION=subprocess` — on the spawn child's lines for the same job. **Known gap:** no HTTP handler line carries it — see below |
 | `exception` | on a failing record | Formatted traceback |
 | `stack` | on `stack_info=True` | Formatted stack |
 
@@ -342,13 +342,35 @@ application-side tolerance can help, because Python never sees the file.
 compose. `tests/test_env_file_contract.py` guards both rules, including the
 condition that keeps `env.prod`'s exclusion safe.
 
-### `job_id` correlation spans two threads
+### `job_id` correlation spans two threads — and, under isolation, two processes
 
 The WebSocket handler runs on the event loop and the generation runs on the
 Governor's dispatch thread. Contextvars do not cross that boundary on their own,
 so the dispatch loop sets and **resets** the id per iteration. A missing `job_id`
 on a dispatch line is a bug; a *wrong* one would be worse, which is why the reset
 sits in the loop's `finally` next to `task_done()`.
+
+Under `WORKER_ISOLATION=subprocess` — the production path — there is a **third**
+boundary, and it is a process boundary. Generation runs in a spawn child, which
+inherits stdout but no contextvar, so the child binds the id itself around its
+job body from the `job_id` the envelope already carries
+(`worker_handle_subprocess.py`). Same set/reset discipline, same reason: it is a
+`with`, so a `run_job` that raises still resets rather than leaking a stale id
+into whatever the child logs next.
+
+This was measured broken before it was fixed (`STABL-zuhuxwvf`): over a 24h
+window every `backends.cuda_worker` line came from a child pid and **none**
+carried a `job_id`, while the server pid's lines did. Correlation worked
+everywhere except where the work happens. The failure is invisible in-proc —
+same process, same context — which is why the whole suite was green.
+
+To check it is still true, split by process and require both to be correlated:
+
+```logql
+sum by (pid) (count_over_time({container="stability-toys"} | json | job_id != "" [1h]))
+```
+
+More than one `pid` in that result is the healthy reading under isolation.
 
 Correlate a whole job with:
 

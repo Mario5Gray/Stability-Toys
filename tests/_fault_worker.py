@@ -139,3 +139,36 @@ class CancellableWorker:
 
 def make_cancellable_worker(worker_id, resolved, binding):
     return CancellableWorker()
+
+
+class LogLineWorker:
+    """Emits a real log line from inside the job body and returns it FORMATTED
+    (STABL-zuhuxwvf).
+
+    Returning the formatted line rather than the contextvar is deliberate: the
+    thing that was measured missing in Loki is a log line without a `job_id`
+    field, and StabilityFormatter reading the contextvar is the only reason a
+    line ever has one. Asserting on the rendered payload tests what an operator
+    actually queries.
+
+    `backends.cuda_worker` as the logger name is not decoration — that is the
+    exact logger whose child-pid lines carried no job_id in the field data.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def run_job(self, job, progress=None, should_cancel=None):
+        import logging
+
+        from server.log_format import StabilityFormatter
+
+        record = logging.LogRecord(
+            "backends.cuda_worker", logging.INFO, "/x.py", 1,
+            "generating in the child", (), None,
+        )
+        return StabilityFormatter().format(record).encode()
+
+
+def make_log_line_worker(worker_id, resolved, binding):
+    return LogLineWorker()
