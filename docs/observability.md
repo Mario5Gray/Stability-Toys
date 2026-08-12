@@ -41,11 +41,16 @@ use `level=~"error|warn.*"` rather than guess.
 are inside the line. `{container="stability-toys"} | json | logger="backends.governor"`
 works; without `| json` it does not.
 
-### 3. Prometheus queries return nothing yet
+### 3. Prometheus is live — but its own platform is not scraped
 
-`METRICS_ENABLED` is unset **and** nothing scrapes `:4200` — `STABL-xolucarj`. Both
-halves are required; neither alone is enough. The PromQL section below is correct
-and inert until that lands.
+`STABL-xolucarj` is closed: `METRICS_ENABLED=true` is in `env.prod` on enigma, and
+node1's `prometheus.yml` carries a `stability-toys` job. Verified 2026-08-12 —
+target UP, 43 `st_` families in the TSDB.
+
+What is **not** scraped is the observability platform itself. Loki serves 2817
+`loki_` series on `node1.lan:3100/metrics` and Prometheus knows none of them; same
+for promtail and Tempo. The "Platform health" section at the bottom of this file is
+correct PromQL against a target that does not exist yet.
 
 ---
 
@@ -210,10 +215,23 @@ sum by (node) (count_over_time(
 
 ---
 
-## PromQL — correct, and inert until `STABL-xolucarj`
+## PromQL — live
 
 Family names come from [`observability-contract.md`](observability-contract.md),
 which is bidirectionally tested against the code, so these cannot drift silently.
+
+Every query below was run against node1's Prometheus on 2026-08-12. Where one
+returned no data the reason is recorded — **a counter family does not exist until
+its first increment**, so an empty result for a `_total` is usually "that has never
+happened", not "that is broken".
+
+Two things about the current scrape config worth knowing before you read a graph:
+
+- **`scrape_interval` is 60s** for this job, so `rate(...[5m])` has five points.
+  Enough to be correct, coarse enough that quantiles look stepped.
+- **The job sets no `node` label**, unlike `glances`. Today there is one live
+  target so it does not matter; the moment a second one comes up, `sum by (...)`
+  silently merges two hosts. `instance` is the only thing separating them.
 
 ### Saturation
 
@@ -246,6 +264,10 @@ sum by (outcome) (rate(st_governor_job_terminal_total[5m]))
 sum by (budget)  (rate(st_governor_wait_expired_total[5m]))
 ```
 
+> Measured: `job_terminal_total` has data; `wait_expired_total` is **empty**, and
+> that is the healthy reading — no job has breached either budget, so the family
+> has no children yet.
+
 ### VRAM
 
 `unattributed` is the per-process CUDA context plus non-torch workspaces — the
@@ -270,6 +292,11 @@ st_device_snapshot_stale == 1
 `snapshot_stale == 1` means a consumer stopped answering its control pipe — an early
 wedged-worker signal with no other surface. Worth alerting on.
 
+> Measured: both empty. `worker_recovery_total` has never incremented (no OOM
+> recovery since the container started), and `snapshot_stale == 1` filters away a
+> healthy `0`. Graph `st_device_snapshot_stale` without the comparison if you want
+> to see the healthy line rather than a blank panel.
+
 ### The semaphore leak ratio
 
 Straight from the contract. Near 1 reproduces the original `STABL-nstyyrhh` finding —
@@ -279,6 +306,14 @@ one leaked semaphore per model load:
 increase(st_process_leaked_semaphores[1h])
   / increase(st_governor_mode_load_seconds_count[1h])
 ```
+
+> Measured: the ratio is **empty**, because a `0 / 0` over a quiet hour is NaN and
+> Prometheus drops it. The raw gauges are live and were
+> `st_process_leaked_semaphores{process="server"} 2` against
+> `st_governor_mode_load_seconds_count{mode="lcm-general"} 1`. Read the two
+> separately until there is enough load history for the ratio to mean anything —
+> and note the ratio needs the *counters to move*, so an idle box tells you nothing
+> either way.
 
 ### Mode churn
 
@@ -300,6 +335,17 @@ worker before every load. `idle_evict` is the one to watch.
 Query these before concluding "the app is quiet". Every one of them was a real
 failure during setup.
 
+> **The PromQL here does not run yet.** Prometheus scrapes the *application* but not
+> the *platform*: Loki, promtail and Tempo all export self-metrics and none of them
+> is a scrape target. Verified 2026-08-12 — `loki_discarded_samples_total` is absent
+> from Prometheus while `node1.lan:3100/metrics` serves 2817 `loki_` series. Adding
+> those jobs is `../continuous` work. Until then, read the counter straight off the
+> component:
+>
+> ```bash
+> curl -s http://node1.lan:3100/metrics | grep '^loki_discarded_samples_total'
+> ```
+
 **Is anything being discarded?** Check the *rate*, not the total — these counters are
 cumulative and carry historical scars:
 
@@ -311,6 +357,16 @@ sum by (reason) (rate(loki_discarded_samples_total[5m]))
 rejects the **entire batch**, not just that stream. Cause is almost always a
 `docker_sd_configs` job with no `job` label — unlike `static_configs`, docker SD does
 not synthesise one.
+
+**Is the app's own scrape target up?** This one *does* run, and is the fastest check
+that the metrics half is alive at all:
+
+```promql
+up{job="stability-toys"}
+```
+
+A permanent `0` for a target is not an outage — it is a target for a host that does
+not run the container. `mindgate.lan:4200` is currently in that state.
 
 **Is this host shipping at all?**
 
