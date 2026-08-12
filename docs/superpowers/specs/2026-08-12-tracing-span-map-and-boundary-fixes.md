@@ -133,7 +133,7 @@ client-supplied string is one series per client whim.
 | span | site |
 |---|---|
 | `governor.submit` | `governor.py:1280` `submit_job` — opens the backplane channel, subscribes the bridge, enqueues |
-| `governor.admit` | admission barrier: epoch/authority check |
+| ~~`governor.admit`~~ | **not built — see below** |
 | `governor.mode_switch` | `governor.py:1319` `switch_mode` → `governor.py:1334` `_reserve_and_enqueue_switch` |
 | `governor.dispatch` | `governor.py:1025` `_dispatch_loop` — **the job span**, opened at `:1048` and closed at `:1220` |
 | `governor.mode_load` | `governor.py:522` `_load_mode` |
@@ -141,6 +141,19 @@ client-supplied string is one series per client whim.
 | `governor.unload` | `governor.py:916` `_unload_current_worker` |
 | `governor.wait` | `governor.py:785` `wait_for_result` — the waiter side; attribute the budget (`execution` / `admission`) |
 | `governor.cancel` | `governor.py:864` `cancel_job` |
+
+**Amended at implementation (step 4): `governor.admit` was not built.** The
+admission barrier is a handful of inline lines inside the dispatch body — a
+sub-millisecond epoch comparison whose interesting output is a *decision*, not a
+duration. A nested span there adds trace depth and no timing anyone would read.
+The decision belongs on `governor.dispatch` as an attribute or event when it is
+needed; it is not needed to close the first pass. Recorded here rather than left
+as a silent omission from the map.
+
+**Also deferred to the propagation step: the recovery event.** §3.3 puts the
+facet-3 kill-and-respawn on `governor.dispatch`, and that branch is
+subprocess-only — it belongs with the rest of the subprocess work rather than
+bolted onto the in-proc-testable step.
 
 **`governor.dispatch` shares its lifetime exactly with the `job_id` contextvar bind**
 — set at `governor.py:1048`, reset in the `finally` at `governor.py:1220`. That

@@ -396,6 +396,10 @@ class Governor:
         self._idle_check_interval = float(os.environ.get("MODEL_IDLE_CHECK_INTERVAL_SECS", "30"))
         self._last_activity = time.monotonic()
         self._eviction_pending = False
+        # The dispatch loop's current job span, or None between jobs. Read by
+        # _observe_job_terminal so the terminal outcome is derived once
+        # (STABL-qnlaclof). Dispatch is single-threaded; no lock is needed.
+        self._dispatch_span = None
 
         self._worker_factory = worker_factory
         self._mode_config = mode_config or get_mode_config()
@@ -528,106 +532,109 @@ class Governor:
         The epoch is reserved by the caller (or inline here) BEFORE the load, so a
         generate admitted against the reservation carries the epoch this publishes.
         """
-        logger.info(f"[Governor] Loading mode: {mode_name}")
-        _load_started = time.monotonic()
-        if reservation is None:
-            reservation = self._reserve_authority(mode_name)
-        mode = reservation.mode
-        resolved, binding = reservation.resolved, reservation.binding
+        with self._span('governor.mode_load') as _sp:
+            _sp.set_attribute('mode', mode_name)
+            logger.info(f"[Governor] Loading mode: {mode_name}")
+            _load_started = time.monotonic()
+            if reservation is None:
+                reservation = self._reserve_authority(mode_name)
+            mode = reservation.mode
+            resolved, binding = reservation.resolved, reservation.binding
 
-        self._unload_current_worker(reason="switch")  # unregister old mode + tear down worker
-        with self._job_lock:
-            self._active_snapshot = None
-
-        # Load-time measurement reads a FRESH snapshot() — the one sanctioned
-        # fan-out exception (spec §4.1 / MUST-FIX-2). This is NOT the admission
-        # path (a load already blocks on model I/O), so fan-out is permitted.
-        allocated_before = _worker_allocated(self._dm.snapshot())
-
-        try:
-            self._handle.start(resolved, binding, mode)
-        except Exception as e:
-            logger.error(f"[Governor] Failed to load mode '{mode_name}': {e}", exc_info=True)
-            self._handle.unload()
+            self._unload_current_worker(reason="switch")  # unregister old mode + tear down worker
             with self._job_lock:
-                self._current_mode = None
                 self._active_snapshot = None
-            self._drop_reservation(reservation, dead=True)
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            raise
 
-        vram_allocated = _worker_allocated(self._dm.snapshot())
-        vram_used = max(0, vram_allocated - allocated_before)
-        logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
+            # Load-time measurement reads a FRESH snapshot() — the one sanctioned
+            # fan-out exception (spec §4.1 / MUST-FIX-2). This is NOT the admission
+            # path (a load already blocks on model I/O), so fan-out is permitted.
+            allocated_before = _worker_allocated(self._dm.snapshot())
 
-        if mode.loras:
-            logger.info(f"[Governor] Loading {len(mode.loras)} LoRAs for mode {mode_name}")
+            try:
+                self._handle.start(resolved, binding, mode)
+            except Exception as e:
+                logger.error(f"[Governor] Failed to load mode '{mode_name}': {e}", exc_info=True)
+                self._handle.unload()
+                with self._job_lock:
+                    self._current_mode = None
+                    self._active_snapshot = None
+                self._drop_reservation(reservation, dead=True)
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                raise
 
-        self._registry.register_model(
-            name=mode_name,
-            model_path=mode.model_path or "",
-            vram_bytes=vram_used,
-            worker_id=0,
-            loras=[lora.path for lora in mode.loras],
-        )
+            vram_allocated = _worker_allocated(self._dm.snapshot())
+            vram_used = max(0, vram_allocated - allocated_before)
+            logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
 
-        # Process-global, not per-job: threads with no job of their own (sampler,
-        # watchdog, uvicorn) still belong to the resident mode (STABL-bpsfmoke).
-        self._log_field("mode", mode_name)
+            if mode.loras:
+                logger.info(f"[Governor] Loading {len(mode.loras)} LoRAs for mode {mode_name}")
 
-        with self._job_lock:
-            self._current_mode = mode_name
-            self._active_snapshot = reservation
-            self._pending_authorities = [
-                r for r in self._pending_authorities if r is not reservation
-            ]
-            # Prune dead epochs below the published one: monotone epochs plus
-            # terminal-only admission mean no NEW job can carry them (spec §3.5).
-            self._dead_epochs = {
-                e for e in self._dead_epochs if e >= reservation.resolution_epoch
-            }
+            self._registry.register_model(
+                name=mode_name,
+                model_path=mode.model_path or "",
+                vram_bytes=vram_used,
+                worker_id=0,
+                loras=[lora.path for lora in mode.loras],
+            )
 
-        logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={reservation.resolution_epoch})")
+            # Process-global, not per-job: threads with no job of their own (sampler,
+            # watchdog, uvicorn) still belong to the resident mode (STABL-bpsfmoke).
+            self._log_field("mode", mode_name)
 
-        # STABL-asawxgvp. Reached only on a SUCCESSFUL load — a load that raises has
-        # no duration to report, and its failure is visible as mode_active staying 0.
-        _epoch = reservation.resolution_epoch
-        self._metric(lambda met: (
-            met.mode_load_seconds.labels(mode=mode_name).observe(
-                time.monotonic() - _load_started),
-            met.resolution_epoch.set(_epoch),
-            self._publish_mode_active(met, mode_name),
-        ))
+            with self._job_lock:
+                self._current_mode = mode_name
+                self._active_snapshot = reservation
+                self._pending_authorities = [
+                    r for r in self._pending_authorities if r is not reservation
+                ]
+                # Prune dead epochs below the published one: monotone epochs plus
+                # terminal-only admission mean no NEW job can carry them (spec §3.5).
+                self._dead_epochs = {
+                    e for e in self._dead_epochs if e >= reservation.resolution_epoch
+                }
 
-        # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
-        self._start_dispatch_thread()
+            logger.info(f"[Governor] Mode '{mode_name}' loaded (epoch={reservation.resolution_epoch})")
+
+            # STABL-asawxgvp. Reached only on a SUCCESSFUL load — a load that raises has
+            # no duration to report, and its failure is visible as mode_active staying 0.
+            _epoch = reservation.resolution_epoch
+            self._metric(lambda met: (
+                met.mode_load_seconds.labels(mode=mode_name).observe(
+                    time.monotonic() - _load_started),
+                met.resolution_epoch.set(_epoch),
+                self._publish_mode_active(met, mode_name),
+            ))
+
+            # Start the dispatch thread (same as WorkerPool._start_worker_thread at :428)
+            self._start_dispatch_thread()
 
     def _reload_from_snapshot(self) -> None:
         """Reconstruct the worker from the retained snapshot after idle eviction."""
-        snapshot = self._active_snapshot
-        if snapshot is None:
-            raise RuntimeError("demand reload requested with no retained snapshot")
-        logger.info(f"[Governor] Demand-reloading mode '{snapshot.mode_name}'")
-        self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)
-        self._registry.register_model(
-            name=snapshot.mode_name,
-            model_path=snapshot.binding.model_path,
-            vram_bytes=0,
-            worker_id=0,
-            loras=[lora.path for lora in snapshot.mode.loras],
-        )
-        _mode_name = snapshot.mode_name
-        # Republished here for the same reason _publish_mode_active is: this path
-        # brings the worker back WITHOUT going through _load_mode, and the eviction
-        # that preceded it cleared the field. Omit this and every line after an
-        # evict/reload cycle claims no mode is resident while one is (STABL-bpsfmoke).
-        self._log_field("mode", _mode_name)
-        self._metric(lambda met: (
-            met.demand_reload_total.labels(mode=_mode_name).inc(),
-            self._publish_mode_active(met, _mode_name),
-        ))
+        with self._span('governor.reload') as _sp:
+            snapshot = self._active_snapshot
+            if snapshot is None:
+                raise RuntimeError("demand reload requested with no retained snapshot")
+            logger.info(f"[Governor] Demand-reloading mode '{snapshot.mode_name}'")
+            self._handle.start(snapshot.resolved, snapshot.binding, snapshot.mode)
+            self._registry.register_model(
+                name=snapshot.mode_name,
+                model_path=snapshot.binding.model_path,
+                vram_bytes=0,
+                worker_id=0,
+                loras=[lora.path for lora in snapshot.mode.loras],
+            )
+            _mode_name = snapshot.mode_name
+            # Republished here for the same reason _publish_mode_active is: this path
+            # brings the worker back WITHOUT going through _load_mode, and the eviction
+            # that preceded it cleared the field. Omit this and every line after an
+            # evict/reload cycle claims no mode is resident while one is (STABL-bpsfmoke).
+            self._log_field("mode", _mode_name)
+            self._metric(lambda met: (
+                met.demand_reload_total.labels(mode=_mode_name).inc(),
+                self._publish_mode_active(met, _mode_name),
+            ))
 
     # --- Snapshot / epoch accessors ---
 
@@ -683,8 +690,15 @@ class Governor:
                     max(0.0, record.executing_since - record.enqueued_at))
                 met.job_execution_seconds.labels(mode=mode).observe(
                     max(0.0, time.monotonic() - record.executing_since))
-            met.job_terminal_total.labels(
-                mode=mode, outcome=_terminal_outcome(fut)).inc()
+            outcome = _terminal_outcome(fut)
+            met.job_terminal_total.labels(mode=mode, outcome=outcome).inc()
+            # STABL-qnlaclof: the SAME derived value onto the job's span. Deriving
+            # it twice is how a trace and its counter start disagreeing about the
+            # same job. None when a terminal is finalised off the dispatch thread.
+            span = self._dispatch_span
+            if span is not None:
+                span.set_attribute("job.outcome", outcome)
+                span.set_attribute("mode", mode)
         except Exception:
             logger.debug("[Governor] terminal metrics failed", exc_info=True)
 
@@ -846,41 +860,42 @@ class Governor:
         `run_job` never checks it, so the worker runs to completion holding VRAM.
         Reaping it for real is STABL-jredufxb.
         """
-        admission = (
-            DEFAULT_ADMISSION_TIMEOUT_S if admission_timeout_s is None else admission_timeout_s
-        )
-        execution = (
-            DEFAULT_EXECUTION_TIMEOUT_S if execution_timeout_s is None else execution_timeout_s
-        )
-        waiting_since = time.monotonic()
-        vanished_since: Optional[float] = None
+        with self._span('governor.wait') as _sp:
+            admission = (
+                DEFAULT_ADMISSION_TIMEOUT_S if admission_timeout_s is None else admission_timeout_s
+            )
+            execution = (
+                DEFAULT_EXECUTION_TIMEOUT_S if execution_timeout_s is None else execution_timeout_s
+            )
+            waiting_since = time.monotonic()
+            vanished_since: Optional[float] = None
 
-        while True:
-            try:
-                return fut.result(timeout=poll_interval_s)
-            except TimeoutError:
-                if fut.done():
-                    # The JOB raised TimeoutError; that is its result, not our budget.
-                    return fut.result()
+            while True:
+                try:
+                    return fut.result(timeout=poll_interval_s)
+                except TimeoutError:
+                    if fut.done():
+                        # The JOB raised TimeoutError; that is its result, not our budget.
+                        return fut.result()
 
-            record = self._record_for_future(fut)
-            now = time.monotonic()
+                record = self._record_for_future(fut)
+                now = time.monotonic()
 
-            if record is not None:
-                started = record.executing_since
-            else:
-                # The record is finalized on completion, so it can vanish while the
-                # future is briefly unresolved. Treat that as executing — never as
-                # still-queued, which would hand the generous admission budget to a
-                # job that has already run.
-                vanished_since = now if vanished_since is None else vanished_since
-                started = vanished_since
+                if record is not None:
+                    started = record.executing_since
+                else:
+                    # The record is finalized on completion, so it can vanish while the
+                    # future is briefly unresolved. Treat that as executing — never as
+                    # still-queued, which would hand the generous admission budget to a
+                    # job that has already run.
+                    vanished_since = now if vanished_since is None else vanished_since
+                    started = vanished_since
 
-            if started is None:
-                if now - waiting_since >= admission:
-                    self._expire(record, "admission", admission, now - waiting_since)
-            elif now - started >= execution:
-                self._expire(record, "execution", execution, now - started)
+                if started is None:
+                    if now - waiting_since >= admission:
+                        self._expire(record, "admission", admission, now - waiting_since)
+                elif now - started >= execution:
+                    self._expire(record, "execution", execution, now - started)
 
     def _expire(self, record: Optional[JobRecord], budget: str, limit_s: float, waited_s: float):
         """Ask the job to stop, then raise. Cancelling a still-QUEUED job takes it off
@@ -906,32 +921,33 @@ class Governor:
         and — for a locality that cannot see that flag — the handle is signalled
         by job id (STABL-jredufxb).
         """
-        signal_handle = False
-        with self._job_lock:
-            record = self._job_records.get(job_id)
-            if record is None or record.job.fut.done():
-                return False
-            record.cancel_requested = True
-            if record.state == "queued" and record.job.fut.cancel():
-                record.state = "cancelled"
-                return True
-            record.state = "running"
-            signal_handle = True
+        with self._span('governor.cancel') as _sp:
+            signal_handle = False
+            with self._job_lock:
+                record = self._job_records.get(job_id)
+                if record is None or record.job.fut.done():
+                    return False
+                record.cancel_requested = True
+                if record.state == "queued" and record.job.fut.cancel():
+                    record.state = "cancelled"
+                    return True
+                record.state = "running"
+                signal_handle = True
 
-        # OUTSIDE _job_lock, deliberately. The subprocess handle's cancel takes
-        # _control_lock, which an in-flight stats reply can hold for
-        # _STATS_REPLY_TIMEOUT_S — signalling under _job_lock would let a
-        # /api/models/status fan-out stall the dispatch loop.
-        if signal_handle:
-            handle_cancel = getattr(self._handle, "cancel_job", None)
-            if callable(handle_cancel):
-                try:
-                    handle_cancel(job_id)
-                except Exception:  # noqa: BLE001 — a failed signal must not fail the cancel
-                    logger.warning(
-                        "[Governor] handle.cancel_job(%s) failed", job_id, exc_info=True
-                    )
-        return True
+            # OUTSIDE _job_lock, deliberately. The subprocess handle's cancel takes
+            # _control_lock, which an in-flight stats reply can hold for
+            # _STATS_REPLY_TIMEOUT_S — signalling under _job_lock would let a
+            # /api/models/status fan-out stall the dispatch loop.
+            if signal_handle:
+                handle_cancel = getattr(self._handle, "cancel_job", None)
+                if callable(handle_cancel):
+                    try:
+                        handle_cancel(job_id)
+                    except Exception:  # noqa: BLE001 — a failed signal must not fail the cancel
+                        logger.warning(
+                            "[Governor] handle.cancel_job(%s) failed", job_id, exc_info=True
+                        )
+            return True
 
     # --- VRAM cleanup / recovery ---
 
@@ -961,25 +977,27 @@ class Governor:
         a mode switch, an idle eviction and an OOM cleanup are not the same event,
         and a hardcoded label would make the dimension dead weight.
         """
-        mode = self._current_mode
-        if self._worker_available() and mode:
-            self._registry.unregister_model(mode)
-        self._handle.unload()
-        # Nothing is resident now. REMOVES the field rather than blanking it, and
-        # mirrors _publish_mode_active(met, None) below: _load_mode calls this
-        # before every load and republishes on success, so a failed load correctly
-        # leaves the field absent (STABL-bpsfmoke).
-        self._log_field("mode", None)
-        # Only when something was actually loaded: _load_mode unloads before every
-        # load, and the first-ever load has no outgoing mode to report churn for.
-        if mode:
-            self._metric(lambda met: (
-                met.unload_total.labels(mode=mode, reason=reason).inc(),
-                # Nothing is loaded now. _load_mode calls this before every load and
-                # republishes the new mode on success, so a switch reads 0 -> 1 and a
-                # failed load correctly leaves every mode at 0.
-                self._publish_mode_active(met, None),
-            ))
+        with self._span('governor.unload') as _sp:
+            _sp.set_attribute('reason', reason)
+            mode = self._current_mode
+            if self._worker_available() and mode:
+                self._registry.unregister_model(mode)
+            self._handle.unload()
+            # Nothing is resident now. REMOVES the field rather than blanking it, and
+            # mirrors _publish_mode_active(met, None) below: _load_mode calls this
+            # before every load and republishes on success, so a failed load correctly
+            # leaves the field absent (STABL-bpsfmoke).
+            self._log_field("mode", None)
+            # Only when something was actually loaded: _load_mode unloads before every
+            # load, and the first-ever load has no outgoing mode to report churn for.
+            if mode:
+                self._metric(lambda met: (
+                    met.unload_total.labels(mode=mode, reason=reason).inc(),
+                    # Nothing is loaded now. _load_mode calls this before every load and
+                    # republishes the new mode on success, so a switch reads 0 -> 1 and a
+                    # failed load correctly leaves every mode at 0.
+                    self._publish_mode_active(met, None),
+                ))
 
     def _cleanup_vram(self, reason: str, cancel_running: bool) -> list[str]:
         cancelled = self.cancel_pending_generation_jobs(reason=reason)
@@ -1083,6 +1101,22 @@ class Governor:
             # getattr(..., None) nor ContextVar.set can raise, so this needs no
             # wrapper to satisfy STABL-hdzggeir.
             _log_token = log_context.job_id_var.set(getattr(job, "job_id", None))
+            # STABL-qnlaclof: the job span shares its lifetime EXACTLY with that
+            # bind. Entered and exited by hand for the same reason the bind is —
+            # a `with` around ~170 lines would reindent the whole body and make
+            # the diff unreviewable. _span already guards open and close, so
+            # neither of these two lines can reach the loop.
+            #
+            # Held on self so _observe_job_terminal can reach it: the terminal is
+            # derived at ONE choke point so the span and
+            # st_governor_job_terminal_total cannot disagree, and threading a
+            # span through the five branches that call _finalize_job_record is
+            # what that choke point exists to avoid. The dispatch loop is
+            # single-threaded, so a plain attribute is sufficient.
+            _span_cm = self._span("governor.dispatch")
+            self._dispatch_span = _span_cm.__enter__()
+            self._dispatch_span.set_attribute("job.id", getattr(job, "job_id", "") or "")
+            self._dispatch_span.set_attribute("job.type", job.job_type.value)
             try:
                 if isinstance(job, ModeSwitchJob):
                     # Mode-switch fast-path: a live worker already holds the target mode.
@@ -1254,6 +1288,8 @@ class Governor:
                     if not job.fut.done():
                         job.fut.set_exception(e)
             finally:
+                _span_cm.__exit__(*sys.exc_info())
+                self._dispatch_span = None
                 log_context.job_id_var.reset(_log_token)
                 self._last_activity = time.monotonic()
                 self.q.task_done()
@@ -1323,35 +1359,37 @@ class Governor:
         when given, receives the streamed Progress via the bridge; None preserves
         today's Future-only behaviour.
         """
-        effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
-        try:
-            self._register_job(job)
-            if isinstance(job, GenerationJob):
-                # Store on_progress on the record so BOTH paths reach it: the in-proc
-                # branch below passes it to _FutureBridge; the subprocess dispatch
-                # (which builds _SubprocessFutureBridge later) reads record.on_progress.
-                record = self._get_job_record(job.job_id)
-                if record is not None:
-                    record.on_progress = on_progress
-                if self._handle.worker is not None:
-                    # Open the backplane channel and attach the compat Subscriber NOW —
-                    # strictly before the job is enqueued (spec §3.3 ordering invariant).
-                    # Subprocess path: handle.submit() owns the IPC channel; do NOT open
-                    # an in-proc channel here (recon #2).
-                    sink, publisher = InProcBackplane(job.job_id).open()
+        with self._span('governor.submit') as _sp:
+            _sp.set_attribute('job_type', job.job_type.value)
+            effective_timeout_s = self.queue_timeout_s if timeout_s is None else timeout_s
+            try:
+                self._register_job(job)
+                if isinstance(job, GenerationJob):
+                    # Store on_progress on the record so BOTH paths reach it: the in-proc
+                    # branch below passes it to _FutureBridge; the subprocess dispatch
+                    # (which builds _SubprocessFutureBridge later) reads record.on_progress.
+                    record = self._get_job_record(job.job_id)
                     if record is not None:
-                        record.sink = sink
-                    publisher.subscribe(_FutureBridge(job.fut, on_progress=on_progress))
-            if effective_timeout_s > 0:
-                self.q.put(job, timeout=effective_timeout_s)
-            else:
-                self.q.put_nowait(job)
-            logger.debug(f"[Governor] Job queued: {job.job_type.value}")
-            return job.fut
-        except queue.Full:
-            if isinstance(job, GenerationJob):
-                self._finalize_job_record(job.job_id)
-            raise queue.Full(f"Job queue full (max: {self.queue_max}).")
+                        record.on_progress = on_progress
+                    if self._handle.worker is not None:
+                        # Open the backplane channel and attach the compat Subscriber NOW —
+                        # strictly before the job is enqueued (spec §3.3 ordering invariant).
+                        # Subprocess path: handle.submit() owns the IPC channel; do NOT open
+                        # an in-proc channel here (recon #2).
+                        sink, publisher = InProcBackplane(job.job_id).open()
+                        if record is not None:
+                            record.sink = sink
+                        publisher.subscribe(_FutureBridge(job.fut, on_progress=on_progress))
+                if effective_timeout_s > 0:
+                    self.q.put(job, timeout=effective_timeout_s)
+                else:
+                    self.q.put_nowait(job)
+                logger.debug(f"[Governor] Job queued: {job.job_type.value}")
+                return job.fut
+            except queue.Full:
+                if isinstance(job, GenerationJob):
+                    self._finalize_job_record(job.job_id)
+                raise queue.Full(f"Job queue full (max: {self.queue_max}).")
 
     def switch_mode(self, mode_name: str, force: bool = False) -> Future:
         logger.info(f"[Governor] Queueing mode switch to: {mode_name} (force={force})")
@@ -1381,54 +1419,56 @@ class Governor:
         Bypasses submit_job deliberately — submit_job cannot hold the lock across its
         put, and a ModeSwitchJob needs no backplane channel (that is GenerationJob-only).
         """
-        mode, resolved, binding = self._resolve_target(mode_name)  # disk I/O, no lock
-        worker_ok = self._worker_available()  # handle call — NOT under _job_lock
-        with self._job_lock:
-            if not force:
-                # Re-check under the lock: another thread may have reserved or
-                # published this target while we were resolving. Without it, a
-                # reservation could be minted for a mode the dispatch fast-path will
-                # short-circuit — never published, and doom for anything bound to it.
-                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
-                if shortcircuit is not None:
-                    fut: Future = Future()
-                    fut.set_result(shortcircuit)
-                    return fut
+        with self._span('governor.mode_switch') as _sp:
+            _sp.set_attribute('mode', mode_name)
+            mode, resolved, binding = self._resolve_target(mode_name)  # disk I/O, no lock
+            worker_ok = self._worker_available()  # handle call — NOT under _job_lock
+            with self._job_lock:
+                if not force:
+                    # Re-check under the lock: another thread may have reserved or
+                    # published this target while we were resolving. Without it, a
+                    # reservation could be minted for a mode the dispatch fast-path will
+                    # short-circuit — never published, and doom for anything bound to it.
+                    shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+                    if shortcircuit is not None:
+                        fut: Future = Future()
+                        fut.set_result(shortcircuit)
+                        return fut
 
-            self._resolution_epoch += 1
-            reservation = ActiveModelSnapshot(
-                mode_name=mode_name,
-                mode=mode,
-                resolved=resolved,
-                binding=binding,
-                resolution_epoch=self._resolution_epoch,
-            )
-            self._pending_authorities.append(reservation)
-            self._last_activity = time.monotonic()
+                self._resolution_epoch += 1
+                reservation = ActiveModelSnapshot(
+                    mode_name=mode_name,
+                    mode=mode,
+                    resolved=resolved,
+                    binding=binding,
+                    resolution_epoch=self._resolution_epoch,
+                )
+                self._pending_authorities.append(reservation)
+                self._last_activity = time.monotonic()
 
-            job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
-            try:
-                if self.queue_timeout_s > 0:
-                    self.q.put(job, timeout=self.queue_timeout_s)
-                else:
-                    self.q.put_nowait(job)
-            except queue.Full:
-                self._pending_authorities = [
-                    r for r in self._pending_authorities if r is not reservation
-                ]
-                self._dead_epochs.add(reservation.resolution_epoch)
-                raise
-            logger.debug(
-                f"[Governor] Mode switch queued: {mode_name} "
-                f"(epoch={reservation.resolution_epoch})"
-            )
-        # Counted OUTSIDE the critical section (STABL-asawxgvp). Moving the return
-        # past the `with` is behaviour-preserving — nothing else sits between — and
-        # keeps a metrics write out of the one lock the dispatch loop contends on.
-        # Labelled by TARGET only: a {from,to} pair squares the cardinality to buy a
-        # transition matrix nobody asked for.
-        self._metric(lambda met: met.mode_switch_total.labels(mode=mode_name).inc())
-        return job.fut
+                job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
+                try:
+                    if self.queue_timeout_s > 0:
+                        self.q.put(job, timeout=self.queue_timeout_s)
+                    else:
+                        self.q.put_nowait(job)
+                except queue.Full:
+                    self._pending_authorities = [
+                        r for r in self._pending_authorities if r is not reservation
+                    ]
+                    self._dead_epochs.add(reservation.resolution_epoch)
+                    raise
+                logger.debug(
+                    f"[Governor] Mode switch queued: {mode_name} "
+                    f"(epoch={reservation.resolution_epoch})"
+                )
+            # Counted OUTSIDE the critical section (STABL-asawxgvp). Moving the return
+            # past the `with` is behaviour-preserving — nothing else sits between — and
+            # keeps a metrics write out of the one lock the dispatch loop contends on.
+            # Labelled by TARGET only: a {from,to} pair squares the cardinality to buy a
+            # transition matrix nobody asked for.
+            self._metric(lambda met: met.mode_switch_total.labels(mode=mode_name).inc())
+            return job.fut
 
     def admit_generation(self, target_mode: Optional[str]) -> Optional[ActiveModelSnapshot]:
         """The authority a generate admitted NOW will execute against (spec §3.4).
