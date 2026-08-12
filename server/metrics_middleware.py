@@ -1,15 +1,23 @@
-"""HTTP request metrics as a pure ASGI middleware (STABL-xmsrxvto).
+"""HTTP request metrics and entry span as a pure ASGI middleware.
 
 Deliberately NOT BaseHTTPMiddleware: that wraps every request in an anyio task
 group, interacts badly with streaming responses and background tasks, and would
 still need an explicit WebSocket exclusion. A plain ASGI callable is cheaper and
 its skip condition is visible.
 
-Spec: docs/superpowers/specs/2026-08-03-server-observability-seams-design.md §6
+Carries BOTH observability pillars for HTTP (STABL-xmsrxvto metrics,
+STABL-qnlaclof tracing). One middleware rather than two: they need the same
+`scope["route"]`-after-the-app read, and a second pass over every request to
+recompute it would be pure cost. The class keeps its name because it is
+registered by it; what it does is described here.
+
+Specs: docs/superpowers/specs/2026-08-03-server-observability-seams-design.md §6
+       docs/superpowers/specs/2026-08-12-tracing-span-map-and-boundary-fixes.md §3.1
 """
 import time
 
 from server.metrics import get_metrics, record
+from server.tracing import get_tracer, get_tracing
 
 UNMATCHED = "__unmatched__"
 
@@ -34,9 +42,11 @@ class MetricsMiddleware:
 
     async def __call__(self, scope, receive, send):
         # WebSocket and lifespan scopes have no status and no duration worth
-        # charging to an HTTP histogram. The gate is re-read per request rather
-        # than cached so reset_metrics() in tests takes effect.
-        if scope["type"] != "http" or not get_metrics().enabled:
+        # charging to an HTTP histogram. The gates are re-read per request rather
+        # than cached so reset_metrics()/reset_tracing() in tests take effect, and
+        # they are checked SEPARATELY: tracing must not silently require
+        # METRICS_ENABLED, which is a coupling nobody would think to look for.
+        if scope["type"] != "http" or not (get_metrics().enabled or get_tracing().enabled):
             await self.app(scope, receive, send)
             return
 
@@ -51,16 +61,25 @@ class MetricsMiddleware:
                 status["code"] = message["status"]
             await send(message)
 
-        try:
-            await self.app(scope, receive, _send)
-        finally:
-            elapsed = time.perf_counter() - start
-            method = scope.get("method", "UNKNOWN")
-            route = route_label(scope)
-            code = str(status["code"])
-            record(lambda met: (
-                met.http_requests_total.labels(
-                    method=method, route=route, status=code).inc(),
-                met.http_request_duration_seconds.labels(
-                    method=method, route=route).observe(elapsed),
-            ))
+        method = scope.get("method", "UNKNOWN")
+        # Named by method alone at creation and renamed once the route is known.
+        # The template cannot be read before the app has run, and a span name
+        # built from the raw path would be the cardinality trap that
+        # route_label() exists to avoid — one operation per model id.
+        with get_tracer(__name__).start_as_current_span(f"HTTP {method}") as span:
+            try:
+                await self.app(scope, receive, _send)
+            finally:
+                elapsed = time.perf_counter() - start
+                route = route_label(scope)
+                code = str(status["code"])
+                record(lambda met: (
+                    met.http_requests_total.labels(
+                        method=method, route=route, status=code).inc(),
+                    met.http_request_duration_seconds.labels(
+                        method=method, route=route).observe(elapsed),
+                ))
+                span.set_attribute("http.request.method", method)
+                span.set_attribute("http.route", route)
+                span.set_attribute("http.response.status_code", status["code"])
+                span.update_name(f"{method} {route}")

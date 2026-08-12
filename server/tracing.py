@@ -7,10 +7,11 @@ whose context manager yields a no-op span so call sites carry no branches.
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from contextlib import nullcontext
 from typing import Optional
+
+from utils.env import env_bool, env_str
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,17 @@ def _import_opentelemetry():
 
 class _NoopSpan:
     def set_attribute(self, *args, **kwargs):
+        pass
+
+    def update_name(self, *args, **kwargs):
+        """Real spans support renaming, so the no-op must too.
+
+        Entry spans need it: neither the HTTP route template nor the WS message
+        type is knowable when the span opens, and a name built from the raw path
+        would be one operation per model id. A missing method here is an
+        AttributeError on the DISABLED path only — the configuration nobody
+        exercises before shipping.
+        """
         pass
 
     def add_event(self, *args, **kwargs):
@@ -103,11 +115,19 @@ _tracing_lock = threading.Lock()
 
 
 def _enabled_from_env() -> bool:
-    return os.getenv("TRACING_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+    """Default OFF, and quote-tolerant.
+
+    Goes through utils.env rather than reading os.environ by hand: env files
+    quote values, so `TRACING_ENABLED="1"` read literally is '"1"' and would
+    leave the pillar silently disabled. That is the STABL-voqsoicx accessor
+    doing the job it was built for, and the failure it prevents is the
+    STABL-xqqqqvse one — a feature implemented, tested, and enabled nowhere.
+    """
+    return env_bool("TRACING_ENABLED", False)
 
 
 def _endpoint_from_env() -> str:
-    return os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    return env_str("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
 
 
 def get_tracing() -> Tracing:
