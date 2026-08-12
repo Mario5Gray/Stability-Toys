@@ -43,9 +43,11 @@ This is not a style preference. Three measurements decide it.
 | `backends/rknn_worker.py:58` | `run_job(self, job)` — **no `progress`, no `should_cancel`** |
 
 Instrumenting there means four sites that must not drift, and the RKNN one cannot
-even be wrapped identically. Contrast the interface seams: `WorkerHandle.submit()`
-has **two** implementations (`worker_handle.py:137`, `worker_handle_subprocess.py:514`)
-and the Governor dispatch loop has **one** (`governor.py:1025`).
+even be wrapped identically. Contrast the control plane: the Governor dispatch loop
+is **one** function (`governor.py:1025`) and reaches execution through exactly **two**
+branches — `job.execute(...)` in-proc at `governor.py:1140` and `handle.submit(job)`
+under isolation at `governor.py:1168`. Two sites that the same `if` already
+distinguishes, versus four that nothing does.
 
 **The metrics pillar already proved the layering.** `STABL-asawxgvp` shipped 20
 families across ~30 call sites with **zero** instrumentation in `cuda_worker.py`.
@@ -80,7 +82,40 @@ its child-side counterpart (`CONSUMER`).
 | span | site | notes |
 |---|---|---|
 | `http.server.request` | `server/metrics_middleware.py:31` `MetricsMiddleware.__call__` | Reuse the existing pure-ASGI middleware rather than adding a second one. |
-| `ws.message` | `server/ws_routes.py:915` (`with log_context.bind_job_id(None)`) | One span per inbound message. Same braces as the `job_id` bind — the two correlate the same unit and must not diverge. |
+| `ws.message` | `server/ws_routes.py:893`, immediately after `raw = await ws.receive_text()` | Opens **before** the parse. See below — this is not the same scope as the `job_id` bind. |
+
+**The `ws.message` span must open at `:893`, not at the `job_id` bind at `:915`.**
+Two of the message loop's exits happen *before* that bind and `continue` past it:
+
+| exit | line | reached by |
+|---|---|---|
+| `_count_in(_INVALID_JSON)` → `continue` | `ws_routes.py:897` | `json.loads` raised |
+| `_error(f"Unknown type: {msg_type}")` → `continue` | `ws_routes.py:904` | `HANDLERS.get()` returned `None` |
+
+A span anchored at `:915` therefore covers only messages that already parsed *and*
+resolved to a handler — it would miss exactly the `invalid_json` and `unknown`
+protocol traffic this document says should be represented, which is also the traffic
+you most want a trace for. Malformed input would be invisible and the loop would look
+idle.
+
+**The span scope and the `job_id` bind scope deliberately differ**, and it is worth
+saying so explicitly because they look like they should match. The bind is
+`bind_job_id(None)` — its job is to *clear* the id so a handler can set its own and
+nothing leaks into the next message on the same connection. Its narrow scope is the
+point. The span's job is to represent *serving one inbound message*, which starts at
+the read. Do not "fix" one to match the other.
+
+**Name the span `ws.message` unconditionally and put the type in an attribute.** The
+message type is not known until after the parse, so a span named from it cannot be
+created at `:893` without renaming after the fact. An attribute avoids the problem
+entirely and keeps span names low-cardinality, which is what you want regardless.
+
+**A span opened at `:893` also captures `STABL-gzfzzsdq` correctly, for free.**
+`HANDLERS.get(msg_type)` at `ws_routes.py:903` **hashes** its argument, so a client
+sending `{"type": {}}` raises `TypeError`, which escapes to the loop's outer
+`except Exception` and closes the connection in the `finally`. With the span open from
+the read, that appears as an errored span on the message that caused it. Anchored at
+`:915` it would not appear at all — the connection would simply end.
 
 `route` must be the matched route **template**, read *after* the downstream app runs
 — `server/metrics_middleware.py:17` `route_label()` already does exactly this and
@@ -88,12 +123,10 @@ returns `__unmatched__` for a request that matched nothing. Use that function; d
 re-derive from `request.url.path`, which mints one span name per model id.
 
 Inbound WS `type` is client-controlled. It must map through the bounded `HANDLERS`
-registry before it can become a span name, the same way it does for the metrics
-label — `unknown` for unrecognised, `invalid_json` for unparseable.
-
-> `raw in HANDLERS` and `HANDLERS.get(raw)` both **hash** their argument, so a client
-> sending `{"type": {}}` raises `TypeError` (`STABL-gzfzzsdq`, still open). Guard with
-> `isinstance(msg_type, str)` before using it for anything, span names included.
+registry before it can become the `messaging.type` attribute, the same way it does for
+the metrics label — `unknown` for unrecognised, `invalid_json` for unparseable. Guard
+with `isinstance(msg_type, str)` before using it for anything; an unbounded
+client-supplied string is one series per client whim.
 
 ### 3.2 Governor — the control plane
 
@@ -127,18 +160,56 @@ end" is how a trace and a counter start disagreeing.
 
 ### 3.3 The worker boundary
 
-| span | site | kind |
-|---|---|---|
-| `worker.submit` | `WorkerHandle.submit()` — `worker_handle.py:61` (ABC) | PRODUCER |
-| `worker.execute` | in-proc: `worker_handle.py:137` `_run()` thread | INTERNAL |
-| `worker.execute` | subprocess: `worker_handle_subprocess.py:211` `_worker_main` job loop | CONSUMER |
+**The two isolation modes do not share an execution path, and `submit()` is not the
+in-proc one.** The dispatch loop branches on `self._handle.worker is not None`
+(`governor.py:1134`) and the two arms are structurally different — not one call with
+two implementations behind it.
 
-This is the only place in the map where the same logical operation has two physically
-different implementations, and §4 is entirely about making that seam observable.
+| span | site | kind | live when |
+|---|---|---|---|
+| `worker.execute` | `governor.py:1140` — `job.execute(self._handle.worker, ...)` | INTERNAL | **in-proc only** |
+| `worker.submit` | `governor.py:1171` — `self._handle.submit(job).subscribe(bridge)` | PRODUCER | **subprocess only** |
+| `worker.execute` | `worker_handle_subprocess.py:211` `_worker_main` job loop | CONSUMER | **subprocess only** |
 
-Attribute `isolation` (`inproc` / `subprocess`) on `worker.submit`. Without it a trace
-cannot be read without separately knowing how the deployment was configured, and the
-two shapes are legitimately different — not a regression to be alarmed at.
+> **Do NOT instrument `InProcessWorkerHandle.submit()` (`worker_handle.py:137`).** It
+> is not on the v1 dispatch path. Its own docstring says so (`worker_handle.py:91`):
+> *"the Governor's in-proc dispatch loop runs job.execute on its OWN dispatch thread
+> and drives record.sink directly — it does NOT call submit() in v1. submit() is the
+> facet-3 contract, exercised here in isolation."* A span there traces nothing in
+> production and the omission is silent: in-proc traces would simply have no
+> execution span, which reads as a fast job rather than as missing instrumentation.
+
+**In-proc there is no producer/consumer pair at all.** Execution is inline on the
+dispatch thread, so `worker.execute` is an ordinary child of `governor.dispatch` on
+the same thread, with no context to propagate and no `worker.submit` above it. The
+PRODUCER/CONSUMER pairing exists *only* on the subprocess path, which is precisely why
+§4 is about that path and only that path.
+
+Attribute `isolation` (`inproc` / `subprocess`) on `governor.dispatch`, not on
+`worker.submit` — `worker.submit` does not exist in-proc, so an attribute there cannot
+distinguish the modes. Without it a trace cannot be read without separately knowing
+how the deployment was configured, and **the two shapes are legitimately different**:
+a two-span in-proc trace and a three-span subprocess trace are both correct, and
+neither is a regression.
+
+Two other `job.execute` call sites exist in the same loop and are **not** part of this
+seam:
+
+- `governor.py:1057` — `ModeSwitchJob`. Already covered by `governor.mode_switch` and
+  `governor.mode_load`; a third span over the same work adds no information.
+- `governor.py:1198` — `CustomJob`, which runs an in-proc callable that cannot cross a
+  process boundary (`STABL-govweiat`, deliberately unfixed). Give it
+  `worker.execute` with `job_type=custom` so it is not invisible, but do not model it
+  as part of the isolation split — it has no subprocess form to split into.
+
+**The subprocess arm carries the recovery decision, and it belongs on the span.**
+`governor.py:1184–1195` reads `bridge.terminal_error_code == OOM` or a dead worker
+(`:1184`) and performs unregister → `handle.stop()` → `_reload_from_snapshot()`
+(`:1192`–`:1195`). That is the facet-3 kill-and-respawn, proven on hardware, and it is
+the single most interesting thing that can happen to a job. Record it as an **event**
+on `governor.dispatch` carrying the `oom` and `alive` values already formatted into
+the warning at `governor.py:1187`, so a trace shows the respawn without needing the
+logs beside it.
 
 ### 3.4 Device memory
 
@@ -160,6 +231,8 @@ consumer was slow and *how* slow.
 ### 3.5 Deliberately not instrumented
 
 - **`cuda_worker.py`, `rknn_worker.py`** — §2.
+- **`InProcessWorkerHandle.submit()` (`worker_handle.py:137`)** — §3.3. Not on the v1
+  dispatch path. Instrumenting it looks right and traces nothing.
 - **`cached_snapshot()`** — §3.4.
 - **Per-denoise-step spans.** One span per step at up to 50 steps per job is a
   cardinality decision, not an observability one. The seam exists
