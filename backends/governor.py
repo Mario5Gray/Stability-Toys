@@ -11,11 +11,13 @@ import gc
 import logging
 import os
 import queue
+import sys
 import threading
 import time
 import uuid
 import torch
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from copy import deepcopy
 from typing import Optional, Any, Callable, Protocol
 from dataclasses import dataclass, field
@@ -24,7 +26,7 @@ from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
 from server.metrics import get_metrics
-from server import log_context
+from server import log_context, tracing
 from backends.model_registry import get_model_registry
 from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
@@ -697,6 +699,41 @@ class Governor:
             fn(get_metrics())
         except Exception:
             logger.debug("[Governor] metrics side effect failed", exc_info=True)
+
+    @staticmethod
+    @contextmanager
+    def _span(name: str):
+        """Open a Governor span without letting tracing failures reach the loop.
+
+        Mirrors _metric and _log_field: observability code in lifecycle paths must
+        never be allowed to deaden the dispatch thread.
+
+        The guard covers span CREATION and span TEARDOWN. It deliberately does NOT
+        cover the body — wrapping the yield in `try/except Exception` and yielding
+        again in the handler makes contextlib raise "generator didn't stop after
+        throw()", which REPLACES the caller's exception. That is the
+        STABL-hdzggeir wedge this helper exists to prevent, reintroduced by the
+        prevention: classify_exception() maps only CancelledError to CANCELLED and
+        the subprocess branch tests `terminal_error_code == OOM`, so a rewritten
+        type silently disables both the reap and the facet-3 kill+respawn.
+        """
+        try:
+            cm = tracing.get_tracer(__name__).start_as_current_span(name)
+            span = cm.__enter__()
+        except Exception:
+            logger.debug("[Governor] span %s failed to open", name, exc_info=True)
+            yield tracing._NoopSpan()
+            return
+
+        try:
+            yield span
+        finally:
+            # Hand the in-flight exception (if any) to the span so it is recorded
+            # and the span is ended, then let it continue to the caller untouched.
+            try:
+                cm.__exit__(*sys.exc_info())
+            except Exception:
+                logger.debug("[Governor] span %s failed to close", name, exc_info=True)
 
     @staticmethod
     def _log_field(name: str, value) -> None:

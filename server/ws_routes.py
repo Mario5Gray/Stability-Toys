@@ -24,6 +24,7 @@ from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
 from server.ws_hub import hub
 from server import log_context
+from server.tracing import get_tracer
 from server.upload_routes import resolve_file_ref
 from server.metrics import record
 from invokers.jobs import (
@@ -891,37 +892,53 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             raw = await ws.receive_text()
-            try:
-                msg = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
-                _count_in(_INVALID_JSON)
-                await hub.send(client_id, _error("Invalid JSON"))
-                continue
+            # STABL-qnlaclof: the span opens HERE, before the parse — not on the
+            # bind below. Two exits `continue` past that point (malformed JSON,
+            # unrecognised type), so a span anchored later would cover only
+            # messages that already parsed AND resolved to a handler, making a
+            # broken client invisible and the loop look idle.
+            #
+            # This scope is deliberately WIDER than the job_id bind's. The bind
+            # exists to CLEAR the id so a handler can set its own; its narrowness
+            # is the point. The span represents serving one inbound message, which
+            # starts at the read. Do not "fix" one to match the other.
+            with get_tracer(__name__).start_as_current_span("ws.message") as span:
+                try:
+                    msg = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    span.set_attribute("messaging.type", _inbound_type(_INVALID_JSON))
+                    _count_in(_INVALID_JSON)
+                    await hub.send(client_id, _error("Invalid JSON"))
+                    continue
 
-            msg_type = msg.get("type")
-            _count_in(msg_type)
-            handler = HANDLERS.get(msg_type)
-            if handler is None:
-                await hub.send(client_id, _error(f"Unknown type: {msg_type}", msg.get("id")))
-                continue
+                msg_type = msg.get("type")
+                # Bounded before it can name anything: the client controls this
+                # string entirely, and an unbounded span attribute is the same
+                # cardinality failure as an unbounded label.
+                span.set_attribute("messaging.type", _inbound_type(msg_type))
+                _count_in(msg_type)
+                handler = HANDLERS.get(msg_type)
+                if handler is None:
+                    await hub.send(client_id, _error(f"Unknown type: {msg_type}", msg.get("id")))
+                    continue
 
-            try:
-                # STABL-bpsfmoke: every message starts with a clean correlation id.
-                # Handlers SET it (job:submit does, once it has minted one); binding
-                # None here is what stops it surviving into the next message on the
-                # same connection. One place, so a handler added later cannot forget.
-                # Tasks the handler spawns are unaffected — create_task copies the
-                # context at creation, so they keep the id this bind later restores.
-                with log_context.bind_job_id(None):
-                    result = await handler(ws, msg, client_id)
-                    # Inside the bind: emitting a handler's reply is still part of
-                    # serving that message, so a send failure logs under the same
-                    # correlation id the handler established.
-                    if result is not None:
-                        await hub.send(client_id, result)
-            except Exception as e:
-                logger.error("Handler %s failed: %s", msg_type, e, exc_info=True)
-                await hub.send(client_id, _error(str(e), msg.get("id")))
+                try:
+                    # STABL-bpsfmoke: every message starts with a clean correlation id.
+                    # Handlers SET it (job:submit does, once it has minted one); binding
+                    # None here is what stops it surviving into the next message on the
+                    # same connection. One place, so a handler added later cannot forget.
+                    # Tasks the handler spawns are unaffected — create_task copies the
+                    # context at creation, so they keep the id this bind later restores.
+                    with log_context.bind_job_id(None):
+                        result = await handler(ws, msg, client_id)
+                        # Inside the bind: emitting a handler's reply is still part of
+                        # serving that message, so a send failure logs under the same
+                        # correlation id the handler established.
+                        if result is not None:
+                            await hub.send(client_id, result)
+                except Exception as e:
+                    logger.error("Handler %s failed: %s", msg_type, e, exc_info=True)
+                    await hub.send(client_id, _error(str(e), msg.get("id")))
 
     except WebSocketDisconnect:
         pass
