@@ -25,6 +25,7 @@ import multiprocessing as mp
 from collections import deque
 from typing import Optional
 
+from server import log_context
 from backends.worker_handle import WorkerHandle, WorkerHealth
 from backends.liveness import SubprocessLiveness
 from backends.model_resolution import resolved_model_to_json_dict
@@ -289,22 +290,32 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
             controlnet_bindings=list(d.controlnet_bindings or []),
         )
         sink = IpcJobSink(conn, job_id=d.job_id)
-        try:
-            # STABL-zueslhah Task 3: thread the IpcJobSink's progress emitter so the
-            # diffusion step callback streams Progress over the pipe that
-            # drain_to_subscriber already reads.
-            # STABL-jredufxb: the predicate is scoped to THIS job id, so a cancel
-            # that arrived before the child dequeued the job still reaps it, and a
-            # cancel for the previous job cannot reap this one.
-            result = worker.run_job(
-                job, progress=sink.progress,
-                should_cancel=lambda jid=d.job_id: cancel_state.is_cancelled(jid),
-            )  # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
-            sink.result(0, pickle.dumps(result))      # recon #5C: pickle the opaque return into the blob
-            sink.complete()
-        except Exception as e:   # noqa: BLE001 — rides the sink terminal
-            from backends.backplane.frames import BackplaneError
-            sink.error(BackplaneError.from_exc(e))
+        # STABL-zuhuxwvf: bind the correlation id INSIDE the child. The parent
+        # binds its own in the dispatch loop (governor.py:1048), but a ContextVar
+        # cannot cross a spawn boundary — so without this every line from the
+        # process that actually generates is uncorrelated. Measured on live Loki
+        # over 24h: not one backends.cuda_worker line carried a job_id.
+        #
+        # The `with` is load-bearing. run_job raising must STILL reset, or the
+        # next thing this child logs inherits a stale id — which reads as real
+        # correlation and survives review, strictly worse than none.
+        with log_context.bind_job_id(d.job_id):
+            try:
+                # STABL-zueslhah Task 3: thread the IpcJobSink's progress emitter so the
+                # diffusion step callback streams Progress over the pipe that
+                # drain_to_subscriber already reads.
+                # STABL-jredufxb: the predicate is scoped to THIS job id, so a cancel
+                # that arrived before the child dequeued the job still reaps it, and a
+                # cancel for the previous job cannot reap this one.
+                result = worker.run_job(
+                    job, progress=sink.progress,
+                    should_cancel=lambda jid=d.job_id: cancel_state.is_cancelled(jid),
+                )  # opaque: bytes (FaultWorker) or (png, seed) tuple (real)
+                sink.result(0, pickle.dumps(result))      # recon #5C: pickle the opaque return into the blob
+                sink.complete()
+            except Exception as e:   # noqa: BLE001 — rides the sink terminal
+                from backends.backplane.frames import BackplaneError
+                sink.error(BackplaneError.from_exc(e))
 
 
 class _SubprocessFutureBridge(Subscriber):
