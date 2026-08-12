@@ -1,0 +1,347 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "Loki holding the stability-toys container logs",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    },
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus scraping stability-toys /metrics (see STABL-xolucarj)",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "tags": ["stability-toys", "observability"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "",
+  "title": "Stability-Toys — overview",
+  "uid": "stability-toys-overview",
+  "templating": {
+    "list": [
+      {
+        "name": "container",
+        "label": "container",
+        "type": "textbox",
+        "query": "stability-toys",
+        "current": { "text": "stability-toys", "value": "stability-toys" },
+        "hide": 0
+      },
+      {
+        "name": "node",
+        "label": "node",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+        "query": "label_values({container=\"$container\"}, node)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "job_id",
+        "label": "job_id (correlation)",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Health — read these first",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Log volume by level",
+      "description": "level is Loki structured metadata and is LOWER case — 'ERROR' returns nothing. No | json needed to filter on it.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] },
+          { "matcher": { "id": "byName", "options": "info" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } } ] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum by (level) (count_over_time({container=\"$container\", node=~\"$node\"} [$__auto]))",
+          "legendFormat": "{{level}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "NON-JSON lines — must stay 0",
+      "description": "The contract promises every line is JSON. A hit is a bug to report: a bare print() or a direct stream writer. Both known sources are closed and guarded by tests.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum(count_over_time({container=\"$container\", node=~\"$node\"} != `{\"timestamp\"` [$__range]))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Lines by pid (server vs worker child)",
+      "description": "Under WORKER_ISOLATION=subprocess generation runs in a child with its own pid; both write to the same stdout. A NEW pid series appearing is a worker respawn — the facet-3 kill-and-restart after an OOM.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum by (pid) (count_over_time({container=\"$container\", node=~\"$node\"} | json | __error__=\"\" [$__auto]))",
+          "legendFormat": "pid {{pid}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "JSON parse failures",
+      "description": "Lines Loki could not parse as JSON. Non-zero means either a writer that bypasses logging, or Docker's json-file driver splitting a very long line into chunks. Both produce a line no downstream parser can read.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum(count_over_time({container=\"$container\", node=~\"$node\"} | json | __error__=\"JSONParserErr\" [$__auto]))",
+          "legendFormat": "parse failures"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate by module",
+      "description": "The fastest regression detector. __error__=\"\" drops lines the JSON parser could not read, so a parse failure is not silently counted as a match.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 5 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum by (logger) (count_over_time({container=\"$container\", node=~\"$node\"} | level=\"error\" | json | __error__=\"\" [$__auto]))",
+          "legendFormat": "{{logger}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Job correlation",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "One job, both threads  (set the job_id variable)",
+      "description": "The point of STABL-bpsfmoke: the WS handler runs on the event loop and generation on the Governor dispatch thread. Read the thread column to see the hand-off. Leave job_id empty to see all correlated lines.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Ascending" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "{container=\"$container\", node=~\"$node\"} | json | job_id != \"\" | job_id =~ \"$job_id.*\" | line_format \"[{{.thread}}] {{.logger}} — {{.message}}\""
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Model lifecycle",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Idle evictions per interval",
+      "description": "The watchdog evicts after MODEL_IDLE_TIMEOUT_SECS (default 300). The next generate pays a demand reload. High values mean the timeout is fighting your usage pattern.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "sum(count_over_time({container=\"$container\", node=~\"$node\"} | json | message =~ \"(?i)evicting idle model\" [$__auto]))",
+          "legendFormat": "evictions"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Governor lifecycle",
+      "description": "Loads, unloads, demand reloads, dispatch. The narrative of why a generation was slow.",
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "options": { "showTime": true, "wrapLogMessage": true },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "expr": "{container=\"$container\", node=~\"$node\"} | json | logger=\"backends.governor\" | line_format \"{{.message}}\""
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Metrics — INERT until STABL-xolucarj (METRICS_ENABLED unset AND no scrape job)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+      "collapsed": true,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Queue depth / in flight",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "st_governor_queue_depth", "legendFormat": "queued" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "st_governor_jobs_in_flight", "legendFormat": "in flight" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "p95 execution vs queue wait",
+          "description": "STABL-atzqpcte separated these deliberately; conflating them hid a timeout bug.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "histogram_quantile(0.95, sum by (le, mode) (rate(st_governor_job_execution_seconds_bucket[5m])))", "legendFormat": "exec {{mode}}" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(st_governor_job_queue_wait_seconds_bucket[5m])))", "legendFormat": "queue wait" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Job outcomes",
+          "description": "timeout is deliberately NOT an outcome — it is a waiter-side budget breach counted by st_governor_wait_expired_total.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum by (outcome) (rate(st_governor_job_terminal_total[5m]))", "legendFormat": "{{outcome}}" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum by (budget) (rate(st_governor_wait_expired_total[5m]))", "legendFormat": "expired {{budget}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "VRAM attribution",
+          "description": "unattributed is the per-process CUDA context plus non-torch workspaces. Meaningful on DISCRETE topology only — on UNIFIED it is host RAM including unrelated processes.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum by (consumer) (st_consumer_reserved_bytes)", "legendFormat": "{{consumer}} reserved" },
+            { "refId": "B", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "st_device_unattributed_bytes", "legendFormat": "unattributed" }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Wedged worker (snapshot stale)",
+          "description": "1 means a consumer stopped answering its control pipe — an early wedged-worker signal with no other surface. Worth alerting on.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 5, "w": 8, "x": 0, "y": 46 },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+            },
+            "overrides": []
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "max(st_device_snapshot_stale)" }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Semaphore leak ratio (per model load)",
+          "description": "Near 1 reproduces the original STABL-nstyyrhh finding: one leaked POSIX semaphore per MODEL LOAD, linear and never reclaimed.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 5, "w": 8, "x": 8, "y": 46 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "increase(st_process_leaked_semaphores[1h]) / increase(st_governor_mode_load_seconds_count[1h])" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Worker recoveries",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 5, "w": 8, "x": 16, "y": 46 },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum by (reason) (rate(st_governor_worker_recovery_total[1h]))", "legendFormat": "{{reason}}" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Platform — is the pipeline itself healthy?",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "collapsed": true,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Loki discard RATE by reason",
+          "description": "Rate, not total. These counters are cumulative and carry historical scars — a large total with a flat rate is already fixed. missing_labels rejects the ENTIRE batch, not just the bad stream.",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sum by (reason) (rate(loki_discarded_samples_total[5m]))", "legendFormat": "{{reason}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Lines shipped per node",
+          "description": "A host missing here is not quiet — it is not shipping.",
+          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+          "targets": [
+            { "refId": "A", "datasource": { "type": "loki", "uid": "${DS_LOKI}" }, "expr": "sum by (node) (count_over_time({node=~\".+\"} [$__auto]))", "legendFormat": "{{node}}" }
+          ]
+        }
+      ]
+    }
+  ]
+}
