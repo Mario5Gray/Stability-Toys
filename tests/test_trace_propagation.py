@@ -4,15 +4,12 @@ The same wall STABL-zuhuxwvf hit one layer down: a span opened in the parent
 cannot be continued in the child, because nothing ambient survives spawn. job_id
 crossed by riding the job envelope; trace context crosses the same way.
 
-WHAT THESE TESTS DO NOT PROVE: that the child's span is really a CHILD of the
-parent's. That is W3C traceparent semantics and needs the OTel SDK, which is not
-a dependency until step 6. The end-to-end linkage test below is written and
-skipped rather than omitted, so it starts running the moment the pin lands.
-What IS proven here is the plumbing: the carrier is produced, survives the wire,
-is refused when the version disagrees, and is consumed on the far side.
+Step 6 pinned the SDK, so the linkage test below now RUNS. It asserts the trace
+id, the parent-child EDGE, and the PRODUCER/CONSUMER kinds — the last two because
+a trace-id check alone passed while the boundary span was missing and the child
+was mislabelled INTERNAL, which is what review of PR #70 found.
 """
 import ast
-import importlib.util
 import pathlib
 import pickle
 from unittest.mock import Mock
@@ -23,9 +20,6 @@ from backends.governor import GenerationJob
 from backends.job_envelope import JOB_SCHEMA_VERSION, decode_job, encode_job
 from server import tracing as t
 from server.lcm_sr_server import GenerateRequest
-
-HAS_OTEL = importlib.util.find_spec("opentelemetry") is not None
-
 
 def _job(prompt="hello"):
     return GenerationJob(
@@ -215,19 +209,62 @@ def test_a_job_carrying_trace_context_still_runs_across_a_real_spawn():
         handle.stop()
 
 
-@pytest.mark.skipif(not HAS_OTEL, reason="OTel SDK is not a dependency until step 6")
-def test_the_childs_span_shares_the_parents_TRACE_ID():
-    """THE acceptance for this step, and it cannot run yet.
+def test_the_parent_and_child_spans_share_one_TRACE_ID_and_are_a_hand_off():
+    """THE acceptance for step 5, unskipped by the step-6 SDK pin.
 
-    Written and skipped rather than omitted: everything above proves the carrier
-    is produced, survives the wire and is consumed, and NONE of it proves the
-    child's span is really a child. That is W3C semantics and needs the SDK.
-    Turning on the step-6 pin turns this on.
+    It asserts THREE things, and the review of PR #70 is why it is not just the
+    first: a trace-id equality check passes even when the boundary span is
+    missing entirely and the child's span is mislabelled INTERNAL. Both of those
+    defects existed and both would have survived this test in its obvious form.
+
+      1. the child's span carries the parent's trace id  (context crossed)
+      2. the child's parent_span_id IS the boundary span (the edge exists)
+      3. the kinds are PRODUCER -> CONSUMER               (it reads as a hand-off)
+
+    In-process on both sides of a REAL propagator: injecting under a live parent
+    span and extracting the carrier is exactly what the two processes do, and it
+    needs no second process to be true. The spawn boundary itself is covered by
+    test_a_job_carrying_trace_context_still_runs_across_a_real_spawn.
     """
-    pytest.fail(
-        "unimplemented: assert the child's span trace_id equals the parent's "
-        "across a real spawn, using an in-memory exporter in both processes"
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
     )
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer(__name__)
+
+    # Parent side: the boundary span, with the carrier injected INSIDE it.
+    with tracer.start_as_current_span(
+            "worker.submit", **t.kind_kwargs("PRODUCER")) as producer:
+        carrier = {}
+        from opentelemetry.propagate import inject
+        inject(carrier)
+        producer_ctx = producer.get_span_context()
+
+    assert "traceparent" in carrier, "nothing was injected to cross with"
+
+    # Child side: a fresh context, exactly as a spawned process has.
+    parent_ctx = t.context_from_carrier(carrier)
+    with tracer.start_as_current_span(
+            "worker.execute", context=parent_ctx, **t.kind_kwargs("CONSUMER")):
+        pass
+
+    spans = {s.name: s for s in exporter.get_finished_spans()}
+    submit, execute = spans["worker.submit"], spans["worker.execute"]
+
+    assert execute.context.trace_id == producer_ctx.trace_id, "not one trace"
+    assert execute.parent is not None and \
+        execute.parent.span_id == producer_ctx.span_id, (
+            "the child hangs off something other than the boundary span; a "
+            "shared trace id alone would not have caught this"
+        )
+    assert submit.kind is trace.SpanKind.PRODUCER
+    assert execute.kind is trace.SpanKind.CONSUMER
 
 
 # ---------------------------------------------------------------------------

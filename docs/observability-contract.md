@@ -391,6 +391,68 @@ correlatable; what is not correlatable is the HTTP request that asked for it.
 Closing this needs a runtime API change, not a formatter change. For an HTTP
 request, correlate by time and `mode` against the dispatch-thread lines.
 
+## Traces
+
+Third pillar (`STABL-qnlaclof`). Exported OTLP/HTTP to the local collector, which
+forwards to Tempo on node1. **Off by default**; `env.prod` sets `TRACING_ENABLED=1`.
+
+| variable | value in `env.prod` | note |
+|---|---|---|
+| `TRACING_ENABLED` | `1` | quote-tolerant via `utils.env`; anything false-ish is off |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4318` | **BASE**, no signal path |
+
+Either variable alone is sufficient. `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is
+signal-specific and used **verbatim**; the base gets `/v1/traces` appended. The
+gate reads the *resolved* endpoint, so setting only the signal-specific one
+enables tracing — an earlier cut gated on the base alone, which made the standard
+OTel configuration resolve correctly and then be discarded, with a warning naming
+a variable the operator had deliberately not set.
+
+**`OTEL_PROXY_ENDPOINT` is a different variable for a different consumer** and is
+not interchangeable. It is a full signal path (`.../v1/traces`) because the browser
+POSTs to it directly. The SDK exporter needs the base — `server/tracing.py`
+appends `/v1/traces` itself.
+
+> **Measured, because the obvious reading is wrong.** With
+> `opentelemetry-exporter-otlp-proto-http==1.27.0`, an explicit `endpoint=` is used
+> **verbatim**; only the env-var path appends the signal suffix. Handing the
+> exporter a base URL as an argument POSTs every span to the collector root, which
+> 404s while the gate still reports tracing as enabled.
+
+### Spans
+
+| span | where | kind |
+|---|---|---|
+| `{METHOD} {route}` | HTTP middleware, route **template** | SERVER |
+| `ws.message` | WS message loop, at the receive | SERVER |
+| `governor.submit` / `mode_switch` / `mode_load` / `reload` / `unload` / `wait` / `cancel` | Governor lifecycle | INTERNAL |
+| `governor.dispatch` | one per job; shares its lifetime with the `job_id` bind | INTERNAL |
+| `worker.submit` | `SubprocessWorkerHandle.submit` | **PRODUCER** |
+| `worker.execute` | the spawn child's job loop | **CONSUMER** |
+
+**PRODUCER → CONSUMER is the process boundary, and the kinds are load-bearing.** A
+shared trace id alone does not tell you the two spans are a hand-off — the ids match
+just as well when the boundary span is missing entirely and the child is labelled
+INTERNAL. Both of those were real defects, caught at review rather than by a trace-id
+check. `tests/test_trace_propagation.py` asserts the id, the parent-child **edge**,
+and both kinds.
+
+### Attributes worth querying
+
+`job.id` (correlates with the `job_id` log field), `job.outcome` (the **same**
+derived value as `st_governor_job_terminal_total{outcome}` — one derivation, so they
+cannot disagree), `mode`, `isolation` (`inproc` / `subprocess`), `http.route`,
+`http.response.status_code`, `messaging.type` (bounded by the handler registry).
+
+### What is deliberately absent
+
+- **No OTel metrics.** Prometheus owns that pillar; dual-exporting the same numbers
+  is how the two silently disagree.
+- **No per-denoise-step spans.** Up to 50 per job is a cardinality decision, not an
+  observability one. `backends/step_progress.py` is the seam if it is ever wanted.
+- **No `governor.admit` span.** The barrier is inline and sub-millisecond; its
+  output is a decision, not a duration.
+
 ## Stability
 
 Metric names and label sets are a stable interface, and so is the log field set

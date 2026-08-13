@@ -96,8 +96,15 @@ RUN set -eu; \
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt /app/requirements.txt
 COPY requirements-conditioning.txt /app/requirements-conditioning.txt
+COPY requirements-tracing.txt /app/requirements-tracing.txt
 
 RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Tracing is backend-neutral — NOT gated on BACKEND=cuda like conditioning.
+# The spawn child traces on every backend, and a CPU image that cannot
+# import the SDK degrades to no-op silently, which is the hardest kind of
+# missing telemetry to notice.
+RUN pip install --no-cache-dir -r /app/requirements-tracing.txt
 
 RUN if [ "$BACKEND" != "cuda" ]; then \
       pip install --no-cache-dir torch; \
