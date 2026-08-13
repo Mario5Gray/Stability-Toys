@@ -49,3 +49,7 @@ pytest-benchmark>=4.0.0
 # PyPI is an unrelated pooling TLS wrapper, and `pytest-watch` is unmaintained
 # since 2018 and does not work with modern pytest.
 pytest-watcher>=0.4.0
+
+# Tracing SDK — tests/test_trace_propagation.py asserts real
+# parent-child span edges, which needs the real propagator.
+-r requirements-tracing.txt

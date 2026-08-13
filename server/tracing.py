@@ -91,9 +91,15 @@ class Tracing:
                     self.enabled = False
                 else:
                     resource = Resource.create({"service.name": "stability-toys"})
+                    # Sampler left at the SDK default, which IS ParentBased —
+                    # pinned by a test rather than restated here, because the
+                    # requirement is that a child never samples independently of
+                    # its parent, and a bare sampler set later would break it
+                    # silently and only under subprocess isolation.
                     provider = TracerProvider(resource=resource)
                     provider.add_span_processor(
-                        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+                        BatchSpanProcessor(
+                            OTLPSpanExporter(endpoint=_traces_endpoint()))
                     )
                     self._provider = provider
 
@@ -128,6 +134,30 @@ def _enabled_from_env() -> bool:
 
 def _endpoint_from_env() -> str:
     return env_str("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+
+
+def _traces_endpoint() -> str:
+    """The full trace SIGNAL path to hand the exporter.
+
+    MEASURED against opentelemetry-exporter-otlp-proto-http 1.27.0:
+
+        OTLPSpanExporter(endpoint="http://c:4318")      -> http://c:4318
+        OTLPSpanExporter() with the env var set         -> http://c:4318/v1/traces
+
+    An explicit ``endpoint=`` is used VERBATIM; only the env-var path appends the
+    signal suffix. The design note said SDK exporters "append the signal path
+    themselves" — true of the variable, false of the argument, and this facade
+    passes the argument. Left alone, every span would POST to the collector root
+    and 404 while the gate reported tracing as healthy.
+
+    ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`` is signal-specific and therefore
+    already a full path; appending to it yields /v1/traces/v1/traces — the same
+    shape as reusing OTEL_PROXY_ENDPOINT, one variable over.
+    """
+    signal = env_str("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "").strip()
+    if signal:
+        return signal
+    return _endpoint_from_env().rstrip("/") + "/v1/traces"
 
 
 def get_tracing() -> Tracing:

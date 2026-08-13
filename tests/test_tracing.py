@@ -93,3 +93,81 @@ def test_an_explicitly_false_flag_stays_off(monkeypatch):
     for value in ("0", "false", "FALSE", "off", " no ", ""):
         monkeypatch.setenv("TRACING_ENABLED", value)
         assert t._enabled_from_env() is False, f"{value!r} enabled tracing"
+
+
+# ---------------------------------------------------------------------------
+# Step 6: the SDK is real now
+# ---------------------------------------------------------------------------
+
+def test_the_signal_path_is_APPENDED_to_a_base_endpoint(monkeypatch):
+    """MEASURED against opentelemetry-exporter-otlp-proto-http 1.27.0:
+
+        OTLPSpanExporter(endpoint='http://c:4318')            -> http://c:4318
+        OTLPSpanExporter() with the env var set               -> http://c:4318/v1/traces
+
+    An EXPLICIT `endpoint=` is used verbatim; only the env-var path appends.
+    The spec's step-6 note said SDK exporters "append the signal path
+    themselves", which is true of the env var and false of the argument — and
+    our facade passes the argument. Every span would have POSTed to the
+    collector root and 404'd, with the gate reporting tracing as enabled.
+    """
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+
+    assert t._traces_endpoint() == "http://otel-collector:4318/v1/traces"
+
+
+def test_a_trailing_slash_does_not_double_up(monkeypatch):
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318/")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+
+    assert t._traces_endpoint() == "http://otel-collector:4318/v1/traces"
+
+
+def test_an_explicit_TRACES_endpoint_is_used_VERBATIM(monkeypatch):
+    """The signal-specific variable is already a full path by definition, so
+    appending to it would produce /v1/traces/v1/traces — the exact failure the
+    spec warned about for OTEL_PROXY_ENDPOINT, one variable over."""
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://elsewhere:4318/v1/traces")
+
+    assert t._traces_endpoint() == "http://elsewhere:4318/v1/traces"
+
+
+def test_the_sampler_is_PARENT_BASED(monkeypatch):
+    """REGRESSION GUARD, not a driver: this passed the moment it was written,
+    because the SDK's default sampler already IS ParentBased(ALWAYS_ON). Kept
+    because the requirement is load-bearing and easy to break later — a bare
+    `sampler=ALWAYS_ON` added for local debugging makes the child sample
+    independently of its parent, producing traces whose parent span was never
+    recorded. That reads as data loss, is a configuration error, and shows up
+    only under WORKER_ISOLATION=subprocess, the deployed path.
+    """
+    from opentelemetry.sdk.trace.sampling import ParentBased
+
+    monkeypatch.setenv("TRACING_ENABLED", "1")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+    t.reset_tracing()
+    try:
+        tracing = t.get_tracing()
+        assert tracing.enabled is True
+        assert isinstance(tracing._provider.sampler, ParentBased)
+    finally:
+        t.reset_tracing()
+
+
+def test_the_service_name_is_what_tempo_will_group_on(monkeypatch):
+    """Also a guard rather than a driver. service.name is the primary index in
+    Tempo's search, and the SDK's default is 'unknown_service' — which would put
+    every span in the fleet in one bucket."""
+    from opentelemetry.sdk.resources import SERVICE_NAME
+
+    monkeypatch.setenv("TRACING_ENABLED", "1")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+    t.reset_tracing()
+    try:
+        resource = t.get_tracing()._provider.resource
+        assert resource.attributes[SERVICE_NAME] == "stability-toys"
+    finally:
+        t.reset_tracing()
