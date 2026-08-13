@@ -401,6 +401,13 @@ forwards to Tempo on node1. **Off by default**; `env.prod` sets `TRACING_ENABLED
 | `TRACING_ENABLED` | `1` | quote-tolerant via `utils.env`; anything false-ish is off |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4318` | **BASE**, no signal path |
 
+Either variable alone is sufficient. `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is
+signal-specific and used **verbatim**; the base gets `/v1/traces` appended. The
+gate reads the *resolved* endpoint, so setting only the signal-specific one
+enables tracing — an earlier cut gated on the base alone, which made the standard
+OTel configuration resolve correctly and then be discarded, with a warning naming
+a variable the operator had deliberately not set.
+
 **`OTEL_PROXY_ENDPOINT` is a different variable for a different consumer** and is
 not interchangeable. It is a full signal path (`.../v1/traces`) because the browser
 POSTs to it directly. The SDK exporter needs the base — `server/tracing.py`

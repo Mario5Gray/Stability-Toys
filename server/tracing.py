@@ -71,11 +71,18 @@ class Tracing:
         self._tracer_cache: dict[str, object] = {}
 
         if enabled:
-            endpoint = _endpoint_from_env()
+            # Gate on the RESOLVED endpoint, not on the base variable. Reading
+            # the base alone made the standard signal-specific config
+            # (OTEL_EXPORTER_OTLP_TRACES_ENDPOINT set, base unset) resolve
+            # correctly and then be discarded by a gate that could not see it —
+            # a silent no-op whose warning named a variable the operator had
+            # deliberately not used.
+            endpoint = _traces_endpoint()
             if not endpoint:
                 logger.warning(
-                    "TRACING_ENABLED is set but OTEL_EXPORTER_OTLP_ENDPOINT is unset; "
-                    "tracing degrades to no-op"
+                    "TRACING_ENABLED is set but neither OTEL_EXPORTER_OTLP_ENDPOINT "
+                    "nor OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set; tracing "
+                    "degrades to no-op"
                 )
                 self.enabled = False
             else:
@@ -98,8 +105,7 @@ class Tracing:
                     # silently and only under subprocess isolation.
                     provider = TracerProvider(resource=resource)
                     provider.add_span_processor(
-                        BatchSpanProcessor(
-                            OTLPSpanExporter(endpoint=_traces_endpoint()))
+                        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
                     )
                     self._provider = provider
 
@@ -153,11 +159,17 @@ def _traces_endpoint() -> str:
     ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`` is signal-specific and therefore
     already a full path; appending to it yields /v1/traces/v1/traces — the same
     shape as reusing OTEL_PROXY_ENDPOINT, one variable over.
+
+    Returns "" when NEITHER variable is set, because the gate decides on this
+    value. `"".rstrip("/") + "/v1/traces"` is `/v1/traces` — truthy, and
+    plausible enough to be handed to an exporter — so the absent case has to be
+    falsy rather than merely wrong.
     """
     signal = env_str("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "").strip()
     if signal:
         return signal
-    return _endpoint_from_env().rstrip("/") + "/v1/traces"
+    base = _endpoint_from_env()
+    return base.rstrip("/") + "/v1/traces" if base else ""
 
 
 def get_tracing() -> Tracing:

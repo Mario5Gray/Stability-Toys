@@ -171,3 +171,49 @@ def test_the_service_name_is_what_tempo_will_group_on(monkeypatch):
         assert resource.attributes[SERVICE_NAME] == "stability-toys"
     finally:
         t.reset_tracing()
+
+
+def test_the_SIGNAL_SPECIFIC_endpoint_alone_ENABLES_tracing(monkeypatch):
+    """Found at review of PR #71. The gate read the BASE variable while
+    _traces_endpoint() honoured the signal-specific one, so the standard OTel
+    config — set OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, leave the base unset —
+    resolved to a correct endpoint and was then discarded by a gate that could
+    not see it. Silent no-op, with a warning naming a variable the operator had
+    deliberately not used.
+    """
+    monkeypatch.setenv("TRACING_ENABLED", "1")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://otel-collector:4318/v1/traces")
+    t.reset_tracing()
+    try:
+        assert t.get_tracing().enabled is True
+    finally:
+        t.reset_tracing()
+
+
+def test_no_endpoint_at_all_yields_an_EMPTY_string_not_a_bare_signal_path(monkeypatch):
+    """`"".rstrip("/") + "/v1/traces"` is `/v1/traces` — truthy, and a plausible
+    enough string to be handed to an exporter. The absent case has to be falsy or
+    the gate cannot use this function to decide anything."""
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+
+    assert t._traces_endpoint() == ""
+
+
+def test_the_unset_warning_names_BOTH_variables(monkeypatch, caplog):
+    """An operator who set the signal-specific variable and is told the base one
+    is unset will go looking in the wrong place."""
+    monkeypatch.setenv("TRACING_ENABLED", "1")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+    t.reset_tracing()
+    try:
+        with caplog.at_level("WARNING"):
+            assert t.get_tracing().enabled is False
+        message = " ".join(r.message for r in caplog.records)
+        assert "OTEL_EXPORTER_OTLP_ENDPOINT" in message
+        assert "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in message
+    finally:
+        t.reset_tracing()
