@@ -55,6 +55,10 @@ services:
       - ./persistence:/app/persistence:rw,Z
       - ./invokers:/app/invokers:rw,Z
       - ./lcm-sr-ui/dist:/opt/lcm-sr-server/ui-dist:ro,Z
+      # Acceptance spikes are run with `docker exec` against a live
+      # container; they are NOT in the image (live-test.Dockerfile
+      # copies source packages only).
+      - ./spikes:/app/spikes:ro,Z
     env_file:
       - env.dev
       - env.cuda
