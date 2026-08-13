@@ -334,9 +334,15 @@ Required changes:
    config.
 
 **Absent context must produce a root span, never a dropped one.** A child that
-receives no `traceparent` (tracing disabled parent-side, or a v2 parent against a v3
-child during a rolling change) must still emit. Silence there is indistinguishable
-from a healthy idle worker.
+receives no `traceparent` — tracing disabled parent-side — must still emit. Silence
+there is indistinguishable from a healthy idle worker.
+
+> **Corrected at implementation.** This paragraph originally also listed "a v2
+> parent against a v3 child during a rolling change" as an absent-context case. It
+> is not one: `decode_job` **refuses** an unknown `schema_version` outright, so a
+> v2 sender never reaches the extraction at all. The refusal is deliberate (see
+> above) and the described fallback cannot execute. Caught at review of the step-5
+> PR, where the same claim had been copied into two docstrings.
 
 **The sampling decision crosses with the context.** `traceparent` carries the sampled
 flag, so parent-based sampling works for free — but only if the child's provider is

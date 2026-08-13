@@ -142,6 +142,111 @@ def get_tracer(name: str):
     return get_tracing().get_tracer(name)
 
 
+def _import_propagator():
+    """Seam: patched in tests to prove the ImportError degrade path.
+
+    Separate from _import_opentelemetry because propagation lives in the API
+    package while the exporter lives in the SDK. A child that only needs to
+    CONTINUE a trace does not need an exporter configuration to do it.
+    """
+    from opentelemetry.propagate import extract, inject
+
+    return inject, extract
+
+
+def inject_trace_context() -> Optional[dict]:
+    """The carrier to put on the wire, or None when there is nothing to say.
+
+    None rather than {} on purpose: the child branches on it to choose root
+    versus child, and "tracing is off" must stay distinguishable from "tracing
+    is on and produced nothing".
+
+    Runs on the job submit path, so every failure degrades to None. A tracing
+    problem must cost a trace, never a job.
+    """
+    if not get_tracing().enabled:
+        return None
+    try:
+        inject, _ = _import_propagator()
+        carrier: dict = {}
+        inject(carrier)
+        return carrier or None
+    except Exception:                       # noqa: BLE001 — degrade, never raise
+        logger.debug("trace context injection failed", exc_info=True)
+        return None
+
+
+def context_from_carrier(carrier: Optional[dict]):
+    """The parent context to open a span under, or None for a ROOT span.
+
+    None is a legitimate, expected answer: tracing disabled parent-side, or a
+    parent whose propagator produced nothing. The caller must still open a span
+    — a DROPPED span is indistinguishable from a healthy idle worker, which is
+    the failure this pillar exists to remove.
+
+    NOT among the reasons: a version-mismatched envelope. decode_job REFUSES an
+    unknown schema_version outright, so a v2 sender never reaches this function
+    at all. An earlier draft of this docstring claimed otherwise and described a
+    fallback that cannot execute.
+    """
+    if not carrier:
+        return None
+    try:
+        _, extract = _import_propagator()
+        return extract(carrier) or None
+    except Exception:                       # noqa: BLE001 — degrade, never raise
+        logger.debug("trace context extraction failed", exc_info=True)
+        return None
+
+
+def _import_span_kind():
+    """Seam: patched in tests to prove the ImportError degrade path."""
+    from opentelemetry.trace import SpanKind
+
+    return SpanKind
+
+
+def kind_kwargs(name: str) -> dict:
+    """`{"kind": SpanKind.<name>}`, or `{}` when the API is unavailable.
+
+    Returns kwargs rather than the enum because `kind=None` is NOT the same as
+    omitting the argument — the SDK defaults to INTERNAL, and passing None
+    explicitly is a type error rather than a default.
+
+    Kind is not decoration on this pair. PRODUCER on the parent and CONSUMER on
+    the child is how a viewer knows the two spans are a hand-off ACROSS A
+    PROCESS BOUNDARY rather than ordinary nesting, and it is the one thing a
+    trace-id equality check cannot tell you — the ids match either way.
+    """
+    try:
+        return {"kind": getattr(_import_span_kind(), name)}
+    except Exception:                       # noqa: BLE001 — degrade, never raise
+        logger.debug("span kind %s unavailable", name, exc_info=True)
+        return {}
+
+
+def configure_child_tracing() -> None:
+    """Bootstrap tracing inside a spawn child (mirrors _configure_child_logging).
+
+    The child inherits the parent's stdout but none of its SDK state: it never
+    runs the parent's provider setup, so without this every child span goes
+    nowhere even when the carrier arrived intact.
+
+    Wrapped and lazy for the same reason the logging bootstrap is — this runs
+    before the worker exists, and a failure here must degrade to no tracing
+    rather than kill a child the parent is blocked waiting on.
+
+    NOTE for step 6: the provider this builds must be ParentBased. An independent
+    sampler in the child produces traces whose parent span was never recorded,
+    which looks like data loss and is a configuration error.
+    """
+    try:
+        reset_tracing()
+        get_tracing()
+    except Exception:                       # noqa: BLE001 — a child that cannot
+        pass                                # configure tracing must still run
+
+
 def reset_tracing() -> None:
     global _tracing
     with _tracing_lock:

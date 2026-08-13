@@ -11,7 +11,11 @@ from dataclasses import dataclass
 # the child — None and [] — which is the legitimate txt2img shape. An img2img
 # request therefore silently became txt2img, and a ControlNet request silently
 # generated uncontrolled, with no error raised anywhere.
-JOB_SCHEMA_VERSION = 2
+# v3 (STABL-qnlaclof) added the trace carrier. It is NOT a GenerationJob field —
+# it is ambient context that happens to need the same ride — so it is listed
+# separately from CARRIED_JOB_FIELDS, which the completeness contract checks
+# against the dataclass.
+JOB_SCHEMA_VERSION = 3
 
 # The completeness contract, asserted by tests/test_subprocess_worker_handle.py.
 # Every GenerationJob field must appear in exactly one of these, so ADDING a field
@@ -24,6 +28,10 @@ CARRIED_JOB_FIELDS = (
     "init_image",
     "controlnet_bindings",
 )
+
+# Carried, but not a job field. Kept out of CARRIED_JOB_FIELDS so the
+# completeness contract keeps meaning "every dataclass field is accounted for".
+CARRIED_AMBIENT_FIELDS = ("trace_carrier",)
 
 NOT_CARRIED_JOB_FIELDS = {
     # Parent-side machinery: a Future cannot cross a process boundary. The child
@@ -42,9 +50,12 @@ class DecodedJob:
     resolution_epoch: int
     init_image: bytes | None = None
     controlnet_bindings: list | None = None
+    # None means "no parent" — tracing off, or a version-mismatched sender. The
+    # child must still open a span; see server.tracing.context_from_carrier.
+    trace_carrier: dict | None = None
 
 
-def encode_job(job) -> bytes:
+def encode_job(job, *, trace_carrier: dict | None = None) -> bytes:
     """Encode a GenerationJob into the versioned wire-form.
 
     T0 (a7814c6) resolved the req wire-form: GenerateRequest pickles cleanly across
@@ -66,6 +77,7 @@ def encode_job(job) -> bytes:
         job.resolution_epoch,
         getattr(job, "init_image", None),
         list(getattr(job, "controlnet_bindings", []) or []),
+        trace_carrier,
     ))
     return bytes([JOB_SCHEMA_VERSION]) + body
 
@@ -74,9 +86,14 @@ def decode_job(raw: bytes) -> DecodedJob:
     """Decode the versioned wire-form.
 
     Rejects unknown schema versions so a version mismatch across a spawn boundary
-    fails loudly. v1 is REFUSED rather than accepted-and-default-filled: filling the
-    missing fields with None/[] is precisely the silent degradation of
+    fails loudly. v1 and v2 are REFUSED rather than accepted-and-default-filled:
+    filling the missing fields with None/[] is precisely the silent degradation of
     STABL-spxwqlan, which a mixed-version pair would otherwise reproduce exactly.
+
+    v2's missing element is only a trace carrier, and default-filling THAT would
+    be harmless. Refusing anyway: the exception exists to stop the habit, and a
+    codec that default-fills "when it looks safe" is one judgement call away from
+    STABL-spxwqlan again.
     """
     if not raw:
         raise ValueError("empty job envelope")
@@ -87,11 +104,13 @@ def decode_job(raw: bytes) -> DecodedJob:
             f"{JOB_SCHEMA_VERSION}); refusing to decode rather than default-fill "
             f"fields the sender may have meant to send"
         )
-    req, job_id, resolution_epoch, init_image, controlnet_bindings = pickle.loads(raw[1:])
+    (req, job_id, resolution_epoch, init_image,
+     controlnet_bindings, trace_carrier) = pickle.loads(raw[1:])
     return DecodedJob(
         req=req,
         job_id=job_id,
         resolution_epoch=resolution_epoch,
         init_image=init_image,
         controlnet_bindings=controlnet_bindings,
+        trace_carrier=trace_carrier,
     )
