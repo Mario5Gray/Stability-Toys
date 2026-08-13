@@ -228,3 +228,144 @@ def test_the_childs_span_shares_the_parents_TRACE_ID():
         "unimplemented: assert the child's span trace_id equals the parent's "
         "across a real spawn, using an in-memory exporter in both processes"
     )
+
+
+# ---------------------------------------------------------------------------
+# Span TOPOLOGY, not just carrier plumbing
+#
+# Found at review of the first cut: the carrier crossed correctly while the
+# emitted trace was still the wrong SHAPE — no boundary span at all, and the
+# child's span left at the default INTERNAL kind. A trace-id equality check
+# passes in that state, which is exactly why these assertions exist separately.
+# ---------------------------------------------------------------------------
+
+class _KindRecordingSpan:
+    def __init__(self, name, kwargs):
+        self.name = name
+        self.kwargs = kwargs
+        self.attributes = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def set_attribute(self, k, v):
+        self.attributes[k] = v
+
+    def add_event(self, *a, **k):
+        pass
+
+    def record_exception(self, e):
+        pass
+
+    def set_status(self, *a, **k):
+        pass
+
+    def update_name(self, n):
+        self.name = n
+
+    def is_recording(self):
+        return True
+
+
+class _KindRecordingTracer:
+    def __init__(self):
+        self.spans = []
+
+    def start_as_current_span(self, name, *args, **kwargs):
+        span = _KindRecordingSpan(name, kwargs)
+        self.spans.append(span)
+        return span
+
+
+def test_the_handle_opens_a_worker_submit_span(monkeypatch):
+    """The boundary span itself. Without it the child's span attaches straight to
+    governor.dispatch and the hand-off — the most interesting edge in the trace —
+    is invisible."""
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+
+    tracer = _KindRecordingTracer()
+    monkeypatch.setattr(
+        "backends.worker_handle_subprocess.get_tracer", lambda name: tracer)
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    handle._parent_conn = Mock(send_bytes=lambda b: None)
+    handle._liveness = Mock()
+    handle.submit(_job())
+
+    assert [s.name for s in tracer.spans] == ["worker.submit"]
+
+
+def test_the_boundary_span_is_a_PRODUCER(monkeypatch):
+    """Kind is not decoration: PRODUCER/CONSUMER is how a viewer knows the two
+    spans are a hand-off across a boundary rather than an ordinary nesting."""
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+    from server.tracing import kind_kwargs
+
+    tracer = _KindRecordingTracer()
+    monkeypatch.setattr(
+        "backends.worker_handle_subprocess.get_tracer", lambda name: tracer)
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    handle._parent_conn = Mock(send_bytes=lambda b: None)
+    handle._liveness = Mock()
+    handle.submit(_job())
+
+    assert tracer.spans[0].kwargs == kind_kwargs("PRODUCER")
+
+
+def test_the_carrier_is_injected_INSIDE_the_boundary_span(monkeypatch):
+    """Ordering is the whole point. Injected before the span opens, the carrier
+    names governor.dispatch as the parent and the child hangs off the Governor,
+    skipping the boundary span entirely — a plausible trace with the one edge
+    that matters missing."""
+    from backends.worker_handle_subprocess import SubprocessWorkerHandle
+
+    order = []
+
+    class _Tracer:
+        def start_as_current_span(self, name, *a, **k):
+            order.append(("span", name))
+            return _KindRecordingSpan(name, k)
+
+    monkeypatch.setattr(
+        "backends.worker_handle_subprocess.get_tracer", lambda name: _Tracer())
+    monkeypatch.setattr(
+        "backends.worker_handle_subprocess.inject_trace_context",
+        lambda: order.append(("inject", None)) or {"traceparent": "x"})
+
+    handle = SubprocessWorkerHandle("tests._fault_worker.make_fault_worker")
+    handle._parent_conn = Mock(send_bytes=lambda b: None)
+    handle._liveness = Mock()
+    handle.submit(_job())
+
+    assert order == [("span", "worker.submit"), ("inject", None)]
+
+
+def test_the_childs_span_is_a_CONSUMER():
+    """ast: the child's worker.execute must declare CONSUMER. Left at the default
+    it is INTERNAL, which reads as ordinary nested work rather than the far side
+    of a hand-off — and nothing about a trace-id check would notice."""
+    source = (
+        pathlib.Path(__file__).resolve().parent.parent
+        / "backends" / "worker_handle_subprocess.py"
+    )
+    fn = next(
+        n for n in ast.walk(ast.parse(source.read_text()))
+        if isinstance(n, ast.FunctionDef) and n.name == "_worker_main"
+    )
+    assert '"CONSUMER"' in ast.dump(fn) or "'CONSUMER'" in ast.dump(fn), (
+        "_worker_main's span does not declare CONSUMER kind"
+    )
+
+
+def test_kind_kwargs_is_EMPTY_without_the_sdk(monkeypatch):
+    """No OTel installed is the current state and the default state. Passing
+    kind=None explicitly is not the same as omitting it, so this must be {}."""
+    monkeypatch.setattr(
+        t, "_import_span_kind",
+        lambda: (_ for _ in ()).throw(ImportError("no api here")),
+    )
+    assert t.kind_kwargs("PRODUCER") == {}

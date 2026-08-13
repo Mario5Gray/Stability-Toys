@@ -179,10 +179,15 @@ def inject_trace_context() -> Optional[dict]:
 def context_from_carrier(carrier: Optional[dict]):
     """The parent context to open a span under, or None for a ROOT span.
 
-    None is a legitimate, expected answer — tracing disabled parent-side, or a
-    version-mismatched envelope during a rolling change. The caller must still
-    open a span: a DROPPED span is indistinguishable from a healthy idle worker,
-    which is the failure this pillar exists to remove.
+    None is a legitimate, expected answer: tracing disabled parent-side, or a
+    parent whose propagator produced nothing. The caller must still open a span
+    — a DROPPED span is indistinguishable from a healthy idle worker, which is
+    the failure this pillar exists to remove.
+
+    NOT among the reasons: a version-mismatched envelope. decode_job REFUSES an
+    unknown schema_version outright, so a v2 sender never reaches this function
+    at all. An earlier draft of this docstring claimed otherwise and described a
+    fallback that cannot execute.
     """
     if not carrier:
         return None
@@ -192,6 +197,32 @@ def context_from_carrier(carrier: Optional[dict]):
     except Exception:                       # noqa: BLE001 — degrade, never raise
         logger.debug("trace context extraction failed", exc_info=True)
         return None
+
+
+def _import_span_kind():
+    """Seam: patched in tests to prove the ImportError degrade path."""
+    from opentelemetry.trace import SpanKind
+
+    return SpanKind
+
+
+def kind_kwargs(name: str) -> dict:
+    """`{"kind": SpanKind.<name>}`, or `{}` when the API is unavailable.
+
+    Returns kwargs rather than the enum because `kind=None` is NOT the same as
+    omitting the argument — the SDK defaults to INTERNAL, and passing None
+    explicitly is a type error rather than a default.
+
+    Kind is not decoration on this pair. PRODUCER on the parent and CONSUMER on
+    the child is how a viewer knows the two spans are a hand-off ACROSS A
+    PROCESS BOUNDARY rather than ordinary nesting, and it is the one thing a
+    trace-id equality check cannot tell you — the ids match either way.
+    """
+    try:
+        return {"kind": getattr(_import_span_kind(), name)}
+    except Exception:                       # noqa: BLE001 — degrade, never raise
+        logger.debug("span kind %s unavailable", name, exc_info=True)
+        return {}
 
 
 def configure_child_tracing() -> None:

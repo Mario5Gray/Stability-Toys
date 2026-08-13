@@ -31,6 +31,7 @@ from server.tracing import (
     context_from_carrier,
     get_tracer,
     inject_trace_context,
+    kind_kwargs,
 )
 from backends.worker_handle import WorkerHandle, WorkerHealth
 from backends.liveness import SubprocessLiveness
@@ -309,15 +310,19 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
         # The `with` is load-bearing. run_job raising must STILL reset, or the
         # next thing this child logs inherits a stale id — which reads as real
         # correlation and survives review, strictly worse than none.
-        # STABL-qnlaclof: the CONSUMER half. context_from_carrier returns None
-        # when the parent sent nothing — tracing off, or a version-mismatched
-        # envelope during a rolling change — and a None context opens a ROOT
-        # span rather than skipping one. A dropped span here is indistinguishable
-        # from a healthy idle worker, which is the failure this pillar removes.
+        # STABL-qnlaclof: the CONSUMER half, the far side of worker.submit's
+        # PRODUCER. context_from_carrier returns None when the parent sent
+        # nothing — tracing off — and a None context opens a ROOT span rather
+        # than skipping one. A dropped span here is indistinguishable from a
+        # healthy idle worker, which is the failure this pillar removes.
+        #
+        # A version mismatch is NOT one of the None cases: decode_job refuses an
+        # unknown schema_version above, so a v2 sender never gets this far.
         _parent_ctx = context_from_carrier(d.trace_carrier)
         with log_context.bind_job_id(d.job_id), \
                 get_tracer(__name__).start_as_current_span(
-                    "worker.execute", context=_parent_ctx) as _span:
+                    "worker.execute", context=_parent_ctx,
+                    **kind_kwargs("CONSUMER")) as _span:
             try:
                 _span.set_attribute("job.id", d.job_id)
                 _span.set_attribute("isolation", "subprocess")
@@ -544,13 +549,24 @@ class SubprocessWorkerHandle(WorkerHandle):
 
     def submit(self, job) -> Publisher:
         self._state = "busy"
-        # STABL-qnlaclof: the PRODUCER half. Injected here rather than in the
-        # Governor because this is the only place that knows a process boundary
-        # is about to be crossed — the in-proc handle needs no carrier at all.
-        # Returns None when tracing is off, and the child treats that as "open a
-        # root span", never as "skip the span".
-        self._parent_conn.send_bytes(
-            encode_job(job, trace_carrier=inject_trace_context()))
+        # STABL-qnlaclof: the PRODUCER half — the boundary span itself, opened
+        # here rather than in the Governor because this is the only place that
+        # knows a process boundary is about to be crossed. The in-proc handle
+        # needs neither span nor carrier.
+        #
+        # THE INJECT MUST HAPPEN INSIDE THIS SPAN. Injected before it opens, the
+        # carrier names governor.dispatch as the parent, the child hangs off the
+        # Governor, and the hand-off edge — the most interesting one in the
+        # trace — is simply absent. The result still passes a trace-id equality
+        # check, which is why the ordering has its own test.
+        with get_tracer(__name__).start_as_current_span(
+                "worker.submit", **kind_kwargs("PRODUCER")) as span:
+            span.set_attribute("job.id", getattr(job, "job_id", "") or "")
+            span.set_attribute("isolation", "subprocess")
+            # None when tracing is off; the child treats that as "open a root
+            # span", never as "skip the span".
+            self._parent_conn.send_bytes(
+                encode_job(job, trace_carrier=inject_trace_context()))
         self._liveness.note_heartbeat()
         return _SubprocPublisher(self._parent_conn)
 
