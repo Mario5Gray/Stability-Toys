@@ -185,6 +185,119 @@ Open, unowned (pre-existing):
 
 ## Recently landed
 
+### Tempo tracing — the last observability pillar — PROVEN ON HARDWARE (PRs #69–#72)
+
+**FP:** STABL-qnlaclof (done) — the fifth and last child of **STABL-oxbwjwvu**
+**Merges:** `7a31542` (#69 Governor spans), `eba498e` (#70 propagation), `096a4e5` (#71 SDK + enable)
+**Spec:** `docs/superpowers/specs/2026-08-12-tracing-span-map-and-boundary-fixes.md`
+**Recipes:** `docs/observability.md` — TraceQL section
+
+A generation is now one trace from the socket to the child process. The
+acceptance is a **real generation on enigma**, trace
+`c9f1a579d673a671ddbc7b7dfc881cc2`:
+
+```text
+span                kind          ms   job.id        mode         outcome
+governor.dispatch   INTERNAL   5635.9  090f9c65c115  lcm-general  ok
+governor.reload     INTERNAL   3861.3
+worker.submit       PRODUCER      6.4  090f9c65c115
+worker.execute      CONSUMER   1528.8  090f9c65c115
+```
+
+**The second row is the argument for the whole pillar.** 3861 ms of a 5636 ms job
+is the demand reload after idle eviction; only 1529 ms is generation. Metrics
+could aggregate that and logs could imply it; nothing before this could *show*
+it without someone adding a timer first.
+
+`worker.execute` ran in the spawn child — a different process — under a
+PRODUCER → CONSUMER pair carrying the same `job.id`. Trace context crosses the
+boundary a ContextVar cannot, by riding the job envelope (schema **v3**), exactly
+as `job_id` does since `STABL-zuhuxwvf`.
+
+**THE DEFECT PATTERN, three for three, and it is the point.** Every defect review
+caught on this pillar was a config or topology error **that passes its own obvious
+test**:
+
+1. `Governor._span` replaced the caller's exception with `RuntimeError: generator
+   didn't stop after throw()` — a `@contextmanager` yielding twice in its `except`.
+   `classify_exception()` maps only `CancelledError` to CANCELLED and the
+   subprocess branch tests `terminal_error_code == OOM`, so it silently disabled
+   **both** the `STABL-jredufxb` reap and the facet-3 kill+respawn.
+2. The `worker.submit` boundary span was never opened and the child's span kept the
+   default INTERNAL kind. **A trace-id equality check passes in that state** — the
+   acceptance meant to catch it would have signed it off.
+3. The gate read `OTEL_EXPORTER_OTLP_ENDPOINT` while the resolver honoured
+   `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, so the standard config resolved correctly,
+   was discarded, and **logged that no endpoint was configured**.
+
+In all three the system reports success while the telemetry is absent — the exact
+failure class this umbrella exists to remove, reproduced by the tooling built to
+remove it. Assume it of the next pillar.
+
+**The endpoint trap, measured rather than reasoned:**
+
+```text
+OTLPSpanExporter(endpoint="http://c:4318")   -> http://c:4318
+OTLPSpanExporter() with the env var set      -> http://c:4318/v1/traces
+```
+
+An explicit `endpoint=` is used **verbatim**; only the env-var path appends. The
+design note said SDK exporters "append the signal path themselves" — true of the
+variable, false of the argument, and the facade passes the argument. Every span
+would have POSTed to the collector root and 404'd with the gate reporting healthy.
+
+**Pinned at opentelemetry 1.27.0, for a reason unrelated to tracing.**
+`requirements.txt:2` caps protobuf at 4.25.4 because `Dockerfile:175` needs
+`mediapipe==0.10.14` for ControlNet pose. Unconstrained pip takes otel 1.44 and
+protobuf 7.35.1; constrained, pip's own pick backslides to **1.15.0** (a 2023
+release) when 1.27.0 satisfies everything — so the version must be explicit in
+**both** directions. `opentelemetry-sdk` alone has no protobuf dependency; the
+constraint is entirely the OTLP/HTTP exporter. Filed as `STABL-ksjdjawc`.
+
+**Query traps worth carrying:**
+
+- **A `limit` plus a chatty endpoint hides your data.**
+  `{ resource.service.name = "stability-toys" }` returned 25 traces, **24 of them
+  `GET /health`**, and the generation was crowded out — which reads as "tracing is
+  broken". Query by `name` or `.job.id`, never by service alone. Same
+  drowning-in-health-checks failure `docs/observability.md` documents for LogQL,
+  one signal over, and it caught the author of that warning.
+- **`job_id` in a log line is `.job.id` on a span.** That is the whole log↔trace
+  join; no trace id in the log line is needed.
+- **A 200 on `POST /v1/traces` is the collector accepting a batch**, not delivery
+  to Tempo. Read a trace back by id.
+
+**Build wiring, all found the hard way in a live container (PR #72):**
+
+- `requirements.txt` now **includes** `requirements-tracing.txt`. The pins lived
+  only in the separate file, so `pip install -r requirements.txt` in a container
+  installed nothing and gave no hint. The split was copied from the conditioning
+  pattern — but that one is split *because* it needs `--no-deps` to keep Jupyter
+  out of the image, and tracing has no such quirk.
+- **`make dev-build` cannot add a dependency.** `live-test.Dockerfile` has **zero
+  `pip install` lines** — it is `FROM ${BASE_IMAGE}` plus `COPY`. A
+  `requirements*.txt` change needs `docker compose -f docker-cuda.yml build`.
+  Documented at `docker-compose.dev.yml:13`; still cost a session.
+- **`make dev` now passes `--force-recreate`** — compose reuses a container when
+  only the `env_file` changed, so an `env.dev` edit reads as a broken feature.
+- **`python /app/spikes/x.py` puts `/app/spikes` on `sys.path`, not `/app`.**
+  Python uses the *script's* directory, not the CWD, so `import server` fails and
+  reads as a broken container. The tracing acceptance bootstraps its own path; the
+  other six spikes still need `PYTHONPATH=/app`.
+
+**Not proven, and stated rather than glossed:** the log↔trace join on the dev
+container. `env.dev` sets no `LOG_FORMAT` (text by design for humans) and
+`stability-toys-dev` is not currently discovered by promtail, so its lines are not
+in Loki at all. The trace half is proven; the join is available on any deployment
+where both are on.
+
+**Deferred, filed, not done:** `STABL-bhkhuuir` (the `worker.recovery` event —
+works in isolation, fails after `tests/test_controlnet_constraints.py` runs, with
+the branch confirmed entered while `_dispatch_span` is None), `STABL-ksjdjawc`
+(OTel version ceiling), `STABL-vhqfpsjp` (Loki/promtail/Tempo self-metrics are not
+scraped). No `governor.admit` span — the barrier is inline and sub-millisecond,
+and its output is a decision rather than a duration.
+
 ### Structured Loki-ready logging — third observability pillar — merged (PR #54)
 
 **FP:** STABL-bpsfmoke (done) — child of **STABL-oxbwjwvu**

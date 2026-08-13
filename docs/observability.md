@@ -330,6 +330,100 @@ worker before every load. `idle_evict` is the one to watch.
 
 ---
 
+## TraceQL — the third pillar
+
+Tempo query API on `node1.lan:3200`. Everything here was run against it.
+
+### Read this first: a `limit` plus a chatty endpoint hides your data
+
+The trap that cost a debugging session, and it is the LogQL health-check problem
+one signal over:
+
+```traceql
+{ resource.service.name = "stability-toys" }
+```
+
+returned **25 traces, 24 of them `GET /health`**, with the generation crowded out
+entirely — and the obvious reading of that result is "tracing is not working".
+It was working. Search returns the most recent N and a 2-second health check
+wins every time.
+
+**Query by what you want, never by service alone:**
+
+```traceql
+{ name = "governor.dispatch" }        # every generation, immune to noise
+{ .job.id = "090f9c65c115" }          # one specific job
+```
+
+Measured on the same window: `service.name` alone → 24/25 health;
+`name = "governor.dispatch"` → 3 traces, all generations; `.job.id = "<id>"` → 1.
+
+### The log → trace join
+
+`job_id` in a log line is `.job.id` on a span. That is the whole join — no trace
+id in the log line is required:
+
+```logql
+{container="stability-toys"} | json | job_id = "090f9c65c115"
+```
+```traceql
+{ .job.id = "090f9c65c115" }
+```
+
+Both directions work, and under `WORKER_ISOLATION=subprocess` both sides span
+two processes — the log field by riding the job envelope (`STABL-zuhuxwvf`), the
+span by riding the same envelope as a W3C carrier (`STABL-qnlaclof`).
+
+### What a real generation looks like
+
+Trace `c9f1a579d673a671ddbc7b7dfc881cc2`, enigma, 2026-08-13:
+
+```text
+span                kind          ms   job.id        mode         outcome
+governor.dispatch   INTERNAL   5635.9  090f9c65c115  lcm-general  ok
+governor.reload     INTERNAL   3861.3
+worker.submit       PRODUCER      6.4  090f9c65c115
+worker.execute      CONSUMER   1528.8  090f9c65c115
+```
+
+**Read the second row.** 3861 ms of a 5636 ms job is `governor.reload` — the
+demand reload after idle eviction — and only 1529 ms is generation. Two thirds
+of that request was model loading, and the trace says so without anyone adding
+a timer. Metrics could only aggregate that and logs could only imply it.
+
+`worker.execute` ran in the **spawn child**, a different process, carrying the
+same `job.id` under a PRODUCER → CONSUMER pair.
+
+### Useful queries
+
+```traceql
+{ name = "governor.dispatch" && .job.outcome != "ok" }   # jobs that did not succeed
+{ name = "governor.mode_load" }                          # model loads, with durations
+{ name = "governor.reload" }                             # demand reloads after eviction
+{ name = "worker.execute" }                              # work in the child process
+{ .http.route = "__unmatched__" }                        # what is probing us
+{ name = "ws.message" && .messaging.type = "job:submit" }
+```
+
+> **`job.outcome` is derived once**, at the same choke point that feeds
+> `st_governor_job_terminal_total{outcome}`. A trace and that counter cannot
+> disagree about a job — by construction, not by discipline.
+
+### Is tracing actually exporting?
+
+Not a Tempo question. The exporter says so in the container's own log:
+
+```bash
+docker logs stability-toys-dev 2>&1 | grep "POST /v1/traces"
+# DEBUG [urllib3.connectionpool] http://otel-collector:4318 "POST /v1/traces HTTP/1.1" 200
+```
+
+A 200 there is the collector accepting a batch. It is **not** proof of delivery
+to Tempo — the same first-hop-versus-delivery distinction that applies to logs.
+For that, read a trace back by id.
+
+---
+
 ## Platform health — is the pipeline itself working?
 
 Query these before concluding "the app is quiet". Every one of them was a real
