@@ -4,7 +4,9 @@ Run INSIDE the deployed container on enigma, then read back from node1. The unit
 tests prove the span graph is built correctly in-process; this proves the built
 graph actually leaves the box.
 
-    docker exec stability-toys python /app/spikes/tracing_acceptance.py
+    docker exec stability-toys-dev python /app/spikes/tracing_acceptance.py
+
+No PYTHONPATH needed — the script puts the repo root on sys.path itself.
 
 WHAT IT CHECKS, and why it is not just "a trace exists":
 
@@ -22,10 +24,20 @@ Reads TEMPO_QUERY (default http://node1.lan:3200).
 """
 import json
 import os
+import pathlib
 import sys
 import time
 import urllib.error
 import urllib.request
+
+# Run from anywhere, including `docker exec ... python /app/spikes/this.py`.
+# Python puts the SCRIPT's directory on sys.path, not the working directory, so
+# that invocation gets /app/spikes and `import server` fails — which reads as
+# "the container is broken" rather than "the path is wrong". Every other spike
+# has this too and has been worked around by hand with PYTHONPATH each time.
+_REPO_ROOT = str(pathlib.Path(__file__).resolve().parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 TEMPO = os.environ.get("TEMPO_QUERY", "http://node1.lan:3200").rstrip("/")
 
