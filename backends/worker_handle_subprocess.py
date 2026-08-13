@@ -26,6 +26,12 @@ from collections import deque
 from typing import Optional
 
 from server import log_context
+from server.tracing import (
+    configure_child_tracing,
+    context_from_carrier,
+    get_tracer,
+    inject_trace_context,
+)
 from backends.worker_handle import WorkerHandle, WorkerHealth
 from backends.liveness import SubprocessLiveness
 from backends.model_resolution import resolved_model_to_json_dict
@@ -234,6 +240,10 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
     _configure_child_logging()      # BEFORE anything heavy imports: torch and
                                     # diffusers both log at import, and those lines
                                     # are worth having in the same shape.
+    configure_child_tracing()       # Same position, same argument: the child
+                                    # inherits stdout but no SDK state, and a
+                                    # provider configured after the first job is
+                                    # a provider that missed it.
     try:
         from backends.model_resolution import resolved_model_from_json_dict
 
@@ -299,8 +309,18 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
         # The `with` is load-bearing. run_job raising must STILL reset, or the
         # next thing this child logs inherits a stale id — which reads as real
         # correlation and survives review, strictly worse than none.
-        with log_context.bind_job_id(d.job_id):
+        # STABL-qnlaclof: the CONSUMER half. context_from_carrier returns None
+        # when the parent sent nothing — tracing off, or a version-mismatched
+        # envelope during a rolling change — and a None context opens a ROOT
+        # span rather than skipping one. A dropped span here is indistinguishable
+        # from a healthy idle worker, which is the failure this pillar removes.
+        _parent_ctx = context_from_carrier(d.trace_carrier)
+        with log_context.bind_job_id(d.job_id), \
+                get_tracer(__name__).start_as_current_span(
+                    "worker.execute", context=_parent_ctx) as _span:
             try:
+                _span.set_attribute("job.id", d.job_id)
+                _span.set_attribute("isolation", "subprocess")
                 # STABL-zueslhah Task 3: thread the IpcJobSink's progress emitter so the
                 # diffusion step callback streams Progress over the pipe that
                 # drain_to_subscriber already reads.
@@ -524,7 +544,13 @@ class SubprocessWorkerHandle(WorkerHandle):
 
     def submit(self, job) -> Publisher:
         self._state = "busy"
-        self._parent_conn.send_bytes(encode_job(job))
+        # STABL-qnlaclof: the PRODUCER half. Injected here rather than in the
+        # Governor because this is the only place that knows a process boundary
+        # is about to be crossed — the in-proc handle needs no carrier at all.
+        # Returns None when tracing is off, and the child treats that as "open a
+        # root span", never as "skip the span".
+        self._parent_conn.send_bytes(
+            encode_job(job, trace_carrier=inject_trace_context()))
         self._liveness.note_heartbeat()
         return _SubprocPublisher(self._parent_conn)
 
