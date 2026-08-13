@@ -49,7 +49,10 @@ quick-build: ## Rebuild only Python source into existing image (no deps/UI/CUDA 
 
 .PHONY: dev
 dev: ## Start dev container (uvicorn --reload on Python source changes)
-	docker compose -f docker-compose.dev.yml up
+	# --force-recreate: compose reuses an existing container when only the
+	# env_file changed, so an edit to env.dev appears to have no effect. That
+	# is how a TRACING_ENABLED edit reads as "the feature is broken".
+	docker compose -f docker-compose.dev.yml up --force-recreate
 
 .PHONY: dev-build
 dev-build: ## Rebuild dev image (source-only overlay, seconds)

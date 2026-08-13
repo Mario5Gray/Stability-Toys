@@ -1,4 +1,16 @@
 # base deps
+# Tracing is a normal dependency and installs normally — kept in its own file
+# only because the 1.27.0 pin needs its rationale in one place (see there).
+# Included HERE, unlike requirements-conditioning.txt, which is deliberately
+# excluded because that one needs --no-deps to keep Jupyter out of the image.
+# Without this line `pip install -r requirements.txt` silently omits tracing,
+# which is the obvious command and gives no hint that it did not.
+#
+# NOTE: the conditioning packaging guard in tests/ substring-searches this
+# WHOLE file, comments included. Naming that other pin here — even in prose,
+# even to explain why it is absent — fails it. That is the guard working.
+-r requirements-tracing.txt
+
 protobuf>=4.21.6,<=4.25.4
 
 # Watch Dog 
