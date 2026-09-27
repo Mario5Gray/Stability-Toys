@@ -259,6 +259,15 @@ Convert processing pixels to physical units once.
 Record the scale.
 Distances use millimetres unless an option explicitly specifies upstream pixel, angle, or precision units.
 
+The canvas is a value, not a reference.
+Derive it once at the entry.
+Copy it into each stage.
+No stage may write it.
+This keeps stages independent of each other.
+A stage may run in its own process against its own copy.
+It avoids shared state and the ownership rules that a shared reference requires.
+If a stage rebuilds or re-derives the canvas, the layers drift and the composition breaks.
+
 ## 6. End-to-end processing
 
 ### 6.1 Prepare layer masks
