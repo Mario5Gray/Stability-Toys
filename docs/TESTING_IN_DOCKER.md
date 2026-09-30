@@ -165,7 +165,27 @@ conda activate stability-toys
 make -f Makefile.test local-test
 ```
 
-`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3/envs/stability-toys` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute isolated cohorts via `python -m tests.run` to avoid accidentally using system `python3`.
+`local-test` and `local-test-coverage` check actual interpreter prefix, then execute isolated cohorts through `python -m tests.run`.
+`CONDA_PREFIX` does not prove which interpreter executes tests.
+Default expected prefix is `~/miniforge3/envs/stability-toys`.
+Override with `ST_TEST_PYTHON_PREFIX` for another supported environment.
+Make also preserves `EXPECTED_CONDA_PREFIX` and forwards it to both prefix check and runner.
+
+Direct pytest checks interpreter before conftest imports NumPy or Pillow.
+Runner checks before launching pytest, so it also avoids broken pytest plugin imports under wrong Python.
+Mismatch returns exit code 4 with actual interpreter, expected interpreter, and host activation command.
+Direct pytest loads external plugins before conftest. A broken plugin can fail before this guard executes.
+Use runner when checking an untrusted host environment.
+
+For shell calls without persistent activation, use explicit interpreter:
+
+```bash
+"$HOME/miniforge3/envs/stability-toys/bin/python" -m tests.run tests/ -- -q
+```
+
+Test image and Compose set `ST_TEST_PYTHON_PREFIX=/usr/local` explicitly.
+Compose setting also supports existing images with updated test files mounted.
+Environment identity check does not verify installed package versions.
 
 The shared Miniforge root environment drifts — other projects install into it, and it can end up outside the project pins (transformers 5.x, an older diffusers), which aborts pytest collection. The container is the source of truth; for a matching **host** environment, run [`scripts/local-host.sh`](/Users/darkbit1001/workspace/Stability-Toys/scripts/local-host.sh). It detects OS/architecture and CUDA, asks the operator for anything it cannot infer (no CLI arguments), creates a dedicated env named `stability-toys`, and installs torch plus the requirements in the same order as the image. Point local pytest at that env rather than the shared root.
 

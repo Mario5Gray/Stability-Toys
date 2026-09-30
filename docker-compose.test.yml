@@ -14,6 +14,7 @@ services:
     environment:
       BACKEND: cpu
       MODE_CONFIG_PATH: /conf
+      ST_TEST_PYTHON_PREFIX: /usr/local
     # SELinux: lowercase :z applies a SHARED label. Every service below
     # extends this one, so these host paths are mounted into six containers.
     # Uppercase :Z applies a PRIVATE label per container, and concurrent

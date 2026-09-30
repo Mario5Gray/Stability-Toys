@@ -5,9 +5,13 @@ import sys
 import importlib.util
 
 from tests.isolation import partition
+from tests.python_env import python_environment_error
 
 
 def main(argv=None):
+    if error := python_environment_error():
+        print(error, file=sys.stderr)
+        return 4
     args = list(sys.argv[1:] if argv is None else argv)
     if '--' in args:
         boundary = args.index('--')

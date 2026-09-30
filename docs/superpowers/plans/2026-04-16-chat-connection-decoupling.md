@@ -6,7 +6,7 @@
 
 **Architecture:** Keep transport settings in `ModeConfigManager` as named connection records, keep model/default behavior on each mode, and centralize resolution in one mode-level chat resolver. Leave connection selection config-owned, allow request overrides only for behavior (`model`, `max_tokens`, `temperature`, `system_prompt`), and keep client lifecycle fresh-per-request in both advisor and WebSocket callers.
 
-**Tech Stack:** Python 3 in Miniforge base, FastAPI, Pydantic, existing `ChatCompletionsClient`, pytest, drift, Fiberplane CLI
+**Tech Stack:** Python 3 in stability-toys env, FastAPI, Pydantic, existing `ChatCompletionsClient`, pytest, drift, Fiberplane CLI
 
 ---
 
@@ -160,7 +160,7 @@ modes:
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_mode_config.py -k "chat_connection or legacy_top_level_chat or flat_mode_chat_fields" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_mode_config.py -k "chat_connection or legacy_top_level_chat or flat_mode_chat_fields" -q
 ```
 
 Expected:
@@ -297,7 +297,7 @@ if chat_model and not chat_connection:
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_mode_config.py -k "chat_connection or legacy_top_level_chat or flat_mode_chat_fields" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_mode_config.py -k "chat_connection or legacy_top_level_chat or flat_mode_chat_fields" -q
 ```
 
 Expected:
@@ -400,7 +400,7 @@ async def test_generate_digest_treats_empty_string_system_prompt_override_as_mis
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_advisor_service.py -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_advisor_service.py -q
 ```
 
 Expected:
@@ -455,7 +455,7 @@ if mode_limit is not None:
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_advisor_service.py -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_advisor_service.py -q
 ```
 
 Expected:
@@ -579,7 +579,7 @@ def test_chat_job_passes_model_override_without_connection_cross_validation(self
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
 ```
 
 Expected:
@@ -646,7 +646,7 @@ def _build_chat_messages(prompt: str, system_prompt: Optional[str]) -> List[Dict
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
 ```
 
 Expected:
@@ -718,7 +718,7 @@ modes:
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_mode_config.py -k "round_trips_chat_connections" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_mode_config.py -k "round_trips_chat_connections" -q
 ```
 
 Expected:
@@ -817,8 +817,8 @@ def save_config(self, data: Dict[str, Any]):
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_mode_config.py tests/test_advisor_service.py -q
-source /Users/darkbit1001/miniforge3/bin/activate base && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_mode_config.py tests/test_advisor_service.py -q
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys && python -m pytest tests/test_ws_routes.py -k "chat_job" -q
 drift refs server/mode_config.py
 drift link docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md server/mode_config.py
 drift link docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md server/ws_routes.py
