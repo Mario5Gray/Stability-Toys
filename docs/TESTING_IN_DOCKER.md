@@ -7,6 +7,44 @@ This repo has two distinct Docker test paths:
 
 The shared test image name is `harbor.lan/stability-toys:test`.
 
+## Collection isolation
+
+STABL-sgdavnvz separates stub tests, real-library tests, and live HunyuanDiT acceptance before collection.
+Each cohort runs in a fresh Python interpreter.
+Never fork an interpreter that already imported Torch.
+Never repair contamination by removing real Torch from `sys.modules`.
+
+Use runner for directories or mixed file selections:
+
+```bash
+python -m tests.run tests/ -- -q
+python -m tests.run tests/test_hunyuandit_worker.py tests/test_model_detector.py -- -q
+python -m tests.run tests/test_hunyuandit_acceptance.py -- -q
+```
+
+Put pytest options after `--`.
+Specify at least one test path before explicit `--`.
+With no arguments, runner defaults to `tests/`.
+Paths before `--` can include pytest node IDs.
+Markers and `-k` still filter tests inside each cohort.
+A filtered cohort with no selected tests does not fail a successful run.
+If every cohort selects nothing, runner returns pytest exit code 5.
+Failures remain failures across later cohorts.
+`-x` stops after first failed cohort.
+Coverage starts fresh, appends subsequent cohorts, and checks threshold against final aggregate.
+Use `--cov-append` explicitly to preserve coverage from an earlier runner invocation.
+
+Direct pytest remains available for files within one cohort.
+Mixed collection stops before test imports and prints runner command.
+Marker filtering alone does not isolate collection.
+GPU acceptance must collect alone, even when other files use real libraries.
+
+Make targets, Compose services, image default command, and watch service use this runner.
+`ci-test` uses same CUDA path.
+As verified on 2026-09-30, shared Concourse task checks syntax and Ruff only. It does not execute pytest.
+Task source: `../continuous/tasks/test-stability-toys.yml`, relative to repository root.
+Task selection: `../continuous/vars/stability-toys.yml`.
+
 ## Local vs CUDA Test Paths
 
 Use the local/native path by default:
@@ -127,7 +165,7 @@ conda activate stability-toys
 make -f Makefile.test local-test
 ```
 
-`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3/envs/stability-toys` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute pytest via `python -m pytest` to avoid accidentally using system `python3`.
+`local-test` and `local-test-coverage` now enforce `CONDA_PREFIX=$(HOME)/miniforge3/envs/stability-toys` by default (override `EXPECTED_CONDA_PREFIX` if needed) and execute isolated cohorts via `python -m tests.run` to avoid accidentally using system `python3`.
 
 The shared Miniforge root environment drifts — other projects install into it, and it can end up outside the project pins (transformers 5.x, an older diffusers), which aborts pytest collection. The container is the source of truth; for a matching **host** environment, run [`scripts/local-host.sh`](/Users/darkbit1001/workspace/Stability-Toys/scripts/local-host.sh). It detects OS/architecture and CUDA, asks the operator for anything it cannot infer (no CLI arguments), creates a dedicated env named `stability-toys`, and installs torch plus the requirements in the same order as the image. Point local pytest at that env rather than the shared root.
 
@@ -177,9 +215,9 @@ Run the explicit CUDA prompt-conditioning and CUDA-consumer slice:
 ```bash
 docker compose -f docker-compose.test.yml build test-cuda
 docker compose -f docker-compose.test.yml run --rm test-cuda \
-  python -m pytest tests/test_conditioning_compel.py \
+  python -m tests.run tests/test_conditioning_compel.py \
     tests/test_cuda_worker_capabilities.py \
-    tests/test_cuda_worker_controlnet.py -q
+    tests/test_cuda_worker_controlnet.py -- -q
 ```
 
 Production and test image package inspection must show `compel==2.3.1`. The

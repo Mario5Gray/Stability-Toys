@@ -68,32 +68,12 @@ def test_setdefault_does_not_protect_an_installed_library():
 @pytest.mark.skipif(
     not REAL_DIFFUSERS_INSTALLED, reason="no real diffusers to protect"
 )
-@pytest.mark.xfail(
-    reason=(
-        "STABL-tmrnepae / STABL-sgdavnvz: stubs leak across the session. "
-        "Not fixable by per-module teardown: pytest imports every test file at "
-        "collection, so a stubbing module can bind a MagicMock torch into a real "
-        "shared library (e.g. safetensors) before any fixture runs, and "
-        "restoring sys.modules afterward cannot unbind it. Autouse containment "
-        "was tried and failed 32 tests for exactly this reason. The real fix is "
-        "collection-time process isolation (pytest-forked / xdist loadfile). "
-        "Meanwhile the live acceptance calls conftest.restore_pristine_modules() "
-        "so the GPU path is protected. Flips to XPASS once isolation lands."
-    ),
-    strict=False,
-)
 def test_real_diffusers_is_not_a_stub_at_session_scope():
-    """Fails when an earlier module left a stub in place.
+    """Import real dependencies. Check shared Torch identity after collection."""
+    module = importlib.import_module("diffusers")
+    import torch
+    from safetensors import torch as safetensors_torch
 
-    Ordering-sensitive by nature: it can only observe leaks from modules pytest
-    imported before this one. That is enough to catch the full-suite case, which
-    is the one that reaches the live CUDA acceptance.
-    """
-    module = sys.modules.get("diffusers")
-    if module is None:
-        pytest.skip("diffusers not imported yet in this session")
-    assert not _is_stub(module), (
-        "sys.modules['diffusers'] is a MagicMock while the real library is "
-        "installed; a unit-test stub has leaked and any code needing real "
-        "diffusers in this session will fail in a confusing place"
-    )
+    assert safetensors_torch.torch is torch
+    assert isinstance(torch.float16, torch.dtype)
+    assert not _is_stub(module), "Test stub occupies diffusers in real-library cohort"

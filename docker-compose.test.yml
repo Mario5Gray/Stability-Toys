@@ -34,7 +34,7 @@ services:
       - ./conf/modes-test.yml:/conf/modes.yml:ro,z
       - ./logs:/app/logs:rw,z
       - ./htmlcov:/app/htmlcov:rw,z
-    command: pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+    command: python -m tests.run tests/ -- -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 
   test-cuda:
     extends: test
@@ -64,19 +64,19 @@ services:
   test-unit:
     extends: test
     container_name: stability-toys-test-not-ws
-    command: pytest tests/ -v -m "not ws"
+    command: python -m tests.run tests/ -- -v -m "not ws"
 
   test-ws:
     extends: test
     container_name: stability-toys-test-ws
-    command: pytest tests/ -m ws -v
+    command: python -m tests.run tests/ -- -m ws -v
 
   test-fast:
     extends: test
     container_name: stability-toys-test-fast
-    command: pytest tests/ -v -m "not slow"
+    command: python -m tests.run tests/ -- -v -m "not slow"
 
   test-watch:
     extends: test
     container_name: stability-toys-test-watch
-    command: ptw tests/ -- -v
+    command: ptw tests/ --runner python -m tests.run tests/ -- -v
