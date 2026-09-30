@@ -24,9 +24,9 @@ CUDA command: `docker compose -f docker-compose.test.yml run --rm test-cuda pyth
 Preserve unrelated worktrees and deployment. Test CUDA changes in isolated container.
 Commit verified work with issue ID and next review step. Record evidence in FP.
 
-## Verification evidence
+## Initial verification evidence: c248d26
 
-Implementation ready for review. Human review remains pending.
+Initial review approved with small fixes. Follow-up changes need review.
 
 | Check | Result |
 |---|---|
@@ -44,6 +44,7 @@ Implementation ready for review. Human review remains pending.
 Full suite ran before one extra exit-first regression and stronger test assertions.
 Final focused run covers these test-only changes. Runner implementation stayed unchanged.
 Local skips: one absent env.custom, eight SDXL GPU cases, one Hunyuan GPU case.
+Absent env.custom skip predates this change. Parent commit already contains this skip in tests/test_env_file_contract.py.
 Enigma separately executed Hunyuan acceptance with real model assets.
 
 CUDA check used source mounted into existing harbor.lan/stability-toys:test image.
@@ -54,3 +55,18 @@ Shared Concourse task checks syntax and Ruff only. No shared pipeline pytest cha
 
 Evidence logs: /tmp/STABL-sgdavnvz-diagnosis/ on implementation host.
 Full run: final-suite.log. CUDA run: cuda-acceptance.log.
+
+## Review follow-up
+
+Reported option-parsing failure did not reproduce on c248d26.
+`--ignore=x` and `--deselect=...` pass through to pytest. Unknown options receive pytest usage errors.
+Partition already splits `::` before checking path existence. No partition change required.
+
+Runner now rejects explicit `--` without preceding paths. No-argument invocation still defaults to tests/.
+Regression tests cover these cases and existing option handling.
+Concourse note now records verification date and source paths.
+
+RED: one failed, 16 passed. Empty-path test exposed silent default-suite execution.
+GREEN: 27 passed, one existing env.custom skip across isolation, Make entrypoint, leak, and environment tests.
+Logs: /tmp/STABL-sgdavnvz-diagnosis/review-red.log and review-green.log.
+Full suite and CUDA evidence above belong to c248d26. Follow-up changed only empty-path validation, tests, and documentation.

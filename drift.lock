@@ -9,7 +9,7 @@ docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:3c89c502c0e62ab6
 docs/TESTING_IN_DOCKER.md -> requirements-test.txt sig:da819b6233f8eb4c
 docs/TESTING_IN_DOCKER.md -> tests/isolation.py sig:94ed414b0b73bc00
-docs/TESTING_IN_DOCKER.md -> tests/run.py sig:be5f4b0421f9bd54
+docs/TESTING_IN_DOCKER.md -> tests/run.py sig:d859f2a9aa4dcb87
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:0edc1002d014692c
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:a351234f15bc6e73

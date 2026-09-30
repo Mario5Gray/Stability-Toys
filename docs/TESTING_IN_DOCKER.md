@@ -23,6 +23,8 @@ python -m tests.run tests/test_hunyuandit_acceptance.py -- -q
 ```
 
 Put pytest options after `--`.
+Specify at least one test path before explicit `--`.
+With no arguments, runner defaults to `tests/`.
 Paths before `--` can include pytest node IDs.
 Markers and `-k` still filter tests inside each cohort.
 A filtered cohort with no selected tests does not fail a successful run.
@@ -39,7 +41,9 @@ GPU acceptance must collect alone, even when other files use real libraries.
 
 Make targets, Compose services, image default command, and watch service use this runner.
 `ci-test` uses same CUDA path.
-Shared Concourse task currently checks syntax and Ruff only. It does not execute pytest.
+As verified on 2026-09-30, shared Concourse task checks syntax and Ruff only. It does not execute pytest.
+Task source: `../continuous/tasks/test-stability-toys.yml`, relative to repository root.
+Task selection: `../continuous/vars/stability-toys.yml`.
 
 ## Local vs CUDA Test Paths
 

@@ -12,6 +12,9 @@ def main(argv=None):
     if '--' in args:
         boundary = args.index('--')
         paths, options = args[:boundary], args[boundary + 1:]
+        if not paths:
+            print('Specify test paths before --.', file=sys.stderr)
+            return 4
     else:
         paths, options = args, []
     if any(path.startswith('-') for path in paths):

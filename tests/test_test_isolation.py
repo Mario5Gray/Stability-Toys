@@ -97,6 +97,36 @@ def test_runner_preserves_node_selector(sandbox):
     assert not (sandbox / 'stub-imported').exists()
 
 
+@pytest.mark.parametrize('option', ['--ignore=x', '--deselect=tests/test_real.py::test_real'])
+def test_runner_passes_path_options_to_pytest(sandbox, option):
+    result = invoke(sandbox, '-m', 'tests.run', 'tests', '--', option, '-q')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert '1 passed' in result.stdout
+    if option.startswith('--deselect='):
+        assert '1 deselected' in result.stdout
+
+
+def test_runner_reports_unknown_pytest_option(sandbox):
+    result = invoke(sandbox, '-m', 'tests.run', 'tests', '--', '--unknown-path=x')
+    assert result.returncode == 4, result.stdout + result.stderr
+    assert 'unrecognized arguments: --unknown-path=x' in result.stderr
+    assert not (sandbox / 'stub-imported').exists()
+
+
+def test_runner_requires_paths_before_explicit_separator(sandbox):
+    result = invoke(sandbox, '-m', 'tests.run', '--', '-q')
+    assert result.returncode == 4, result.stdout + result.stderr
+    assert 'Specify test paths before --.' in result.stderr
+    assert 'Test cohort:' not in result.stdout
+    assert not (sandbox / 'stub-imported').exists()
+
+
+def test_runner_defaults_to_suite_without_arguments(sandbox):
+    result = invoke(sandbox, '-m', 'tests.run')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count('1 passed') == 2
+
+
 def test_cuda_acceptance_cannot_collect_with_other_files(sandbox):
     (sandbox / 'tests/test_hunyuandit_acceptance.py').write_text('def test_gpu(): pass\n')
     result = invoke(sandbox, '-m', 'pytest', 'tests/test_real.py',
