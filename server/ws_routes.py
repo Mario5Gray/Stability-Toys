@@ -917,7 +917,7 @@ async def websocket_endpoint(ws: WebSocket):
                 # cardinality failure as an unbounded label.
                 span.set_attribute("messaging.type", _inbound_type(msg_type))
                 _count_in(msg_type)
-                handler = HANDLERS.get(msg_type)
+                handler = HANDLERS.get(msg_type) if isinstance(msg_type, str) else None
                 if handler is None:
                     await hub.send(client_id, _error(f"Unknown type: {msg_type}", msg.get("id")))
                     continue

@@ -149,14 +149,24 @@ class TestInvalidMessages:
             assert msg["type"] == "error"
             assert "Invalid JSON" in msg["error"]
 
-    def test_unknown_type(self):
+    @pytest.mark.parametrize(
+        "msg_type",
+        ["nonexistent:action", {}, [], {"a": 1}, ["ping"], None, False, 42, 1.5],
+        ids=["unknown-string", "empty-object", "empty-array", "object", "array",
+             "null", "boolean", "integer", "float"],
+    )
+    def test_unknown_type_preserves_connection(self, msg_type):
         with client.websocket_connect("/v1/ws") as ws:
             ws.receive_json()  # consume status
-            ws.send_json({"type": "nonexistent:action", "id": "x1"})
+            ws.send_json({"type": msg_type, "id": "x1"})
             msg = ws.receive_json()
-            assert msg["type"] == "error"
-            assert "Unknown type" in msg["error"]
-            assert msg.get("id") == "x1"
+            assert msg == {
+                "type": "error",
+                "error": f"Unknown type: {msg_type}",
+                "id": "x1",
+            }
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json()["type"] == "pong"
 
 
 # ---------------------------------------------------------------------------
