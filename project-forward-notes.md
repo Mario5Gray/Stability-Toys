@@ -302,6 +302,14 @@ Older "Recently landed" notes are archived in `docs/notes-ledge.md`.
 
 ---
 
+## Test collection isolation — STABL-sgdavnvz
+
+Use `python -m tests.run tests/ -- <pytest options>` for complete suite.
+Runner selects files before collection and creates fresh interpreters for stub tests, real-library tests, and live HunyuanDiT acceptance.
+Direct mixed pytest collection is rejected before imports.
+Never remove real Torch from `sys.modules` to repair test contamination.
+See `docs/TESTING_IN_DOCKER.md` for Make, Compose, coverage, and focused-test commands.
+
 ## Active boundary decisions
 
 ### CLI-first, always

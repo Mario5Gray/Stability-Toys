@@ -129,4 +129,4 @@ COPY *.sh /app/
 RUN chmod +x /app/start.sh /app/run_sdxl_tests.sh /app/scripts/remote-worktree.sh && \
     mkdir -p /app/logs /conf /store /workflows
 
-CMD ["pytest", "tests/", "-v", "-m", "not slow"]
+CMD ["python", "-m", "tests.run", "tests/", "--", "-v", "-m", "not slow"]

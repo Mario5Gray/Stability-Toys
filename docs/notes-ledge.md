@@ -859,9 +859,9 @@ HTTP `/generate` intentionally cannot express img2img (no `init_image_ref`) —
 adding it would be a separate API decision. This track also recorded a
 cross-file `sys.modules`/`lru_cache` diffusers-stub pollution failure between
 `test_cuda_worker_controlnet.py` and `test_worker_controlnet_metadata.py`; that
-no longer reproduces (2026-07-20: 34 passed in one session, and both files are
-clean in the full suite), most likely resolved when `STABL-ichgkgno` removed the
-family-string branching those stubs interacted with. No FP issue was filed.
+passed one narrow check on 2026-07-20. That result did not prove session isolation.
+STABL-sgdavnvz reproduced collection-time contamination and separates stub tests from real-library tests before collection.
+See `docs/TESTING_IN_DOCKER.md` for current execution contract.
 
 The combined-track test-hygiene follow-ups (`STABL-bclnlnzd` torch stubbing,
 `STABL-zisphapv` Miniforge pin) are both now **done**.
@@ -880,4 +880,3 @@ The combined-track test-hygiene follow-ups (`STABL-bclnlnzd` torch stubbing,
 - **st CLI v1.x point release** — `STABL-csqqcjmo`. `st modes switch/show/reload`,
   `Generate()` `--stream`/`--quiet`, `--controlnet-file`, upload bucket arg,
   ControlNet presets.
-

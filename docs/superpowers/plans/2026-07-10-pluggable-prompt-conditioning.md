@@ -1259,9 +1259,9 @@ docker compose -f docker-compose.test.yml run --rm test \
 
 docker compose -f docker-compose.test.yml build test-cuda
 docker compose -f docker-compose.test.yml run --rm test-cuda \
-  python -m pytest tests/test_conditioning_compel.py \
+  python -m tests.run tests/test_conditioning_compel.py \
     tests/test_cuda_worker_capabilities.py \
-    tests/test_cuda_worker_controlnet.py -q
+    tests/test_cuda_worker_controlnet.py -- -q
 ```
 
 State that production/test image package inspection must show Compel 2.3.1 and no
@@ -1273,7 +1273,7 @@ Run:
 
 ```bash
 source /Users/darkbit1001/miniforge3/bin/activate base
-python -m pytest \
+python -m tests.run \
   tests/test_conditioning_contracts.py \
   tests/test_conditioning_registry.py \
   tests/test_conditioning_compel.py \
@@ -1283,11 +1283,11 @@ python -m pytest \
   tests/test_cuda_worker_base.py \
   tests/test_cuda_worker_capabilities.py \
   tests/test_cuda_worker_controlnet.py \
-  tests/test_worker_controlnet_metadata.py -q
+  tests/test_worker_controlnet_metadata.py -- -q
 ```
 
-Expected: all tests pass, aside from any separately reported pre-existing combined
-Diffusers-stub pollution that remains green when files run independently.
+Expected: all tests pass in separate collection cohorts under STABL-sgdavnvz.
+Stub pollution must fail verification.
 
 - [ ] **Step 4: Build and run the local/native test container**
 
@@ -1310,9 +1310,9 @@ Run:
 ```bash
 docker compose -f docker-compose.test.yml build test-cuda
 docker compose -f docker-compose.test.yml run --rm test-cuda \
-  python -m pytest tests/test_conditioning_compel.py \
+  python -m tests.run tests/test_conditioning_compel.py \
     tests/test_cuda_worker_capabilities.py \
-    tests/test_cuda_worker_controlnet.py -q
+    tests/test_cuda_worker_controlnet.py -- -q
 ```
 
 Expected: build succeeds, Compel imports as 2.3.1, and tests pass.

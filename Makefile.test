@@ -32,10 +32,10 @@ test-build-cuda: ## Build the amd64 CUDA test image (CI/x86 builder)
 
 # Run tests
 test: ## Run all tests in Docker
-	docker compose -f docker-compose.test.yml run --rm test python -m pytest $(TEST) $(SUITE_PYTEST_ARGS)
+	docker compose -f docker-compose.test.yml run --rm test python -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS)
 
 test-cuda: ## Run all tests in the amd64 CUDA test container
-	docker compose -f docker-compose.test.yml run --rm test-cuda python -m pytest $(TEST) $(SUITE_PYTEST_ARGS)
+	docker compose -f docker-compose.test.yml run --rm test-cuda python -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS)
 
 test-unit: ## Run unit tests only
 	docker compose -f docker-compose.test.yml run --rm test-unit
@@ -44,7 +44,7 @@ test-fast: ## Run fast tests (skip slow tests)
 	docker compose -f docker-compose.test.yml run --rm test-fast
 
 test-coverage: ## Run tests with coverage report
-	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+	docker compose -f docker-compose.test.yml run --rm test python -m tests.run tests/ -- -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 	@echo ""
 	@echo "Coverage report generated in htmlcov/"
 	@echo "Open htmlcov/index.html to view"
@@ -73,17 +73,17 @@ check-conda-env: ## Verify the stability-toys conda env is active for local Pyth
 	fi
 
 local-test: check-conda-env ## Run tests locally (not in Docker)
-	$(PYTHON) -m pytest tests/ -v
+	$(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS)
 
 local-test-coverage: check-conda-env ## Run tests locally with coverage
-	$(PYTHON) -m pytest tests/ -v --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+	$(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS) --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 
 # Continuous Integration
 ci-test: test-build-cuda test-cuda ## Build and run the amd64 CUDA test path
 
 # Development
 dev-test: ## Quick test during development
-	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/ -x -v
+	docker compose -f docker-compose.test.yml run --rm test python -m tests.run tests/ -- -x -v
 
 dev-test-file: ## Run specific test file (usage: make dev-test-file FILE=test_foo.py [PYTEST_ARGS='-q'])
-	docker compose -f docker-compose.test.yml run --rm test python -m pytest tests/$(FILE) $(DEV_FILE_PYTEST_ARGS)
+	docker compose -f docker-compose.test.yml run --rm test python -m tests.run tests/$(FILE) -- $(DEV_FILE_PYTEST_ARGS)
