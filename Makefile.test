@@ -16,7 +16,7 @@ DEV_FILE_PYTEST_ARGS := $(PYTEST_ARGS)
 endif
 
 PYTHON ?= python
-EXPECTED_CONDA_PREFIX ?= $(HOME)/miniforge3/envs/stability-toys
+EXPECTED_CONDA_PREFIX ?= $(or $(ST_TEST_PYTHON_PREFIX),$(HOME)/miniforge3/envs/stability-toys)
 
 help: ## Show this help message
 	@echo "Dream Lab Test Commands:"
@@ -65,18 +65,14 @@ test-clean-all: test-clean ## Clean everything including volumes
 	docker compose -f docker-compose.test.yml down -v
 
 # Local testing (without Docker)
-check-conda-env: ## Verify the stability-toys conda env is active for local Python commands
-	@if [ "$$CONDA_PREFIX" != "$(EXPECTED_CONDA_PREFIX)" ]; then \
-		echo "Expected CONDA_PREFIX=$(EXPECTED_CONDA_PREFIX) but got '$$CONDA_PREFIX'"; \
-		echo "Run: conda activate stability-toys"; \
-		exit 1; \
-	fi
+check-conda-env: ## Verify local test interpreter prefix
+	ST_TEST_PYTHON_PREFIX="$(EXPECTED_CONDA_PREFIX)" $(PYTHON) -m tests.python_env
 
 local-test: check-conda-env ## Run tests locally (not in Docker)
-	$(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS)
+	ST_TEST_PYTHON_PREFIX="$(EXPECTED_CONDA_PREFIX)" $(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS)
 
 local-test-coverage: check-conda-env ## Run tests locally with coverage
-	$(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS) --cov=backends --cov=server --cov-report=html --cov-report=term-missing
+	ST_TEST_PYTHON_PREFIX="$(EXPECTED_CONDA_PREFIX)" $(PYTHON) -m tests.run $(TEST) -- $(SUITE_PYTEST_ARGS) --cov=backends --cov=server --cov-report=html --cov-report=term-missing
 
 # Continuous Integration
 ci-test: test-build-cuda test-cuda ## Build and run the amd64 CUDA test path

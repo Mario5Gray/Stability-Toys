@@ -13,7 +13,7 @@ def sandbox(tmp_path):
     suite = tmp_path / 'tests'
     suite.mkdir()
     (suite / '__init__.py').touch()
-    for name in ('isolation.py', 'run.py'):
+    for name in ('isolation.py', 'run.py', 'python_env.py'):
         source = Path(__file__).with_name(name)
         if source.exists():
             (suite / name).write_text(source.read_text())

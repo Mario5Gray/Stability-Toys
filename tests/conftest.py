@@ -3,6 +3,12 @@ Shared pytest fixtures and configuration for Dream Lab tests.
 """
 
 import pytest
+from tests.python_env import python_environment_error
+
+# Reject wrong interpreter before fixture dependencies import scientific libraries.
+if error := python_environment_error():
+    raise pytest.UsageError(error)
+
 import asyncio
 import inspect
 import importlib.machinery

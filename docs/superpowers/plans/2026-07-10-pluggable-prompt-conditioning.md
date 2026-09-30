@@ -14,8 +14,8 @@
 
 ## Global Constraints
 
-- Use Miniforge base for local Python commands:
-  `source /Users/darkbit1001/miniforge3/bin/activate base` and then `python -m pytest`.
+- Use stability-toys env for local Python commands:
+  `source /Users/darkbit1001/miniforge3/bin/activate stability-toys` and then `python -m pytest`.
 - Run `drift refs <path>` before editing every bound file. Review prose before any
   `drift link`; do not refresh stale unrelated documents.
 - Keep `backends/conditioning/contracts.py`, `artifacts.py`, and `invocation.py`
@@ -138,7 +138,7 @@ def test_completed_invocation_reraises_stored_exception():
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys
 python -m pytest tests/test_conditioning_contracts.py -q
 ```
 
@@ -1272,7 +1272,7 @@ Notebook/Jupyter packages introduced by Compel installation.
 Run:
 
 ```bash
-source /Users/darkbit1001/miniforge3/bin/activate base
+source /Users/darkbit1001/miniforge3/bin/activate stability-toys
 python -m tests.run \
   tests/test_conditioning_contracts.py \
   tests/test_conditioning_registry.py \
