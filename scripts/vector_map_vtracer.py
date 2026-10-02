@@ -75,22 +75,23 @@ def trace_layer(layer, options=None):
 
 
 def check_full_canvas(svg, material):
-    """Reject an exact canvas-rectangle subpath when the material does not cover the whole border.
+    """Reject an exact canvas-rectangle subpath unless material is a strict majority of the border.
 
     Full-canvas bounds are not full-canvas coverage: a cross touches all four sides.
     Only a subpath whose points are exactly the four canvas corners is a canvas outline.
+    filter_speckle can remove a small border notch, so a canvas outline is valid when
+    material covers more than half of the unique border pixels. A wrong-polarity trace
+    has no material on the border. A 50% tie is rejected.
     """
-    if _covers_border(material):
-        return
     height, width = material.shape
     corners = {(0, 0), (width, 0), (width, height), (0, height)}
     for element in ET.fromstring(svg).iter(_SVG_PATH):
         dx, dy = _translate(element.get("transform", ""))
         for points in _subpaths(element.get("d", "")):
-            if {(x + dx, y + dy) for x, y in points} == corners:
+            if {(x + dx, y + dy) for x, y in points} == corners and not _border_majority(material):
                 raise UnintendedBackgroundError(
                     "VTracer returned a path that covers the complete canvas, "
-                    "but the layer material does not cover the canvas border."
+                    "but material covers half or less of the canvas border."
                 )
 
 
@@ -143,8 +144,11 @@ def _inverted_png(material):
     return out.getvalue()
 
 
-def _covers_border(material):
-    return bool(material[0].all() and material[-1].all() and material[:, 0].all() and material[:, -1].all())
+def _border_majority(material):
+    """True when material is more than half of the unique border pixels."""
+    border = np.zeros(material.shape, bool)
+    border[0, :] = border[-1, :] = border[:, 0] = border[:, -1] = True
+    return 2 * int(np.count_nonzero(material[border])) > int(np.count_nonzero(border))
 
 
 def _translate(transform):

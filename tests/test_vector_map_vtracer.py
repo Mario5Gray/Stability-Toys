@@ -284,13 +284,37 @@ def _png(gray):
     return out.getvalue()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=adapter.UnintendedBackgroundError,
-    reason="Open policy: filter_speckle removes a 1 px border notch, so upstream emits the "
-    "exact canvas rectangle while the input material does not cover the whole border.",
-)
 def test_speckle_filtered_border_notch_is_accepted():
+    """filter_speckle removes a 1 px border notch, so upstream emits the exact canvas rectangle."""
     material = np.ones((64, 64), bool)
     material[0, 30] = False
-    adapter.trace_layer(material)
+    svg = adapter.trace_layer(material).svg
+    assert covers_canvas(svg, 64, 64)
+
+
+def _border_material(size, count):
+    """A size x size layer whose first `count` unique border pixels are material."""
+    border = [(0, x) for x in range(size)] + [(size - 1, x) for x in range(size)]
+    border += [(y, 0) for y in range(1, size - 1)] + [(y, size - 1) for y in range(1, size - 1)]
+    assert len(set(border)) == len(border) == 4 * size - 4
+    material = np.zeros((size, size), bool)
+    for y, x in border[:count]:
+        material[y, x] = True
+    return material
+
+
+def _canvas_rectangle_svg(size):
+    svg = adapter.trace_layer(np.ones((size, size), bool)).svg
+    assert covers_canvas(svg, size, size)
+    return svg
+
+
+def test_check_rejects_canvas_rectangle_at_a_border_tie():
+    material = _border_material(32, 62)  # 62 of 124 unique border pixels
+    with pytest.raises(adapter.UnintendedBackgroundError):
+        adapter.check_full_canvas(_canvas_rectangle_svg(32), material)
+
+
+def test_check_accepts_canvas_rectangle_with_border_majority():
+    material = _border_material(32, 63)  # 63 of 124 unique border pixels
+    adapter.check_full_canvas(_canvas_rectangle_svg(32), material)
