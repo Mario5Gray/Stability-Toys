@@ -12,6 +12,7 @@ VTracer ignores alpha. This module checks the layer and the options first.
 """
 
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.metadata import version
 from io import BytesIO
@@ -39,7 +40,8 @@ _SPLINE_CONTROLS = frozenset(
     {"corner_threshold", "length_threshold", "splice_threshold", "path_precision", "max_iterations"}
 )
 
-# The upstream web app exposes filter_speckle as 0..128.
+# Wrapper policy, from the 0.6.15 web app slider. The Python binding has no
+# documented maximum and accepts 129. The 0.6.15 CLI enforces 0..16.
 FILTER_SPECKLE_RANGE = (0, 128)
 DEFAULT_OPTIONS = {"mode": "polygon", "filter_speckle": 4}
 
@@ -73,16 +75,19 @@ def trace_layer(layer, options=None):
 
 
 def check_full_canvas(svg, material):
-    """Reject a full-canvas path when the material does not cover the whole border."""
+    """Reject an exact canvas-rectangle subpath when the material does not cover the whole border.
+
+    Full-canvas bounds are not full-canvas coverage: a cross touches all four sides.
+    Only a subpath whose points are exactly the four canvas corners is a canvas outline.
+    """
     if _covers_border(material):
         return
     height, width = material.shape
+    corners = {(0, 0), (width, 0), (width, height), (0, height)}
     for element in ET.fromstring(svg).iter(_SVG_PATH):
         dx, dy = _translate(element.get("transform", ""))
         for points in _subpaths(element.get("d", "")):
-            xs = [x + dx for x, _ in points]
-            ys = [y + dy for _, y in points]
-            if (min(xs), min(ys), max(xs), max(ys)) == (0, 0, width, height):
+            if {(x + dx, y + dy) for x, y in points} == corners:
                 raise UnintendedBackgroundError(
                     "VTracer returned a path that covers the complete canvas, "
                     "but the layer material does not cover the canvas border."
@@ -107,8 +112,12 @@ def _material(layer):
 
 
 def _resolve(options):
+    if options is None:
+        options = {}
+    elif not isinstance(options, Mapping):
+        raise TypeError(f"Options must be a mapping or None, not {type(options).__name__}.")
     resolved = dict(DEFAULT_OPTIONS)
-    for name, value in (options or {}).items():
+    for name, value in options.items():
         if name in _SPLINE_CONTROLS:
             raise ValueError(f"{name} has no effect in polygon mode. Polygon mode exposes filter_speckle only.")
         if name not in DEFAULT_OPTIONS:

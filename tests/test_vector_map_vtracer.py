@@ -133,6 +133,23 @@ def test_rejects_unchecked_options(options, message, upstream_calls):
     assert upstream_calls == []
 
 
+@pytest.mark.parametrize(
+    "options",
+    [[], "", False, 0, [("mode", "polygon")], "mode", ("mode",), 4],
+    ids=["empty-list", "empty-str", "false", "zero", "pair-list", "str", "tuple", "int"],
+)
+def test_rejects_non_mapping_options(options, upstream_calls):
+    with pytest.raises(TypeError, match="mapping"):
+        adapter.trace_layer(load_mask("donut"), options)
+    assert upstream_calls == []
+
+
+def test_accepts_none_and_empty_mapping_as_defaults():
+    assert adapter.trace_layer(load_mask("donut"), None).upstream_args == (
+        adapter.trace_layer(load_mask("donut"), {}).upstream_args
+    )
+
+
 @pytest.mark.parametrize("speckle", [0, 128])
 def test_accepts_filter_speckle_bounds(speckle):
     result = adapter.trace_layer(load_mask("donut"), {"mode": "polygon", "filter_speckle": speckle})
@@ -230,6 +247,27 @@ def test_check_accepts_correct_trace(name):
     adapter.check_full_canvas(adapter.trace_layer(material).svg, material)
 
 
+def _cross(size=32, arm=(14, 18)):
+    """Material that touches all four sides but covers far less than the canvas."""
+    material = np.zeros((size, size), bool)
+    material[arm[0]:arm[1], :] = True
+    material[:, arm[0]:arm[1]] = True
+    return material
+
+
+def test_cross_touching_every_side_is_accepted():
+    material = _cross()
+    assert material.sum() == 240
+    result = adapter.trace_layer(material)
+    assert len(svg_paths(result.svg)) == 1
+
+
+def test_check_accepts_cross_trace():
+    material = _cross()
+    svg = vtracer.convert_raw_image_to_svg(_png(np.where(material, 0, 255)), img_format="png", **TRACE_OPTIONS)
+    adapter.check_full_canvas(svg, material)
+
+
 def test_check_accepts_full_canvas_when_material_covers_the_border():
     material = np.ones((32, 32), bool)
     material[10:20, 10:20] = False
@@ -244,3 +282,15 @@ def _png(gray):
     out = BytesIO()
     Image.fromarray(gray.astype(np.uint8)).save(out, "PNG")
     return out.getvalue()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=adapter.UnintendedBackgroundError,
+    reason="Open policy: filter_speckle removes a 1 px border notch, so upstream emits the "
+    "exact canvas rectangle while the input material does not cover the whole border.",
+)
+def test_speckle_filtered_border_notch_is_accepted():
+    material = np.ones((64, 64), bool)
+    material[0, 30] = False
+    adapter.trace_layer(material)
