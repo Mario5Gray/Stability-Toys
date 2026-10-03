@@ -15,6 +15,7 @@ make install-controlnet-scripts            # all extras (depth + pose + canny)
 make install-controlnet-scripts EXTRAS=depth   # depth backends only
 make install-controlnet-scripts EXTRAS=pose    # pose backends only
 make install-controlnet-scripts EXTRAS=canny   # canny backends only
+make install-controlnet-scripts EXTRAS=vector  # VTracer adapter only (not part of all)
 
 # or directly with pip
 pip install "./scripts[all]"
@@ -27,8 +28,15 @@ st-canny-map photo.jpg canny.png             # console script
 python scripts/canny_map.py photo.jpg canny.png   # direct
 ```
 
+> Only the `depth` and `pose` extras require `torch`. The `canny` and `vector`
+> extras install without it. `st-depth-map` and `st-pose-map` print an install
+> hint when `torch` is missing.
+>
 > On macOS/Apple Silicon, install `torch` via conda **first**
-> (`conda install pytorch -c pytorch`); the extras pull only the non-torch deps.
+> (`conda install pytorch -c pytorch`). The conda build satisfies the
+> `torch>=2.1` pin, so pip does not replace it.
+>
+> The `vector` extra pins `vtracer==0.6.15`. The `all` extra does not include it.
 
 `make install` installs both the `st` CLI and these scripts in one shot.
 
