@@ -13,6 +13,9 @@ try:
     import torch
 except ModuleNotFoundError as exc:
     # torch is not a global dependency. Only the pose extra installs it.
+    # A missing dependency of an installed torch is a different failure. Re-raise it.
+    if exc.name != "torch":
+        raise
     raise SystemExit(
         "st-pose-map needs torch. Install the pose extra: pip install \"./scripts[pose]\""
     ) from exc

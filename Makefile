@@ -28,7 +28,7 @@ uninstall-qrng: ## Remove the qrng symlink from ~/.local/bin
 	rm -f $(LOCAL_BIN)/qrng
 
 .PHONY: install-controlnet-scripts
-install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|all])
+install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|vector|all])
 	pip install "./scripts[$(or $(EXTRAS),all)]"
 
 .PHONY: prod-build

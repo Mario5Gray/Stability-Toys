@@ -163,3 +163,14 @@ def test_torch_sibling_without_torch_gives_install_hint(module, extra):
     assert "Traceback" not in result.stderr
     assert "torch" in result.stderr
     assert f"./scripts[{extra}]" in result.stderr
+
+
+@pytest.mark.parametrize("module", ["depth_map", "pose_map"])
+def test_broken_torch_dependency_is_not_reported_as_missing_torch(module, tmp_path):
+    """A torch that fails on its own missing dependency must surface that error unchanged."""
+    (tmp_path / "torch.py").write_text("import torch_missing_dependency\n")
+    code = f"import sys; sys.path[:0] = [{str(tmp_path)!r}, {str(SCRIPTS)!r}]; import {module}"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT)
+    assert result.returncode != 0
+    assert "ModuleNotFoundError: No module named 'torch_missing_dependency'" in result.stderr
+    assert "Install the" not in result.stderr

@@ -3,7 +3,7 @@ cli/go/USAGE.md -> cli/go/jq/test-st-history.sh sig:bfe46e913bac3613
 docs/CUDA_VERIFICATION.md -> Dockerfile.test sig:d42de5123b22fc9c
 docs/PRIVILEGED_MODE.md -> Dockerfile.test sig:d42de5123b22fc9c
 docs/TESTING_IN_DOCKER.md -> Dockerfile.test sig:d42de5123b22fc9c
-docs/TESTING_IN_DOCKER.md -> Makefile sig:26017b320b9f6a5d
+docs/TESTING_IN_DOCKER.md -> Makefile sig:e27329a6f5ce5a9a
 docs/TESTING_IN_DOCKER.md -> Makefile.test sig:9bea38090bc51b13
 docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:eeb56433132c6b03
