@@ -208,11 +208,18 @@ def test_raw_vtracer_header_is_misplaced_by_openscad(render_dir):
 # --- Flatpak sandbox: these run without OpenSCAD -----------------------------
 
 FLATPAK = ["flatpak", "run", "org.openscad.OpenSCAD"]
+# Synthetic paths: these tests must not depend on where pytest puts tmp_path (--basetemp).
+OUTSIDE_HOME = Path(Path.home().anchor) / "st-vector-map-outside-home"
+INSIDE_HOME = Path.home() / ".st-vector-map-openscad-probe"
 
 
-def test_flatpak_work_dir_moves_under_home(tmp_path):
-    assert not tmp_path.resolve().is_relative_to(Path.home().resolve())
-    work, created = choose_work_dir(tmp_path, FLATPAK)
+def test_synthetic_paths_sit_on_each_side_of_home():
+    assert not _under_home(OUTSIDE_HOME)
+    assert _under_home(INSIDE_HOME)
+
+
+def test_flatpak_work_dir_moves_under_home():
+    work, created = choose_work_dir(OUTSIDE_HOME, FLATPAK)
     try:
         assert created
         assert work.resolve().is_relative_to(Path.home().resolve())
@@ -220,8 +227,12 @@ def test_flatpak_work_dir_moves_under_home(tmp_path):
         shutil.rmtree(work)
 
 
-def test_native_work_dir_stays_in_tmp_path(tmp_path):
-    assert choose_work_dir(tmp_path, ["/usr/bin/openscad"]) == (tmp_path, False)
+def test_flatpak_work_dir_under_home_stays_unchanged():
+    assert choose_work_dir(INSIDE_HOME, FLATPAK) == (INSIDE_HOME, False)
+
+
+def test_native_work_dir_stays_unchanged():
+    assert choose_work_dir(OUTSIDE_HOME, ["/usr/bin/openscad"]) == (OUTSIDE_HOME, False)
 
 
 def test_sandbox_error_names_the_unreadable_path():
@@ -231,10 +242,10 @@ def test_sandbox_error_names_the_unreadable_path():
     assert sandbox_error(["/usr/bin/openscad"], [Path("/tmp/layer.svg")]) is None
 
 
-def test_flatpak_render_outside_home_fails_before_openscad_runs(tmp_path, monkeypatch):
+def test_flatpak_render_outside_home_fails_before_openscad_runs(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("OpenSCAD must not start")
 
     monkeypatch.setattr(subprocess, "run", forbidden)
     with pytest.raises(RuntimeError, match=r"\$HOME"):
-        render("<svg/>", tmp_path, command=FLATPAK)
+        render("<svg/>", OUTSIDE_HOME, command=FLATPAK)
