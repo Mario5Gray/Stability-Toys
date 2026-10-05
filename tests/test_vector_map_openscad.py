@@ -5,6 +5,8 @@ an actual OpenSCAD render and checks the exported mesh.
 
 OpenSCAD is often not on PATH (macOS app bundle, Linux Flatpak). Set OPENSCAD to
 the command, for example OPENSCAD="flatpak run org.openscad.OpenSCAD".
+The Flatpak sandbox reads $HOME only. With a Flatpak command, the render files
+move to a temporary directory under $HOME automatically.
 """
 
 import glob
@@ -14,6 +16,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -42,7 +45,43 @@ def _openscad():
 
 
 OPENSCAD = _openscad()
-pytestmark = pytest.mark.skipif(OPENSCAD is None, reason="OpenSCAD is absent. Set OPENSCAD to its command.")
+needs_openscad = pytest.mark.skipif(OPENSCAD is None, reason="OpenSCAD is absent. Set OPENSCAD to its command.")
+
+
+def _is_flatpak(command):
+    return bool(command) and Path(command[0]).name == "flatpak"
+
+
+def _under_home(path):
+    return Path(path).resolve().is_relative_to(Path.home().resolve())
+
+
+def choose_work_dir(tmp_path, command):
+    """Return (directory, created). Flatpak OpenSCAD reads $HOME only, and pytest tmp_path is outside it."""
+    if not _is_flatpak(command) or _under_home(tmp_path):
+        return tmp_path, False
+    return Path(tempfile.mkdtemp(prefix=".st-vector-map-openscad-", dir=Path.home())), True
+
+
+def sandbox_error(command, paths):
+    """Return a diagnostic when a Flatpak OpenSCAD would get a path it cannot read."""
+    if not _is_flatpak(command):
+        return None
+    outside = [str(path) for path in paths if not _under_home(path)]
+    if not outside:
+        return None
+    return (
+        f"Flatpak OpenSCAD can read $HOME only (filesystems=home). It cannot read: {', '.join(outside)}. "
+        "Use a directory under $HOME."
+    )
+
+
+@pytest.fixture
+def render_dir(tmp_path):
+    work, created = choose_work_dir(tmp_path, OPENSCAD)
+    yield work
+    if created:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def physical_svg(svg, width, height):
@@ -55,14 +94,17 @@ def physical_svg(svg, width, height):
     )
 
 
-def render(svg, tmp_path, thickness=THICKNESS):
+def render(svg, work_dir, thickness=THICKNESS, command=None):
     """Run a real OpenSCAD render of the hand-written proof SCAD. Return (vertices, triangles, log)."""
-    assert OPENSCAD is not None
-    svg_path = tmp_path / "layer.svg"
-    stl_path = tmp_path / "layer.stl"
+    command = command or OPENSCAD
+    assert command is not None
+    svg_path = work_dir / "layer.svg"
+    stl_path = work_dir / "layer.stl"
+    if error := sandbox_error(command, [svg_path, stl_path, SCAD]):
+        raise RuntimeError(error)
     svg_path.write_text(svg)
     result = subprocess.run(
-        [*OPENSCAD, "-o", str(stl_path), "-D", f'svg="{svg_path}"', "-D", f"thickness={thickness}", str(SCAD)],
+        [*command, "-o", str(stl_path), "-D", f'svg="{svg_path}"', "-D", f"thickness={thickness}", str(SCAD)],
         capture_output=True,
         text=True,
         timeout=300,
@@ -114,21 +156,23 @@ def expected_bounds(material):
 FIXTURES = sorted(make_fixtures.EXPECTED)
 
 
+@needs_openscad
 @pytest.mark.parametrize("name", FIXTURES)
-def test_render_has_one_solid_per_component_and_one_genus_per_hole(name, tmp_path):
+def test_render_has_one_solid_per_component_and_one_genus_per_hole(name, render_dir):
     components, holes = make_fixtures.EXPECTED[name]
     material = load_mask(name)
     svg = physical_svg(adapter.trace_layer(material).svg, *material.shape[::-1])
-    parts = mesh_components(*render(svg, tmp_path)[:2])
+    parts = mesh_components(*render(svg, render_dir)[:2])
     assert len(parts) == components
     assert sum(genus for *_, genus in parts) == holes
 
 
+@needs_openscad
 @pytest.mark.parametrize("name", FIXTURES)
-def test_render_bounds_match_the_mask_in_mm(name, tmp_path):
+def test_render_bounds_match_the_mask_in_mm(name, render_dir):
     material = load_mask(name)
     svg = physical_svg(adapter.trace_layer(material).svg, *material.shape[::-1])
-    vertices, _, _ = render(svg, tmp_path)
+    vertices, _, _ = render(svg, render_dir)
     low, high = expected_bounds(material)
     # Polygon fitting may move a curved boundary. Rectilinear fixtures stay exact.
     tolerance = 1e-4 if name in ("asymmetric", "border_touching", "separate_components") else MM_PER_PX
@@ -138,22 +182,59 @@ def test_render_bounds_match_the_mask_in_mm(name, tmp_path):
     assert vertices[:, 2].max() == pytest.approx(THICKNESS)
 
 
-def test_asymmetric_marker_stays_top_right(tmp_path):
+@needs_openscad
+def test_asymmetric_marker_stays_top_right(render_dir):
     """SVG is y-down and OpenSCAD is y-up. The marker must land at high x and high y."""
     material = load_mask("asymmetric")
     svg = physical_svg(adapter.trace_layer(material).svg, *material.shape[::-1])
-    parts = mesh_components(*render(svg, tmp_path)[:2])
+    parts = mesh_components(*render(svg, render_dir)[:2])
     marker = min(parts, key=lambda part: np.prod(part[1][:2] - part[0][:2]))
     assert np.allclose(marker[0][:2], np.array([96, 128 - 32]) * MM_PER_PX, atol=1e-4)
     assert np.allclose(marker[1][:2], np.array([112, 128 - 16]) * MM_PER_PX, atol=1e-4)
 
 
-def test_raw_vtracer_header_is_misplaced_by_openscad(tmp_path):
+@needs_openscad
+def test_raw_vtracer_header_is_misplaced_by_openscad(render_dir):
     """Pin the OpenSCAD 2021.01 quirk that S2.5 normalization must remove.
 
     Without a viewBox, path coordinates stay in px while the Y flip uses the height at 72 dpi.
     """
     material = load_mask("asymmetric")
-    vertices, _, _ = render(adapter.trace_layer(material).svg, tmp_path)
+    vertices, _, _ = render(adapter.trace_layer(material).svg, render_dir)
     assert vertices[:, 0].min() == pytest.approx(16.0)
     assert vertices[:, 1].max() == pytest.approx(128 * 25.4 / 72 - 16, abs=1e-3)
+
+
+# --- Flatpak sandbox: these run without OpenSCAD -----------------------------
+
+FLATPAK = ["flatpak", "run", "org.openscad.OpenSCAD"]
+
+
+def test_flatpak_work_dir_moves_under_home(tmp_path):
+    assert not tmp_path.resolve().is_relative_to(Path.home().resolve())
+    work, created = choose_work_dir(tmp_path, FLATPAK)
+    try:
+        assert created
+        assert work.resolve().is_relative_to(Path.home().resolve())
+    finally:
+        shutil.rmtree(work)
+
+
+def test_native_work_dir_stays_in_tmp_path(tmp_path):
+    assert choose_work_dir(tmp_path, ["/usr/bin/openscad"]) == (tmp_path, False)
+
+
+def test_sandbox_error_names_the_unreadable_path():
+    message = sandbox_error(FLATPAK, [Path("/tmp/layer.svg")])
+    assert "/tmp/layer.svg" in message and "$HOME" in message
+    assert sandbox_error(FLATPAK, [Path.home() / "layer.svg"]) is None
+    assert sandbox_error(["/usr/bin/openscad"], [Path("/tmp/layer.svg")]) is None
+
+
+def test_flatpak_render_outside_home_fails_before_openscad_runs(tmp_path, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("OpenSCAD must not start")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(RuntimeError, match=r"\$HOME"):
+        render("<svg/>", tmp_path, command=FLATPAK)
