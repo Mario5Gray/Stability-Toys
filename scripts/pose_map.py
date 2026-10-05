@@ -9,7 +9,16 @@ from PIL import Image
 
 from cn_metadata import build_map_metadata, save_with_metadata
 
-import torch
+try:
+    import torch
+except ModuleNotFoundError as exc:
+    # torch is not a global dependency. Only the pose extra installs it.
+    # A missing dependency of an installed torch is a different failure. Re-raise it.
+    if exc.name != "torch":
+        raise
+    raise SystemExit(
+        "st-pose-map needs torch. Install the pose extra: pip install \"./scripts[pose]\""
+    ) from exc
 if not hasattr(torch, "float8_e8m0fnu"):
   setattr(torch, "float8_e8m0fnu", torch.float32)
 

@@ -7,26 +7,33 @@ name = "st-controlnet-helpers"
 version = "0.1.0"
 description = "Preprocessing helper scripts for Stability-Toys image generation workflows"
 requires-python = ">=3.10"
+# torch is not global: only depth and pose import it. canny and vector stay torch-free.
 dependencies = [
-    # torch must be installed first via conda on macOS/Apple Silicon:
-    #   conda install pytorch -c pytorch
-    # On Linux/CUDA, pip torch is fine.
-    "torch>=2.1",
     "Pillow>=10.0",
     "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
 depth = [
+    # torch must be installed first via conda on macOS/Apple Silicon:
+    #   conda install pytorch -c pytorch
+    # On Linux/CUDA, pip torch is fine.
+    "torch>=2.1",
     "transformers>=4.35",
     "controlnet-aux>=0.0.7",
     "matplotlib",           # only needed for --colorize
 ]
 pose = [
+    "torch>=2.1",
     "controlnet-aux>=0.0.7",
     "mediapipe==0.10.14",
 ]
 canny = [
+    "opencv-python-headless>=4.5",
+]
+# Not part of all: installing all must not add VTracer silently.
+vector = [
+    "vtracer==0.6.15",
     "opencv-python-headless>=4.5",
 ]
 all = [
@@ -39,5 +46,5 @@ st-pose-map  = "pose_map:main"
 st-canny-map = "canny_map:main"
 
 [tool.setuptools]
-py-modules = ["depth_map", "pose_map", "canny_map", "cn_metadata"]
+py-modules = ["depth_map", "pose_map", "canny_map", "cn_metadata", "vector_map_vtracer"]
 script-files = ["st-resize-for-model", "resize-for-model.sh"]

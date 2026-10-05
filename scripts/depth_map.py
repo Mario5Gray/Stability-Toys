@@ -9,7 +9,16 @@ from PIL import Image
 
 from cn_metadata import build_map_metadata, save_with_metadata
 
-import torch
+try:
+    import torch
+except ModuleNotFoundError as exc:
+    # torch is not a global dependency. Only the depth extra installs it.
+    # A missing dependency of an installed torch is a different failure. Re-raise it.
+    if exc.name != "torch":
+        raise
+    raise SystemExit(
+        "st-depth-map needs torch. Install the depth extra: pip install \"./scripts[depth]\""
+    ) from exc
 if not hasattr(torch, "float8_e8m0fnu"):
   setattr(torch, "float8_e8m0fnu", torch.float32)
 
