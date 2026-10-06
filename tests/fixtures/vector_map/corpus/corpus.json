@@ -1,0 +1,426 @@
+{
+  "version": 1,
+  "cases": {
+    "badge": {
+      "class": "flat_graphic",
+      "properties": [
+        "sparse",
+        "high_contrast",
+        "holes",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "original",
+        "name": "make_corpus._badge",
+        "resample": "drawn at 4x, PIL reduce(4) box filter"
+      },
+      "license": "Original work drawn by make_corpus.py for this repository. Repository license.",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 0.0,
+        "threshold": 128,
+        "material": "light",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 0,
+        "max_hole_area": 0,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        6,
+        2
+      ],
+      "material_fraction": 0.3413,
+      "perimeter_px": 2352,
+      "edge_density": 0.0359,
+      "contrast": 0.8431,
+      "sha256": {
+        "source": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f",
+        "mask": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+      }
+    },
+    "bracket": {
+      "class": "line_art",
+      "properties": [
+        "sparse",
+        "high_contrast",
+        "holes",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "original",
+        "name": "make_corpus._bracket",
+        "resample": "drawn at 4x, PIL reduce(4) box filter"
+      },
+      "license": "Original work drawn by make_corpus.py for this repository. Repository license.",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 0.0,
+        "threshold": 128,
+        "material": "dark",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 0,
+        "max_hole_area": 0,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        6,
+        3
+      ],
+      "material_fraction": 0.0528,
+      "perimeter_px": 2708,
+      "edge_density": 0.0413,
+      "contrast": 0.8627,
+      "sha256": {
+        "source": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3",
+        "mask": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+      }
+    },
+    "brick": {
+      "class": "pattern",
+      "properties": [
+        "dense",
+        "low_contrast",
+        "holes"
+      ],
+      "source": {
+        "origin": "skimage",
+        "name": "skimage.data.brick",
+        "skimage_version": "0.26.0",
+        "upstream": "https://cc0textures.com/view.php?tex=Bricks25",
+        "original_size": [
+          512,
+          512
+        ],
+        "resample": "PIL LANCZOS to long side 256"
+      },
+      "license": "CC0 1.0 (CC0Textures).",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 0.5,
+        "tophat_size": 9,
+        "threshold": 25,
+        "material": "light",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 30,
+        "max_hole_area": 8,
+        "patches": []
+      },
+      "topology": [
+        1,
+        53
+      ],
+      "material_fraction": 0.2101,
+      "perimeter_px": 9913,
+      "edge_density": 0.1513,
+      "contrast": 0.2353,
+      "sha256": {
+        "source": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435",
+        "mask": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+      }
+    },
+    "coins": {
+      "class": "textured_photo",
+      "properties": [
+        "dense",
+        "medium_contrast",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "skimage",
+        "name": "skimage.data.coins",
+        "skimage_version": "0.26.0",
+        "upstream": "https://www.brooklynmuseum.org/opencollection/archives/image/51611",
+        "original_size": [
+          384,
+          303
+        ],
+        "resample": "PIL LANCZOS to long side 256"
+      },
+      "license": "Brooklyn Museum Collection. No known copyright restrictions.",
+      "processing_size": [
+        256,
+        202
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 1.0,
+        "tophat_size": 41,
+        "threshold": 40,
+        "material": "light",
+        "open_radius": 1,
+        "close_radius": 1,
+        "min_area": 40,
+        "max_hole_area": 400,
+        "patches": []
+      },
+      "topology": [
+        24,
+        0
+      ],
+      "material_fraction": 0.3494,
+      "perimeter_px": 2942,
+      "edge_density": 0.0569,
+      "contrast": 0.3843,
+      "sha256": {
+        "source": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5",
+        "mask": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+      }
+    },
+    "gravel": {
+      "class": "textured_photo",
+      "properties": [
+        "dense",
+        "low_contrast",
+        "holes",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "skimage",
+        "name": "skimage.data.gravel",
+        "skimage_version": "0.26.0",
+        "upstream": "https://cc0textures.com/view.php?tex=Gravel04",
+        "original_size": [
+          512,
+          512
+        ],
+        "resample": "PIL LANCZOS to long side 256"
+      },
+      "license": "CC0 1.0 (CC0Textures).",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 1.0,
+        "threshold": 132,
+        "material": "light",
+        "open_radius": 1,
+        "close_radius": 0,
+        "min_area": 12,
+        "max_hole_area": 8,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        225,
+        13
+      ],
+      "material_fraction": 0.4069,
+      "perimeter_px": 16168,
+      "edge_density": 0.2467,
+      "contrast": 0.1882,
+      "sha256": {
+        "source": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543",
+        "mask": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+      }
+    },
+    "horse": {
+      "class": "flat_graphic",
+      "properties": [
+        "sparse",
+        "high_contrast"
+      ],
+      "source": {
+        "origin": "skimage",
+        "name": "skimage.data.horse",
+        "skimage_version": "0.26.0",
+        "upstream": "https://openclipart.org/detail/158377/horse-by-marauder",
+        "original_size": [
+          400,
+          328
+        ],
+        "resample": "PIL LANCZOS to long side 256"
+      },
+      "license": "CC0 1.0, given by the owner Andreas Preuss (marauder). No copyright restrictions.",
+      "processing_size": [
+        256,
+        210
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 0.0,
+        "threshold": 128,
+        "material": "light",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 0,
+        "max_hole_area": 8,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        1,
+        0
+      ],
+      "material_fraction": 0.3307,
+      "perimeter_px": 1694,
+      "edge_density": 0.0315,
+      "contrast": 1.0,
+      "sha256": {
+        "source": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d",
+        "mask": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+      }
+    },
+    "pcb": {
+      "class": "line_art",
+      "properties": [
+        "dense",
+        "high_contrast",
+        "holes",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "original",
+        "name": "make_corpus._pcb",
+        "resample": "drawn at 4x, PIL reduce(4) box filter"
+      },
+      "license": "Original work drawn by make_corpus.py for this repository. Repository license.",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 0.0,
+        "threshold": 128,
+        "material": "light",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 0,
+        "max_hole_area": 0,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        30,
+        64
+      ],
+      "material_fraction": 0.2184,
+      "perimeter_px": 6756,
+      "edge_density": 0.1031,
+      "contrast": 0.6275,
+      "sha256": {
+        "source": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c",
+        "mask": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+      }
+    },
+    "truchet": {
+      "class": "pattern",
+      "properties": [
+        "dense",
+        "low_contrast",
+        "holes",
+        "disconnected"
+      ],
+      "source": {
+        "origin": "original",
+        "name": "make_corpus._truchet",
+        "resample": "drawn at 4x, PIL reduce(4) box filter",
+        "noise": "numpy default_rng(1406) uniform integers +/-12"
+      },
+      "license": "Original work drawn by make_corpus.py for this repository. Repository license.",
+      "processing_size": [
+        256,
+        256
+      ],
+      "mask_provenance": {
+        "method": "make_corpus.derive_mask",
+        "blur_sigma": 1.0,
+        "threshold": 128,
+        "material": "light",
+        "open_radius": 0,
+        "close_radius": 0,
+        "min_area": 8,
+        "max_hole_area": 8,
+        "tophat_size": 0,
+        "patches": []
+      },
+      "topology": [
+        55,
+        20
+      ],
+      "material_fraction": 0.2971,
+      "perimeter_px": 14098,
+      "edge_density": 0.2151,
+      "contrast": 0.1647,
+      "sha256": {
+        "source": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51",
+        "mask": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+      },
+      "review": {
+        "status": "reviewed",
+        "reviewer": "sigma",
+        "date": "2026-10-06",
+        "record": "STABL-cbwzjyky comment 'MASK REVIEW: APPROVED'",
+        "mask_sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+      }
+    }
+  }
+}

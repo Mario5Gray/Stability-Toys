@@ -1,0 +1,6494 @@
+{
+  "phase_one_commit": "b95c718",
+  "metrics_sha256": "7050d8cc4938a2fc75103c735c64430b275a32d79b74488861e4c8f1ac672898",
+  "environment": {
+    "python": "3.12.13",
+    "platform": "macOS-26.0.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "vtracer": "0.6.15",
+    "resvg-py": "0.5.0",
+    "numpy": "2.5.1",
+    "scipy": "1.17.1",
+    "pillow": "12.3.0"
+  },
+  "render": {
+    "renderer": "resvg-py",
+    "version": "0.5.0",
+    "shape_rendering": "crisp_edges",
+    "background": "#ffffff",
+    "material": "luma < 128",
+    "resolution": "processing size, 1 SVG unit = 1 px"
+  },
+  "timing": {
+    "warmup_calls": 1,
+    "timed_calls": 5,
+    "statistic": "median"
+  },
+  "tolerances": {
+    "topology": "exact",
+    "bounds_shift_px": 1.0,
+    "bbox_size_delta_px": 1.0,
+    "centroid_shift_px": 0.5,
+    "orientation": "strictly_lowest_xor",
+    "xor_per_perimeter_px": 0.5,
+    "boundary_max_distance_px": 1.5,
+    "area_dev_abs_per_perimeter_px": 0.5,
+    "mesh_volume_rel": 0.0001,
+    "mesh_z_abs_mm": 1e-06
+  },
+  "grid": [
+    0,
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "selection": {
+    "default": 4,
+    "reason": "no unique dominator among [0, 1, 2, 4]; keep 4",
+    "overrides": {},
+    "failing_every_value": {
+      "bracket": {
+        "0": [
+          "centroid"
+        ],
+        "1": [
+          "centroid"
+        ],
+        "2": [
+          "centroid"
+        ],
+        "4": [
+          "centroid"
+        ],
+        "8": [
+          "centroid"
+        ],
+        "16": [
+          "boundary",
+          "centroid",
+          "topology"
+        ],
+        "32": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "64": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "128": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ]
+      },
+      "brick": {
+        "0": [
+          "centroid",
+          "topology"
+        ],
+        "1": [
+          "centroid",
+          "topology"
+        ],
+        "2": [
+          "centroid",
+          "topology"
+        ],
+        "4": [
+          "centroid",
+          "topology"
+        ],
+        "8": [
+          "centroid",
+          "topology"
+        ],
+        "16": [
+          "centroid",
+          "topology"
+        ],
+        "32": [
+          "centroid",
+          "topology"
+        ],
+        "64": [
+          "centroid",
+          "topology"
+        ],
+        "128": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ]
+      },
+      "gravel": {
+        "0": [
+          "topology"
+        ],
+        "1": [
+          "topology"
+        ],
+        "2": [
+          "topology"
+        ],
+        "4": [
+          "boundary",
+          "topology"
+        ],
+        "8": [
+          "boundary",
+          "centroid",
+          "topology"
+        ],
+        "16": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "32": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "64": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "128": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ]
+      },
+      "horse": {
+        "0": [
+          "centroid",
+          "topology"
+        ],
+        "1": [
+          "centroid",
+          "topology"
+        ],
+        "2": [
+          "centroid",
+          "topology"
+        ],
+        "4": [
+          "centroid",
+          "topology"
+        ],
+        "8": [
+          "centroid",
+          "topology"
+        ],
+        "16": [
+          "centroid",
+          "topology"
+        ],
+        "32": [
+          "centroid",
+          "topology"
+        ],
+        "64": [
+          "centroid",
+          "topology"
+        ],
+        "128": [
+          "centroid",
+          "topology"
+        ]
+      }
+    }
+  },
+  "results": {
+    "0": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.663,
+        "resvg_median_ms": 3.511,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3599.0,
+        "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+        "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          6,
+          3
+        ],
+        "xor_px": 240,
+        "xor_pct_of_material": 6.932409012131716,
+        "xor_pct_of_canvas": 0.3662109375,
+        "xor_per_perimeter_px": 0.08862629246676514,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.4641898121774974,
+        "orientation_xor_px": {
+          "fliplr": 294,
+          "flipud": 5294,
+          "rot180": 5294,
+          "transpose": 6874,
+          "antitranspose": 6862,
+          "rot90": 6866,
+          "rot270": 6870
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid"
+        ],
+        "passed": false,
+        "paths": 6,
+        "subpaths": 9,
+        "commands": 147,
+        "svg_bytes": 1483,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ccb5720f97bdf8520a5a659110133a725406e29ec42bdb0edbc2d9a31b940b4b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.202,
+        "resvg_median_ms": 2.158,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.845,
+        "resvg_median_ms": 4.278,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.259,
+        "resvg_median_ms": 2.968,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 28269.5,
+        "area_dev_signed_per_perimeter_px": 0.09905368629391391,
+        "area_dev_abs_per_perimeter_px": 0.09905368629391391,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          224,
+          27
+        ],
+        "xor_px": 3765,
+        "xor_pct_of_material": 14.11804409779511,
+        "xor_pct_of_canvas": 5.74493408203125,
+        "xor_per_perimeter_px": 0.2328673923800099,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.3543503482114597,
+        "orientation_xor_px": {
+          "fliplr": 32131,
+          "flipud": 31273,
+          "rot180": 31837,
+          "transpose": 31009,
+          "antitranspose": 31843,
+          "rot90": 32197,
+          "rot270": 31999
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "topology"
+        ],
+        "passed": false,
+        "paths": 225,
+        "subpaths": 238,
+        "commands": 2892,
+        "svg_bytes": 29971,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "05259e5c08f490e0d7acb91a48ad60d8c6e99aa81faeecf9f439e0fce7fb472f",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 7.211,
+        "resvg_median_ms": 8.048,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.922,
+        "resvg_median_ms": 2.693,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 14467.0,
+        "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+        "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          30,
+          64
+        ],
+        "xor_px": 672,
+        "xor_pct_of_material": 4.6953605366126325,
+        "xor_pct_of_canvas": 1.025390625,
+        "xor_per_perimeter_px": 0.0994671403197158,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.08305428584884239,
+        "orientation_xor_px": {
+          "fliplr": 3248,
+          "flipud": 3628,
+          "rot180": 4100,
+          "transpose": 3584,
+          "antitranspose": 3708,
+          "rot90": 3586,
+          "rot270": 3890
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 30,
+        "subpaths": 94,
+        "commands": 1082,
+        "svg_bytes": 8342,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "75f059b158b0415751c20f60339c8e28a5eb61c755e2d72ffc1b1dc2233a5679",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.97,
+        "resvg_median_ms": 3.299,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 21953.5,
+        "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+        "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          55,
+          20
+        ],
+        "xor_px": 3616,
+        "xor_pct_of_material": 18.574070269159648,
+        "xor_pct_of_canvas": 5.517578125,
+        "xor_per_perimeter_px": 0.25649028230954746,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.07442435758417458,
+        "orientation_xor_px": {
+          "fliplr": 21212,
+          "flipud": 22794,
+          "rot180": 24362,
+          "transpose": 21006,
+          "antitranspose": 17224,
+          "rot90": 22764,
+          "rot270": 22824
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 55,
+        "subpaths": 75,
+        "commands": 2354,
+        "svg_bytes": 19367,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e137ab40ff9d223ef476636d75d62f9079bd590990f4bd85203e2abb98ecd328",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 6.202,
+        "resvg_median_ms": 6.761,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 0
+        }
+      }
+    },
+    "1": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.638,
+        "resvg_median_ms": 3.493,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3599.0,
+        "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+        "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          6,
+          3
+        ],
+        "xor_px": 240,
+        "xor_pct_of_material": 6.932409012131716,
+        "xor_pct_of_canvas": 0.3662109375,
+        "xor_per_perimeter_px": 0.08862629246676514,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.4641898121774974,
+        "orientation_xor_px": {
+          "fliplr": 294,
+          "flipud": 5294,
+          "rot180": 5294,
+          "transpose": 6874,
+          "antitranspose": 6862,
+          "rot90": 6866,
+          "rot270": 6870
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid"
+        ],
+        "passed": false,
+        "paths": 6,
+        "subpaths": 9,
+        "commands": 147,
+        "svg_bytes": 1483,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ccb5720f97bdf8520a5a659110133a725406e29ec42bdb0edbc2d9a31b940b4b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.38,
+        "resvg_median_ms": 2.134,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.76,
+        "resvg_median_ms": 4.124,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.161,
+        "resvg_median_ms": 2.944,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 28269.5,
+        "area_dev_signed_per_perimeter_px": 0.09905368629391391,
+        "area_dev_abs_per_perimeter_px": 0.09905368629391391,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          224,
+          27
+        ],
+        "xor_px": 3765,
+        "xor_pct_of_material": 14.11804409779511,
+        "xor_pct_of_canvas": 5.74493408203125,
+        "xor_per_perimeter_px": 0.2328673923800099,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.3543503482114597,
+        "orientation_xor_px": {
+          "fliplr": 32131,
+          "flipud": 31273,
+          "rot180": 31837,
+          "transpose": 31009,
+          "antitranspose": 31843,
+          "rot90": 32197,
+          "rot270": 31999
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "topology"
+        ],
+        "passed": false,
+        "paths": 225,
+        "subpaths": 238,
+        "commands": 2892,
+        "svg_bytes": 29971,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "05259e5c08f490e0d7acb91a48ad60d8c6e99aa81faeecf9f439e0fce7fb472f",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 7.081,
+        "resvg_median_ms": 7.929,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.943,
+        "resvg_median_ms": 2.695,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 14467.0,
+        "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+        "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          30,
+          64
+        ],
+        "xor_px": 672,
+        "xor_pct_of_material": 4.6953605366126325,
+        "xor_pct_of_canvas": 1.025390625,
+        "xor_per_perimeter_px": 0.0994671403197158,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.08305428584884239,
+        "orientation_xor_px": {
+          "fliplr": 3248,
+          "flipud": 3628,
+          "rot180": 4100,
+          "transpose": 3584,
+          "antitranspose": 3708,
+          "rot90": 3586,
+          "rot270": 3890
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 30,
+        "subpaths": 94,
+        "commands": 1082,
+        "svg_bytes": 8342,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "75f059b158b0415751c20f60339c8e28a5eb61c755e2d72ffc1b1dc2233a5679",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.971,
+        "resvg_median_ms": 3.257,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 21953.5,
+        "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+        "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          55,
+          20
+        ],
+        "xor_px": 3616,
+        "xor_pct_of_material": 18.574070269159648,
+        "xor_pct_of_canvas": 5.517578125,
+        "xor_per_perimeter_px": 0.25649028230954746,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.07442435758417458,
+        "orientation_xor_px": {
+          "fliplr": 21212,
+          "flipud": 22794,
+          "rot180": 24362,
+          "transpose": 21006,
+          "antitranspose": 17224,
+          "rot90": 22764,
+          "rot270": 22824
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 55,
+        "subpaths": 75,
+        "commands": 2354,
+        "svg_bytes": 19367,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e137ab40ff9d223ef476636d75d62f9079bd590990f4bd85203e2abb98ecd328",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 6.317,
+        "resvg_median_ms": 6.686,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 1
+        }
+      }
+    },
+    "2": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.615,
+        "resvg_median_ms": 3.453,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3599.0,
+        "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+        "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          6,
+          3
+        ],
+        "xor_px": 240,
+        "xor_pct_of_material": 6.932409012131716,
+        "xor_pct_of_canvas": 0.3662109375,
+        "xor_per_perimeter_px": 0.08862629246676514,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.4641898121774974,
+        "orientation_xor_px": {
+          "fliplr": 294,
+          "flipud": 5294,
+          "rot180": 5294,
+          "transpose": 6874,
+          "antitranspose": 6862,
+          "rot90": 6866,
+          "rot270": 6870
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid"
+        ],
+        "passed": false,
+        "paths": 6,
+        "subpaths": 9,
+        "commands": 147,
+        "svg_bytes": 1483,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ccb5720f97bdf8520a5a659110133a725406e29ec42bdb0edbc2d9a31b940b4b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.241,
+        "resvg_median_ms": 2.105,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.774,
+        "resvg_median_ms": 4.272,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.133,
+        "resvg_median_ms": 2.995,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 28269.5,
+        "area_dev_signed_per_perimeter_px": 0.09905368629391391,
+        "area_dev_abs_per_perimeter_px": 0.09905368629391391,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          224,
+          27
+        ],
+        "xor_px": 3765,
+        "xor_pct_of_material": 14.11804409779511,
+        "xor_pct_of_canvas": 5.74493408203125,
+        "xor_per_perimeter_px": 0.2328673923800099,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.3543503482114597,
+        "orientation_xor_px": {
+          "fliplr": 32131,
+          "flipud": 31273,
+          "rot180": 31837,
+          "transpose": 31009,
+          "antitranspose": 31843,
+          "rot90": 32197,
+          "rot270": 31999
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "topology"
+        ],
+        "passed": false,
+        "paths": 225,
+        "subpaths": 238,
+        "commands": 2892,
+        "svg_bytes": 29971,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "05259e5c08f490e0d7acb91a48ad60d8c6e99aa81faeecf9f439e0fce7fb472f",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 7.182,
+        "resvg_median_ms": 8.011,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.939,
+        "resvg_median_ms": 2.648,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 14467.0,
+        "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+        "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          30,
+          64
+        ],
+        "xor_px": 672,
+        "xor_pct_of_material": 4.6953605366126325,
+        "xor_pct_of_canvas": 1.025390625,
+        "xor_per_perimeter_px": 0.0994671403197158,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.08305428584884239,
+        "orientation_xor_px": {
+          "fliplr": 3248,
+          "flipud": 3628,
+          "rot180": 4100,
+          "transpose": 3584,
+          "antitranspose": 3708,
+          "rot90": 3586,
+          "rot270": 3890
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 30,
+        "subpaths": 94,
+        "commands": 1082,
+        "svg_bytes": 8342,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "75f059b158b0415751c20f60339c8e28a5eb61c755e2d72ffc1b1dc2233a5679",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.986,
+        "resvg_median_ms": 3.286,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 21953.5,
+        "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+        "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          55,
+          20
+        ],
+        "xor_px": 3616,
+        "xor_pct_of_material": 18.574070269159648,
+        "xor_pct_of_canvas": 5.517578125,
+        "xor_per_perimeter_px": 0.25649028230954746,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.07442435758417458,
+        "orientation_xor_px": {
+          "fliplr": 21212,
+          "flipud": 22794,
+          "rot180": 24362,
+          "transpose": 21006,
+          "antitranspose": 17224,
+          "rot90": 22764,
+          "rot270": 22824
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 55,
+        "subpaths": 75,
+        "commands": 2354,
+        "svg_bytes": 19367,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e137ab40ff9d223ef476636d75d62f9079bd590990f4bd85203e2abb98ecd328",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 6.169,
+        "resvg_median_ms": 6.781,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 2
+        }
+      }
+    },
+    "4": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.636,
+        "resvg_median_ms": 3.499,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3599.0,
+        "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+        "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          6,
+          3
+        ],
+        "xor_px": 240,
+        "xor_pct_of_material": 6.932409012131716,
+        "xor_pct_of_canvas": 0.3662109375,
+        "xor_per_perimeter_px": 0.08862629246676514,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.4641898121774974,
+        "orientation_xor_px": {
+          "fliplr": 294,
+          "flipud": 5294,
+          "rot180": 5294,
+          "transpose": 6874,
+          "antitranspose": 6862,
+          "rot90": 6866,
+          "rot270": 6870
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid"
+        ],
+        "passed": false,
+        "paths": 6,
+        "subpaths": 9,
+        "commands": 147,
+        "svg_bytes": 1483,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ccb5720f97bdf8520a5a659110133a725406e29ec42bdb0edbc2d9a31b940b4b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.28,
+        "resvg_median_ms": 2.133,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.755,
+        "resvg_median_ms": 4.216,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.155,
+        "resvg_median_ms": 3.055,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 28082.0,
+        "area_dev_signed_per_perimeter_px": 0.08745670460168234,
+        "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          208,
+          27
+        ],
+        "xor_px": 3944,
+        "xor_pct_of_material": 14.789260536973151,
+        "xor_pct_of_canvas": 6.01806640625,
+        "xor_per_perimeter_px": 0.24393864423552697,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.46412606773205256,
+        "orientation_xor_px": {
+          "fliplr": 32084,
+          "flipud": 31246,
+          "rot180": 31790,
+          "transpose": 30990,
+          "antitranspose": 31774,
+          "rot90": 32136,
+          "rot270": 32012
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 209,
+        "subpaths": 222,
+        "commands": 2808,
+        "svg_bytes": 28649,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "6ea320fbbcc1f5cee97c65ecb864e40cc4d051646050c62ebcc35a7b7314b097",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 7.036,
+        "resvg_median_ms": 7.98,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.064,
+        "resvg_median_ms": 2.721,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 14467.0,
+        "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+        "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          30,
+          64
+        ],
+        "xor_px": 672,
+        "xor_pct_of_material": 4.6953605366126325,
+        "xor_pct_of_canvas": 1.025390625,
+        "xor_per_perimeter_px": 0.0994671403197158,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.08305428584884239,
+        "orientation_xor_px": {
+          "fliplr": 3248,
+          "flipud": 3628,
+          "rot180": 4100,
+          "transpose": 3584,
+          "antitranspose": 3708,
+          "rot90": 3586,
+          "rot270": 3890
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 30,
+        "subpaths": 94,
+        "commands": 1082,
+        "svg_bytes": 8342,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "75f059b158b0415751c20f60339c8e28a5eb61c755e2d72ffc1b1dc2233a5679",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.991,
+        "resvg_median_ms": 3.324,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 21953.5,
+        "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+        "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          55,
+          20
+        ],
+        "xor_px": 3616,
+        "xor_pct_of_material": 18.574070269159648,
+        "xor_pct_of_canvas": 5.517578125,
+        "xor_per_perimeter_px": 0.25649028230954746,
+        "boundary_max_distance_px": 1.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.07442435758417458,
+        "orientation_xor_px": {
+          "fliplr": 21212,
+          "flipud": 22794,
+          "rot180": 24362,
+          "transpose": 21006,
+          "antitranspose": 17224,
+          "rot90": 22764,
+          "rot270": 22824
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 55,
+        "subpaths": 75,
+        "commands": 2354,
+        "svg_bytes": 19367,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e137ab40ff9d223ef476636d75d62f9079bd590990f4bd85203e2abb98ecd328",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 6.154,
+        "resvg_median_ms": 6.864,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 4
+        }
+      }
+    },
+    "8": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.946,
+        "resvg_median_ms": 3.606,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3599.0,
+        "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+        "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          6,
+          3
+        ],
+        "xor_px": 240,
+        "xor_pct_of_material": 6.932409012131716,
+        "xor_pct_of_canvas": 0.3662109375,
+        "xor_per_perimeter_px": 0.08862629246676514,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.4641898121774974,
+        "orientation_xor_px": {
+          "fliplr": 294,
+          "flipud": 5294,
+          "rot180": 5294,
+          "transpose": 6874,
+          "antitranspose": 6862,
+          "rot90": 6866,
+          "rot270": 6870
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid"
+        ],
+        "passed": false,
+        "paths": 6,
+        "subpaths": 9,
+        "commands": 147,
+        "svg_bytes": 1483,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ccb5720f97bdf8520a5a659110133a725406e29ec42bdb0edbc2d9a31b940b4b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.296,
+        "resvg_median_ms": 2.214,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.862,
+        "resvg_median_ms": 4.129,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.285,
+        "resvg_median_ms": 2.985,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 24336.5,
+        "area_dev_signed_per_perimeter_px": -0.14420460168233548,
+        "area_dev_abs_per_perimeter_px": 0.14420460168233548,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          93,
+          26
+        ],
+        "xor_px": 7196,
+        "xor_pct_of_material": 26.98365081745913,
+        "xor_pct_of_canvas": 10.980224609375,
+        "xor_per_perimeter_px": 0.4450766947055913,
+        "boundary_max_distance_px": 3.7426406871192848,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 1.453931974876484,
+        "orientation_xor_px": {
+          "fliplr": 31408,
+          "flipud": 30534,
+          "rot180": 31130,
+          "transpose": 30404,
+          "antitranspose": 30804,
+          "rot90": 31470,
+          "rot270": 31214
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 93,
+        "subpaths": 106,
+        "commands": 2076,
+        "svg_bytes": 18405,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "bd64a097e5bb5dab845e24f516b7bc8be546571b6375015883f194e1a2c15cf8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 6.073,
+        "resvg_median_ms": 6.723,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.996,
+        "resvg_median_ms": 2.684,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 14467.0,
+        "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+        "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          30,
+          64
+        ],
+        "xor_px": 672,
+        "xor_pct_of_material": 4.6953605366126325,
+        "xor_pct_of_canvas": 1.025390625,
+        "xor_per_perimeter_px": 0.0994671403197158,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.08305428584884239,
+        "orientation_xor_px": {
+          "fliplr": 3248,
+          "flipud": 3628,
+          "rot180": 4100,
+          "transpose": 3584,
+          "antitranspose": 3708,
+          "rot90": 3586,
+          "rot270": 3890
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 30,
+        "subpaths": 94,
+        "commands": 1082,
+        "svg_bytes": 8342,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "75f059b158b0415751c20f60339c8e28a5eb61c755e2d72ffc1b1dc2233a5679",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.037,
+        "resvg_median_ms": 3.293,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 21829.5,
+        "area_dev_signed_per_perimeter_px": 0.1675060292240034,
+        "area_dev_abs_per_perimeter_px": 0.1675060292240034,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          52,
+          20
+        ],
+        "xor_px": 3707,
+        "xor_pct_of_material": 19.041504006574893,
+        "xor_pct_of_canvas": 5.65643310546875,
+        "xor_per_perimeter_px": 0.2629450985955455,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.2729571704130754,
+        "orientation_xor_px": {
+          "fliplr": 21223,
+          "flipud": 22813,
+          "rot180": 24377,
+          "transpose": 21027,
+          "antitranspose": 17305,
+          "rot90": 22781,
+          "rot270": 22841
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 52,
+        "subpaths": 72,
+        "commands": 2333,
+        "svg_bytes": 19094,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f189dc3bfc92159a4027b4ad489c66a87ca6c32d0c899bf59953ca05ee4c32ec",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 5.914,
+        "resvg_median_ms": 6.704,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 8
+        }
+      }
+    },
+    "16": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 22652.5,
+        "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+        "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          6,
+          2
+        ],
+        "xor_px": 509,
+        "xor_pct_of_material": 2.275572246065808,
+        "xor_pct_of_canvas": 0.77667236328125,
+        "xor_per_perimeter_px": 0.21641156462585034,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.06813915348063704,
+        "orientation_xor_px": {
+          "fliplr": 539,
+          "flipud": 4191,
+          "rot180": 4215,
+          "transpose": 3347,
+          "antitranspose": 3441,
+          "rot90": 3399,
+          "rot270": 3389
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 6,
+        "subpaths": 8,
+        "commands": 156,
+        "svg_bytes": 1606,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "443049e713d3749548e6eea8e53d678a5f244d741a2b203d81d76601d998c1a8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.598,
+        "resvg_median_ms": 3.488,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 3447.0,
+        "area_dev_signed_per_perimeter_px": -0.005539143279172821,
+        "area_dev_abs_per_perimeter_px": 0.005539143279172821,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          4,
+          3
+        ],
+        "xor_px": 364,
+        "xor_pct_of_material": 10.51415366839977,
+        "xor_pct_of_canvas": 0.555419921875,
+        "xor_per_perimeter_px": 0.1344165435745938,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 3.232164707425149,
+        "orientation_xor_px": {
+          "fliplr": 414,
+          "flipud": 5206,
+          "rot180": 5206,
+          "transpose": 6722,
+          "antitranspose": 6710,
+          "rot90": 6714,
+          "rot270": 6718
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 4,
+        "subpaths": 7,
+        "commands": 121,
+        "svg_bytes": 1222,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "ec01a938088624ebe57a8090a34ea0390c742563112fd4794f5551f043daf348",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.194,
+        "resvg_median_ms": 2.054,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.686,
+        "resvg_median_ms": 4.194,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 18379.5,
+        "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+        "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          24,
+          0
+        ],
+        "xor_px": 374,
+        "xor_pct_of_material": 2.0699579366836396,
+        "xor_pct_of_canvas": 0.7232363861386139,
+        "xor_per_perimeter_px": 0.12712440516655338,
+        "boundary_max_distance_px": 0.5,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.13470711976021887,
+        "orientation_xor_px": {
+          "fliplr": 13636,
+          "flipud": 18432,
+          "rot180": 17716
+        },
+        "checks": {
+          "area": true,
+          "topology": true,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [],
+        "passed": true,
+        "paths": 24,
+        "subpaths": 24,
+        "commands": 341,
+        "svg_bytes": 3695,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "fe0329a083363c9878ede3e628117879bf65d9e8d582420346b925fc5637faa4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.138,
+        "resvg_median_ms": 2.953,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 14329.0,
+        "area_dev_signed_per_perimeter_px": -0.7631741712023751,
+        "area_dev_abs_per_perimeter_px": 0.7631741712023751,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          21,
+          21
+        ],
+        "xor_px": 15184,
+        "xor_pct_of_material": 56.937153142342886,
+        "xor_pct_of_canvas": 23.1689453125,
+        "xor_per_perimeter_px": 0.9391390400791687,
+        "boundary_max_distance_px": 5.5,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          247
+        ],
+        "bounds_shift_px": 9,
+        "bbox_size_delta_px": 9,
+        "centroid_shift_px": 10.824438593629319,
+        "orientation_xor_px": {
+          "fliplr": 28680,
+          "flipud": 28960,
+          "rot180": 29044,
+          "transpose": 28012,
+          "antitranspose": 28452,
+          "rot90": 29190,
+          "rot270": 28976
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 21,
+        "subpaths": 34,
+        "commands": 1116,
+        "svg_bytes": 8780,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "c4f6b899daed0c371db1578d65ab6086f70fb14b1cb06fcf300c958935f0e236",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 4.519,
+        "resvg_median_ms": 4.858,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.949,
+        "resvg_median_ms": 2.636,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 11667.0,
+        "area_dev_signed_per_perimeter_px": -0.39150384843102426,
+        "area_dev_abs_per_perimeter_px": 0.39150384843102426,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          16,
+          50
+        ],
+        "xor_px": 3262,
+        "xor_pct_of_material": 22.792062604807153,
+        "xor_pct_of_canvas": 4.9774169921875,
+        "xor_per_perimeter_px": 0.48283007696862046,
+        "boundary_max_distance_px": 2.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 9.72802851474786,
+        "orientation_xor_px": {
+          "fliplr": 5660,
+          "flipud": 6124,
+          "rot180": 6458,
+          "transpose": 6174,
+          "antitranspose": 6054,
+          "rot90": 6100,
+          "rot270": 6290
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 16,
+        "subpaths": 66,
+        "commands": 858,
+        "svg_bytes": 6320,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "961768d09447ef7760bd414b96b5640d0e3d4fe0e530c30af171623796f4fb04",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.652,
+        "resvg_median_ms": 3.139,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 16058.5,
+        "area_dev_signed_per_perimeter_px": -0.24184281458362888,
+        "area_dev_abs_per_perimeter_px": 0.24184281458362888,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          13,
+          2
+        ],
+        "xor_px": 8247,
+        "xor_pct_of_material": 42.36182453256626,
+        "xor_pct_of_canvas": 12.58392333984375,
+        "xor_per_perimeter_px": 0.5849765924244573,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 5.547723422691648,
+        "orientation_xor_px": {
+          "fliplr": 21043,
+          "flipud": 22053,
+          "rot180": 23071,
+          "transpose": 20191,
+          "antitranspose": 18151,
+          "rot90": 21617,
+          "rot270": 21955
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "boundary",
+          "centroid",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 13,
+        "subpaths": 15,
+        "commands": 1666,
+        "svg_bytes": 13073,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e39d531a1c17b4600a5c65d9226774addf0994145a617cbdb9f6d5c42560f72b",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 5.077,
+        "resvg_median_ms": 5.812,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 16
+        }
+      }
+    },
+    "32": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 20606.5,
+        "area_dev_signed_per_perimeter_px": -0.748937074829932,
+        "area_dev_abs_per_perimeter_px": 0.748937074829932,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          2,
+          2
+        ],
+        "xor_px": 2457,
+        "xor_pct_of_material": 10.984442060085836,
+        "xor_pct_of_canvas": 3.74908447265625,
+        "xor_per_perimeter_px": 1.0446428571428572,
+        "boundary_max_distance_px": 12.029964086141668,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          28,
+          28,
+          228,
+          228
+        ],
+        "bounds_shift_px": 18,
+        "bbox_size_delta_px": 36,
+        "centroid_shift_px": 0.06517561407868709,
+        "orientation_xor_px": {
+          "fliplr": 2479,
+          "flipud": 6123,
+          "rot180": 6147,
+          "transpose": 5295,
+          "antitranspose": 5373,
+          "rot90": 5331,
+          "rot270": 5329
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 2,
+        "subpaths": 4,
+        "commands": 104,
+        "svg_bytes": 1066,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "6b3d67d9b3c8f2d4a302f7523840e6c4b6dfc3289b6c851d201c449921c0207f",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.513,
+        "resvg_median_ms": 3.239,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 2003.0,
+        "area_dev_signed_per_perimeter_px": -0.5387740029542097,
+        "area_dev_abs_per_perimeter_px": 0.5387740029542097,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          1,
+          1
+        ],
+        "xor_px": 1491,
+        "xor_pct_of_material": 43.067590987868286,
+        "xor_pct_of_canvas": 2.27508544921875,
+        "xor_per_perimeter_px": 0.5505908419497785,
+        "boundary_max_distance_px": 3.105551275463989,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": [
+          30,
+          55,
+          226,
+          210
+        ],
+        "bounds_shift_px": 30,
+        "bbox_size_delta_px": 30,
+        "centroid_shift_px": 15.359895119025,
+        "orientation_xor_px": {
+          "fliplr": 1495,
+          "flipud": 3915,
+          "rot180": 3915,
+          "transpose": 5365,
+          "antitranspose": 5359,
+          "rot90": 5355,
+          "rot270": 5369
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 2,
+        "commands": 27,
+        "svg_bytes": 424,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "1bfd08e177e996cdba4c01a261d38544b20612b580a75747d9a4bf14c54439db",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.99,
+        "resvg_median_ms": 1.52,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.781,
+        "resvg_median_ms": 4.131,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 4889.5,
+        "area_dev_signed_per_perimeter_px": -4.479435757987764,
+        "area_dev_abs_per_perimeter_px": 4.479435757987764,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          4,
+          0
+        ],
+        "xor_px": 13339,
+        "xor_pct_of_material": 73.82665485941997,
+        "xor_pct_of_canvas": 25.79478650990099,
+        "xor_per_perimeter_px": 4.533990482664854,
+        "boundary_max_distance_px": 15.624515496597098,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": [
+          12,
+          10,
+          254,
+          192
+        ],
+        "bounds_shift_px": 1,
+        "bbox_size_delta_px": 1,
+        "centroid_shift_px": 23.555434356722856,
+        "orientation_xor_px": {
+          "fliplr": 18497,
+          "flipud": 18403,
+          "rot180": 16197
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "centroid",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 4,
+        "subpaths": 4,
+        "commands": 66,
+        "svg_bytes": 835,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "279d94657c8f3537a8385996a6b4565dfadb0567534684781b6a8589fc85ea81",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.598,
+        "resvg_median_ms": 1.923,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 5691.5,
+        "area_dev_signed_per_perimeter_px": -1.2974084611578427,
+        "area_dev_abs_per_perimeter_px": 1.2974084611578427,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          3,
+          9
+        ],
+        "xor_px": 22064,
+        "xor_pct_of_material": 82.73586320683965,
+        "xor_pct_of_canvas": 33.6669921875,
+        "xor_per_perimeter_px": 1.3646709549727858,
+        "boundary_max_distance_px": 5.824555320336759,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          109,
+          202,
+          226
+        ],
+        "bounds_shift_px": 109,
+        "bbox_size_delta_px": 139,
+        "centroid_shift_px": 39.21893184940544,
+        "orientation_xor_px": {
+          "fliplr": 26804,
+          "flipud": 27946,
+          "rot180": 27756,
+          "transpose": 27696,
+          "antitranspose": 27360,
+          "rot90": 27284,
+          "rot270": 27722
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 3,
+        "subpaths": 10,
+        "commands": 431,
+        "svg_bytes": 3407,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "69036202fd4eff93efdc68a05b6f6c28a0fb97eb02abe6dcd77c5e7efc17fac8",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 4.233,
+        "resvg_median_ms": 3.233,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.237,
+        "resvg_median_ms": 3.01,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 5283.0,
+        "area_dev_signed_per_perimeter_px": -1.3364416814683244,
+        "area_dev_abs_per_perimeter_px": 1.3364416814683244,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          4,
+          22
+        ],
+        "xor_px": 9284,
+        "xor_pct_of_material": 64.86864169927334,
+        "xor_pct_of_canvas": 14.166259765625,
+        "xor_per_perimeter_px": 1.374185908821788,
+        "boundary_max_distance_px": 2.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": [
+          15,
+          15,
+          212,
+          242
+        ],
+        "bounds_shift_px": 30,
+        "bbox_size_delta_px": 30,
+        "centroid_shift_px": 33.562136147731835,
+        "orientation_xor_px": {
+          "fliplr": 10450,
+          "flipud": 10592,
+          "rot180": 10822,
+          "transpose": 10636,
+          "antitranspose": 10626,
+          "rot90": 10568,
+          "rot270": 10652
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 4,
+        "subpaths": 26,
+        "commands": 380,
+        "svg_bytes": 2797,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2b91c6ffa2e50d5d53054afe06bafc77d3ec76603d7e8229667f470cd998473",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.389,
+        "resvg_median_ms": 3.076,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 11143.0,
+        "area_dev_signed_per_perimeter_px": -0.5905092920981699,
+        "area_dev_abs_per_perimeter_px": 0.5905092920981699,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          5,
+          0
+        ],
+        "xor_px": 11731,
+        "xor_pct_of_material": 60.25785905074995,
+        "xor_pct_of_canvas": 17.90008544921875,
+        "xor_per_perimeter_px": 0.8321038445169527,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 18.109631462075953,
+        "orientation_xor_px": {
+          "fliplr": 20131,
+          "flipud": 21921,
+          "rot180": 22017,
+          "transpose": 19787,
+          "antitranspose": 18319,
+          "rot90": 21043,
+          "rot270": 21337
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "centroid",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 5,
+        "subpaths": 5,
+        "commands": 1143,
+        "svg_bytes": 9180,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "e5faae2b169ee926c5d6129594dcba294d7831b8f54686f43466f33a73275049",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 4.803,
+        "resvg_median_ms": 5.341,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 32
+        }
+      }
+    },
+    "64": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 20606.5,
+        "area_dev_signed_per_perimeter_px": -0.748937074829932,
+        "area_dev_abs_per_perimeter_px": 0.748937074829932,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          2,
+          2
+        ],
+        "xor_px": 2457,
+        "xor_pct_of_material": 10.984442060085836,
+        "xor_pct_of_canvas": 3.74908447265625,
+        "xor_per_perimeter_px": 1.0446428571428572,
+        "boundary_max_distance_px": 12.029964086141668,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": [
+          28,
+          28,
+          228,
+          228
+        ],
+        "bounds_shift_px": 18,
+        "bbox_size_delta_px": 36,
+        "centroid_shift_px": 0.06517561407868709,
+        "orientation_xor_px": {
+          "fliplr": 2479,
+          "flipud": 6123,
+          "rot180": 6147,
+          "transpose": 5295,
+          "antitranspose": 5373,
+          "rot90": 5331,
+          "rot270": 5329
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": true,
+          "orientation": true
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 2,
+        "subpaths": 4,
+        "commands": 104,
+        "svg_bytes": 1066,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "6b3d67d9b3c8f2d4a302f7523840e6c4b6dfc3289b6c851d201c449921c0207f",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.713,
+        "resvg_median_ms": 3.642,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.2784342688330872,
+        "area_dev_abs_per_perimeter_px": 1.2784342688330872,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 3462,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 5.2825927734375,
+        "xor_per_perimeter_px": 1.2784342688330872,
+        "boundary_max_distance_px": 3.105551275463989,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 3462,
+          "flipud": 3462,
+          "rot180": 3462,
+          "transpose": 3462,
+          "antitranspose": 3462,
+          "rot90": 3462,
+          "rot270": 3462
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.682,
+        "resvg_median_ms": 1.329,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 12817.0,
+        "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+        "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          5,
+          53
+        ],
+        "xor_px": 2807,
+        "xor_pct_of_material": 20.38489469862019,
+        "xor_pct_of_canvas": 4.28314208984375,
+        "xor_per_perimeter_px": 0.28316352264702915,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 2.262400349052011,
+        "orientation_xor_px": {
+          "fliplr": 20227,
+          "flipud": 20525,
+          "rot180": 20357,
+          "transpose": 21245,
+          "antitranspose": 21335,
+          "rot90": 20789,
+          "rot270": 20781
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 54,
+        "commands": 703,
+        "svg_bytes": 5518,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "f2a263f974b67fc5a8a3279c093227671c24e77cdbd585f40dcabe7c07e4abb9",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 4.047,
+        "resvg_median_ms": 4.365,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -6.141400407885792,
+        "area_dev_abs_per_perimeter_px": 6.141400407885792,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 18068,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 34.93966584158416,
+        "xor_per_perimeter_px": 6.141400407885792,
+        "boundary_max_distance_px": 20.115528128088304,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 18068,
+          "flipud": 18068,
+          "rot180": 18068
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "ff8ef9c8db5181def1224c9ff55eef6e50429f1e5a96f0a5a4e87f10f5f924f4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.489,
+        "resvg_median_ms": 1.072,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.6494309747649678,
+        "area_dev_abs_per_perimeter_px": 1.6494309747649678,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 26668,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 40.692138671875,
+        "xor_per_perimeter_px": 1.6494309747649678,
+        "boundary_max_distance_px": 5.9031242374328485,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 26668,
+          "flipud": 26668,
+          "rot180": 26668,
+          "transpose": 26668,
+          "antitranspose": 26668,
+          "rot90": 26668,
+          "rot270": 26668
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.157,
+        "resvg_median_ms": 1.294,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.044,
+        "resvg_median_ms": 2.844,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -2.118413262285376,
+        "area_dev_abs_per_perimeter_px": 2.118413262285376,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 14312,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 21.83837890625,
+        "xor_per_perimeter_px": 2.118413262285376,
+        "boundary_max_distance_px": 2.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 14312,
+          "flipud": 14312,
+          "rot180": 14312,
+          "transpose": 14312,
+          "antitranspose": 14312,
+          "rot90": 14312,
+          "rot270": 14312
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.506,
+        "resvg_median_ms": 1.389,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.3809050929209816,
+        "area_dev_abs_per_perimeter_px": 1.3809050929209816,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 19468,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 29.705810546875,
+        "xor_per_perimeter_px": 1.3809050929209816,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 19468,
+          "flipud": 19468,
+          "rot180": 19468,
+          "transpose": 19468,
+          "antitranspose": 19468,
+          "rot90": 19468,
+          "rot270": 19468
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.666,
+        "resvg_median_ms": 1.278,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 64
+        }
+      }
+    },
+    "128": {
+      "badge": {
+        "mask_area_px": 22368,
+        "perimeter_px": 2352,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -9.510204081632653,
+        "area_dev_abs_per_perimeter_px": 9.510204081632653,
+        "topology_mask": [
+          6,
+          2
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 22368,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 34.130859375,
+        "xor_per_perimeter_px": 9.510204081632653,
+        "boundary_max_distance_px": 15.056349186104045,
+        "bounds_mask": [
+          10,
+          10,
+          246,
+          246
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 22368,
+          "flipud": 22368,
+          "rot180": 22368,
+          "transpose": 22368,
+          "antitranspose": 22368,
+          "rot90": 22368,
+          "rot270": 22368
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.81,
+        "resvg_median_ms": 1.355,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "bracket": {
+        "mask_area_px": 3462,
+        "perimeter_px": 2708,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.2784342688330872,
+        "area_dev_abs_per_perimeter_px": 1.2784342688330872,
+        "topology_mask": [
+          6,
+          3
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 3462,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 5.2825927734375,
+        "xor_per_perimeter_px": 1.2784342688330872,
+        "boundary_max_distance_px": 3.105551275463989,
+        "bounds_mask": [
+          30,
+          25,
+          226,
+          210
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 3462,
+          "flipud": 3462,
+          "rot180": 3462,
+          "transpose": 3462,
+          "antitranspose": 3462,
+          "rot90": 3462,
+          "rot270": 3462
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.46,
+        "resvg_median_ms": 1.355,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "brick": {
+        "mask_area_px": 13770,
+        "perimeter_px": 9913,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.389085039846666,
+        "area_dev_abs_per_perimeter_px": 1.389085039846666,
+        "topology_mask": [
+          1,
+          53
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 13770,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 21.0113525390625,
+        "xor_per_perimeter_px": 1.389085039846666,
+        "boundary_max_distance_px": 3.105551275463989,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 13770,
+          "flipud": 13770,
+          "rot180": 13770,
+          "transpose": 13770,
+          "antitranspose": 13770,
+          "rot90": 13770,
+          "rot270": 13770
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.092,
+        "resvg_median_ms": 1.29,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "coins": {
+        "mask_area_px": 18068,
+        "perimeter_px": 2942,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -6.141400407885792,
+        "area_dev_abs_per_perimeter_px": 6.141400407885792,
+        "topology_mask": [
+          24,
+          0
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 18068,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 34.93966584158416,
+        "xor_per_perimeter_px": 6.141400407885792,
+        "boundary_max_distance_px": 20.115528128088304,
+        "bounds_mask": [
+          12,
+          10,
+          255,
+          193
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 18068,
+          "flipud": 18068,
+          "rot180": 18068
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          202
+        ],
+        "svg_sha256": "ff8ef9c8db5181def1224c9ff55eef6e50429f1e5a96f0a5a4e87f10f5f924f4",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.496,
+        "resvg_median_ms": 1.157,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "gravel": {
+        "mask_area_px": 26668,
+        "perimeter_px": 16168,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.6494309747649678,
+        "area_dev_abs_per_perimeter_px": 1.6494309747649678,
+        "topology_mask": [
+          225,
+          13
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 26668,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 40.692138671875,
+        "xor_per_perimeter_px": 1.6494309747649678,
+        "boundary_max_distance_px": 5.9031242374328485,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 26668,
+          "flipud": 26668,
+          "rot180": 26668,
+          "transpose": 26668,
+          "antitranspose": 26668,
+          "rot90": 26668,
+          "rot270": 26668
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 3.012,
+        "resvg_median_ms": 1.378,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "horse": {
+        "mask_area_px": 17779,
+        "perimeter_px": 1694,
+        "polygon_area_px": 18374.5,
+        "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+        "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+        "topology_mask": [
+          1,
+          0
+        ],
+        "topology_render": [
+          1,
+          2
+        ],
+        "xor_px": 603,
+        "xor_pct_of_material": 3.391641824624557,
+        "xor_pct_of_canvas": 1.1216517857142858,
+        "xor_per_perimeter_px": 0.35596221959858326,
+        "boundary_max_distance_px": 0.9142135623730951,
+        "bounds_mask": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_render": [
+          11,
+          6,
+          249,
+          200
+        ],
+        "bounds_shift_px": 0,
+        "bbox_size_delta_px": 0,
+        "centroid_shift_px": 0.8509753644078816,
+        "orientation_xor_px": {
+          "fliplr": 18473,
+          "flipud": 16815,
+          "rot180": 20751
+        },
+        "checks": {
+          "area": true,
+          "topology": false,
+          "xor": true,
+          "boundary": true,
+          "bounds": true,
+          "scale": true,
+          "centroid": false,
+          "orientation": true
+        },
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "passed": false,
+        "paths": 1,
+        "subpaths": 1,
+        "commands": 132,
+        "svg_bytes": 1406,
+        "svg_canvas": [
+          256,
+          210
+        ],
+        "svg_sha256": "9e421c8b3d3d6600bb5987d3e021efd2bab3df338cc1ecffcaa005da2a5ad537",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.166,
+        "resvg_median_ms": 2.809,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "pcb": {
+        "mask_area_px": 14312,
+        "perimeter_px": 6756,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -2.118413262285376,
+        "area_dev_abs_per_perimeter_px": 2.118413262285376,
+        "topology_mask": [
+          30,
+          64
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 14312,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 21.83837890625,
+        "xor_per_perimeter_px": 2.118413262285376,
+        "boundary_max_distance_px": 2.5,
+        "bounds_mask": [
+          15,
+          15,
+          242,
+          242
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 14312,
+          "flipud": 14312,
+          "rot180": 14312,
+          "transpose": 14312,
+          "antitranspose": 14312,
+          "rot90": 14312,
+          "rot270": 14312
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 1.543,
+        "resvg_median_ms": 1.272,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      },
+      "truchet": {
+        "mask_area_px": 19468,
+        "perimeter_px": 14098,
+        "polygon_area_px": 0.0,
+        "area_dev_signed_per_perimeter_px": -1.3809050929209816,
+        "area_dev_abs_per_perimeter_px": 1.3809050929209816,
+        "topology_mask": [
+          55,
+          20
+        ],
+        "topology_render": [
+          0,
+          0
+        ],
+        "xor_px": 19468,
+        "xor_pct_of_material": 100.0,
+        "xor_pct_of_canvas": 29.705810546875,
+        "xor_per_perimeter_px": 1.3809050929209816,
+        "boundary_max_distance_px": 1.7360679774997898,
+        "bounds_mask": [
+          0,
+          0,
+          256,
+          256
+        ],
+        "bounds_render": null,
+        "orientation_xor_px": {
+          "fliplr": 19468,
+          "flipud": 19468,
+          "rot180": 19468,
+          "transpose": 19468,
+          "antitranspose": 19468,
+          "rot90": 19468,
+          "rot270": 19468
+        },
+        "checks": {
+          "area": false,
+          "topology": false,
+          "xor": false,
+          "boundary": false,
+          "bounds": false,
+          "scale": false,
+          "centroid": false,
+          "orientation": false
+        },
+        "failures": [
+          "area",
+          "boundary",
+          "bounds",
+          "centroid",
+          "orientation",
+          "scale",
+          "topology",
+          "xor"
+        ],
+        "passed": false,
+        "paths": 0,
+        "subpaths": 0,
+        "commands": 0,
+        "svg_bytes": 174,
+        "svg_canvas": [
+          256,
+          256
+        ],
+        "svg_sha256": "fe4b449eb77bb82ce7f91ae7a92a00a6c1d6ce1f07dd0997ec1bd5f838cc763a",
+        "trace_repeatable": true,
+        "render_repeatable": true,
+        "adapter_median_ms": 2.618,
+        "resvg_median_ms": 1.317,
+        "upstream_args": {
+          "img_format": "png",
+          "colormode": "binary",
+          "hierarchical": "stacked",
+          "color_precision": 6,
+          "layer_difference": 16,
+          "corner_threshold": 60,
+          "length_threshold": 4.0,
+          "max_iterations": 10,
+          "splice_threshold": 45,
+          "path_precision": 8,
+          "mode": "polygon",
+          "filter_speckle": 128
+        }
+      }
+    }
+  },
+  "openscad": {
+    "badge": {
+      "filter_speckle": 4,
+      "triangles": 576,
+      "volume_mm3": 3171.544391728901,
+      "expected_mm3": 3171.5466362847224,
+      "volume_rel_error": 7.077164799921111e-07,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.111,
+      "stl_sha256": "744910ed652038227fb961113a472794f2746b02510689fb9dd100a3c7cad7d0",
+      "log_tail": [
+        "Total rendering time: 0:00:00.003",
+        "   Top level object is a 3D object:",
+        "   Facets:        576"
+      ]
+    },
+    "bracket": {
+      "filter_speckle": 4,
+      "triangles": 536,
+      "volume_mm3": 503.8836168909984,
+      "expected_mm3": 503.8912413194445,
+      "volume_rel_error": 1.51310993739999e-05,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.11,
+      "stl_sha256": "81ef5a85f423ec2763bf9e0b24f0cc23a73a19158cb2f990d4049138b67d2d8f",
+      "log_tail": [
+        "Total rendering time: 0:00:00.003",
+        "   Top level object is a 3D object:",
+        "   Facets:        536"
+      ]
+    },
+    "brick": {
+      "filter_speckle": 4,
+      "triangles": 2804,
+      "volume_mm3": 1794.490383121815,
+      "expected_mm3": 1794.4912586805558,
+      "volume_rel_error": 4.879147426935589e-07,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.131,
+      "stl_sha256": "60ed1724ac857f60db98421eae6c3c5188781d5b0d159cbe7597ad2ab1f302b4",
+      "log_tail": [
+        "Total rendering time: 0:00:00.006",
+        "   Top level object is a 3D object:",
+        "   Facets:       2804"
+      ]
+    },
+    "coins": {
+      "filter_speckle": 4,
+      "triangles": 1172,
+      "volume_mm3": 2573.2948200525993,
+      "expected_mm3": 2573.2895442708336,
+      "volume_rel_error": 2.0502091486167416e-06,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.116,
+      "stl_sha256": "16b6ca093d0882dcf4718fee32256fd972a7a9cbaf2d74f6490b936052c7ec0c",
+      "log_tail": [
+        "Total rendering time: 0:00:00.004",
+        "   Top level object is a 3D object:",
+        "   Facets:       1172"
+      ]
+    },
+    "gravel": {
+      "filter_speckle": 4,
+      "triangles": 9472,
+      "volume_mm3": 3931.7230123437184,
+      "expected_mm3": 3931.7237673611116,
+      "volume_rel_error": 1.9203215634599696e-07,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.199,
+      "stl_sha256": "1ce85c8be58d487194d6c6e4ce0add068df19a893f0ced3f78d94edf4cd0f457",
+      "log_tail": [
+        "Total rendering time: 0:00:00.019",
+        "   Top level object is a 3D object:",
+        "   Facets:       9472"
+      ]
+    },
+    "horse": {
+      "filter_speckle": 4,
+      "triangles": 520,
+      "volume_mm3": 2572.5897724926,
+      "expected_mm3": 2572.589500868056,
+      "volume_rel_error": 1.0558409878162216e-07,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.108,
+      "stl_sha256": "df56e07d40fb072807f8dec850acb12c6b6b99ebf3ebc390435a08557b3eb01e",
+      "log_tail": [
+        "Total rendering time: 0:00:00.002",
+        "   Top level object is a 3D object:",
+        "   Facets:        520"
+      ]
+    },
+    "pcb": {
+      "filter_speckle": 4,
+      "triangles": 4088,
+      "volume_mm3": 2025.541230250602,
+      "expected_mm3": 2025.5055815972225,
+      "volume_rel_error": 1.759987911330693e-05,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.144,
+      "stl_sha256": "e6f5229081ea5af77dd6af31c9f7aac7a39e6e1ab7e0a3e8cdb4a75e7f85dc02",
+      "log_tail": [
+        "Total rendering time: 0:00:00.008",
+        "   Top level object is a 3D object:",
+        "   Facets:       4088"
+      ]
+    },
+    "truchet": {
+      "filter_speckle": 4,
+      "triangles": 8844,
+      "volume_mm3": 3073.6772357397786,
+      "expected_mm3": 3073.6805685763893,
+      "volume_rel_error": 1.08431456567922e-06,
+      "volume_ok": true,
+      "z_bounds_mm": [
+        0.0,
+        2.0
+      ],
+      "z_ok": true,
+      "seconds": 0.191,
+      "stl_sha256": "34a878b536fb6d41edfde919d12462f17d926feab238e7e80382dedf74f5de79",
+      "log_tail": [
+        "Total rendering time: 0:00:00.015",
+        "   Top level object is a 3D object:",
+        "   Facets:       8844"
+      ]
+    }
+  }
+}
