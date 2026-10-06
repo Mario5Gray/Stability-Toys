@@ -6,6 +6,7 @@ Render tests skip until S2.7 installs resvg-py in package environments.
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from PIL import Image
 
 from tests.fixtures.vector_map.corpus import make_corpus, metrics
 
+ROOT = Path(__file__).resolve().parents[1]
 CORPUS = Path(make_corpus.__file__).parent
 CASES = sorted(make_corpus.CASES)
 
@@ -404,3 +406,81 @@ def test_resvg_version_matches_the_locked_renderer():
     from importlib.metadata import version
 
     assert version("resvg-py") == metrics.RENDER["version"]
+
+
+# --- Phase two: selected default and per-case regression ------------------------
+# Selection from the sweep in sweep-results.json (931b49f). These pin each case at the
+# selected default, so an upstream, adapter or metric change shows up per case.
+
+SWEEP = CORPUS / "sweep-results.json"
+SELECTED_DEFAULT = 4
+# Cases that fail at every grid value. Root cause: mask features 2 px wide or less.
+FAILING_AT_EVERY_VALUE = {
+    "bracket": ["centroid"],
+    "brick": ["centroid", "topology"],
+    "gravel": ["boundary", "topology"],
+    "horse": ["centroid", "topology"],
+}
+
+needs_vtracer = pytest.mark.skipif(
+    importlib.util.find_spec("vtracer") is None, reason="vtracer==0.6.15 is not installed. Install the vector extra."
+)
+
+
+def sweep():
+    return json.loads(SWEEP.read_text())
+
+
+def test_sweep_was_measured_with_the_locked_metrics():
+    import hashlib
+
+    data = sweep()
+    assert data["phase_one_commit"] == "b95c718"
+    assert data["metrics_sha256"] == hashlib.sha256((CORPUS / "metrics.py").read_bytes()).hexdigest()
+    assert data["grid"] == list(metrics.SPECKLE_GRID)
+    assert data["tolerances"] == metrics.TOLERANCES
+    assert data["environment"]["vtracer"] == "0.6.15"
+    assert data["environment"]["resvg-py"] == metrics.RENDER["version"]
+
+
+def test_locked_rule_on_recorded_results_selects_the_adapter_default():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import vector_map_vtracer as adapter
+
+    rows = {
+        int(value): {
+            case: {key: row.get(key, float("inf")) for key in ("xor_per_perimeter_px", "commands")} | {"passed": row["passed"]}
+            for case, row in cases.items()
+        }
+        for value, cases in sweep()["results"].items()
+    }
+    assert metrics.select_default(rows)[0] == SELECTED_DEFAULT
+    assert sweep()["selection"]["default"] == SELECTED_DEFAULT
+    assert adapter.DEFAULT_OPTIONS == {"mode": "polygon", "filter_speckle": SELECTED_DEFAULT}
+
+
+def test_recorded_failures_match_the_pinned_cases():
+    data = sweep()
+    assert data["selection"]["overrides"] == {}
+    assert sorted(data["selection"]["failing_every_value"]) == sorted(FAILING_AT_EVERY_VALUE)
+    for case, failures in FAILING_AT_EVERY_VALUE.items():
+        assert data["results"][str(SELECTED_DEFAULT)][case]["failures"] == failures
+
+
+@needs_vtracer
+@needs_resvg
+@pytest.mark.parametrize("case", CASES)
+def test_case_result_at_the_selected_default(case):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import vector_map_vtracer as adapter
+
+    material = load(case, "mask") == 255
+    trace = adapter.trace_layer(material)
+    assert trace.upstream_args["filter_speckle"] == SELECTED_DEFAULT
+    height, width = material.shape
+    assert metrics.svg_canvas(trace.svg) == (width, height)
+    result = metrics.evaluate(material, metrics.render(trace.svg, width, height), metrics.polygon_area(trace.svg))
+    assert result["failures"] == FAILING_AT_EVERY_VALUE.get(case, []), result
+    recorded = sweep()["results"][str(SELECTED_DEFAULT)][case]
+    assert result["xor_px"] == recorded["xor_px"]
+    assert metrics.svg_complexity(trace.svg)["commands"] == recorded["commands"]
