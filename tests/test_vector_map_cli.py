@@ -647,3 +647,91 @@ def test_invalid_recipe_exits_2_with_json(tmp_path):
     payload = one_result(result)
     assert payload["status"] == "invalid"
     assert "corner_threshold" in payload["diagnostics"][0]["message"]
+
+
+# --- Review fixes (e5d6d32 review) -------------------------------------------
+
+
+def _alias(kind, target, link):
+    if kind == "direct":
+        return target
+    if kind == "symlink":
+        link.symlink_to(target)
+    else:
+        import os
+
+        os.link(target, link)
+    return link
+
+
+@pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
+def test_destination_aliasing_the_source_is_refused_even_with_overwrite(tmp_path, kind):
+    source = tmp_path / "mask.png"
+    source.write_bytes((FIXTURES / "donut.png").read_bytes())
+    before = source.read_bytes()
+    destination = _alias(kind, source, tmp_path / "out.svg")
+    result = run_cli(source, destination, "--input-kind", "mask", "--width-mm", 10, "--overwrite", "--json")
+    assert result.returncode == 2, result.stderr
+    payload = one_result(result)
+    assert payload["status"] == "invalid"
+    assert "source" in payload["diagnostics"][0]["message"]
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
+def test_destination_aliasing_the_recipe_is_refused_even_with_overwrite(tmp_path, kind):
+    recipe = write_recipe(tmp_path, {"schema_version": 1, "input_kind": "mask", "width_mm": 10})
+    before = recipe.read_bytes()
+    destination = _alias(kind, recipe, tmp_path / "out.svg")
+    result = run_cli(FIXTURES / "donut.png", destination, "--recipe", recipe, "--overwrite", "--json")
+    assert result.returncode == 2, result.stderr
+    payload = one_result(result)
+    assert payload["status"] == "invalid"
+    assert "recipe" in payload["diagnostics"][0]["message"]
+    assert recipe.read_bytes() == before
+
+
+def test_recipe_with_invalid_utf8_is_a_configuration_error(tmp_path):
+    path = tmp_path / "recipe.json"
+    path.write_bytes(b'{"schema_version": 1, "input": "\xff.png"}')
+    with pytest.raises(config.ConfigError, match="UTF-8"):
+        config.load_recipe(path)
+
+
+def test_recipe_with_invalid_utf8_exits_2_with_json(tmp_path):
+    path = tmp_path / "recipe.json"
+    path.write_bytes(b'{"schema_version": 1, "input": "\xff.png"}')
+    result = run_cli(FIXTURES / "donut.png", tmp_path / "o.svg", "--recipe", path, "--json")
+    assert result.returncode == 2
+    assert one_result(result)["status"] == "invalid"
+
+
+MALFORMED_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><path d="M0,0 Z"'
+
+
+@pytest.mark.parametrize("where", ["upstream", "adapter"])
+def test_malformed_svg_is_a_processing_failure_with_one_result(tmp_path, monkeypatch, capsys, where):
+    """upstream: VTracer output breaks the adapter check. adapter: the facade's own parse breaks."""
+    pytest.importorskip("vtracer")
+    import vector_map
+    import vector_map_vtracer
+    import vtracer
+
+    if where == "upstream":
+        monkeypatch.setattr(vtracer, "convert_raw_image_to_svg", lambda *_a, **_k: MALFORMED_SVG)
+    else:
+        monkeypatch.setattr(
+            vector_map.adapter,
+            "trace_layer",
+            lambda *_a, **_k: vector_map_vtracer.TraceResult(MALFORMED_SVG, {}, "0.6.15"),
+        )
+    out = tmp_path / "o.svg"
+    code = vector_map.main([str(FIXTURES / "donut.png"), str(out), "--input-kind", "mask", "--width-mm", "10", "--json"])
+    captured = capsys.readouterr()
+    assert code == 1
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["status"] == "failed"
+    assert "malformed SVG" in payload["diagnostics"][0]["message"]
+    assert not out.exists()

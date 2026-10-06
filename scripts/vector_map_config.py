@@ -153,6 +153,8 @@ def load_recipe(path):
         text = path.read_text()
     except OSError as exc:
         raise ConfigError(f"Cannot read recipe {path}: {exc.strerror or exc}.") from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"Recipe {path} is not valid UTF-8: {exc}.") from exc
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:

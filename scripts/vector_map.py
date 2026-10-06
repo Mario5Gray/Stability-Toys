@@ -11,7 +11,9 @@ Progress and diagnostics go to stderr. --json prints one result object on stdout
 
 import argparse
 import json
+import os
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import vector_map_config as config
@@ -89,6 +91,7 @@ def _convert(args):
     destination, settings = _settings(args)
     if args.preview:
         raise config.deferred("--preview", config.S27)
+    _refuse_aliases(destination, (("source", settings.input), ("recipe", args.recipe), ("mask", settings.mask)))
     if destination.exists() and not args.overwrite:
         raise config.ConfigError(f"{destination} exists. Use --overwrite to replace it.")
 
@@ -100,13 +103,32 @@ def _convert(args):
         f"tracing  {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm"
         f" (vtracer {dict(settings.vtracer)})"
     )
-    traced = adapter.trace_layer(material, settings.vtracer)
-    paths = svg_io.count_paths(traced.svg)
+    try:
+        traced = adapter.trace_layer(material, settings.vtracer)
+        paths = svg_io.count_paths(traced.svg)
+        sized = svg_io.size_svg(traced.svg, canvas)
+    except ET.ParseError as exc:
+        raise ValueError(f"VTracer returned malformed SVG: {exc}.") from exc
     if paths == 0:
         raise ValueError("The traced mask is empty: VTracer found no material paths.")
-    _publish(destination, svg_io.size_svg(traced.svg, canvas))
+    _publish(destination, sized)
     _progress(f"saved    {destination} (paths: {paths})")
     return destination, paths
+
+
+def _refuse_aliases(destination, inputs):
+    """--overwrite must never replace an input. samefile follows symlinks and matches hard links."""
+    for label, path in inputs:
+        if path is None:
+            continue
+        try:
+            same = os.path.samefile(destination, path)
+        except OSError:
+            continue  # One of the two files does not exist, so no input can be replaced.
+        if same:
+            raise config.ConfigError(
+                f"Destination {destination} is the same file as the {label} {path}. Choose another destination."
+            )
 
 
 def _settings(args):
