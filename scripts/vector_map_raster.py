@@ -41,6 +41,11 @@ def _decode(path, *, alpha=False, invert=False, constraint=False):
         with Image.open(path) as source:
             if source.format not in ("PNG", "JPEG"):
                 raise ConfigError(f"{path}: expected PNG or JPEG, got {source.format}.")
+            if source.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
+                raise ConfigError(
+                    f"Unsupported pixel mode {source.mode!r} in {path}. "
+                    "Convert to 8-bit L/RGB, or RGBA PNG to keep alpha."
+                )
             original_size = source.size
             image = ImageOps.exif_transpose(source)
             try:

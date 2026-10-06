@@ -16,7 +16,7 @@ Implementation stops ready for review. Do not finish issue, push branch, or star
 | 1. Raster contract RED | Complete | 61 failed, 4 passed. `/tmp/vjpnctjh-raster-red.log` |
 | 2. Configuration and raster GREEN | Complete | 65 passed. `/tmp/vjpnctjh-raster-green.log` |
 | 3. CLI RED/GREEN | Complete | RED: 14 failed, 3 passed. GREEN: 279 passed. `/tmp/vjpnctjh-focused.log` |
-| 4. Mutations and full verification | Complete | Eight mutations caught. Final vector suite: 396 passed. Full results below. |
+| 4. Mutations and verification | Complete | Current vector suite: 410 passed. Initial mutations and full results below. |
 | 5. Commit and review handoff | Ready for review | Commit containing this plan. FP owns independent review state. |
 
 ## Files and interfaces
@@ -59,7 +59,8 @@ def feature_diagnostics(material) -> tuple[dict, ...]:
 ```
 
 Ellipses above denote interface signatures, not implementation steps.
-Retain `prepare_mask(path, *, invert)` compatibility for existing raster callers. It delegates decoding and returns boolean pixels.
+Retain `prepare_mask(path, *, invert)` for existing regression tests. No production callers remain.
+It delegates decoding and returns boolean pixels.
 Warnings from compatibility wrapper use Python warnings. CLI uses structured preparation diagnostics.
 
 ## 1. Raster RED
@@ -186,7 +187,7 @@ Assign commit through `fp issue assign STABL-vjpnctjh --rev <sha>`.
 Post one final STOP/NEXT comment with focused, full, mutation, and drift evidence.
 Keep issue in progress. Report ready for independent review.
 
-## Final verification record
+## Initial verification record at 32d896e
 
 - Baseline CLI, packaging, adapter: 194 passed.
 - Raster RED: 61 failed, four passed. Initial GREEN: 65 passed.
@@ -213,3 +214,16 @@ Regression RED: one failed, one passed. Exact-arithmetic sweep also failed befor
 Subtract `1e-9` before radius ceiling. This suppresses floating-point noise at odd boundaries.
 Raster GREEN: 80 passed, including 16,800 exact-arithmetic comparisons and genuine above-boundary expansion.
 NEXT: reject unsupported sample modes with explicit conversion instruction, then rerun vector suite.
+
+## Review repair: unsupported pixel modes
+
+Reject decoded modes outside `1`, `L`, `LA`, `P`, `RGB`, and `RGBA` before luminance conversion.
+Return exit 2 with explicit 8-bit conversion instruction. RGBA PNG instruction preserves optional alpha.
+RED: five failures for 16-bit source, both constraints, raster decoding, and CMYK. Six supported-mode controls passed.
+GREEN: complete vector suite now passes 410 tests, including topology, corpus, packaging, and CLI failures.
+Input bytes remain unchanged. Rejected inputs produce one invalid JSON result and no SVG.
+`git diff --check` and `drift check` passed.
+Full split suite and containers not rerun for these bounded fixes. Initial full-suite evidence above remains historical.
+Logs: `/tmp/vjpnctjh-rounding-red.log`, `/tmp/vjpnctjh-sweep-red.log`, `/tmp/vjpnctjh-modes-red.log`, and `/tmp/vjpnctjh-review-green.log`.
+MPO support remains unverified. Compatibility wrapper remains, with test-only ownership clarified.
+NEXT: independent re-review of both fix commits. Keep issue in progress and branch local.

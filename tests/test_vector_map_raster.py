@@ -95,6 +95,31 @@ def test_jpeg_accepted_but_gif_rejected_by_decoded_format(tmp_path):
         prepare(gif)
 
 
+def test_16_bit_png_rejected_before_luminance_clipping(tmp_path):
+    path = tmp_path / "sixteen.png"
+    Image.fromarray(np.array([[0, 200, 32768, 65535]], dtype=np.uint16)).save(path)
+    with Image.open(path) as image:
+        assert image.mode == "I;16"
+        assert image.getpixel((1, 0)) == 200
+    with pytest.raises(config.ConfigError, match="Unsupported pixel mode.*Convert.*8-bit"):
+        prepare(path)
+
+
+@pytest.mark.parametrize("mode", ["1", "L", "LA", "P", "RGB", "RGBA"])
+def test_supported_pixel_modes_keep_material(tmp_path, mode):
+    path = tmp_path / "supported.png"
+    with Image.new("RGB", (12, 12), "white") as image:
+        image.convert(mode).save(path)
+    assert prepare(path).material.all()
+
+
+def test_cmyk_jpeg_has_conversion_instruction(tmp_path):
+    path = tmp_path / "cmyk.jpg"
+    Image.new("CMYK", (12, 12)).save(path)
+    with pytest.raises(config.ConfigError, match="Unsupported pixel mode.*CMYK.*Convert"):
+        prepare(path)
+
+
 def test_bad_bytes_and_pixel_limit_remain_processing_errors(tmp_path, monkeypatch):
     path = tmp_path / "bad.png"
     path.write_bytes(b"not an image")

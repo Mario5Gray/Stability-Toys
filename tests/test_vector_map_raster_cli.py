@@ -151,3 +151,22 @@ def test_failures_emit_one_result_and_no_artifact(tmp_path, case, expected):
 def test_diagnostic_module_ships_in_package():
     metadata = tomllib.loads((SCRIPTS / "pyproject.toml").read_text())
     assert "vector_map_diagnostics" in metadata["tool"]["setuptools"]["py-modules"]
+
+
+@pytest.mark.parametrize("role", ["source", "include-mask", "exclude-mask"])
+def test_16_bit_source_and_constraints_exit_2_without_output(tmp_path, role):
+    image_path = tmp_path / "sixteen.png"
+    Image.fromarray(np.full((20, 20), 200, dtype=np.uint16)).save(image_path)
+    original = image_path.read_bytes()
+    source = image_path if role == "source" else line(tmp_path)
+    extra = [] if role == "source" else [f"--{role}", image_path]
+    dest = tmp_path / "out.svg"
+    result = run(source, dest, "--input-kind", "mask", "--width-mm", 20, *extra, "--json")
+    value = payload(result, 2)
+    assert value["status"] == "invalid"
+    assert value["artifacts"]["svg"] is None
+    message = value["diagnostics"][0]["message"]
+    assert "I;16" in message and "8-bit" in message and "Convert" in message
+    assert "Traceback" not in result.stderr
+    assert image_path.read_bytes() == original
+    assert not dest.exists()

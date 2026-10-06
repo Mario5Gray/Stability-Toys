@@ -46,6 +46,9 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 
 Trace PNG or JPEG masks and edge maps into SVG with physical dimensions.
 Use PNG for lossless mask pixels. Select exactly one physical dimension.
+Supported pixel modes: `1`, `L`, `LA`, `P`, `RGB`, and `RGBA`.
+Convert other modes, including 16-bit grayscale and CMYK, to supported 8-bit input before tracing.
+Use RGBA PNG when conversion must preserve alpha.
 
 ```bash
 st-vector-map mask.png silhouette.svg --input-kind mask --width-mm 100

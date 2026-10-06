@@ -30,6 +30,9 @@ False positives near curved or diagonal boundaries remain possible. Diagnostic t
 ## Raster input
 
 Decode PNG and JPEG with Pillow. Reject other decoded formats, regardless of filename suffix.
+Accept only pixel modes `1`, `L`, `LA`, `P`, `RGB`, and `RGBA`.
+Reject other modes with exit 2 and an explicit instruction to convert to supported 8-bit input.
+Never clip 16-bit grayscale into an 8-bit luminance mask.
 Retain Pillow decompression-bomb mapping to processing failure.
 Apply EXIF orientation independently to source and external masks before dimension checks.
 Load pixels before closing image handles.
