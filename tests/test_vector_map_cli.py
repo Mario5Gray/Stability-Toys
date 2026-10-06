@@ -735,3 +735,22 @@ def test_malformed_svg_is_a_processing_failure_with_one_result(tmp_path, monkeyp
     assert payload["status"] == "failed"
     assert "malformed SVG" in payload["diagnostics"][0]["message"]
     assert not out.exists()
+
+
+def test_decompression_bomb_is_a_processing_failure_with_one_result(tmp_path, monkeypatch, capsys):
+    """Pillow raises DecompressionBombError above 2 x MAX_IMAGE_PIXELS. It subclasses Exception only."""
+    import vector_map
+
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10)
+    out = tmp_path / "o.svg"
+    code = vector_map.main([str(FIXTURES / "donut.png"), str(out), "--input-kind", "mask", "--width-mm", "10", "--json"])
+    captured = capsys.readouterr()
+    assert code == 1
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["status"] == "failed"
+    assert payload["artifacts"] == {"svg": None}
+    assert "pixel limit" in payload["diagnostics"][0]["message"]
+    assert "Traceback" not in captured.err
+    assert not out.exists()

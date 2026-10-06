@@ -16,7 +16,12 @@ _EXIF_ORIENTATION = 0x0112
 
 def prepare_mask(path, *, invert):
     """Return the boolean material layer. White (luminance >= 128) is material."""
-    with Image.open(path) as image:
+    try:
+        image = Image.open(path)
+    except Image.DecompressionBombError as exc:
+        # Subclasses Exception only. Re-raise as a processing failure (exit 1).
+        raise ValueError(f"{path} exceeds the Pillow pixel limit: {exc}") from exc
+    with image:
         if image.getexif().get(_EXIF_ORIENTATION, 1) != 1:
             raise deferred("EXIF orientation other than 1", S23)
         if "A" in image.getbands() or "transparency" in image.info:
