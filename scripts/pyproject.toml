@@ -44,7 +44,11 @@ all = [
 st-depth-map = "depth_map:main"
 st-pose-map  = "pose_map:main"
 st-canny-map = "canny_map:main"
+st-vector-map = "vector_map:main"
 
 [tool.setuptools]
-py-modules = ["depth_map", "pose_map", "canny_map", "cn_metadata", "vector_map_vtracer"]
+py-modules = [
+    "depth_map", "pose_map", "canny_map", "cn_metadata",
+    "vector_map", "vector_map_config", "vector_map_raster", "vector_map_svg", "vector_map_vtracer",
+]
 script-files = ["st-resize-for-model", "resize-for-model.sh"]

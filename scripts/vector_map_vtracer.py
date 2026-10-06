@@ -62,7 +62,7 @@ class TraceResult:
 def trace_layer(layer, options=None):
     """Trace one binary layer. Return the upstream SVG and the resolved upstream values."""
     material = _material(layer)
-    resolved = _resolve(options)
+    resolved = resolve_options(options)
     try:
         import vtracer
     except ImportError as exc:
@@ -112,7 +112,8 @@ def _material(layer):
     raise ValueError("Layer must be binary: bool, or uint8 with values 0 and 255 only.")
 
 
-def _resolve(options):
+def resolve_options(options):
+    """Check user options against the polygon-mode policy. Return the resolved user options."""
     if options is None:
         options = {}
     elif not isinstance(options, Mapping):

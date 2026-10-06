@@ -10,12 +10,12 @@ Run the scripts directly with `python scripts/<name>.py`, or install them as
 console commands:
 
 ```bash
-# installs st-depth-map, st-pose-map, st-canny-map, and st-resize-for-model onto PATH
+# installs st-depth-map, st-pose-map, st-canny-map, st-vector-map, and st-resize-for-model onto PATH
 make install-controlnet-scripts            # all extras (depth + pose + canny)
 make install-controlnet-scripts EXTRAS=depth   # depth backends only
 make install-controlnet-scripts EXTRAS=pose    # pose backends only
 make install-controlnet-scripts EXTRAS=canny   # canny backends only
-make install-controlnet-scripts EXTRAS=vector  # VTracer adapter only (not part of all)
+make install-controlnet-scripts EXTRAS=vector  # st-vector-map with VTracer (not part of all)
 
 # or directly with pip
 pip install "./scripts[all]"
@@ -220,6 +220,69 @@ python scripts/canny_map.py photo.jpg canny.png \
 
 Output: grayscale PNG in mode `L` where edge pixels are white and the background
 is black (unless `--invert` is set).
+
+---
+
+## vector_map.py
+
+Trace a binary mask into an SVG with a physical size in millimetres.
+The command uses VTracer 0.6.15 in polygon mode. Install the `vector` extra.
+
+> **Status: walking skeleton (S2.2).** Only `--input-kind mask` converts.
+> Edge mode, image mode, `--max-res`, `--line-width-mm`, `--mask`, `--alpha`,
+> `--preview`, alpha-bearing input, and EXIF orientation other than 1 fail with
+> exit code 2. The message names the task that adds the feature.
+
+**Parameters**
+
+| Argument | Default | Description |
+|---|---|---|
+| `source` | — | Mask image. Optional with `--recipe` when the recipe sets `input` |
+| `destination` | — | Output SVG path |
+| `--input-kind` | — | `mask`. Required on the command line or in the recipe |
+| `--width-mm` / `--height-mm` | — | Physical size of the complete canvas. Give exactly one |
+| `--invert` / `--no-invert` | off | Treat dark pixels as material |
+| `--recipe` | none | `schema_version: 1` JSON recipe |
+| `--overwrite` | off | Replace an existing destination |
+| `--json` | off | Print one result object on stdout |
+
+Material is luminance >= 128 (white). The SVG root states the size in `mm`
+with a pixel `viewBox`. OpenSCAD imports this form at the stated size.
+
+**Recipe**
+
+Settings apply in this order. A later value wins:
+
+1. Built-in defaults.
+2. The recipe.
+3. Explicit command-line options.
+
+A command-line `--width-mm` replaces a recipe `height_mm`, and conversely.
+Recipe paths are relative to the recipe file. Unknown fields fail.
+The `vtracer` object accepts `mode` (`polygon` only) and `filter_speckle` (0 to 128).
+
+```json
+{"schema_version": 1, "input": "mask.png", "input_kind": "mask",
+ "width_mm": 100, "vtracer": {"filter_speckle": 4}}
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|---|---|
+| 0 | The SVG was written |
+| 2 | Arguments or configuration are invalid, or the feature is not available yet |
+| 1 | Processing or I/O failed, for example an unreadable image or an empty trace |
+
+**Examples**
+
+```bash
+# 100 mm wide silhouette from a white-on-black mask
+st-vector-map mask.png silhouette.svg --input-kind mask --width-mm 100
+
+# Source and settings from a recipe, machine-readable result
+st-vector-map silhouette.svg --recipe recipe.json --json
+```
 
 ---
 
