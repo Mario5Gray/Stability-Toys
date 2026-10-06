@@ -42,6 +42,53 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 
 ---
 
+## st-vector-map
+
+Trace PNG or JPEG masks and edge maps into SVG with physical dimensions.
+Use PNG for lossless mask pixels. Select exactly one physical dimension.
+
+```bash
+st-vector-map mask.png silhouette.svg --input-kind mask --width-mm 100
+st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 \
+  --line-width-mm 0.8 --include-mask allowed.png --exclude-mask removed.png --json
+```
+
+Default material has luminance >= 128. `--invert` reverses material selection.
+`--alpha` selects alpha >= 128 instead. Inputs with unused alpha produce warnings.
+Palette transparency supports alpha selection. Inputs without alpha reject `--alpha`.
+
+EXIF orientation applies before thresholding and dimension checks.
+External masks must match oriented source dimensions. Source inversion and alpha options do not change their luminance selection.
+`--include-mask` limits material. `--exclude-mask` removes material and always wins.
+Both constraints apply before and after edge expansion.
+`--mask` remains reserved for future image-mode silhouette selection.
+
+`--max-res PX` limits longest processing side without upscaling.
+Binary masks use nearest-neighbour resize. Shorter side rounds half upward, with minimum one pixel.
+Selected physical dimension stays exact. Other dimension follows processed aspect ratio with one uniform scale.
+All layers keep complete canvas and origin. No layer crop or centering occurs.
+
+`--line-width-mm` requires edge mode. It specifies nominal width for an isolated one-pixel line.
+Let `p = requested_mm / mm_per_px` and `r = max(0, ceil((p - 1) / 2))`.
+Square dilation uses side `2*r + 1`. Existing wide bands expand further. Diagonal widths remain approximate.
+For example, 3.1 requested pixels becomes five pixels.
+Stderr reports requested and nominal achieved millimetres, kernel size, radius, expansion, dimensions, and scale.
+
+Warnings identify requested widths below four processing pixels and possible thin material or background gaps.
+Feature diagnostics check 4x4 square coverage. Outside canvas counts as background.
+Curved or diagonal boundaries can produce false positives. Diagnostics never repair geometry.
+Both width and feature warnings remain when both conditions apply.
+
+`--json` emits one result object. Warnings appear in `diagnostics` and on stderr.
+Successful conversion with warnings returns exit 0. Invalid settings return 2. Processing failures return 1.
+Failure publishes no SVG. `--overwrite` never permits replacing source, recipe, or constraint inputs.
+
+Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, and `max_res`.
+Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
+Image mode, preview, and artifact bundles remain separate sprint tasks.
+
+---
+
 ## st-resize-for-model / resize-for-model.sh
 
 Resize a flat directory of images into model-friendly generation buckets using

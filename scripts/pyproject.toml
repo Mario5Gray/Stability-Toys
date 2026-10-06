@@ -50,5 +50,6 @@ st-vector-map = "vector_map:main"
 py-modules = [
     "depth_map", "pose_map", "canny_map", "cn_metadata",
     "vector_map", "vector_map_config", "vector_map_raster", "vector_map_svg", "vector_map_vtracer",
+    "vector_map_diagnostics",
 ]
 script-files = ["st-resize-for-model", "resize-for-model.sh"]

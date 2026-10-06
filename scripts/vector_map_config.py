@@ -22,8 +22,7 @@ SCHEMA_VERSION = 1
 INPUT_KINDS = ("mask", "edges", "image")
 DIMENSIONS = ("width_mm", "height_mm")
 
-# Later tasks that own the features the S2.2 walking skeleton rejects.
-S23 = "S2.3 (STABL-vjpnctjh)"
+# Later tasks own image mode and preview.
 S27 = "S2.7 (STABL-kfrksmnp)"
 S31 = "S3.1 (STABL-memwrtos)"
 
@@ -36,6 +35,8 @@ _FIELD_KINDS = {
     "line_width_mm": "number",
     "max_res": "int",
     "mask": "path",
+    "include_mask": "path",
+    "exclude_mask": "path",
     "invert": "bool",
     "alpha": "bool",
     "vtracer": "vtracer",
@@ -52,7 +53,7 @@ class ConfigError(ValueError):
 
 def deferred(feature, owner):
     """Return the error for a feature that a later task implements."""
-    return ConfigError(f"{feature} lands in {owner}. The S2.2 walking skeleton does not support it.")
+    return ConfigError(f"{feature} lands in {owner}. This command does not support it yet.")
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,8 @@ class Settings:
     line_width_mm: float | None
     max_res: int | None
     mask: Path | None
+    include_mask: Path | None
+    exclude_mask: Path | None
     invert: bool
     alpha: bool
     vtracer: MappingProxyType
@@ -82,9 +85,13 @@ def physical_canvas(settings, width_px, height_px):
     """Convert processing pixels to millimetres once. The chosen dimension stays exact."""
     if settings.width_mm is not None:
         mm_per_px = settings.width_mm / width_px
-        return Canvas(width_px, height_px, settings.width_mm, height_px * mm_per_px, mm_per_px)
-    mm_per_px = settings.height_mm / height_px
-    return Canvas(width_px, height_px, width_px * mm_per_px, settings.height_mm, mm_per_px)
+        canvas = Canvas(width_px, height_px, settings.width_mm, height_px * mm_per_px, mm_per_px)
+    else:
+        mm_per_px = settings.height_mm / height_px
+        canvas = Canvas(width_px, height_px, width_px * mm_per_px, settings.height_mm, mm_per_px)
+    if not all(math.isfinite(value) and value > 0 for value in (canvas.width_mm, canvas.height_mm, mm_per_px)):
+        raise ConfigError("Physical scale must remain positive and finite at processing resolution.")
+    return canvas
 
 
 def merge(layers):
@@ -111,8 +118,6 @@ def resolve(*layers):
         raise ConfigError("input_kind is required. Use --input-kind mask, or the recipe field input_kind.")
     if kind not in INPUT_KINDS:
         raise ConfigError(f"input_kind must be one of {', '.join(INPUT_KINDS)}. Got {kind!r}.")
-    if kind == "edges":
-        raise deferred("Edge mode (input_kind edges)", S23)
     if kind == "image":
         raise deferred("Image mode (input_kind image)", S31)
     if merged.get("input") is None:
@@ -123,11 +128,17 @@ def resolve(*layers):
     size = merged[chosen[0]]
     if not (math.isfinite(size) and size > 0):
         raise ConfigError(f"{chosen[0]} must be a positive finite number of millimetres. Got {size!r}.")
-    for name, flag in (("max_res", "--max-res"), ("line_width_mm", "--line-width-mm"), ("mask", "--mask")):
-        if merged.get(name) is not None:
-            raise deferred(f"{name} ({flag})", S23)
-    if merged.get("alpha"):
-        raise deferred("Alpha selection (--alpha)", S23)
+    if merged.get("mask") is not None:
+        raise deferred("Silhouette source (--mask)", S31)
+    max_res = merged.get("max_res")
+    if max_res is not None and (type(max_res) is not int or max_res <= 0):
+        raise ConfigError("max_res must be a positive integer pixel count.")
+    line_width = merged.get("line_width_mm")
+    if line_width is not None:
+        if kind != "edges":
+            raise ConfigError("line_width_mm requires input_kind edges.")
+        if not (math.isfinite(line_width) and line_width > 0):
+            raise ConfigError("line_width_mm must be positive and finite.")
     try:
         vtracer = vector_map_vtracer.resolve_options(merged.get("vtracer", {}))
     except (TypeError, ValueError) as exc:
@@ -140,6 +151,8 @@ def resolve(*layers):
         line_width_mm=merged.get("line_width_mm"),
         max_res=merged.get("max_res"),
         mask=merged.get("mask"),
+        include_mask=merged.get("include_mask"),
+        exclude_mask=merged.get("exclude_mask"),
         invert=bool(merged.get("invert")),
         alpha=bool(merged.get("alpha")),
         vtracer=MappingProxyType(dict(vtracer)),
