@@ -31,6 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import vector_map_vtracer as adapter  # noqa: E402
+from vector_map_config import Canvas  # noqa: E402
+from vector_map_svg import size_svg  # noqa: E402
 
 SCAD = Path(__file__).parent / "fixtures" / "vector_map" / "relief_proof.scad"
 MM_PER_PX = 25.4 / 96  # The SVG header below states mm, so the import dpi does not apply.
@@ -191,6 +193,19 @@ def test_asymmetric_marker_stays_top_right(render_dir):
     marker = min(parts, key=lambda part: np.prod(part[1][:2] - part[0][:2]))
     assert np.allclose(marker[0][:2], np.array([96, 128 - 32]) * MM_PER_PX, atol=1e-4)
     assert np.allclose(marker[1][:2], np.array([112, 128 - 16]) * MM_PER_PX, atol=1e-4)
+
+
+@needs_openscad
+def test_production_sized_svg_renders_at_the_requested_width(render_dir):
+    """S2.2 (STABL-ascsgqha): size_svg output imports at the requested physical width."""
+    material = load_mask("asymmetric")
+    height, width = material.shape
+    canvas = Canvas(width, height, 100.0, 100.0 * height / width, 100.0 / width)
+    vertices, _, _ = render(size_svg(adapter.trace_layer(material).svg, canvas), render_dir)
+    low, high = expected_bounds(material)
+    scale = canvas.mm_per_px / MM_PER_PX
+    assert np.allclose(vertices.min(0)[:2], low[:2] * scale, atol=1e-4)
+    assert np.allclose(vertices.max(0)[:2], high[:2] * scale, atol=1e-4)
 
 
 @needs_openscad

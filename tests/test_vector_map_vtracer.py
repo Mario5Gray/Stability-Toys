@@ -176,6 +176,14 @@ def test_resolved_values_match_the_upstream_call(upstream_calls):
     assert result.vtracer_version == "0.6.15"
 
 
+def test_resolve_options_is_public_and_needs_no_upstream_call(upstream_calls):
+    """S2.2 config checks resolved values through this function before any trace."""
+    assert adapter.resolve_options({"filter_speckle": 8}) == {"mode": "polygon", "filter_speckle": 8}
+    with pytest.raises(ValueError, match="filter_speckle"):
+        adapter.resolve_options({"filter_speckle": 999})
+    assert upstream_calls == []
+
+
 def test_resolved_values_cannot_change_a_later_call():
     first = adapter.trace_layer(load_mask("donut"))
     first.upstream_args["filter_speckle"] = 99

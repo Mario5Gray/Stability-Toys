@@ -3,7 +3,7 @@
 Q1 (STABL-orcwoxml): pin vtracer==0.6.15.
 Q3 (STABL-stntbgim): torch moves from the global list into the depth and pose extras.
 all stays depth, pose and canny. vector is a separate extra.
-The st-vector-map entry point is deferred to S2.2 (STABL-ascsgqha).
+S2.2 (STABL-ascsgqha) adds the st-vector-map entry point with its modules in one commit.
 """
 
 import subprocess
@@ -48,6 +48,14 @@ def test_all_extra_excludes_vector():
 
 def test_vector_adapter_is_packaged():
     assert "vector_map_vtracer" in SETUPTOOLS["py-modules"]
+
+
+VECTOR_CLI_MODULES = {"vector_map", "vector_map_config", "vector_map_raster", "vector_map_svg"}
+
+
+def test_vector_cli_entry_point_ships_with_its_modules():
+    assert PROJECT["scripts"]["st-vector-map"] == "vector_map:main"
+    assert VECTOR_CLI_MODULES <= set(SETUPTOOLS["py-modules"])
 
 
 def test_every_packaged_module_and_entry_point_has_a_file():
@@ -108,6 +116,26 @@ def test_vector_conversion_runs_without_torch_server_or_model_modules():
     )
     assert result.returncode == 0, result.stderr
     assert "HEAVY_LOADED []" in result.stdout
+
+
+def test_vector_cli_runs_without_torch_server_or_model_modules(tmp_path):
+    pytest.importorskip("vtracer")
+    out = tmp_path / "out.svg"
+    result = _run_blocked(
+        HEAVY,
+        """
+        import vector_map
+
+        code = vector_map.main([sys.argv[3], sys.argv[4], "--input-kind", "mask", "--width-mm", "10"])
+        loaded = sorted({m.split(".")[0] for m in sys.modules} & set(sys.argv[1].split(",")))
+        print("EXIT", code, "HEAVY_LOADED", loaded)
+        """,
+        ROOT / "tests" / "fixtures" / "vector_map" / "donut.png",
+        out,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "EXIT 0 HEAVY_LOADED []" in result.stdout
+    assert out.is_file()
 
 
 def test_missing_vtracer_gives_install_hint():
