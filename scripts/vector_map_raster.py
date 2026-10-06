@@ -103,7 +103,8 @@ def _expand(material, requested, scale):
     pixels = requested / scale
     if not math.isfinite(pixels) or pixels > np.iinfo(np.int32).max:
         raise ConfigError("Requested line width exceeds supported kernel dimensions.")
-    radius = max(0, math.ceil((pixels - 1) / 2))
+    # Suppress float noise at exact odd widths before rounding upward.
+    radius = max(0, math.ceil((pixels - 1) / 2 - 1e-9))
     side = 2 * radius + 1
     achieved = side * scale
     if not math.isfinite(achieved):

@@ -69,7 +69,8 @@ Selected physical dimension stays exact. Other dimension follows processed aspec
 All layers keep complete canvas and origin. No layer crop or centering occurs.
 
 `--line-width-mm` requires edge mode. It specifies nominal width for an isolated one-pixel line.
-Let `p = requested_mm / mm_per_px` and `r = max(0, ceil((p - 1) / 2))`.
+Let `p = requested_mm / mm_per_px` and `r = max(0, ceil((p - 1) / 2 - 1e-9))`.
+Tolerance prevents floating-point noise from adding two pixels at exact odd widths.
 Square dilation uses side `2*r + 1`. Existing wide bands expand further. Diagonal widths remain approximate.
 For example, 3.1 requested pixels becomes five pixels.
 Stderr reports requested and nominal achieved millimetres, kernel size, radius, expansion, dimensions, and scale.

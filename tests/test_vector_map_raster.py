@@ -3,6 +3,7 @@
 import importlib
 import math
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -206,6 +207,33 @@ def test_edge_rounding_reports_achieved_width(tmp_path, requested, side):
     assert result.expansion.expansion_mm == (side - 1) / 2
     assert result.expansion.requested_width_mm == requested
     assert ("requested_width_below_four_pixels" in codes(result)) == (requested < 4)
+
+
+@pytest.mark.parametrize("requested, expected", [(0.28, 7), (0.280000004, 9)])
+def test_odd_width_rounding_ignores_float_noise_but_keeps_real_expansion(tmp_path, requested, expected):
+    pixels = np.zeros((20, 2500), np.uint8)
+    pixels[5:15, 1250] = 255
+    path = save(tmp_path / "source.png", pixels)
+    result = prepare(path, input_kind="edges", width_mm=100, line_width_mm=requested)
+    assert result.expansion.kernel_size_px == expected
+    assert result.material[10].sum() == expected
+    assert result.expansion.achieved_width_mm == pytest.approx(expected * 0.04)
+
+
+def test_width_sweep_matches_exact_fraction_arithmetic():
+    material = np.zeros((5, 5), bool)
+    material[2, 2] = True
+    mismatches = []
+    for canvas_mm in (1, 10, 25, 50, 100, 125, 200):
+        for resolution in (64, 128, 256, 512, 1024, 2048, 2500, 4096):
+            for cents in range(1, 301):
+                requested = Fraction(cents, 100)
+                exact_pixels = requested * resolution / canvas_mm
+                expected = 2 * max(0, math.ceil((exact_pixels - 1) / 2)) + 1
+                _, band = raster._expand(material, float(requested), canvas_mm / resolution)
+                if band.kernel_size_px != expected:
+                    mismatches.append((requested, canvas_mm, resolution, band.kernel_size_px, expected))
+    assert not mismatches, mismatches[:10]
 
 
 def test_existing_wide_bands_never_shrink(tmp_path):

@@ -205,3 +205,11 @@ Logs: `/tmp/vjpnctjh-vector.log`, `/tmp/vjpnctjh-full.log`, and `/tmp/vjpnctjh-m
 All eight reviewed corpus masks retain original pixels. Diagnostics never mutate material.
 Scale-only CLI fixture explicitly uses `filter_speckle=0`, because default four removes its 15-pixel region.
 Production VTracer default remains unchanged.
+
+## Review repair: odd-width rounding
+
+Review reproduced 0.28 mm on 100 mm / 2500 px canvas as nine pixels instead of seven.
+Regression RED: one failed, one passed. Exact-arithmetic sweep also failed before fix.
+Subtract `1e-9` before radius ceiling. This suppresses floating-point noise at odd boundaries.
+Raster GREEN: 80 passed, including 16,800 exact-arithmetic comparisons and genuine above-boundary expansion.
+NEXT: reject unsupported sample modes with explicit conversion instruction, then rerun vector suite.

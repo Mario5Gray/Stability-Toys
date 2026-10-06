@@ -81,9 +81,11 @@ Reject `--line-width-mm` in mask mode.
 Require positive finite width in edge mode.
 
 Let `p = requested_width_mm / mm_per_px`.
-Choose radius `r = max(0, ceil((p - 1) / 2))`.
+Choose radius `r = max(0, ceil((p - 1) / 2 - 1e-9))`.
+Subtract tolerance in radius units to suppress floating-point noise at exact odd widths.
+Widths more than `2e-9` pixels above an odd boundary still expand to next odd width.
 Nominal isolated-line width becomes `2*r + 1` pixels.
-Rounding therefore selects smallest odd width that reaches requested width. Width below one pixel remains one pixel.
+Rounding selects smallest odd width that reaches requested width within this tolerance. Width below one pixel remains one pixel.
 
 Use centered square dilation kernel with side `2*r + 1`.
 Square kernel gives explicit axis-aligned behavior. Diagonal strokes do not have exact constant physical width.
