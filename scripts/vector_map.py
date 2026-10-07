@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""st-vector-map: trace a binary mask into an SVG with a physical size (spec 5, 7, 9).
+"""st-vector-map: trace masks and edge bands into SVG with physical size (spec 5, 7, 9).
 
 Thin CLI facade. Configuration, raster preparation, the VTracer adapter, and SVG sizing
-live in sibling modules. S2.2 (STABL-ascsgqha) is a walking skeleton: mask mode only.
+live in sibling modules. S2.3 (STABL-vjpnctjh) adds oriented raster preparation and edge bands.
 Deferred features fail with exit 2 and name the task that implements them.
 
 Exit codes: 0 converted, 2 invalid arguments or configuration, 1 processing or I/O failure.
@@ -45,12 +45,14 @@ def build_parser():
         metavar="PATH",
         help="SOURCE DESTINATION. With --recipe, give DESTINATION only to use the recipe input.",
     )
-    parser.add_argument("--input-kind", choices=config.INPUT_KINDS, help="Input meaning. S2.2 supports mask only.")
+    parser.add_argument("--input-kind", choices=config.INPUT_KINDS, help="Input meaning. Supports mask and edges. Image mode lands in S3.1.")
     parser.add_argument("--width-mm", type=float, help="Physical width of the complete canvas.")
     parser.add_argument("--height-mm", type=float, help="Physical height of the complete canvas.")
-    parser.add_argument("--line-width-mm", type=float, help="Edge band width. Lands in S2.3.")
-    parser.add_argument("--max-res", type=int, metavar="PX", help="Processing resolution cap. Lands in S2.3.")
-    parser.add_argument("--mask", type=Path, help="Mask input. Lands in S2.3.")
+    parser.add_argument("--line-width-mm", type=float, help="Nominal one-pixel edge width. Round upward to odd pixels. Existing thick bands expand further.")
+    parser.add_argument("--max-res", type=int, metavar="PX", help="Longest processing side. Nearest-neighbour binary resize. Never upscale.")
+    parser.add_argument("--mask", type=Path, help="Image silhouette source. Lands in S3.1.")
+    parser.add_argument("--include-mask", type=Path, help="Limit material to white mask pixels. Oriented dimensions must match source.")
+    parser.add_argument("--exclude-mask", type=Path, help="Remove white mask pixels before and after expansion. Exclusion wins.")
     parser.add_argument(
         "--invert",
         action=argparse.BooleanOptionalAction,
@@ -59,7 +61,7 @@ def build_parser():
     parser.add_argument(
         "--alpha",
         action=argparse.BooleanOptionalAction,
-        help="Select material from alpha. Lands in S2.3.",
+        help="Select alpha >= 128 instead of luminance. Requires alpha channel or palette transparency.",
     )
     parser.add_argument("--preview", action="store_true", help="Write a preview PNG. Lands in S2.7.")
     parser.add_argument("--overwrite", action="store_true", help="Replace an existing destination.")
@@ -72,33 +74,54 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     as_json = "--json" in argv
     parser = build_parser()
+    diagnostics = []
     try:
         args = parser.parse_args(argv)
-        destination, paths = _convert(args)
+        destination, paths = _convert(args, diagnostics)
     except UsageError as exc:
         print(parser.format_usage(), end="", file=sys.stderr)
-        return _fail(2, "invalid", exc, as_json)
+        return _fail(2, "invalid", exc, as_json, diagnostics)
     except config.ConfigError as exc:
-        return _fail(2, "invalid", exc, as_json)
+        return _fail(2, "invalid", exc, as_json, diagnostics)
     except (OSError, RuntimeError, ValueError) as exc:
-        return _fail(1, "failed", exc, as_json)
+        return _fail(1, "failed", exc, as_json, diagnostics)
     if as_json:
-        print(json.dumps(_result("converted", svg=str(destination), layers=1, paths=paths)))
+        print(json.dumps(_result("converted", svg=str(destination), layers=1, paths=paths, diagnostics=diagnostics)))
     return 0
 
 
-def _convert(args):
+def _convert(args, diagnostics):
     destination, settings = _settings(args)
     if args.preview:
         raise config.deferred("--preview", config.S27)
-    _refuse_aliases(destination, (("source", settings.input), ("recipe", args.recipe), ("mask", settings.mask)))
+    _refuse_aliases(destination, (
+        ("source", settings.input), ("recipe", args.recipe),
+        ("include-mask", settings.include_mask), ("exclude-mask", settings.exclude_mask),
+    ))
     if destination.exists() and not args.overwrite:
         raise config.ConfigError(f"{destination} exists. Use --overwrite to replace it.")
 
     _progress(f"loading  {settings.input}")
-    material = raster.prepare_mask(settings.input, invert=settings.invert)
+    prepared = raster.prepare(settings)
+    material = prepared.material
+    canvas = prepared.canvas
+    diagnostics.extend(prepared.diagnostics)
+    for diagnostic in prepared.diagnostics:
+        _progress(f"warning: {diagnostic['message']}")
+    _progress(
+        f"raster   original {prepared.original_size[0]}x{prepared.original_size[1]}, "
+        f"oriented {prepared.oriented_size[0]}x{prepared.oriented_size[1]}, "
+        f"processed {prepared.processed_size[0]}x{prepared.processed_size[1]} px, "
+        f"scale {canvas.mm_per_px:g} mm/px"
+    )
+    if prepared.expansion is not None:
+        band = prepared.expansion
+        _progress(
+            f"band     requested {band.requested_width_mm:g} mm, nominal achieved {band.achieved_width_mm:g} mm, "
+            f"kernel {band.kernel_size_px} px, radius {band.radius_px} px, "
+            f"expansion {band.expansion_mm:g} mm per side"
+        )
     height, width = material.shape
-    canvas = config.physical_canvas(settings, width, height)
     _progress(
         f"tracing  {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm"
         f" (vtracer {dict(settings.vtracer)})"
@@ -144,6 +167,8 @@ def _settings(args):
         "line_width_mm": args.line_width_mm,
         "max_res": args.max_res,
         "mask": args.mask,
+        "include_mask": args.include_mask,
+        "exclude_mask": args.exclude_mask,
         "invert": args.invert,
         "alpha": args.alpha,
         "vtracer": None,
@@ -168,10 +193,10 @@ def _result(status, *, svg=None, layers=0, paths=0, diagnostics=()):
     }
 
 
-def _fail(code, status, exc, as_json):
+def _fail(code, status, exc, as_json, diagnostics=()):
     print(f"error: {exc}", file=sys.stderr)
     if as_json:
-        print(json.dumps(_result(status, diagnostics=[{"level": "error", "message": str(exc)}])))
+        print(json.dumps(_result(status, diagnostics=[{"level": "error", "message": str(exc)}, *diagnostics])))
     return code
 
 

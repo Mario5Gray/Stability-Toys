@@ -134,12 +134,8 @@ def test_settings_are_frozen():
 @pytest.mark.parametrize(
     "values, owner",
     [
-        ({"input_kind": "edges"}, S23),
         ({"input_kind": "image"}, "S3.1 (STABL-memwrtos)"),
-        ({"max_res": 64}, S23),
-        ({"line_width_mm": 0.5}, S23),
-        ({"mask": Path("m.png")}, S23),
-        ({"alpha": True}, S23),
+        ({"mask": Path("m.png")}, "S3.1 (STABL-memwrtos)"),
     ],
 )
 def test_deferred_settings_name_the_owning_task(values, owner):
@@ -329,19 +325,19 @@ def test_rgb_input_uses_luminance(tmp_path):
 
 
 @pytest.mark.parametrize("mode", ["RGBA", "LA"])
-def test_alpha_bearing_input_is_deferred(tmp_path, mode):
+def test_alpha_bearing_input_warns_when_luminance_used(tmp_path, mode):
     path = tmp_path / "m.png"
     Image.new(mode, (4, 4)).save(path)
-    with pytest.raises(config.ConfigError, match=r"S2\.3 \(STABL-vjpnctjh\)"):
+    with pytest.warns(UserWarning, match="luminance used"):
         raster.prepare_mask(path, invert=False)
 
 
-def test_palette_transparency_is_deferred(tmp_path):
+def test_palette_transparency_warns_when_luminance_used(tmp_path):
     path = tmp_path / "m.png"
     image = Image.new("P", (4, 4))
     image.info["transparency"] = 0
     image.save(path, transparency=0)
-    with pytest.raises(config.ConfigError, match=r"S2\.3 \(STABL-vjpnctjh\)"):
+    with pytest.warns(UserWarning, match="luminance used"):
         raster.prepare_mask(path, invert=False)
 
 
@@ -352,9 +348,8 @@ def exif_jpeg(path, orientation):
     return path
 
 
-def test_nonidentity_exif_orientation_is_deferred(tmp_path):
-    with pytest.raises(config.ConfigError, match=r"S2\.3 \(STABL-vjpnctjh\)"):
-        raster.prepare_mask(exif_jpeg(tmp_path / "m.jpg", 6), invert=False)
+def test_nonidentity_exif_orientation_is_applied(tmp_path):
+    assert raster.prepare_mask(exif_jpeg(tmp_path / "m.jpg", 6), invert=False).shape == (8, 4)
 
 
 def test_identity_exif_orientation_is_accepted(tmp_path):
@@ -425,7 +420,7 @@ def test_json_success_reports_the_published_svg_and_measured_paths(tmp_path):
     assert payload["status"] == "converted"
     assert payload["artifacts"] == {"svg": str(out)}
     assert payload["counts"] == {"layers": 1, "paths": svg_io.count_paths(out.read_text())}
-    assert payload["diagnostics"] == []
+    assert all(item["level"] == "warning" for item in payload["diagnostics"])
 
 
 def test_invert_changes_the_traced_material(tmp_path):
@@ -501,12 +496,8 @@ def test_missing_vtracer_is_a_processing_failure_with_install_hint(tmp_path):
 @pytest.mark.parametrize(
     "extra, owner",
     [
-        (["--input-kind", "edges"], "STABL-vjpnctjh"),
         (["--input-kind", "image"], "STABL-memwrtos"),
-        (["--max-res", "64"], "STABL-vjpnctjh"),
-        (["--line-width-mm", "0.5"], "STABL-vjpnctjh"),
-        (["--mask", "m.png"], "STABL-vjpnctjh"),
-        (["--alpha"], "STABL-vjpnctjh"),
+        (["--mask", "m.png"], "STABL-memwrtos"),
         (["--preview"], "STABL-kfrksmnp"),
     ],
 )
@@ -524,12 +515,12 @@ def test_deferred_flags_exit_2_and_name_the_owner(tmp_path, extra, owner):
     assert not out.exists()
 
 
-def test_alpha_bearing_source_exits_2(tmp_path):
+def test_alpha_bearing_source_converts_with_warning(tmp_path):
     source = tmp_path / "rgba.png"
     Image.new("RGBA", (8, 8), (255, 255, 255, 255)).save(source)
     result = run_cli(source, tmp_path / "o.svg", "--input-kind", "mask", "--width-mm", 10)
-    assert result.returncode == 2
-    assert "STABL-vjpnctjh" in result.stderr
+    assert result.returncode == 0
+    assert "luminance used" in result.stderr
 
 
 @pytest.mark.parametrize("dims", [[], ["--width-mm", "10", "--height-mm", "10"]])
