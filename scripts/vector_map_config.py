@@ -17,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import vector_map_vtracer
+from vector_map_svg import SvgLimits
 
 SCHEMA_VERSION = 1
 INPUT_KINDS = ("mask", "edges", "image")
@@ -40,11 +41,19 @@ _FIELD_KINDS = {
     "invert": "bool",
     "alpha": "bool",
     "vtracer": "vtracer",
+    "max_svg_bytes": "int",
+    "max_paths": "int",
+    "max_path_commands": "int",
 }
+SVG_LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
 FIELDS = tuple(_FIELD_KINDS)
 
 # Built-in defaults. resolve_options() adds the VTracer defaults.
-DEFAULTS = {"invert": False, "alpha": False, "vtracer": {}}
+# SVG limits are wrapper policy (S2.5, STABL-npoznayt). They never go to VTracer.
+DEFAULTS = {
+    "invert": False, "alpha": False, "vtracer": {},
+    **{name: getattr(SvgLimits(), name) for name in SVG_LIMITS},
+}
 
 
 class ConfigError(ValueError):
@@ -70,6 +79,7 @@ class Settings:
     invert: bool
     alpha: bool
     vtracer: MappingProxyType
+    svg_limits: SvgLimits
 
 
 @dataclass(frozen=True)
@@ -143,6 +153,11 @@ def resolve(*layers):
         vtracer = vector_map_vtracer.resolve_options(merged.get("vtracer", {}))
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"vtracer: {exc}") from exc
+    defaults = SvgLimits()
+    try:
+        svg_limits = SvgLimits(**{name: merged.get(name, getattr(defaults, name)) for name in SVG_LIMITS})
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
     return Settings(
         input=Path(merged["input"]),
         input_kind=kind,
@@ -156,6 +171,7 @@ def resolve(*layers):
         invert=bool(merged.get("invert")),
         alpha=bool(merged.get("alpha")),
         vtracer=MappingProxyType(dict(vtracer)),
+        svg_limits=svg_limits,
     )
 
 

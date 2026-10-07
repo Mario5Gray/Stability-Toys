@@ -745,3 +745,188 @@ def test_decompression_bomb_is_a_processing_failure_with_one_result(tmp_path, mo
     assert "pixel limit" in payload["diagnostics"][0]["message"]
     assert "Traceback" not in captured.err
     assert not out.exists()
+
+
+# --- S2.5 SVG limits and inspection through the CLI (STABL-npoznayt) --------
+
+from vector_map_svg import SvgLimits  # noqa: E402
+
+LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
+BASE = {"input": Path("a.png"), "input_kind": "mask", "width_mm": 10.0}
+
+
+def test_svg_limits_default_to_the_wrapper_policy():
+    assert resolve(BASE, cli_layer()).svg_limits == SvgLimits()
+
+
+@pytest.mark.parametrize("field", LIMITS)
+def test_svg_limits_follow_precedence(field):
+    assert getattr(resolve({**BASE, field: 5}, cli_layer()).svg_limits, field) == 5
+    assert getattr(resolve({**BASE, field: 5}, cli_layer(**{field: 7})).svg_limits, field) == 7
+
+
+@pytest.mark.parametrize("field", LIMITS)
+@pytest.mark.parametrize("value", [0, -1, True, 1.5])
+def test_invalid_svg_limits_are_configuration_errors(field, value):
+    with pytest.raises(config.ConfigError, match=field):
+        resolve({**BASE, field: value}, cli_layer())
+
+
+@pytest.mark.parametrize("field", LIMITS)
+@pytest.mark.parametrize("value", [None, 1.5, True, "5"])
+def test_recipe_svg_limits_must_be_integers(tmp_path, field, value):
+    with pytest.raises(config.ConfigError, match=field):
+        config.load_recipe(write_recipe(tmp_path, {"schema_version": 1, field: value}))
+
+
+def test_recipe_rejects_an_unknown_limit_name(tmp_path):
+    with pytest.raises(config.ConfigError, match="max_svg_size"):
+        config.load_recipe(write_recipe(tmp_path, {"schema_version": 1, "max_svg_size": 10}))
+
+
+def test_svg_limits_never_become_vtracer_options():
+    settings = resolve({**BASE, "max_paths": 5}, cli_layer())
+    assert not set(LIMITS) & set(settings.vtracer)
+
+
+@pytest.mark.parametrize("flag, field", [("--max-svg-bytes", "max_svg_bytes"), ("--max-paths", "max_paths"),
+                                         ("--max-path-commands", "max_path_commands")])
+@pytest.mark.parametrize("value", ["0", "-3"])
+def test_invalid_limit_flag_is_one_invalid_result(tmp_path, flag, field, value):
+    result = run_cli(FIXTURES / "donut.png", tmp_path / "o.svg", "--input-kind", "mask", "--width-mm", 10,
+                     flag, value, "--json")
+    assert result.returncode == 2
+    payload = one_result(result)
+    assert payload["status"] == "invalid"
+    assert field in payload["diagnostics"][0]["message"]
+
+
+def test_non_integer_limit_flag_is_a_usage_error(tmp_path):
+    result = run_cli(FIXTURES / "donut.png", tmp_path / "o.svg", "--input-kind", "mask", "--width-mm", 10,
+                     "--max-paths", "1.5", "--json")
+    assert result.returncode == 2
+    assert one_result(result)["status"] == "invalid"
+
+
+def injected(body, size=128, prolog=""):
+    return f'{prolog}<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}">{body}</svg>'
+
+
+TRIANGLE_PATH = '<path d="M0,0 L4,0 L0,3 Z"/>'
+
+
+@pytest.fixture
+def run_injected(tmp_path, monkeypatch, capsys):
+    """In-process CLI run with the upstream SVG replaced. Records every upstream call."""
+    pytest.importorskip("vtracer")
+    import vector_map
+    import vtracer
+
+    def run(svg, *extra, json_mode=True):
+        calls = []
+
+        def upstream(img_bytes, **kwargs):
+            calls.append(kwargs)
+            return svg
+
+        monkeypatch.setattr(vtracer, "convert_raw_image_to_svg", upstream)
+        out = tmp_path / "o.svg"
+        args = [str(FIXTURES / "donut.png"), str(out), "--input-kind", "mask", "--width-mm", "10", *extra]
+        code = vector_map.main(args + (["--json"] if json_mode else []))
+        captured = capsys.readouterr()
+        lines = [line for line in captured.out.splitlines() if line.strip()]
+        payload = json.loads(lines[0]) if json_mode else None
+        if json_mode:
+            assert len(lines) == 1
+        return code, payload, captured.err, out, calls
+
+    return run
+
+
+FAILURES = {
+    "malformed": (injected(TRIANGLE_PATH)[:-3], (), "malformed SVG"),
+    "dtd": (injected(TRIANGLE_PATH, prolog="<!DOCTYPE svg>"), (), "DTD"),
+    "image": (injected(TRIANGLE_PATH + '<image href="x.png"/>'), (), "unsupported element image"),
+    "curve": (injected('<path d="M0,0 C1,1 2,2 0,3 Z"/>'), (), "unsupported path"),
+    "open": (injected('<path d="M0,0 L4,0 L0,3"/>'), (), "closed"),
+    "degenerate only": (injected(TRIANGLE_PATH + '<path d="M1,1 Z"/>'), (),
+                        "VTracer returned 1 paths containing only points or lines"),
+    "empty": (injected(""), (), "empty"),
+    "bytes": (injected(TRIANGLE_PATH), ("--max-svg-bytes", "50"), "bytes exceeds limit 50"),
+    "paths": (injected(TRIANGLE_PATH * 3), ("--max-paths", "2"), "path count at least 3 exceeds limit 2"),
+    "commands": (injected(TRIANGLE_PATH * 2), ("--max-path-commands", "7"),
+                 "path command count at least 8 exceeds limit 7"),
+    "normalized bytes": (injected(TRIANGLE_PATH), ("--max-svg-bytes", str(len(injected(TRIANGLE_PATH)))),
+                         "Normalized SVG size"),
+}
+
+
+@pytest.mark.parametrize("svg, extra, match", FAILURES.values(), ids=FAILURES.keys())
+def test_incompatible_output_fails_without_publishing_or_retrying(run_injected, svg, extra, match):
+    code, payload, stderr, out, calls = run_injected(svg, *extra, "--overwrite")
+    assert code == 1
+    assert payload["status"] == "failed"
+    assert payload["artifacts"] == {"svg": None}
+    assert payload["counts"] == {"layers": 0, "paths": 0}
+    assert match in payload["diagnostics"][0]["message"]
+    assert match in stderr
+    assert len(calls) == 1
+    assert calls[0]["mode"] == "polygon" and calls[0]["filter_speckle"] == 4
+    assert not set(LIMITS) & set(calls[0])
+    assert not out.exists()
+
+
+def test_failure_keeps_an_existing_destination_under_overwrite(run_injected, tmp_path):
+    (tmp_path / "o.svg").write_text("previous")
+    code, _, _, out, _ = run_injected(injected(TRIANGLE_PATH * 3), "--max-paths", "2", "--overwrite")
+    assert code == 1
+    assert out.read_text() == "previous"
+
+
+def test_limit_failure_suggests_upstream_settings(run_injected):
+    _, payload, _, _, _ = run_injected(injected(TRIANGLE_PATH * 3), "--max-paths", "2")
+    message = payload["diagnostics"][0]["message"]
+    assert "--max-res" in message and "filter_speckle" in message and "0..128" in message
+
+
+def degenerate_warnings(stderr):
+    """Warning lines only. pytest tmp paths repeat the test name, which contains the word."""
+    return [line for line in stderr.splitlines() if line.startswith("warning:") and "degenerate" in line]
+
+
+MIXED = injected('<path d="M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z"/>')
+
+
+def test_degenerate_subpaths_publish_with_one_counted_warning(run_injected):
+    code, payload, stderr, out, _ = run_injected(MIXED)
+    assert code == 0
+    assert payload["status"] == "converted"
+    assert payload["counts"] == {"layers": 1, "paths": 1}
+    warnings = [item for item in payload["diagnostics"] if item.get("code") == "degenerate_subpaths"]
+    assert len(warnings) == 1
+    assert warnings[0]["level"] == "warning"
+    assert warnings[0]["subpaths"] == 2
+    assert "2" in warnings[0]["message"]
+    assert [p.get("d") for p in ET.parse(out).getroot().iter(f"{SVG_NS}path")] == ["M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z"]
+
+
+def test_degenerate_warning_appears_once_in_text_mode(run_injected):
+    code, _, stderr, _, _ = run_injected(MIXED, json_mode=False)
+    assert code == 0
+    assert len(degenerate_warnings(stderr)) == 1
+
+
+def test_no_degenerate_warning_without_degenerate_subpaths(run_injected):
+    code, payload, stderr, _, _ = run_injected(injected(TRIANGLE_PATH))
+    assert code == 0
+    assert not [item for item in payload["diagnostics"] if item.get("code") == "degenerate_subpaths"]
+    assert degenerate_warnings(stderr) == []
+
+
+def test_published_svg_is_the_normalizer_output(run_injected):
+    from vector_map_svg import normalize_svg
+
+    code, payload, _, out, _ = run_injected(injected(TRIANGLE_PATH))
+    assert code == 0
+    canvas = config.Canvas(width_px=128, height_px=128, width_mm=10.0, height_mm=10.0, mm_per_px=10 / 128)
+    assert out.read_text() == normalize_svg(injected(TRIANGLE_PATH), canvas).svg

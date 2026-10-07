@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import vector_map_config as config
@@ -63,6 +62,11 @@ def build_parser():
         action=argparse.BooleanOptionalAction,
         help="Select alpha >= 128 instead of luminance. Requires alpha channel or palette transparency.",
     )
+    parser.add_argument("--max-svg-bytes", type=int, metavar="N",
+                        help="Largest raw or normalized SVG, in UTF-8 bytes. Default 20971520.")
+    parser.add_argument("--max-paths", type=int, metavar="N", help="Most path elements per layer. Default 10000.")
+    parser.add_argument("--max-path-commands", type=int, metavar="N",
+                        help="Most M, L and Z path commands per layer. Default 1000000.")
     parser.add_argument("--preview", action="store_true", help="Write a preview PNG. Lands in S2.7.")
     parser.add_argument("--overwrite", action="store_true", help="Replace an existing destination.")
     parser.add_argument("--json", action="store_true", help="Print one JSON result object on stdout.")
@@ -126,15 +130,21 @@ def _convert(args, diagnostics):
         f"tracing  {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm"
         f" (vtracer {dict(settings.vtracer)})"
     )
-    try:
-        traced = adapter.trace_layer(material, settings.vtracer)
-        paths = svg_io.count_paths(traced.svg)
-        sized = svg_io.size_svg(traced.svg, canvas)
-    except ET.ParseError as exc:
-        raise ValueError(f"VTracer returned malformed SVG: {exc}.") from exc
-    if paths == 0:
-        raise ValueError("The traced mask is empty: VTracer found no material paths.")
-    _publish(destination, sized)
+    traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
+    normalized = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
+    paths = normalized.metrics.paths
+    degenerate = normalized.metrics.degenerate_subpaths
+    if degenerate:
+        diagnostic = {
+            "level": "warning", "code": "degenerate_subpaths", "subpaths": degenerate,
+            "message": (
+                f"VTracer returned {degenerate} degenerate subpaths (points or lines) inside valid paths. "
+                "They are kept unchanged and add no area."
+            ),
+        }
+        diagnostics.append(diagnostic)
+        _progress(f"warning: {diagnostic['message']}")
+    _publish(destination, normalized.svg)
     _progress(f"saved    {destination} (paths: {paths})")
     return destination, paths
 
@@ -172,6 +182,9 @@ def _settings(args):
         "invert": args.invert,
         "alpha": args.alpha,
         "vtracer": None,
+        "max_svg_bytes": args.max_svg_bytes,
+        "max_paths": args.max_paths,
+        "max_path_commands": args.max_path_commands,
     }
     # No preset layer yet. S3.5 (STABL-mknlfcui) adds --preset and relief-0.4.
     return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
