@@ -87,7 +87,52 @@ Both width and feature warnings remain when both conditions apply.
 Successful conversion with warnings returns exit 0. Invalid settings return 2. Processing failures return 1.
 Failure publishes no SVG. `--overwrite` never permits replacing source, recipe, or constraint inputs.
 
-Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, and `max_res`.
+**SVG output and inspection**
+
+The SVG root states the canvas in `mm` with a pixel `viewBox="0 0 W H"`. OpenSCAD imports this form at the stated size.
+Normalization changes only the root size. Paths, fill, transforms, and element order stay as VTracer wrote them.
+Lengths are plain decimals, for example `100mm` or `0.0000002mm`. A positive size never becomes `0mm`.
+
+Before publication, the command checks VTracer output against the pinned polygon dialect:
+
+- One `svg` root in the SVG namespace, with `g` and `path` elements only. Paths are leaf elements.
+- Root attributes `version`, `width`, `height`, and `viewBox` only. `g` and `path` accept `id`, `transform`, `fill`, and `fill-rule`. `path` also accepts `d`.
+- Black fill (`black`, `#000`, `#000000`) and `nonzero` fill rule only.
+- One `translate(x)` or `translate(x,y)` transform per element. Nested translations add.
+- Path data uses absolute `M x,y`, `L x,y`, and `Z` tokens only. Each subpath closes with an explicit `Z`.
+- Coordinates are finite ASCII decimal numbers. NaN, infinity, overflow, and underscores fail.
+- Raw `width` and `height` equal the processing size in pixels. A raw `viewBox` must be `0 0 W H`.
+
+DTDs, processing instructions, images, `use`, `defs`, scripts, masks, clipping, styles, strokes, and opacity fail.
+The command never removes unsupported content and never repairs geometry. It reports incompatible upstream output with exit 1.
+A pass does not prove that paths have no self-intersections.
+
+VTracer can return closed subpaths with one or two distinct points, for example `M3,4 Z`.
+Inside a path with a valid polygon, these subpaths stay unchanged. They add no area.
+Each layer with such subpaths gets one `degenerate_subpaths` warning with the count.
+A path must contain at least one polygon with three non-collinear points.
+When a path contains only points or lines, the command fails. The message reads "VTracer returned N paths containing only points or lines."
+A higher `--max-res` can help only when processing resolution can increase. A higher `filter_speckle` removes small islands on purpose.
+Measured examples, not guarantees: on 64x64 random-noise masks, speckle 4 cleared these paths and speckle 2 did not.
+Speckle 1 gave the same output as speckle 0.
+
+**Limits**
+
+| Option / recipe field | Default | Measures |
+|---|---:|---|
+| `--max-svg-bytes` / `max_svg_bytes` | 20971520 | UTF-8 bytes. Checked on raw output before XML parsing, and again on normalized output |
+| `--max-paths` / `max_paths` | 10000 | `path` elements per layer |
+| `--max-path-commands` / `max_path_commands` | 1000000 | `M`, `L`, and `Z` commands per layer, including degenerate subpaths |
+
+Limits are wrapper policy. They are not measured VTracer or OpenSCAD capacities. They never go to VTracer.
+They cannot stop VTracer from allocating its own output.
+Values must be positive integers. Zero, negative, boolean, decimal, and null values return exit 2.
+A count over its limit returns exit 1. The message gives the count and the limit.
+A count found while the check stops early is a lower bound, for example `path count at least 101 exceeds limit 100`.
+The message suggests a lower `--max-res` or a different recipe `vtracer.filter_speckle` (0..128). Both can change geometry.
+The command never changes these settings or retries.
+
+Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
 Image mode, preview, and artifact bundles remain separate sprint tasks.
 
