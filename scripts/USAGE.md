@@ -99,7 +99,7 @@ Before publication, the command checks VTracer output against the pinned polygon
 - Root attributes `version`, `width`, `height`, and `viewBox` only. `g` and `path` accept `id`, `transform`, `fill`, and `fill-rule`. `path` also accepts `d`.
 - Black fill (`black`, `#000`, `#000000`) and `nonzero` fill rule only.
 - One `translate(x)` or `translate(x,y)` transform per element. Nested translations add.
-- Path data uses absolute `M x,y`, `L x,y`, and `Z` tokens only. Each subpath closes with an explicit `Z`.
+- Path data uses absolute `Mx,y`, `Lx,y`, and `Z` tokens only, separated by spaces. Each subpath closes with an explicit `Z`.
 - Coordinates are finite ASCII decimal numbers. NaN, infinity, overflow, and underscores fail.
 - Raw `width` and `height` equal the processing size in pixels. A raw `viewBox` must be `0 0 W H`.
 
