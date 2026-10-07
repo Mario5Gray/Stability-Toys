@@ -326,3 +326,98 @@ def test_check_rejects_canvas_rectangle_at_a_border_tie():
 def test_check_accepts_canvas_rectangle_with_border_majority():
     material = _border_material(32, 63)  # 63 of 124 unique border pixels
     adapter.check_full_canvas(_canvas_rectangle_svg(32), material)
+
+
+# --- S2.5 inspection at the adapter boundary (STABL-npoznayt) --------------
+
+import vector_map_svg  # noqa: E402
+from vector_map_svg import SvgInspectionError, SvgLimits  # noqa: E402
+
+NS = "http://www.w3.org/2000/svg"
+
+
+def _upstream_returns(monkeypatch, svg):
+    """Replace the upstream result only. The adapter boundary stays real."""
+    monkeypatch.setattr(vtracer, "convert_raw_image_to_svg", lambda img_bytes, **kwargs: svg)
+
+
+def _document(body, size=128):
+    """Matches the 128 px topology fixtures."""
+    return f'<svg version="1.1" xmlns="{NS}" width="{size}" height="{size}">{body}</svg>'
+
+
+def _noise(seed=0, size=64):
+    return np.random.default_rng(seed).random((size, size)) > 0.5
+
+
+def test_svg_limits_is_keyword_only():
+    parameters = inspect.signature(adapter.trace_layer).parameters
+    assert list(parameters) == ["layer", "options", "svg_limits"]
+    assert parameters["svg_limits"].kind is inspect.Parameter.KEYWORD_ONLY
+
+
+def test_oversized_output_is_rejected_before_xml_parsing(monkeypatch):
+    _upstream_returns(monkeypatch, "<svg" + " " * 64)
+
+    def no_parser(*_args, **_kwargs):
+        raise AssertionError("XML parsing ran before the byte limit")
+
+    monkeypatch.setattr(vector_map_svg.ET, "XMLParser", no_parser)
+    with pytest.raises(SvgInspectionError, match="bytes exceeds limit 16"):
+        adapter.trace_layer(load_mask("donut"), svg_limits=SvgLimits(max_svg_bytes=16))
+
+
+@pytest.mark.parametrize(
+    "svg, match",
+    [
+        ("<svg", "malformed"),
+        ('<!DOCTYPE svg [<!ENTITY e "0">]>' + _document('<path d="M&e;,0 L4,0 L0,3 Z"/>'), "DTD"),
+        ("<?foo bar?>" + _document('<path d="M0,0 L4,0 L0,3 Z"/>'), "processing instruction"),
+        (_document('<path d="M0,0 L4,0 L0,3 Z"/><image href="x.png"/>'), "unsupported element image"),
+        (_document('<path d="M0,0 L4,0 L0,3 Z" clip-path="url(#c)"/>'), "attribute"),
+        (_document('<path d="M0,0 C1,1 2,2 0,3 Z"/>'), "unsupported path"),
+        (_document('<path d="M0,0 L4,0 L0,3 Z"/>', size=127), "width"),
+    ],
+    ids=["malformed", "dtd", "pi", "image", "clip-path", "curve", "canvas"],
+)
+def test_incompatible_upstream_output_fails_at_the_adapter(monkeypatch, svg, match):
+    _upstream_returns(monkeypatch, svg)
+    with pytest.raises(SvgInspectionError, match=match):
+        adapter.trace_layer(load_mask("donut"))
+
+
+def test_full_canvas_check_inspects_before_reading_paths():
+    with pytest.raises(SvgInspectionError, match="unsupported element image"):
+        adapter.check_full_canvas(_document('<image href="x.png"/>'), np.zeros((128, 128), bool))
+
+
+def test_isolated_pixel_at_speckle_zero_is_a_degenerate_only_path():
+    material = np.zeros((10, 10), bool)
+    material[4, 4] = True
+    with pytest.raises(SvgInspectionError, match="VTracer returned 1 paths containing only points or lines"):
+        adapter.trace_layer(material, {"filter_speckle": 0})
+
+
+def test_isolated_pixel_at_default_speckle_is_zero_paths():
+    material = np.zeros((10, 10), bool)
+    material[4, 4] = True
+    assert svg_paths(adapter.trace_layer(material).svg) == []
+
+
+def test_noise_keeps_degenerate_subpaths_unchanged_at_default_speckle():
+    material = _noise()
+    svg = adapter.trace_layer(material).svg
+    upstream = vtracer.convert_raw_image_to_svg(
+        _png(np.where(material, 0, 255)), img_format="png", **TRACE_OPTIONS
+    )
+    assert svg == upstream
+    metrics = vector_map_svg.inspect_svg(svg, width_px=64, height_px=64).metrics
+    assert 0 < metrics.degenerate_subpaths < metrics.subpaths
+
+
+def test_limit_failure_calls_upstream_once_with_unchanged_options(upstream_calls):
+    with pytest.raises(SvgInspectionError, match="path count at least 2 exceeds limit 1"):
+        adapter.trace_layer(load_mask("separate_components"), svg_limits=SvgLimits(max_paths=1))
+    assert len(upstream_calls) == 1
+    assert upstream_calls[0]["filter_speckle"] == 4
+    assert upstream_calls[0]["mode"] == "polygon"

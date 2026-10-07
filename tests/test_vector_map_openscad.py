@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import vector_map_vtracer as adapter  # noqa: E402
 from vector_map_config import Canvas  # noqa: E402
-from vector_map_svg import size_svg  # noqa: E402
+from vector_map_svg import inspect_svg, normalize_svg, size_svg  # noqa: E402
 
 SCAD = Path(__file__).parent / "fixtures" / "vector_map" / "relief_proof.scad"
 MM_PER_PX = 25.4 / 96  # The SVG header below states mm, so the import dpi does not apply.
@@ -87,13 +88,8 @@ def render_dir(tmp_path):
 
 
 def physical_svg(svg, width, height):
-    """Test probe only: state the canvas in mm with a px viewBox. S2.5 owns production normalization."""
-    raw = f'width="{width}" height="{height}"'
-    assert svg.count(raw) == 1
-    return svg.replace(
-        raw,
-        f'width="{width * MM_PER_PX:.6f}mm" height="{height * MM_PER_PX:.6f}mm" viewBox="0 0 {width} {height}"',
-    )
+    """Production normalizer (S2.5, STABL-npoznayt) at MM_PER_PX. Replaces the S1.3 string-rewrite probe."""
+    return normalize_svg(svg, Canvas(width, height, width * MM_PER_PX, height * MM_PER_PX, MM_PER_PX)).svg
 
 
 def render(svg, work_dir, thickness=THICKNESS, command=None):
@@ -264,3 +260,57 @@ def test_flatpak_render_outside_home_fails_before_openscad_runs(monkeypatch):
     monkeypatch.setattr(subprocess, "run", forbidden)
     with pytest.raises(RuntimeError, match=r"\$HOME"):
         render("<svg/>", OUTSIDE_HOME, command=FLATPAK)
+
+
+# --- S2.5 degenerate subpaths (STABL-npoznayt) --------------------------------
+
+
+def without_degenerate_subpaths(svg):
+    """Polygon-only control: drop closed subpaths with fewer than 3 distinct points. Test-only."""
+    root = ET.fromstring(svg)
+    for element in root.iter("{http://www.w3.org/2000/svg}path"):
+        kept, current = [], []
+        for token in element.get("d").split():
+            current.append(token)
+            if token == "Z":
+                points = {item[1:] for item in current if item[0] in "ML"}
+                if len(points) >= 3:
+                    kept.extend(current)
+                current = []
+        element.set("d", " ".join(kept) + " ")
+    return ET.tostring(root, encoding="unicode", xml_declaration=True) + "\n"
+
+
+def noise(seed=0, size=64):
+    return np.random.default_rng(seed).random((size, size)) > 0.5
+
+
+@needs_openscad
+def test_degenerate_subpaths_import_like_the_polygon_only_control(render_dir):
+    """Required acceptance: OpenSCAD imports M p Z inside a valid path without changing the mesh."""
+    material = noise()
+    raw = adapter.trace_layer(material).svg
+    height, width = material.shape
+    degenerate = inspect_svg(raw, width_px=width, height_px=height).metrics.degenerate_subpaths
+    assert degenerate > 0
+    one_point = [
+        (first, second)
+        for element in ET.fromstring(raw).iter("{http://www.w3.org/2000/svg}path")
+        for first, second in zip(element.get("d").split(), element.get("d").split()[1:])
+        if first[0] == "M" and second == "Z"
+    ]
+    assert one_point, "the noise trace must contain an M p Z subpath"
+    with_points = physical_svg(raw, width, height)
+    control = without_degenerate_subpaths(with_points)
+    assert control != with_points
+    vertices, triangles, log = render(with_points, render_dir)
+    control_vertices, control_triangles, _ = render(control, render_dir)
+    assert np.array_equal(vertices, control_vertices)
+    assert len(triangles) == len(control_triangles)
+    summary = sorted((tuple(low), tuple(high), genus) for low, high, genus in mesh_components(vertices, triangles))
+    control_summary = sorted(
+        (tuple(low), tuple(high), genus) for low, high, genus in mesh_components(control_vertices, control_triangles)
+    )
+    assert summary == control_summary
+    assert vertices[:, 2].min() == pytest.approx(0.0)
+    assert vertices[:, 2].max() == pytest.approx(THICKNESS)

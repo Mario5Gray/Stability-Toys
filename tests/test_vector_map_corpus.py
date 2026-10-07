@@ -484,3 +484,87 @@ def test_case_result_at_the_selected_default(case):
     recorded = sweep()["results"][str(SELECTED_DEFAULT)][case]
     assert result["xor_px"] == recorded["xor_px"]
     assert metrics.svg_complexity(trace.svg)["commands"] == recorded["commands"]
+
+
+# --- S2.5 normalization compatibility (STABL-npoznayt) ----------------------
+
+
+NORMALIZED_MM_PER_PX = 0.5  # 25.4 / 0.5 = 50.8 dpi maps one viewBox unit to exactly one pixel.
+
+
+def render_normalized(svg, width, height):
+    """Render a normalized (mm root) SVG with the locked resvg settings.
+
+    resvg-py 0.5.0 sizes a mm root at dpi 0 and fails with "SVG has an invalid size".
+    It also rounds the intrinsic size before scaling, so only a dpi that makes the
+    intrinsic size equal the processing size reproduces the raw render exactly.
+    """
+    from io import BytesIO
+
+    import resvg_py
+
+    png = bytes(
+        resvg_py.svg_to_bytes(
+            svg_string=svg,
+            width=width,
+            height=height,
+            dpi=25.4 / NORMALIZED_MM_PER_PX,
+            background=metrics.RENDER["background"],
+            shape_rendering=metrics.RENDER["shape_rendering"],
+        )
+    )
+    return np.asarray(Image.open(BytesIO(png)).convert("L")) < 128
+
+
+def _normalized(trace_svg, material, mm_per_px=NORMALIZED_MM_PER_PX):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from vector_map_config import Canvas
+    from vector_map_svg import normalize_svg
+
+    height, width = material.shape
+    return normalize_svg(trace_svg, Canvas(width, height, width * mm_per_px, height * mm_per_px, mm_per_px))
+
+
+@needs_vtracer
+@needs_resvg
+@pytest.mark.parametrize("case", CASES)
+def test_normalized_corpus_case_renders_like_the_raw_trace(case):
+    """Normalization changes only the root size. The locked result must not move."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import vector_map_vtracer as adapter
+
+    material = load(case, "mask") == 255
+    trace = adapter.trace_layer(material)
+    height, width = material.shape
+    normalized = _normalized(trace.svg, material)
+    raw = metrics.render(trace.svg, width, height)
+    rendered = render_normalized(normalized.svg, width, height)
+    assert np.array_equal(rendered, raw)
+    result = metrics.evaluate(material, rendered, metrics.polygon_area(trace.svg))
+    assert result["failures"] == FAILING_AT_EVERY_VALUE.get(case, []), result
+    assert normalized.metrics.commands == metrics.svg_complexity(trace.svg)["commands"]
+
+
+@needs_vtracer
+@needs_resvg
+@pytest.mark.parametrize("name", ["asymmetric", "border_touching", "donut", "nested_island", "separate_components"])
+def test_normalized_topology_fixture_renders_like_the_raw_trace(name):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import vector_map_vtracer as adapter
+    from tests.fixtures.vector_map import make_fixtures
+    from tests.test_vector_map_topology import load_mask, raster_topology
+
+    material = load_mask(name)
+    trace = adapter.trace_layer(material)
+    height, width = material.shape
+    rendered = render_normalized(_normalized(trace.svg, material).svg, width, height)
+    assert np.array_equal(rendered, metrics.render(trace.svg, width, height))
+    assert raster_topology(rendered) == make_fixtures.EXPECTED[name]
+
+
+@needs_resvg
+def test_locked_renderer_cannot_size_a_mm_root_without_a_dpi():
+    """Pin for S2.7 previews: the locked metrics.render rejects normalized SVG."""
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10mm" height="5mm" viewBox="0 0 20 10"/>'
+    with pytest.raises(ValueError, match="invalid size"):
+        metrics.render(svg, 20, 10)

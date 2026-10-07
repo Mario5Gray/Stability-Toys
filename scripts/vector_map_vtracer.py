@@ -9,9 +9,9 @@ inversion has no full-canvas path (S1.2, STABL-snyaxjef).
 
 VTracer does not check enums or most ranges. A bad mode silently becomes spline.
 VTracer ignores alpha. This module checks the layer and the options first.
+The output is inspected (S2.5, STABL-npoznayt) before any path is read. The raw text is returned unchanged.
 """
 
-import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.metadata import version
@@ -19,6 +19,8 @@ from io import BytesIO
 
 import numpy as np
 from PIL import Image
+
+from vector_map_svg import inspect_svg
 
 # Fixed upstream values. Not user controls. Every value goes upstream explicitly,
 # because the 0.6.15 stub defaults are not reliable.
@@ -45,8 +47,6 @@ _SPLINE_CONTROLS = frozenset(
 FILTER_SPECKLE_RANGE = (0, 128)
 DEFAULT_OPTIONS = {"mode": "polygon", "filter_speckle": 4}
 
-_SVG_PATH = "{http://www.w3.org/2000/svg}path"
-
 
 class UnintendedBackgroundError(ValueError):
     """The trace has a full-canvas path that the input material does not explain."""
@@ -59,8 +59,12 @@ class TraceResult:
     vtracer_version: str
 
 
-def trace_layer(layer, options=None):
-    """Trace one binary layer. Return the upstream SVG and the resolved upstream values."""
+def trace_layer(layer, options=None, *, svg_limits=None):
+    """Trace one binary layer. Return the upstream SVG and the resolved upstream values.
+
+    svg_limits is wrapper policy (vector_map_svg.SvgLimits). It never goes upstream.
+    Zero paths are valid here: empty or speckle-filtered material traces to nothing.
+    """
     material = _material(layer)
     resolved = resolve_options(options)
     try:
@@ -70,11 +74,11 @@ def trace_layer(layer, options=None):
 
     args = {**_FIXED_ARGS, **resolved}
     svg = vtracer.convert_raw_image_to_svg(_inverted_png(material), **args)
-    check_full_canvas(svg, material)
+    check_full_canvas(svg, material, limits=svg_limits)
     return TraceResult(svg=svg, upstream_args=dict(args), vtracer_version=version("vtracer"))
 
 
-def check_full_canvas(svg, material):
+def check_full_canvas(svg, material, *, limits=None):
     """Reject an exact canvas-rectangle subpath unless material is a strict majority of the border.
 
     Full-canvas bounds are not full-canvas coverage: a cross touches all four sides.
@@ -82,17 +86,17 @@ def check_full_canvas(svg, material):
     filter_speckle can remove a small border notch, so a canvas outline is valid when
     material covers more than half of the unique border pixels. A wrong-polarity trace
     has no material on the border. A 50% tie is rejected.
+    The SVG is inspected first, so only validated, translated subpaths are read.
     """
     height, width = material.shape
+    document = inspect_svg(svg, width_px=width, height_px=height, limits=limits, allow_empty=True)
     corners = {(0, 0), (width, 0), (width, height), (0, height)}
-    for element in ET.fromstring(svg).iter(_SVG_PATH):
-        dx, dy = _translate(element.get("transform", ""))
-        for points in _subpaths(element.get("d", "")):
-            if {(x + dx, y + dy) for x, y in points} == corners and not _border_majority(material):
-                raise UnintendedBackgroundError(
-                    "VTracer returned a path that covers the complete canvas, "
-                    "but material covers half or less of the canvas border."
-                )
+    for points in document.subpaths:
+        if set(points) == corners and not _border_majority(material):
+            raise UnintendedBackgroundError(
+                "VTracer returned a path that covers the complete canvas, "
+                "but material covers half or less of the canvas border."
+            )
 
 
 def _material(layer):
@@ -150,32 +154,3 @@ def _border_majority(material):
     border = np.zeros(material.shape, bool)
     border[0, :] = border[-1, :] = border[:, 0] = border[:, -1] = True
     return 2 * int(np.count_nonzero(material[border])) > int(np.count_nonzero(border))
-
-
-def _translate(transform):
-    """Read translate(x,y). VTracer 0.6.15 writes no other transform."""
-    if not transform:
-        return 0.0, 0.0
-    name, _, rest = transform.partition("(")
-    if name.strip() != "translate" or not rest.endswith(")"):
-        raise ValueError(f"Unexpected VTracer transform: {transform!r}")
-    x, _, y = rest[:-1].partition(",")
-    return float(x), float(y or 0)
-
-
-def _subpaths(d):
-    """Split polygon-mode path data ('M0,0 L4,0 ... Z') into point lists."""
-    subpaths, points = [], []
-    for token in d.split():
-        command, coords = token[0], token[1:]
-        if command == "Z":
-            subpaths.append(points)
-            points = []
-        elif command in "ML":
-            x, _, y = coords.partition(",")
-            points.append((float(x), float(y)))
-        else:
-            raise ValueError(f"Unexpected polygon path command: {token!r}")
-    if points:
-        subpaths.append(points)
-    return subpaths
