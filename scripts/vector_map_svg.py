@@ -12,7 +12,8 @@ This module must not import configuration or the adapter at runtime.
 
 import math
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from decimal import Decimal
 
 SVG_NS = "http://www.w3.org/2000/svg"
 _SVG = f"{{{SVG_NS}}}svg"
@@ -94,7 +95,7 @@ def inspect_svg(svg, *, width_px, height_px, limits=None, allow_empty=False):
     if state.degenerate_only:
         raise SvgInspectionError(_DEGENERATE_ONLY.format(count=state.degenerate_only))
     if state.paths == 0 and not allow_empty:
-        raise SvgInspectionError("The traced SVG contains no paths.")
+        raise SvgInspectionError("The traced SVG is empty: it contains no paths.")
     metrics = SvgMetrics(
         raw_bytes=raw_bytes,
         normalized_bytes=None,
@@ -308,26 +309,51 @@ def _collinear(points):
     return all(ax * (y - origin[1]) - ay * (x - origin[0]) == 0 for x, y in points)
 
 
-def size_svg(svg, canvas):
-    """State the canvas in mm with a px viewBox. Keep every path and transform unchanged."""
-    root = ET.fromstring(svg)
-    traced = (root.get("width"), root.get("height"))
-    if traced != (str(canvas.width_px), str(canvas.height_px)):
-        raise ValueError(
-            f"The traced SVG is {traced[0]}x{traced[1]} px, "
-            f"but the canvas is {canvas.width_px}x{canvas.height_px} px."
-        )
+@dataclass(frozen=True)
+class NormalizedSvg:
+    svg: str
+    metrics: SvgMetrics
+
+
+def normalize_svg(svg, canvas, *, limits=None):
+    """State raw traced SVG in mm with the pixel viewBox. Change no geometry, paint, transform or order.
+
+    This is the upstream-output boundary, not a general SVG import. Input must be raw VTracer pixels.
+    """
+    limits = limits or SvgLimits()
+    _check_canvas(canvas)
+    document = inspect_svg(svg, width_px=canvas.width_px, height_px=canvas.height_px, limits=limits)
+    root = document._root
     root.set("width", _mm(canvas.width_mm))
     root.set("height", _mm(canvas.height_mm))
     root.set("viewBox", f"0 0 {canvas.width_px} {canvas.height_px}")
-    return ET.tostring(root, encoding="unicode", xml_declaration=True) + "\n"
+    text = ET.tostring(root, encoding="unicode", xml_declaration=True) + "\n"
+    size = _check_bytes(text, limits, "Normalized SVG")
+    return NormalizedSvg(svg=text, metrics=replace(document.metrics, normalized_bytes=size))
+
+
+def _check_canvas(canvas):
+    values = (canvas.width_px, canvas.height_px, canvas.width_mm, canvas.height_mm, canvas.mm_per_px)
+    if not all(math.isfinite(value) and value > 0 for value in values):
+        raise ValueError(f"The canvas must be positive and finite. Got {canvas}.")
+    for px, mm in ((canvas.width_px, canvas.width_mm), (canvas.height_px, canvas.height_mm)):
+        if not math.isclose(mm, px * canvas.mm_per_px, rel_tol=1e-12, abs_tol=0.0):
+            raise ValueError(f"The canvas scale must be uniform: {mm} mm is not {px} px x {canvas.mm_per_px} mm/px.")
+
+
+def size_svg(svg, canvas):
+    """Compatibility name for normalize_svg with default limits. Returns the SVG text only."""
+    return normalize_svg(svg, canvas).svg
 
 
 def count_paths(svg):
-    """Count <path> elements at any depth."""
+    """Count path elements in any SVG text, raw or normalized. No validation. Tests use it on published output."""
     return sum(1 for _ in ET.fromstring(svg).iter(_PATH))
 
 
 def _mm(value):
-    """Fixed-point mm with at most 6 decimals, as in the S1.3 OpenSCAD proof."""
-    return f"{value:.6f}".rstrip("0").rstrip(".") + "mm"
+    """Plain decimal mm from the shortest float repr. No rounding to zero, no exponent."""
+    text = format(Decimal(repr(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text + "mm"

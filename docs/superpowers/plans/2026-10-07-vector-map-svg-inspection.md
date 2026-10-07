@@ -234,7 +234,7 @@ Update state table and FP comments after each RED/GREEN milestone.
 | 1. Resume and baseline | Done (947ee7a, 429 passed) | FP context, git, dedicated environment |
 | 2. Inspector RED/GREEN | Done | vector_map_svg.py, new test_vector_map_svg.py |
 | 3. Adapter boundary RED/GREEN | Done | vector_map_vtracer.py, test_vector_map_vtracer.py |
-| 4. Normalization RED/GREEN | Pending | vector_map_svg.py, test_vector_map_svg.py |
+| 4. Normalization RED/GREEN | Done | vector_map_svg.py, test_vector_map_svg.py |
 | 5. Limits and CLI RED/GREEN | Pending | vector_map_config.py, vector_map.py, test_vector_map_cli.py |
 | 6. Compatibility and handoff | Pending | tests, scripts/USAGE.md, drift, FP |
 

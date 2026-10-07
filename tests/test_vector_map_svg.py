@@ -13,10 +13,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import xml.etree.ElementTree as ET  # noqa: E402
+
+from vector_map_config import Canvas  # noqa: E402
 from vector_map_svg import (  # noqa: E402
     SvgInspectionError,
     SvgLimits,
     inspect_svg,
+    normalize_svg,
+    size_svg,
 )
 
 NS = "http://www.w3.org/2000/svg"
@@ -215,7 +220,7 @@ REJECTED = {
     "viewBox short": (doc(extra=' viewBox="0 0 20"'), "viewBox"),
     "viewBox junk": (doc(extra=' viewBox="0 0 20 ten"'), "viewBox"),
     # Empty output
-    "no paths": (doc(""), "no paths"),
+    "no paths": (doc(""), "empty: it contains no paths"),
 }
 
 
@@ -315,3 +320,164 @@ def test_limit_failures_suggest_upstream_settings_without_changing_them(limits):
     message = str(raised.value)
     assert "--max-res" in message and "filter_speckle" in message and "0..128" in message
     assert "can change the geometry" in message
+
+
+# --- Normalization ------------------------------------------------------------
+
+CANVAS = Canvas(width_px=20, height_px=10, width_mm=10.0, height_mm=5.0, mm_per_px=0.5)
+NESTED = (
+    f'<g transform="translate(3,1)" id="outer"><path d="{TRIANGLE}" transform="translate(2,5)"/>'
+    f'<g fill="#000"><path d="M1,1 L5,1 L1,4 Z M2,2 Z " fill-rule="nonzero"/></g></g>'
+    f'<path d="M9,9 L10,9 L9,8 Z " fill="black"/>'
+)
+
+
+def canvas(width_px=20, height_px=10, mm_per_px=0.5, width_mm=None, height_mm=None):
+    return Canvas(
+        width_px,
+        height_px,
+        width_px * mm_per_px if width_mm is None else width_mm,
+        height_px * mm_per_px if height_mm is None else height_mm,
+        mm_per_px,
+    )
+
+
+def elements(svg):
+    """Every element below the root, in document order, with its attributes."""
+    root = ET.fromstring(svg)
+    return [(element.tag, dict(element.attrib)) for element in root.iter() if element is not root]
+
+
+def test_normalized_root_states_mm_and_the_pixel_view_box():
+    root = ET.fromstring(normalize_svg(doc(), CANVAS).svg)
+    assert (root.get("width"), root.get("height"), root.get("viewBox")) == ("10mm", "5mm", "0 0 20 10")
+
+
+def test_normalization_changes_no_geometry_paint_transform_or_order():
+    raw = doc(NESTED)
+    assert elements(normalize_svg(raw, CANVAS).svg) == elements(raw)
+
+
+def test_nested_translations_survive_with_asymmetric_origins():
+    out = ET.fromstring(normalize_svg(doc(NESTED), CANVAS).svg)
+    transforms = [element.get("transform") for element in out.iter() if element.get("transform")]
+    assert transforms == ["translate(3,1)", "translate(2,5)"]
+
+
+def test_raw_text_is_not_modified():
+    raw = doc(NESTED)
+    copy = str(raw)
+    normalize_svg(raw, CANVAS)
+    assert raw == copy
+
+
+def test_matching_raw_view_box_is_accepted_and_kept_in_pixels():
+    out = normalize_svg(doc(extra=' viewBox="0 0 20 10"'), CANVAS).svg
+    assert ET.fromstring(out).get("viewBox") == "0 0 20 10"
+
+
+def test_mismatched_raw_view_box_is_rejected_not_replaced():
+    with pytest.raises(SvgInspectionError, match="viewBox"):
+        normalize_svg(doc(extra=' viewBox="0 0 40 20"'), CANVAS)
+
+
+@pytest.mark.parametrize("width, height", [("21", "10"), ("20", "11"), ("20mm", "10"), ("20", "10in")])
+def test_raw_size_must_be_the_canvas_in_pixels(width, height):
+    with pytest.raises(SvgInspectionError, match="canvas|width|height"):
+        normalize_svg(doc(width=width, height=height), CANVAS)
+
+
+def test_output_is_well_formed_with_the_default_namespace():
+    out = normalize_svg(doc(), CANVAS).svg
+    assert out.startswith("<?xml")
+    assert "ns0:" not in out
+    assert ET.fromstring(out).tag == f"{{{NS}}}svg"
+
+
+@pytest.mark.parametrize(
+    "mm_per_px, width, height",
+    [
+        (5.0, "100mm", "50mm"),
+        (0.25, "5mm", "2.5mm"),
+        (1e-8, "0.0000002mm", "0.0000001mm"),
+        (0.1, "2mm", "1mm"),
+        (1e18, "20000000000000000000mm", "10000000000000000000mm"),
+    ],
+)
+def test_mm_lengths_are_plain_decimals(mm_per_px, width, height):
+    root = ET.fromstring(normalize_svg(doc(), canvas(mm_per_px=mm_per_px)).svg)
+    assert (root.get("width"), root.get("height")) == (width, height)
+
+
+def test_small_positive_size_never_becomes_zero():
+    root = ET.fromstring(normalize_svg(doc(), canvas(mm_per_px=1e-9)).svg)
+    assert root.get("width") != "0mm"
+    assert float(root.get("width")[:-2]) > 0
+
+
+def test_mm_lengths_keep_the_full_float_value():
+    value = 1 / 3
+    root = ET.fromstring(normalize_svg(doc(), canvas(mm_per_px=value)).svg)
+    assert float(root.get("width")[:-2]) == 20 * value
+    assert "e" not in root.get("width").lower()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        canvas(mm_per_px=float("nan")),
+        canvas(mm_per_px=float("inf")),
+        canvas(mm_per_px=0.0),
+        canvas(mm_per_px=-0.5),
+        canvas(width_mm=float("inf")),
+        canvas(height_mm=0.0),
+    ],
+    ids=["nan scale", "inf scale", "zero scale", "negative scale", "inf width", "zero height"],
+)
+def test_canvas_must_be_positive_and_finite(bad):
+    with pytest.raises(ValueError, match="positive and finite"):
+        normalize_svg(doc(), bad)
+
+
+@pytest.mark.parametrize("bad", [canvas(width_mm=10.001), canvas(height_mm=4.999)], ids=["width", "height"])
+def test_canvas_scale_must_be_uniform(bad):
+    with pytest.raises(ValueError, match="uniform"):
+        normalize_svg(doc(), bad)
+
+
+def test_normalized_byte_limit_is_checked_after_serialization():
+    raw = doc().replace("<!-- Generator: visioncortex VTracer 0.6.12 -->\n", "")
+    wide = canvas(mm_per_px=0.123456789012345)
+    normalized = len(normalize_svg(raw, wide).svg.encode("utf-8"))
+    assert normalized > len(raw.encode("utf-8"))
+    with pytest.raises(SvgInspectionError, match=f"Normalized SVG size {normalized} bytes exceeds limit {normalized - 1}"):
+        normalize_svg(raw, wide, limits=SvgLimits(max_svg_bytes=normalized - 1))
+
+
+def test_normalized_metrics_report_both_sizes_and_counts():
+    raw = doc(NESTED)
+    result = normalize_svg(raw, CANVAS)
+    assert result.metrics.raw_bytes == len(raw.encode("utf-8"))
+    assert result.metrics.normalized_bytes == len(result.svg.encode("utf-8"))
+    assert (result.metrics.paths, result.metrics.commands, result.metrics.subpaths) == (3, 14, 4)
+    assert result.metrics.degenerate_subpaths == 1
+
+
+def test_degenerate_subpaths_survive_normalization_unchanged():
+    raw = doc(path("M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z "))
+    out = normalize_svg(raw, CANVAS).svg
+    assert [d for _, attrib in elements(out) if (d := attrib.get("d"))] == ["M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z "]
+
+
+def test_empty_output_is_rejected():
+    with pytest.raises(SvgInspectionError, match="empty"):
+        normalize_svg(doc(""), CANVAS)
+
+
+def test_normalization_limits_apply_to_the_raw_inspection():
+    with pytest.raises(SvgInspectionError, match="path count at least 2"):
+        normalize_svg(doc(path() * 2), CANVAS, limits=SvgLimits(max_paths=1))
+
+
+def test_size_svg_is_the_normalizer():
+    assert size_svg(doc(NESTED), CANVAS) == normalize_svg(doc(NESTED), CANVAS).svg
