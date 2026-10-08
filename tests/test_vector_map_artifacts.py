@@ -534,3 +534,18 @@ def test_preview_runs_repeat_bytes(tmp_path, capsys):
         assert code == 0, error
         snapshots.append({name: (tmp_path / name).read_bytes() for name in ("out.svg", "out.preview.png", "out.vector.json")})
     assert snapshots[0] == snapshots[1]
+
+
+def test_preview_uses_recipe_source_snapshot(tmp_path, capsys):
+    import vector_map
+
+    pytest.importorskip("resvg_py")
+    source = tmp_path / "in.png"
+    source.write_bytes(FIXTURE.read_bytes())
+    recipe = tmp_path / "recipe.json"
+    recipe.write_text(json.dumps({"schema_version": 1, "input": "in.png", "input_kind": "mask", "width_mm": 40}))
+    code = vector_map.main([str(tmp_path / "out.svg"), "--recipe", str(recipe), "--preview", "--json"])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert "out.preview.png" in {item["path"] for item in manifest["artifacts"]}
