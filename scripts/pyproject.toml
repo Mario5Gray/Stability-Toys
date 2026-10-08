@@ -35,6 +35,8 @@ canny = [
 vector = [
     "vtracer==0.6.15",
     "opencv-python-headless>=4.5",
+    # Q2 (STABL-dheskftn): --preview renderer. Import only when --preview is given.
+    "resvg-py==0.5.0",
 ]
 all = [
     "st-controlnet-helpers[depth,pose,canny]",
@@ -52,5 +54,6 @@ py-modules = [
     "vector_map", "vector_map_config", "vector_map_raster", "vector_map_svg", "vector_map_vtracer",
     "vector_map_diagnostics",
     "vector_map_artifacts",
+    "vector_map_preview",
 ]
 script-files = ["st-resize-for-model", "resize-for-model.sh"]

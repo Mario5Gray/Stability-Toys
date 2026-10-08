@@ -4,6 +4,7 @@ Q1 (STABL-orcwoxml): pin vtracer==0.6.15.
 Q3 (STABL-stntbgim): torch moves from the global list into the depth and pose extras.
 all stays depth, pose and canny. vector is a separate extra.
 S2.2 (STABL-ascsgqha) adds the st-vector-map entry point with its modules in one commit.
+S2.7 (STABL-kfrksmnp) pins the Q2 preview renderer resvg-py==0.5.0 in the vector extra.
 """
 
 import subprocess
@@ -38,8 +39,18 @@ def test_depth_and_pose_extras_require_torch(extra):
     assert "torch>=2.1" in EXTRAS[extra]
 
 
-def test_vector_extra_pins_vtracer_and_opencv():
-    assert EXTRAS["vector"] == ["vtracer==0.6.15", "opencv-python-headless>=4.5"]
+def test_vector_extra_pins_vtracer_opencv_and_renderer():
+    assert EXTRAS["vector"] == ["vtracer==0.6.15", "opencv-python-headless>=4.5", "resvg-py==0.5.0"]
+
+
+def test_preview_module_is_packaged():
+    assert "vector_map_preview" in SETUPTOOLS["py-modules"]
+
+
+def test_test_container_installs_exact_vector_pins():
+    """Native container render checks must run, not skip on a missing renderer."""
+    lines = {line.strip() for line in (ROOT / "requirements-test.txt").read_text().splitlines()}
+    assert {"vtracer==0.6.15", "resvg-py==0.5.0"} <= lines
 
 
 def test_all_extra_excludes_vector():
