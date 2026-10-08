@@ -1,0 +1,1759 @@
+{
+  "cases": [
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 128,
+        "mm_per_px": 0.78125,
+        "width_mm": 100.0,
+        "width_px": 128
+      },
+      "case": "asymmetric",
+      "counts": {
+        "commands": 12,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 334,
+        "paths": 2,
+        "raw_bytes": 354,
+        "subpaths": 2
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          2,
+          0
+        ],
+        "xor_px": 0
+      },
+      "group": "topology",
+      "hashes": {
+        "result.debug/mask.png": "aa1de263c0f850a5fc93514d1ca6cea6a65fd6fa601b2fb9a4d9a8e5a2b34e6e",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "437668911fc072b473797eb879457f1f9071fe8975b7a2dfdf0cc263b0f91a50",
+        "result.svg": "1abdb7445d81db48ac403782fb3f1162d7888709e5167322d7caeebb94a8034c",
+        "result.vector.json": "272cf942a76f5d2c1e2608b6502fa3e94a0c698ab33f58bedf879caabb94d333"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 2,
+      "processed_size": [
+        128,
+        128
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0225
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0144
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0132
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 128,
+        "mm_per_px": 0.78125,
+        "width_mm": 100.0,
+        "width_px": 128
+      },
+      "case": "border_touching",
+      "counts": {
+        "commands": 15,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 349,
+        "paths": 2,
+        "raw_bytes": 369,
+        "subpaths": 3
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          2,
+          1
+        ],
+        "xor_px": 0
+      },
+      "group": "topology",
+      "hashes": {
+        "result.debug/mask.png": "40af5acaa98c08cf0e04b49857a2a1b13b83d739589bdcb4511b23ce38701080",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "5265958a0b323bb51fd4fa079bd03b21add662891fc6ce456002a00fe1411d73",
+        "result.svg": "86fcf2e74cd82f8e7b941ddcaf3fbb029b56fae56d96a034c053ed377eff6381",
+        "result.vector.json": "b2715a463dd94c43b657c6445fdd18ee2a39a7a7104c2919bac6894dee9418df"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 2,
+      "processed_size": [
+        128,
+        128
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0155
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0134
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0132
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 128,
+        "mm_per_px": 0.78125,
+        "width_mm": 100.0,
+        "width_px": 128
+      },
+      "case": "donut",
+      "counts": {
+        "commands": 46,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 527,
+        "paths": 1,
+        "raw_bytes": 548,
+        "subpaths": 2
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          1,
+          1
+        ],
+        "xor_px": 84
+      },
+      "group": "topology",
+      "hashes": {
+        "result.debug/mask.png": "b16a52ab2e19e28e3571904ef4a6e75ee9bca7382fd8d06bf5db241d83ce941b",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "1a7a67267d43d5000e74a32a9f3493f825441e8a0e7f46cbcb85adbbfc27a8ee",
+        "result.svg": "86a3946f5ea923898220e9dda9f896546f32296563940489166e75a276406dca",
+        "result.vector.json": "c3294652d332090b5240f9a6d9b8e70a994d58f91b302dd26e4a5ece2d9db280"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 1,
+      "processed_size": [
+        128,
+        128
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0166
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0167
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0151
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 128,
+        "mm_per_px": 0.78125,
+        "width_mm": 100.0,
+        "width_px": 128
+      },
+      "case": "nested_island",
+      "counts": {
+        "commands": 84,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 842,
+        "paths": 2,
+        "raw_bytes": 862,
+        "subpaths": 4
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          2,
+          2
+        ],
+        "xor_px": 140
+      },
+      "group": "topology",
+      "hashes": {
+        "result.debug/mask.png": "bf7e699e16ca2e38f81a9b0f0af69d852ee24c3c8ffbe2f3f78293a227b9b2fb",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "0dcc3fedd34fbcf94f30d6cd06e5bdd21614783ee3c71c0f0111fc5cdbc4b0f4",
+        "result.svg": "3b7b009284e2485fa23130fc7c991f0e05c75b9e3ec75d319792da5bdc14ae2b",
+        "result.vector.json": "2b6db8e9443440c4a333155cef0617adaa77a7bbc8bab61e712e7ba4ee18a9ea"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 2,
+      "processed_size": [
+        128,
+        128
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.017
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0154
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0157
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 128,
+        "mm_per_px": 0.78125,
+        "width_mm": 100.0,
+        "width_px": 128
+      },
+      "case": "separate_components",
+      "counts": {
+        "commands": 27,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 490,
+        "paths": 3,
+        "raw_bytes": 509,
+        "subpaths": 3
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          3,
+          0
+        ],
+        "xor_px": 20
+      },
+      "group": "topology",
+      "hashes": {
+        "result.debug/mask.png": "60c5a2667f542b23a6b3392cd8cda28bb4501e8de5e9e81c22b09e636362f0b8",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "b831c0650007665425b5b9f33b52deed45004a60bba011c0aff3f57dd7527bb2",
+        "result.svg": "35537ed351f36515fd85f7266567a9cf9d173fd2da30c015bd2af3437346af87",
+        "result.vector.json": "848693276abe1a981983c70dc7e41c9f8f36a54c5f36e1cf8e8b5008a8ce335e"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 3,
+      "processed_size": [
+        128,
+        128
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0149
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0146
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0139
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "badge",
+      "counts": {
+        "commands": 156,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 1590,
+        "paths": 6,
+        "raw_bytes": 1606,
+        "subpaths": 8
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          6,
+          2
+        ],
+        "xor_px": 509
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "c74bc9f9d9b1cae60b388acd0dcc714abad8e9305a2a6f5506db46fc44679f4c",
+        "result.svg": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303",
+        "result.vector.json": "5fbbdc56c1bd59c00e801a0a2b8274ef2266a21a64e1cc8850cfb1c061bdab6a"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 6,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0281
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0276
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0273
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "bracket",
+      "counts": {
+        "commands": 147,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 1467,
+        "paths": 6,
+        "raw_bytes": 1483,
+        "subpaths": 9
+      },
+      "geometry": {
+        "failures": [
+          "centroid"
+        ],
+        "topology_mask": [
+          6,
+          3
+        ],
+        "xor_px": 240
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "5f67530ffac862cbf1e8b494a394a39bc8f3f894eb8aca224aaa2ef4fe0a377a",
+        "result.svg": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196",
+        "result.vector.json": "07df6a95db3cad08802708be5e37bc621cf72bd6489b50dd518ff6c8b20b2f6d"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 6,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.025
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0233
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0227
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "brick",
+      "counts": {
+        "commands": 703,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 5497,
+        "paths": 1,
+        "raw_bytes": 5518,
+        "subpaths": 54
+      },
+      "geometry": {
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "topology_mask": [
+          1,
+          53
+        ],
+        "xor_px": 2807
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "bdaf7798df576a87546e372bee86d68eeba1b4bf80900f51198375926e5ecaf0",
+        "result.svg": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b",
+        "result.vector.json": "14e609af59262258a39de62e0b1e753a551f1897bcf6f49807bf4750ad548761"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 1,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0352
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0345
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0346
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 78.90625,
+        "height_px": 202,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "coins",
+      "counts": {
+        "commands": 341,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 3702,
+        "paths": 24,
+        "raw_bytes": 3695,
+        "subpaths": 24
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          24,
+          0
+        ],
+        "xor_px": 374
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "7faf0410738921edc0561254896cbc1b399760b2fd48157341507c38126e51ab",
+        "result.svg": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707",
+        "result.vector.json": "e45ed94a887f6c5a2f096269601a3c8fa45cea9c3d58c03264e9a33771114752"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 24,
+      "processed_size": [
+        256,
+        202
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0254
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0253
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0252
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "gravel",
+      "counts": {
+        "commands": 2808,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 28836,
+        "paths": 209,
+        "raw_bytes": 28649,
+        "subpaths": 222
+      },
+      "geometry": {
+        "failures": [
+          "boundary",
+          "topology"
+        ],
+        "topology_mask": [
+          225,
+          13
+        ],
+        "xor_px": 3944
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "1d8223e8255cef680d13878fbc4f40c40d535e7d848600e529b1c8e470c71903",
+        "result.svg": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e",
+        "result.vector.json": "7f15adcaef78e466548a137e3bd75f772bc73d4d1a01c4d7b1a01b8a83674c4a"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 209,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0556
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0541
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0537
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 82.03125,
+        "height_px": 210,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "horse",
+      "counts": {
+        "commands": 132,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 1390,
+        "paths": 1,
+        "raw_bytes": 1406,
+        "subpaths": 1
+      },
+      "geometry": {
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "topology_mask": [
+          1,
+          0
+        ],
+        "xor_px": 603
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "f6176671bfb63aafd47123e03074cc093160b8c0259c1632007a55cb08e2c3eb",
+        "result.svg": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb",
+        "result.vector.json": "330b97f2de10a622ed09b224ac513ce24e96441231e4b928c5df6f1712343619"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 1,
+      "processed_size": [
+        256,
+        210
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0241
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0245
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0234
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "pcb",
+      "counts": {
+        "commands": 1082,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 8350,
+        "paths": 30,
+        "raw_bytes": 8342,
+        "subpaths": 94
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          30,
+          64
+        ],
+        "xor_px": 672
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "159cb096e6818bbdc400d73f5077db601b9c94f586be905fe711b048b37b162f",
+        "result.svg": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de",
+        "result.vector.json": "0f8a16396bcc9bc358de428c1761fdac070e9e61228551cc7c48300ea1491cd3"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 30,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.03
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0315
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0309
+        }
+      ],
+      "warnings": [
+        "thin_background"
+      ]
+    },
+    {
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "truchet",
+      "counts": {
+        "commands": 2354,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 19400,
+        "paths": 55,
+        "raw_bytes": 19367,
+        "subpaths": 75
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          55,
+          20
+        ],
+        "xor_px": 3616
+      },
+      "group": "corpus",
+      "hashes": {
+        "result.debug/mask.png": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "7418b7630eb8a049e0bb8587d2cc92987a558a74581e9e5c127c0fbac7086014",
+        "result.svg": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933",
+        "result.vector.json": "2b9d163139012c966a9c7933b90ee38004d6ad66f5ba6ff1bd6ba6602c30d98a"
+      },
+      "identical_runs": 3,
+      "mode": "mask",
+      "paths": 55,
+      "processed_size": [
+        256,
+        256
+      ],
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.049
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0482
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0471
+        }
+      ],
+      "warnings": [
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canny_seconds": 0.3134,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "badge",
+      "counts": {
+        "commands": 328,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 2924,
+        "paths": 8,
+        "raw_bytes": 2938,
+        "subpaths": 16
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [],
+        "topology_mask": [
+          8,
+          8
+        ],
+        "xor_px": 1043
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "edd2219bcedd1593c4751ff0317a3b219a099c978fbb799d7a4601e725245531",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "7a140ad52fa219a6c71115683104943c5b88cbca8581c8f4774df0481f04aca3",
+        "result.svg": "fe1c0019a97cbcb6990b1f2cfc0fedfe4b6c3fbae35fd002bf7e2ac74e5da0df",
+        "result.vector.json": "a06017deab5921748bbfa0e8e08f222b2de5ea5a1e580996370627230addb450"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 8,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0337
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0318
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.032
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canny_seconds": 0.1903,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "bracket",
+      "counts": {
+        "commands": 172,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 1648,
+        "paths": 6,
+        "raw_bytes": 1664,
+        "subpaths": 11
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "centroid"
+        ],
+        "topology_mask": [
+          6,
+          5
+        ],
+        "xor_px": 425
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "02289f74ed156a12460c9a804ab06c7db0a5d91d1f869ae0b3b7a4a6c106864c",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "4096a86c6ee314c0d8273aa63c723cca9d5400c7014fdc86c2140882c906ab28",
+        "result.svg": "cc8a5405a655d4ce0830c713be8a97e7a9b266f5b72a862d5f85e19d93011c4a",
+        "result.vector.json": "23f1c2351014779583c7df2aa693a478a857db0a71550d39c3ed88f772a1cf72"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 6,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0279
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0248
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0238
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canny_seconds": 0.1881,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "brick",
+      "counts": {
+        "commands": 749,
+        "degenerate_subpaths": 17,
+        "normalized_bytes": 5717,
+        "paths": 1,
+        "raw_bytes": 5738,
+        "subpaths": 81
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "topology_mask": [
+          1,
+          80
+        ],
+        "xor_px": 2523
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "29d0f54c3b160e71eed66e0d282cdb49536bb319baea4d450a078fe96b84b5c1",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "7448dc703496d9755d350ebb18a3fbd9d38098b3ef246b1355dd20bc0b30b466",
+        "result.svg": "727a736185fc77fefe9f968b74a0575e10200a7b14cc94498e33ae88636337eb",
+        "result.vector.json": "68d79b29f6be0a4a2246701c760b2e1807eb62f3b522cedb519fa57fc613f21a"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 1,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0406
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0372
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0362
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background",
+        "degenerate_subpaths"
+      ]
+    },
+    {
+      "canny_seconds": 0.1884,
+      "canvas": {
+        "height_mm": 78.90625,
+        "height_px": 202,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "coins",
+      "counts": {
+        "commands": 1338,
+        "degenerate_subpaths": 100,
+        "normalized_bytes": 9370,
+        "paths": 25,
+        "raw_bytes": 9362,
+        "subpaths": 222
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "bounds",
+          "scale",
+          "topology"
+        ],
+        "topology_mask": [
+          26,
+          197
+        ],
+        "xor_px": 1143
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "af4b5c15f8a4e518f2119604547c970b61c507da15e06582d8f86789ed3d076b",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "f51f6bb4d0c38068ef8465bc04e25dd926ffdb47ff3265d59fb3910fe7de1a35",
+        "result.svg": "8943e8bbd21e7fe0811bedbeff392524fc30bbf51ae759a87cbb8dc668a536ee",
+        "result.vector.json": "fe084e74151c914cdf45809f507ebf87fcafd8945c87dfdfc813a2a52d95e61b"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 25,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0353
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0334
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0341
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background",
+        "degenerate_subpaths"
+      ]
+    },
+    {
+      "canny_seconds": 0.1879,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "gravel",
+      "counts": {
+        "commands": 3230,
+        "degenerate_subpaths": 443,
+        "normalized_bytes": 21292,
+        "paths": 1,
+        "raw_bytes": 21313,
+        "subpaths": 851
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "topology"
+        ],
+        "topology_mask": [
+          1,
+          850
+        ],
+        "xor_px": 1950
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "0c4eedc596175787c3d6c1ab0e25f98d2a77a7e74a5fe8b1b421e10780fefa4b",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "ce7ee0295cfdce4f0115041ae5c152ca496d5b337afa5905b290efeb25a9f72a",
+        "result.svg": "eb901a024f934c3f8396263d0e8f6fb8cd9c7468c0a550d2835f43a4ad30e1ae",
+        "result.vector.json": "d1c0bf2abf55c80ba696b5c65aa275b48cdcde2c0bd34652d74e0a7cc646540c"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 1,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0515
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0587
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0477
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background",
+        "degenerate_subpaths"
+      ]
+    },
+    {
+      "canny_seconds": 0.1891,
+      "canvas": {
+        "height_mm": 82.03125,
+        "height_px": 210,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "horse",
+      "counts": {
+        "commands": 238,
+        "degenerate_subpaths": 3,
+        "normalized_bytes": 2311,
+        "paths": 1,
+        "raw_bytes": 2327,
+        "subpaths": 7
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "centroid",
+          "topology"
+        ],
+        "topology_mask": [
+          1,
+          6
+        ],
+        "xor_px": 1061
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "4d378dff019548bb22977ab8d4c25378c4cfabe19cfdb98626c1d549cb00aed9",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "826b3d4ebc12c80d490ed57bb1721fa033cd7a27b7e78e097cda738790b6a451",
+        "result.svg": "8c32a66470336dbf0f97c2a3f980b65a7e717e6f15f8a2340ab840f8d6ce007c",
+        "result.vector.json": "adc24d4a21969917929c7070c54626b77650b8519ed967c2377465dabb1b46ca"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 1,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0282
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0255
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0256
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background",
+        "degenerate_subpaths"
+      ]
+    },
+    {
+      "canny_seconds": 0.1877,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "pcb",
+      "counts": {
+        "commands": 2331,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 18956,
+        "paths": 94,
+        "raw_bytes": 18884,
+        "subpaths": 222
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "topology"
+        ],
+        "topology_mask": [
+          94,
+          384
+        ],
+        "xor_px": 2470
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "cfc7468f19ecaf388414cfa10539018718b3badef3c07708e6633cc5f7f3a181",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "67e0773ee0e2181d0b4918fc84cd871d84c79a5dbd43212564fc5b175045e223",
+        "result.svg": "7208b747d14dc082a168f6afbccede4c73067882bb207b537f1433d215e0c0dc",
+        "result.vector.json": "8a15186e37c5c12741401afe8912bf6b472eafbc901c585d01edac0634311862"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 94,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0412
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0397
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0374
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background"
+      ]
+    },
+    {
+      "canny_seconds": 0.1916,
+      "canvas": {
+        "height_mm": 100.0,
+        "height_px": 256,
+        "mm_per_px": 0.390625,
+        "width_mm": 100.0,
+        "width_px": 256
+      },
+      "case": "truchet",
+      "counts": {
+        "commands": 3808,
+        "degenerate_subpaths": 539,
+        "normalized_bytes": 26639,
+        "paths": 53,
+        "raw_bytes": 26608,
+        "subpaths": 674
+      },
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "geometry": {
+        "failures": [
+          "topology"
+        ],
+        "topology_mask": [
+          53,
+          621
+        ],
+        "xor_px": 3759
+      },
+      "group": "canny",
+      "hashes": {
+        "result.debug/mask.png": "0765dcc0d06dfd498398d4e5a17c9add8969bbffa65050385ece788981e78ba1",
+        "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
+        "result.preview.png": "fed53f28b411cc19ba4e2981920b020683a5f71bcd3c7663e699c0d8e80f6e62",
+        "result.svg": "9ee613798493d8909cea61a44a3105c71fbd1f94804f20f4cae8ec1d3bd14186",
+        "result.vector.json": "c819bdf97851d0b489de53c6a3d309eee760a6dac3efa4e7d5fd7604419bb5b5"
+      },
+      "identical_runs": 3,
+      "mode": "edges",
+      "paths": 53,
+      "runs": [
+        {
+          "exit": 0,
+          "publication": {
+            "link": 5,
+            "replace": 0
+          },
+          "seconds": 0.0569
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0548
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0562
+        }
+      ],
+      "warnings": [
+        "requested_width_below_four_pixels",
+        "thin_material",
+        "thin_background",
+        "degenerate_subpaths"
+      ]
+    },
+    {
+      "case": "donut",
+      "command": "/private/tmp/claude-501/-Users-darkbit1001-workspace-Stability-Toys/c9d2a9fd-7d5c-4f31-bc3c-e6985ff59c51/scratchpad/venv/bin/st-vector-map",
+      "exit": 0,
+      "group": "command",
+      "mode": "mask"
+    },
+    {
+      "case": "asymmetric",
+      "command": "/private/tmp/claude-501/-Users-darkbit1001-workspace-Stability-Toys/c9d2a9fd-7d5c-4f31-bc3c-e6985ff59c51/scratchpad/venv/bin/st-vector-map",
+      "exit": 0,
+      "group": "command",
+      "mode": "mask"
+    },
+    {
+      "case": "exif_orientation_6",
+      "exit": 0,
+      "group": "coordinates",
+      "mode": "mask",
+      "oriented_size": [
+        128,
+        120
+      ],
+      "original_size": [
+        120,
+        128
+      ],
+      "seconds": 0.008,
+      "xor_px": 0
+    },
+    {
+      "case": "constraint_size_mismatch",
+      "exit": 2,
+      "group": "coordinates",
+      "message": "/private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-337/test_constraint_mask_with_othe0/include.png: oriented dimensions (64, 64) differ from source dimensions (128, 128).",
+      "mode": "mask"
+    },
+    {
+      "case": "common_resize_max_res_64",
+      "exit": 0,
+      "group": "coordinates",
+      "mm_per_px": 1.5625,
+      "mode": "mask",
+      "processed_size": [
+        64,
+        64
+      ]
+    },
+    {
+      "canvas_mm": [
+        50.0,
+        25.0
+      ],
+      "case": "physical_rectangle",
+      "exit": 0,
+      "group": "coordinates",
+      "mode": "mask",
+      "origin_mm": [
+        10.0,
+        5.0
+      ],
+      "rectangle_mm": [
+        25.0,
+        12.5
+      ]
+    },
+    {
+      "case": "asymmetric_alignment",
+      "exit": 0,
+      "flipped_xor_px": {
+        "lr": 3712,
+        "transpose": 5504,
+        "ud": 3200
+      },
+      "group": "coordinates",
+      "mode": "mask",
+      "xor_px": 0
+    },
+    {
+      "case": "exclude_wins",
+      "excluded_source_px": 1200,
+      "exit": 0,
+      "group": "composition",
+      "mode": "mask"
+    },
+    {
+      "case": "clip_after_expansion",
+      "exit": 0,
+      "expansion": {
+        "achieved_width_mm": 7.03125,
+        "expansion_mm": 3.125,
+        "kernel_size_px": 9,
+        "radius_px": 4,
+        "requested_width_mm": 6.0
+      },
+      "group": "composition",
+      "mode": "edges"
+    },
+    {
+      "case": "empty_material_black",
+      "debug_retained": true,
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-337/test_empty_standalone_material0/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
+      "mode": "mask"
+    },
+    {
+      "case": "empty_material_speckle_only",
+      "debug_retained": true,
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-337/test_empty_standalone_material1/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
+      "mode": "mask"
+    },
+    {
+      "case": "malformed_upstream_svg",
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: unsupported element script. Only g and path are accepted.",
+      "mode": "mask"
+    },
+    {
+      "case": "limit-paths",
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: path count at least 3 exceeds limit 2 (--max-paths). Lower --max-res, or adjust recipe vtracer.filter_speckle within 0..128. Both can change the geometry. This tool does not change them for you.",
+      "mode": "mask"
+    },
+    {
+      "case": "limit-svg-bytes",
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: SVG size 509 bytes exceeds limit 200 (--max-svg-bytes). Lower --max-res, or adjust recipe vtracer.filter_speckle within 0..128. Both can change the geometry. This tool does not change them for you.",
+      "mode": "mask"
+    },
+    {
+      "case": "limit-path-commands",
+      "exit": 1,
+      "group": "failure",
+      "message": "VTracer 0.6.15 layer standalone: path command count at least 11 exceeds limit 10 (--max-path-commands). Lower --max-res, or adjust recipe vtracer.filter_speckle within 0..128. Both can change the geometry. This tool does not change them for you.",
+      "mode": "mask"
+    },
+    {
+      "case": "overwrite_refused_out.svg",
+      "exit": 2,
+      "group": "failure",
+      "mode": "mask"
+    },
+    {
+      "case": "overwrite_refused_out.vector.json",
+      "exit": 2,
+      "group": "failure",
+      "mode": "mask"
+    },
+    {
+      "case": "overwrite_refused_out.preview.png",
+      "exit": 2,
+      "group": "failure",
+      "mode": "mask"
+    },
+    {
+      "case": "overwrite_refused_out.debug/mask.png",
+      "exit": 2,
+      "group": "failure",
+      "mode": "mask"
+    },
+    {
+      "case": "interrupted_overwrite",
+      "exit": 1,
+      "group": "failure",
+      "manifest_present": false,
+      "mode": "mask",
+      "svg_replaced_before_failure": true
+    }
+  ],
+  "command_versions": {
+    "Pillow": "12.3.0",
+    "numpy": "2.5.3",
+    "opencv-python": null,
+    "opencv-python-headless": "5.0.0.93",
+    "resvg-py": "0.5.0",
+    "st-controlnet-helpers": "0.1.0",
+    "vtracer": "0.6.15"
+  },
+  "commands": {
+    "canny": [
+      "/private/tmp/claude-501/-Users-darkbit1001-workspace-Stability-Toys/c9d2a9fd-7d5c-4f31-bc3c-e6985ff59c51/scratchpad/venv/bin/st-canny-map"
+    ],
+    "vector": [
+      "/private/tmp/claude-501/-Users-darkbit1001-workspace-Stability-Toys/c9d2a9fd-7d5c-4f31-bc3c-e6985ff59c51/scratchpad/venv/bin/st-vector-map"
+    ]
+  },
+  "in_process": {
+    "interpreter": "/Users/darkbit1001/miniforge3/envs/stability-toys/bin/python",
+    "modules": "/Users/darkbit1001/workspace/Stability-Toys/.worktrees/ntgnbxci-acceptance/scripts",
+    "platform": "darwin",
+    "python": "3.12.13",
+    "versions": {
+      "Pillow": "12.3.0",
+      "numpy": "2.5.1",
+      "opencv-python": "4.11.0.86",
+      "opencv-python-headless": "4.11.0.86",
+      "resvg-py": "0.5.0",
+      "st-controlnet-helpers": "0.1.0",
+      "vtracer": "0.6.15"
+    }
+  }
+}
