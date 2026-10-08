@@ -13,7 +13,8 @@ import pytest
 
 from tests.fixtures.vector_map import make_fixtures
 from tests.test_vector_map_topology import (
-    RSVG,
+    NO_RESVG,
+    RESVG,
     TRACE_OPTIONS,
     covers_canvas,
     load_mask,
@@ -214,7 +215,7 @@ def test_returns_upstream_svg_unchanged(name):
     assert adapter.trace_layer(material).svg == upstream
 
 
-@pytest.mark.skipif(RSVG is None, reason="rsvg-convert is absent. Q2 selects the renderer.")
+@pytest.mark.skipif(not RESVG, reason=NO_RESVG)
 @pytest.mark.parametrize("name", TOPOLOGY_FIXTURES)
 def test_rendered_adapter_output_matches_mask(name):
     material = load_mask(name)
