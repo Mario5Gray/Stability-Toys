@@ -498,7 +498,6 @@ def test_missing_vtracer_is_a_processing_failure_with_install_hint(tmp_path):
     [
         (["--input-kind", "image"], "STABL-memwrtos"),
         (["--mask", "m.png"], "STABL-memwrtos"),
-        (["--preview"], "STABL-kfrksmnp"),
     ],
 )
 def test_deferred_flags_exit_2_and_name_the_owner(tmp_path, extra, owner):

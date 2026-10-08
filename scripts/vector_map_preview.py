@@ -54,6 +54,14 @@ class Preview:
     provenance: dict
 
 
+def require_renderer():
+    """Fail before processing when --preview cannot render."""
+    try:
+        import resvg_py  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError("--preview needs resvg-py==0.5.0. Install the vector extra.") from exc
+
+
 def pixel_root(svg, canvas):
     """Restate normalized SVG with a pixel root size. Keep viewBox, paths, paint and order."""
     root = ET.fromstring(svg)

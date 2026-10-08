@@ -213,3 +213,46 @@ def test_broken_torch_dependency_is_not_reported_as_missing_torch(module, tmp_pa
     assert result.returncode != 0
     assert "ModuleNotFoundError: No module named 'torch_missing_dependency'" in result.stderr
     assert "Install the" not in result.stderr
+
+
+def test_conversion_without_preview_never_imports_renderer(tmp_path):
+    pytest.importorskip("vtracer")
+    out = tmp_path / "out.svg"
+    result = _run_blocked(
+        ["resvg_py"],
+        """
+        import vector_map
+
+        code = vector_map.main([sys.argv[3], sys.argv[4], "--input-kind", "mask", "--width-mm", "10"])
+        print("EXIT", code, "RENDERER", "resvg_py" in sys.modules)
+        """,
+        ROOT / "tests" / "fixtures" / "vector_map" / "donut.png",
+        out,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "EXIT 0 RENDERER False" in result.stdout
+
+
+def test_missing_renderer_fails_preview_before_processing(tmp_path):
+    pytest.importorskip("vtracer")
+    out = tmp_path / "out.svg"
+    result = _run_blocked(
+        ["resvg_py"],
+        """
+        import vector_map
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("prepared before renderer check")
+
+        vector_map.raster.prepare = forbidden
+        code = vector_map.main([sys.argv[3], sys.argv[4], "--input-kind", "mask", "--width-mm", "10", "--preview"])
+        print("EXIT", code)
+        """,
+        ROOT / "tests" / "fixtures" / "vector_map" / "donut.png",
+        out,
+    )
+    assert "EXIT 1" in result.stdout, result.stderr
+    assert "resvg-py==0.5.0" in result.stderr
+    assert "vector extra" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert list(tmp_path.iterdir()) == []

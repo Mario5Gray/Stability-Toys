@@ -43,8 +43,11 @@ def package_version(name):
         raise RuntimeError(f"Missing {name} package metadata. Install st-controlnet-helpers[vector].") from exc
 
 
-def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *, upstream_args=None):
-    """Describe consumed inputs and exact output bytes. Manifest excludes its own hash."""
+def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *, upstream_args=None, preview=None):
+    """Describe consumed inputs and exact output bytes. Manifest excludes its own hash.
+
+    preview holds renderer and font provenance when --preview ran, else null.
+    """
     preparation = {
         name: getattr(settings, name)
         for name in ("input_kind", "width_mm", "height_mm", "line_width_mm", "max_res", "invert", "alpha")
@@ -73,6 +76,7 @@ def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *
         ],
         "counts": asdict(normalized.metrics),
         "warnings": diagnostics,
+        "preview": preview,
     })
 
 
@@ -97,14 +101,17 @@ def debug_files(bundle, settings, prepared):
 class Bundle:
     """Own fixed output names. Completion marker publishes last."""
 
-    def __init__(self, destination, *, debug=False, overwrite=False, inputs=()):
+    def __init__(self, destination, *, debug=False, preview=False, overwrite=False, inputs=()):
         self.svg = Path(destination)
         self.manifest = self.svg.with_suffix(".vector.json")
+        self.preview = self.svg.with_suffix(".preview.png")
         self.debug_directory = self.svg.with_suffix(".debug")
         self.debug = debug
         self.overwrite = overwrite
         self.inputs = tuple(inputs)
         self.members = [self.svg, self.manifest]
+        if preview:
+            self.members.append(self.preview)
         if debug:
             self.members.extend(self.debug_directory / name for name in ("mask.png", "recipe.json"))
 
