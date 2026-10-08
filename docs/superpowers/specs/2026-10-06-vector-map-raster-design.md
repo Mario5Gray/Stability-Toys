@@ -18,6 +18,10 @@ Replace raster skeleton. Enable mask and edge preparation through existing CLI a
 Retain existing VTracer adapter and SVG inspection boundary.
 Manifest publication belongs to S2.6. Preview belongs to S2.7. Image mode belongs to S3.1.
 
+S2.6 supplies optional input byte snapshots to raster preparation and captures recipe bytes during parsing.
+Preparation decodes those exact bytes while preserving original paths in diagnostics.
+Direct raster callers can continue reading files normally. Raster geometry and recipe precedence remain unchanged.
+
 ## Options considered
 
 1. Recommend warning diagnostics from square coverage. Deterministic, conservative, uses existing NumPy and OpenCV dependencies.

@@ -175,15 +175,18 @@ def resolve(*layers):
     )
 
 
-def load_recipe(path):
+def load_recipe(path, *, snapshots=None):
     """Decode a schema_version 1 recipe. Resolve its paths relative to the recipe directory."""
     path = Path(path)
     try:
-        text = path.read_text()
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
     except OSError as exc:
         raise ConfigError(f"Cannot read recipe {path}: {exc.strerror or exc}.") from exc
     except UnicodeDecodeError as exc:
         raise ConfigError(f"Recipe {path} is not valid UTF-8: {exc}.") from exc
+    if snapshots is not None:
+        snapshots[path] = raw
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:

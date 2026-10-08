@@ -85,7 +85,39 @@ Both width and feature warnings remain when both conditions apply.
 
 `--json` emits one result object. Warnings appear in `diagnostics` and on stderr.
 Successful conversion with warnings returns exit 0. Invalid settings return 2. Processing failures return 1.
-Failure publishes no SVG. `--overwrite` never permits replacing source, recipe, or constraint inputs.
+Processing failure publishes no successful bundle. Publication failure can leave files without a completion manifest.
+`--overwrite` never permits replacing source, recipe, or constraint inputs.
+
+**Artifact bundle**
+
+Conversion publishes `<stem>.svg` and `<stem>.vector.json` for requested `<stem>.svg` destination.
+Manifest records consumed input hashes, installed package versions, resolved settings, physical canvas, counts, warnings, and output hashes.
+Standalone layer has `id: standalone` and `height_mm: null`. Conversion assigns no relief height.
+Manifest contains no timestamp or self-hash. A bundle is complete only when every listed artifact hash matches.
+Source, recipe, and constraint hashes describe exact bytes consumed during parsing and preparation.
+`--json` success includes `artifacts.svg` and `artifacts.manifest`.
+
+All requested output collisions fail before preparation. Default publication uses hard links and refuses competing files atomically.
+Filesystems without hard-link support return a clear error. Explicit `--overwrite` permits replacement of owned output names with `os.replace`.
+No automatic overwrite fallback occurs. Input-alias checks still apply.
+Publication stages files on destination filesystem, invalidates old manifest, replaces outputs, then publishes new manifest last.
+Several file publications do not form an atomic transaction. Unrelated files remain unchanged.
+If staging cleanup fails after manifest publication, publisher removes new manifest before reporting failure.
+
+`--debug-bundle` adds `<stem>.debug/mask.png` and `<stem>.debug/recipe.json`.
+Successful manifest lists both hashes. No other debug filenames belong to bundle.
+Symlinked debug directories fail. Overwrite preserves unrelated files within ordinary debug directory.
+Replay recipe traces final prepared mask without repeating inversion, constraints, resizing, or edge expansion.
+
+```bash
+st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 --line-width-mm 0.8 --debug-bundle
+st-vector-map replay.svg --recipe detail.debug/recipe.json
+```
+
+Tracing failure retains prepared debug files when their publication succeeds. Failed JSON result reports `artifacts.debug`.
+Failure diagnostic directs retry with `--overwrite`. Retry without overwrite refuses retained debug files.
+Before retained debug files replace old artifacts, publisher invalidates old completion manifest.
+If debug publication fails, diagnostic preserves both original processing error and debug publication error.
 
 **SVG output and inspection**
 
@@ -134,7 +166,7 @@ The command never changes these settings or retries.
 
 Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
-Image mode, preview, and artifact bundles remain separate sprint tasks.
+Image mode and preview remain separate sprint tasks.
 
 ---
 
@@ -324,10 +356,7 @@ is black (unless `--invert` is set).
 Trace a binary mask into an SVG with a physical size in millimetres.
 The command uses VTracer 0.6.15 in polygon mode. Install the `vector` extra.
 
-> **Status: walking skeleton (S2.2).** Only `--input-kind mask` converts.
-> Edge mode, image mode, `--max-res`, `--line-width-mm`, `--mask`, `--alpha`,
-> `--preview`, alpha-bearing input, and EXIF orientation other than 1 fail with
-> exit code 2. The message names the task that adds the feature.
+> Historical S2.2 interface summary below. Current mask/edge behavior and artifact bundle contract appear under [st-vector-map](#st-vector-map).
 
 **Parameters**
 

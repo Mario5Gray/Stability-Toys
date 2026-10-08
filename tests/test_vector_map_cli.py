@@ -418,7 +418,7 @@ def test_json_success_reports_the_published_svg_and_measured_paths(tmp_path):
     assert result.returncode == 0, result.stderr
     payload = one_result(result)
     assert payload["status"] == "converted"
-    assert payload["artifacts"] == {"svg": str(out)}
+    assert payload["artifacts"] == {"svg": str(out), "manifest": str(out.with_suffix(".vector.json"))}
     assert payload["counts"] == {"layers": 1, "paths": svg_io.count_paths(out.read_text())}
     assert all(item["level"] == "warning" for item in payload["diagnostics"])
 

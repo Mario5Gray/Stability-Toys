@@ -11,7 +11,6 @@ Progress and diagnostics go to stderr. --json prints one result object on stdout
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -19,6 +18,7 @@ import vector_map_config as config
 import vector_map_raster as raster
 import vector_map_svg as svg_io
 import vector_map_vtracer as adapter
+import vector_map_artifacts as artifacts
 
 RESULT_SCHEMA_VERSION = 1
 
@@ -68,7 +68,8 @@ def build_parser():
     parser.add_argument("--max-path-commands", type=int, metavar="N",
                         help="Most M, L and Z path commands per layer. Default 1000000.")
     parser.add_argument("--preview", action="store_true", help="Write a preview PNG. Lands in S2.7.")
-    parser.add_argument("--overwrite", action="store_true", help="Replace an existing destination.")
+    parser.add_argument("--debug-bundle", action="store_true", help="Save prepared mask and replay recipe in STEM.debug.")
+    parser.add_argument("--overwrite", action="store_true", help="Replace owned bundle files. Preserve inputs and unrelated files.")
     parser.add_argument("--json", action="store_true", help="Print one JSON result object on stdout.")
     parser.add_argument("--recipe", type=Path, help="schema_version 1 recipe. Explicit options override it.")
     return parser
@@ -79,34 +80,34 @@ def main(argv=None):
     as_json = "--json" in argv
     parser = build_parser()
     diagnostics = []
+    published = {}
     try:
         args = parser.parse_args(argv)
-        destination, paths = _convert(args, diagnostics)
+        destination, paths = _convert(args, diagnostics, published)
     except UsageError as exc:
         print(parser.format_usage(), end="", file=sys.stderr)
-        return _fail(2, "invalid", exc, as_json, diagnostics)
+        return _fail(2, "invalid", exc, as_json, diagnostics, published)
     except config.ConfigError as exc:
-        return _fail(2, "invalid", exc, as_json, diagnostics)
+        return _fail(2, "invalid", exc, as_json, diagnostics, published)
     except (OSError, RuntimeError, ValueError) as exc:
-        return _fail(1, "failed", exc, as_json, diagnostics)
+        return _fail(1, "failed", exc, as_json, diagnostics, published)
     if as_json:
-        print(json.dumps(_result("converted", svg=str(destination), layers=1, paths=paths, diagnostics=diagnostics)))
+        print(json.dumps(_result("converted", svg=str(destination), layers=1, paths=paths, diagnostics=diagnostics, published=published)))
     return 0
 
 
-def _convert(args, diagnostics):
-    destination, settings = _settings(args)
+def _convert(args, diagnostics, published):
+    snapshots = {}
+    destination, settings = _settings(args, snapshots=snapshots)
     if args.preview:
         raise config.deferred("--preview", config.S27)
-    _refuse_aliases(destination, (
-        ("source", settings.input), ("recipe", args.recipe),
-        ("include-mask", settings.include_mask), ("exclude-mask", settings.exclude_mask),
-    ))
-    if destination.exists() and not args.overwrite:
-        raise config.ConfigError(f"{destination} exists. Use --overwrite to replace it.")
+    bundle = artifacts.Bundle(destination, debug=args.debug_bundle, overwrite=args.overwrite,
+                              inputs=artifacts.input_paths(settings, args.recipe))
+    bundle.check()
+    inputs = artifacts.snapshot_inputs(settings, args.recipe, snapshots)
 
     _progress(f"loading  {settings.input}")
-    prepared = raster.prepare(settings)
+    prepared = raster.prepare(settings, input_bytes=snapshots)
     material = prepared.material
     canvas = prepared.canvas
     diagnostics.extend(prepared.diagnostics)
@@ -130,8 +131,28 @@ def _convert(args, diagnostics):
         f"tracing  {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm"
         f" (vtracer {dict(settings.vtracer)})"
     )
-    traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
-    normalized = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
+    debug = artifacts.debug_files(bundle, settings, prepared) if args.debug_bundle else {}
+    try:
+        traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
+        normalized = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
+    except (OSError, RuntimeError, ValueError) as exc:
+        try:
+            upstream_version = artifacts.package_version("vtracer")
+        except RuntimeError:
+            upstream_version = "unavailable"
+        message = f"VTracer {upstream_version} layer standalone: {exc}"
+        if debug:
+            try:
+                bundle.publish(debug)
+            except (OSError, RuntimeError, ValueError) as debug_exc:
+                message += f" Debug publication failed: {debug_exc}"
+            else:
+                published["debug"] = str(bundle.debug_directory)
+                message += (
+                    f" Debug files retained at {bundle.debug_directory}. "
+                    "Rerun with --overwrite to replace mask.png and recipe.json."
+                )
+        raise RuntimeError(message) from exc
     paths = normalized.metrics.paths
     degenerate = normalized.metrics.degenerate_subpaths
     if degenerate:
@@ -144,31 +165,22 @@ def _convert(args, diagnostics):
         }
         diagnostics.append(diagnostic)
         _progress(f"warning: {diagnostic['message']}")
-    _publish(destination, normalized.svg)
+    files = {bundle.relative(destination): normalized.svg.encode("utf-8"), **debug}
+    manifest = artifacts.manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics,
+                                        upstream_args=traced.upstream_args)
+    bundle.publish(files, manifest)
+    published["manifest"] = str(bundle.manifest)
+    if debug:
+        published["debug"] = str(bundle.debug_directory)
     _progress(f"saved    {destination} (paths: {paths})")
     return destination, paths
 
 
-def _refuse_aliases(destination, inputs):
-    """--overwrite must never replace an input. samefile follows symlinks and matches hard links."""
-    for label, path in inputs:
-        if path is None:
-            continue
-        try:
-            same = os.path.samefile(destination, path)
-        except OSError:
-            continue  # One of the two files does not exist, so no input can be replaced.
-        if same:
-            raise config.ConfigError(
-                f"Destination {destination} is the same file as the {label} {path}. Choose another destination."
-            )
-
-
-def _settings(args):
+def _settings(args, *, snapshots=None):
     """Apply the positional grammar, then defaults, preset, recipe, and explicit CLI values."""
     if len(args.paths) > 2:
         raise config.ConfigError("Give at most two paths: SOURCE DESTINATION.")
-    recipe = config.load_recipe(args.recipe) if args.recipe else {}
+    recipe = config.load_recipe(args.recipe, snapshots=snapshots) if args.recipe else {}
     cli = {
         "input": args.paths[0] if len(args.paths) == 2 else None,
         "input_kind": args.input_kind,
@@ -190,26 +202,20 @@ def _settings(args):
     return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
 
 
-def _publish(destination, text):
-    """Write only after every check passed. S2.6 (STABL-fmjwbrzw) owns staged bundle publication."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(text, encoding="utf-8")
-
-
-def _result(status, *, svg=None, layers=0, paths=0, diagnostics=()):
+def _result(status, *, svg=None, layers=0, paths=0, diagnostics=(), published=None):
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
         "status": status,
-        "artifacts": {"svg": svg},
+        "artifacts": {"svg": svg, **(published or {})},
         "counts": {"layers": layers, "paths": paths},
         "diagnostics": list(diagnostics),
     }
 
 
-def _fail(code, status, exc, as_json, diagnostics=()):
+def _fail(code, status, exc, as_json, diagnostics=(), published=None):
     print(f"error: {exc}", file=sys.stderr)
     if as_json:
-        print(json.dumps(_result(status, diagnostics=[{"level": "error", "message": str(exc)}, *diagnostics])))
+        print(json.dumps(_result(status, diagnostics=[{"level": "error", "message": str(exc)}, *diagnostics], published=published)))
     return code
 
 

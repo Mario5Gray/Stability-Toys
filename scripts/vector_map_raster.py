@@ -2,6 +2,7 @@
 
 import math
 import warnings
+from io import BytesIO
 from dataclasses import dataclass
 
 import cv2
@@ -34,11 +35,11 @@ class PreparedRaster:
     diagnostics: tuple[dict, ...]
 
 
-def _decode(path, *, alpha=False, invert=False, constraint=False):
+def _decode(path, *, alpha=False, invert=False, constraint=False, data=None):
     """Decode and orient before thresholding. Return material, source dimensions, and warnings."""
     diagnostics = []
     try:
-        with Image.open(path) as source:
+        with Image.open(path if data is None else BytesIO(data)) as source:
             if source.format not in ("PNG", "JPEG"):
                 raise ConfigError(f"{path}: expected PNG or JPEG, got {source.format}.")
             if source.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
@@ -125,9 +126,12 @@ def _expand(material, requested, scale):
     return expanded.astype(bool), expansion
 
 
-def prepare(settings):
+def prepare(settings, *, input_bytes=None):
     """Prepare one layer and retain complete source canvas. Diagnostics never repair geometry."""
-    material, original_size, diagnostics = _decode(settings.input, alpha=settings.alpha, invert=settings.invert)
+    input_bytes = input_bytes if input_bytes is not None else {}
+    material, original_size, diagnostics = _decode(
+        settings.input, alpha=settings.alpha, invert=settings.invert, data=input_bytes.get(settings.input),
+    )
     oriented_size = material.shape[::-1]
     processed_size = _processing_size(oriented_size, settings.max_res)
     constraints = []
@@ -135,7 +139,7 @@ def prepare(settings):
         if path is None:
             constraints.append(None)
             continue
-        constraint, _, notices = _decode(path, constraint=True)
+        constraint, _, notices = _decode(path, constraint=True, data=input_bytes.get(path))
         diagnostics.extend(notices)
         if constraint.shape[::-1] != oriented_size:
             raise ConfigError(
