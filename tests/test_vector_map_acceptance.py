@@ -57,7 +57,14 @@ def _save_evidence():
         Path(target).write_text(json.dumps({
             "versions": _versions(), "python": sys.version.split()[0], "platform": sys.platform,
             "commands": _commands(), "cases": EVIDENCE,
-        }, indent=2, sort_keys=True) + "\n")
+        }, indent=2, sort_keys=True, default=_plain) + "\n")
+
+
+def _plain(value):
+    """numpy scalars from measurements become plain JSON numbers."""
+    if isinstance(value, np.generic):
+        return value.item()
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
 
 
 def _versions():
