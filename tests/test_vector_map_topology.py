@@ -5,9 +5,8 @@ Fixtures use the wrapper convention: white (luma >= 128) is material (spec 5).
 VTracer 0.6.15 binary mode traces DARK pixels as foreground (Q1, STABL-orcwoxml).
 """
 
+import importlib.util
 import re
-import shutil
-import subprocess
 from io import BytesIO
 from pathlib import Path
 
@@ -17,13 +16,16 @@ from PIL import Image
 from scipy import ndimage
 
 from tests.fixtures.vector_map import make_fixtures
+from tests.fixtures.vector_map.corpus import metrics
 
 vtracer = pytest.importorskip(
     "vtracer", reason="vtracer==0.6.15 is not installed. S2.1 adds the vector extra."
 )
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "vector_map"
-RSVG = shutil.which("rsvg-convert")
+# Q2 (STABL-dheskftn): resvg-py==0.5.0 replaces rsvg-convert. The test image installs it.
+RESVG = importlib.util.find_spec("resvg_py") is not None
+NO_RESVG = "resvg-py==0.5.0 is absent. Install the vector extra."
 
 # Every option is explicit. The 0.6.15 stub defaults are not reliable (Q1).
 TRACE_OPTIONS = dict(
@@ -99,15 +101,8 @@ def covers_canvas(svg, width, height):
 
 
 def render(svg, width, height):
-    """Rasterize with rsvg-convert. Return the boolean rendered-material array."""
-    assert RSVG is not None
-    result = subprocess.run(
-        [RSVG, "--width", str(width), "--height", str(height), "--background-color", "white"],
-        input=svg.encode(),
-        capture_output=True,
-        check=True,
-    )
-    return np.asarray(Image.open(BytesIO(result.stdout)).convert("L")) < 128
+    """Rasterize the pixel trace with the locked crisp-edge renderer. Return rendered material."""
+    return metrics.render(svg, width, height)
 
 
 FIXTURES = sorted(make_fixtures.EXPECTED)
@@ -148,7 +143,7 @@ def test_trace_path_structure_matches_topology(name):
     assert {fill for _, fill, *_ in paths} == {"#000000"}
 
 
-@pytest.mark.skipif(RSVG is None, reason="rsvg-convert is absent. Q2 selects the renderer.")
+@pytest.mark.skipif(not RESVG, reason=NO_RESVG)
 @pytest.mark.parametrize("name", FIXTURES)
 def test_rendered_trace_has_mask_topology(name):
     material = load_mask(name)
@@ -156,7 +151,7 @@ def test_rendered_trace_has_mask_topology(name):
     assert raster_topology(rendered) == make_fixtures.EXPECTED[name]
 
 
-@pytest.mark.skipif(RSVG is None, reason="rsvg-convert is absent. Q2 selects the renderer.")
+@pytest.mark.skipif(not RESVG, reason=NO_RESVG)
 @pytest.mark.parametrize("name", ["asymmetric", "border_touching"])
 def test_rendered_trace_keeps_orientation(name):
     """Topology counts are mirror-invariant. The render must match the unflipped mask best."""

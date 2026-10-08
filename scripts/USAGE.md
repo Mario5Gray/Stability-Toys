@@ -15,7 +15,7 @@ make install-controlnet-scripts            # all extras (depth + pose + canny)
 make install-controlnet-scripts EXTRAS=depth   # depth backends only
 make install-controlnet-scripts EXTRAS=pose    # pose backends only
 make install-controlnet-scripts EXTRAS=canny   # canny backends only
-make install-controlnet-scripts EXTRAS=vector  # st-vector-map with VTracer (not part of all)
+make install-controlnet-scripts EXTRAS=vector  # st-vector-map with VTracer and resvg-py (not part of all)
 
 # or directly with pip
 pip install "./scripts[all]"
@@ -119,6 +119,33 @@ Failure diagnostic directs retry with `--overwrite`. Retry without overwrite ref
 Before retained debug files replace old artifacts, publisher invalidates old completion manifest.
 If debug publication fails, diagnostic preserves both original processing error and debug publication error.
 
+**Preview**
+
+`--preview` adds `<stem>.preview.png` to the bundle. The manifest lists its hash.
+The image has three labeled panels at processing resolution, one image pixel per processing pixel:
+
+- Prepared material mask. Material is black.
+- Rendered vector output. resvg-py 0.5.0 renders the published SVG with default anti-aliasing.
+- Vector overlay on the oriented source, resized to the processing canvas with nearest-neighbour.
+
+The overlay legend shows mask and vector overlap, vector-only material, and mask-only material.
+Compare the first two panels to see what fitting changed. The mask panel alone is not proof of vector output.
+Edge mode uses the supplied edge image as source. The preview has no access to an earlier Canny input photograph.
+
+The renderer gets the published paths under a pixel root size, so one `viewBox` unit is one pixel.
+Do not render the millimetre root with `dpi = 25.4 / mm_per_px`. resvg-py 0.5.0 converts millimetres in float32.
+At 25.4/96 mm/px, 256 px becomes 255.99998 px, and edges move.
+
+Labels use a Pillow embedded font. The command loads no system font.
+With FreeType on Pillow 10.1 or later, labels use embedded Aileron at 12 px. Otherwise they use the embedded bitmap font.
+Manifest `preview` records renderer version, rendering settings, resolution, Pillow version, font class, and FreeType version.
+FreeType version is `null` when Pillow has no FreeType. Without `--preview`, manifest `preview` is `null`.
+Same inputs, settings, dependency versions, and build give the same bytes. Bytes across platforms can differ.
+
+`--preview` without resvg-py fails with exit 1 before preparation. Renderer failure publishes no SVG, preview, or manifest.
+With `--debug-bundle`, renderer failure retains debug files like tracing failure.
+Conversion without `--preview` never imports resvg-py. `--json` success adds `artifacts.preview`.
+
 **SVG output and inspection**
 
 The SVG root states the canvas in `mm` with a pixel `viewBox="0 0 W H"`. OpenSCAD imports this form at the stated size.
@@ -166,7 +193,7 @@ The command never changes these settings or retries.
 
 Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
-Image mode and preview remain separate sprint tasks.
+Image mode remains a separate sprint task.
 
 ---
 

@@ -25,6 +25,11 @@ numpy>=1.24.0
 Pillow>=9.5.0
 opencv-python>=4.8.0
 
+# st-vector-map tracing and preview renderer. Keep equal to the scripts vector extra
+# pins, so native-container trace and render checks run instead of skipping.
+vtracer==0.6.15
+resvg-py==0.5.0
+
 # Transformers for CLIP
 transformers>=4.30.0,<5.0
 

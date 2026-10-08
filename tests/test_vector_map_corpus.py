@@ -1,7 +1,7 @@
 """S1.4 acceptance corpus v1, locked tolerances, and fitting defaults (STABL-cbwzjyky).
 
 Spec 10 and 11.1. Pure metric and inventory tests do not need resvg.
-Render tests skip until S2.7 installs resvg-py in package environments.
+Render tests need resvg-py==0.5.0 from the vector extra. The test image installs it (S2.7).
 """
 
 import importlib.util
@@ -21,7 +21,7 @@ CASES = sorted(make_corpus.CASES)
 
 needs_resvg = pytest.mark.skipif(
     importlib.util.find_spec("resvg_py") is None,
-    reason="resvg-py==0.5.0 is absent. S2.7 installs it in the vector extra.",
+    reason="resvg-py==0.5.0 is absent. Install the vector extra.",
 )
 
 

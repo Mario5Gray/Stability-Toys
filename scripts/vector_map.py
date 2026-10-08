@@ -19,6 +19,7 @@ import vector_map_raster as raster
 import vector_map_svg as svg_io
 import vector_map_vtracer as adapter
 import vector_map_artifacts as artifacts
+import vector_map_preview as preview
 
 RESULT_SCHEMA_VERSION = 1
 
@@ -67,7 +68,8 @@ def build_parser():
     parser.add_argument("--max-paths", type=int, metavar="N", help="Most path elements per layer. Default 10000.")
     parser.add_argument("--max-path-commands", type=int, metavar="N",
                         help="Most M, L and Z path commands per layer. Default 1000000.")
-    parser.add_argument("--preview", action="store_true", help="Write a preview PNG. Lands in S2.7.")
+    parser.add_argument("--preview", action="store_true",
+                        help="Write STEM.preview.png: prepared mask, rendered vector, and source overlay. Needs resvg-py.")
     parser.add_argument("--debug-bundle", action="store_true", help="Save prepared mask and replay recipe in STEM.debug.")
     parser.add_argument("--overwrite", action="store_true", help="Replace owned bundle files. Preserve inputs and unrelated files.")
     parser.add_argument("--json", action="store_true", help="Print one JSON result object on stdout.")
@@ -99,11 +101,11 @@ def main(argv=None):
 def _convert(args, diagnostics, published):
     snapshots = {}
     destination, settings = _settings(args, snapshots=snapshots)
-    if args.preview:
-        raise config.deferred("--preview", config.S27)
-    bundle = artifacts.Bundle(destination, debug=args.debug_bundle, overwrite=args.overwrite,
+    bundle = artifacts.Bundle(destination, debug=args.debug_bundle, preview=args.preview, overwrite=args.overwrite,
                               inputs=artifacts.input_paths(settings, args.recipe))
     bundle.check()
+    if args.preview:
+        preview.require_renderer()
     inputs = artifacts.snapshot_inputs(settings, args.recipe, snapshots)
 
     _progress(f"loading  {settings.input}")
@@ -136,23 +138,8 @@ def _convert(args, diagnostics, published):
         traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
         normalized = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
     except (OSError, RuntimeError, ValueError) as exc:
-        try:
-            upstream_version = artifacts.package_version("vtracer")
-        except RuntimeError:
-            upstream_version = "unavailable"
-        message = f"VTracer {upstream_version} layer standalone: {exc}"
-        if debug:
-            try:
-                bundle.publish(debug)
-            except (OSError, RuntimeError, ValueError) as debug_exc:
-                message += f" Debug publication failed: {debug_exc}"
-            else:
-                published["debug"] = str(bundle.debug_directory)
-                message += (
-                    f" Debug files retained at {bundle.debug_directory}. "
-                    "Rerun with --overwrite to replace mask.png and recipe.json."
-                )
-        raise RuntimeError(message) from exc
+        message = f"VTracer {_version('vtracer')} layer standalone: {exc}"
+        raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
     paths = normalized.metrics.paths
     degenerate = normalized.metrics.degenerate_subpaths
     if degenerate:
@@ -166,14 +153,48 @@ def _convert(args, diagnostics, published):
         diagnostics.append(diagnostic)
         _progress(f"warning: {diagnostic['message']}")
     files = {bundle.relative(destination): normalized.svg.encode("utf-8"), **debug}
+    rendered = None
+    if args.preview:
+        _progress(f"preview  {bundle.preview}")
+        try:
+            rendered = preview.compose(prepared, normalized.svg, snapshots[settings.input])
+        except (OSError, RuntimeError, ValueError) as exc:
+            message = f"Preview renderer resvg-py {_version('resvg-py')}: {exc}"
+            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+        files[bundle.relative(bundle.preview)] = rendered.png
     manifest = artifacts.manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics,
-                                        upstream_args=traced.upstream_args)
+                                        upstream_args=traced.upstream_args,
+                                        preview=rendered.provenance if rendered else None)
     bundle.publish(files, manifest)
     published["manifest"] = str(bundle.manifest)
+    if rendered:
+        published["preview"] = str(bundle.preview)
     if debug:
         published["debug"] = str(bundle.debug_directory)
     _progress(f"saved    {destination} (paths: {paths})")
     return destination, paths
+
+
+def _version(name):
+    try:
+        return artifacts.package_version(name)
+    except RuntimeError:
+        return "unavailable"
+
+
+def _retain_debug(bundle, debug, message, published):
+    """Publish debug files after an upstream failure. Return the failure message."""
+    if not debug:
+        return message
+    try:
+        bundle.publish(debug)
+    except (OSError, RuntimeError, ValueError) as debug_exc:
+        return message + f" Debug publication failed: {debug_exc}"
+    published["debug"] = str(bundle.debug_directory)
+    return message + (
+        f" Debug files retained at {bundle.debug_directory}. "
+        "Rerun with --overwrite to replace mask.png and recipe.json."
+    )
 
 
 def _settings(args, *, snapshots=None):

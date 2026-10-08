@@ -23,8 +23,7 @@ SCHEMA_VERSION = 1
 INPUT_KINDS = ("mask", "edges", "image")
 DIMENSIONS = ("width_mm", "height_mm")
 
-# Later tasks own image mode and preview.
-S27 = "S2.7 (STABL-kfrksmnp)"
+# A later task owns image mode.
 S31 = "S3.1 (STABL-memwrtos)"
 
 # Recipe field -> value kind. These are also the settings fields.

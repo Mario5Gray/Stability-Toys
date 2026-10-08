@@ -4,6 +4,7 @@ Q1 (STABL-orcwoxml): pin vtracer==0.6.15.
 Q3 (STABL-stntbgim): torch moves from the global list into the depth and pose extras.
 all stays depth, pose and canny. vector is a separate extra.
 S2.2 (STABL-ascsgqha) adds the st-vector-map entry point with its modules in one commit.
+S2.7 (STABL-kfrksmnp) pins the Q2 preview renderer resvg-py==0.5.0 in the vector extra.
 """
 
 import subprocess
@@ -38,8 +39,18 @@ def test_depth_and_pose_extras_require_torch(extra):
     assert "torch>=2.1" in EXTRAS[extra]
 
 
-def test_vector_extra_pins_vtracer_and_opencv():
-    assert EXTRAS["vector"] == ["vtracer==0.6.15", "opencv-python-headless>=4.5"]
+def test_vector_extra_pins_vtracer_opencv_and_renderer():
+    assert EXTRAS["vector"] == ["vtracer==0.6.15", "opencv-python-headless>=4.5", "resvg-py==0.5.0"]
+
+
+def test_preview_module_is_packaged():
+    assert "vector_map_preview" in SETUPTOOLS["py-modules"]
+
+
+def test_test_container_installs_exact_vector_pins():
+    """Native container render checks must run, not skip on a missing renderer."""
+    lines = {line.strip() for line in (ROOT / "requirements-test.txt").read_text().splitlines()}
+    assert {"vtracer==0.6.15", "resvg-py==0.5.0"} <= lines
 
 
 def test_all_extra_excludes_vector():
@@ -202,3 +213,53 @@ def test_broken_torch_dependency_is_not_reported_as_missing_torch(module, tmp_pa
     assert result.returncode != 0
     assert "ModuleNotFoundError: No module named 'torch_missing_dependency'" in result.stderr
     assert "Install the" not in result.stderr
+
+
+def test_conversion_without_preview_never_imports_renderer(tmp_path):
+    pytest.importorskip("vtracer")
+    out = tmp_path / "out.svg"
+    result = _run_blocked(
+        ["resvg_py"],
+        """
+        import vector_map
+
+        code = vector_map.main([sys.argv[3], sys.argv[4], "--input-kind", "mask", "--width-mm", "10"])
+        print("EXIT", code, "RENDERER", "resvg_py" in sys.modules)
+        """,
+        ROOT / "tests" / "fixtures" / "vector_map" / "donut.png",
+        out,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "EXIT 0 RENDERER False" in result.stdout
+
+
+def test_missing_renderer_fails_preview_before_processing(tmp_path):
+    pytest.importorskip("vtracer")
+    out = tmp_path / "out.svg"
+    result = _run_blocked(
+        ["resvg_py"],
+        """
+        import vector_map
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("prepared before renderer check")
+
+        vector_map.raster.prepare = forbidden
+        code = vector_map.main([sys.argv[3], sys.argv[4], "--input-kind", "mask", "--width-mm", "10", "--preview"])
+        print("EXIT", code)
+        """,
+        ROOT / "tests" / "fixtures" / "vector_map" / "donut.png",
+        out,
+    )
+    assert "EXIT 1" in result.stdout, result.stderr
+    assert "resvg-py==0.5.0" in result.stderr
+    assert "vector extra" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_test_image_installs_wrapper_package_metadata():
+    """The manifest records the wrapper version. Without the installed package, conversion exits 1."""
+    lines = [line.strip() for line in (ROOT / "Dockerfile.test").read_text().splitlines()]
+    copy = lines.index("COPY scripts/ /app/scripts/")
+    assert "RUN pip install --no-cache-dir --no-deps /app/scripts" in lines[copy + 1:]

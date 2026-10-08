@@ -87,6 +87,8 @@ The test container is intentionally close to runtime:
 - [`Dockerfile.test`](/Users/darkbit1001/workspace/Stability-Toys/Dockerfile.test) installs the runtime/test dependencies and uses the same CUDA package flow as the main runtime image.
 - [`docker-compose.test.yml`](/Users/darkbit1001/workspace/Stability-Toys/docker-compose.test.yml) mounts [`conf/modes-test.yml`](/Users/darkbit1001/workspace/Stability-Toys/conf/modes-test.yml) at `/conf/modes.yml`.
 - The local CPU path installs pinned CPU PyTorch wheels before the generic requirements files so Linux arm64 builds do not silently pull a CUDA-heavy wheel set.
+- `requirements-test.txt` pins `vtracer==0.6.15` and `resvg-py==0.5.0`, equal to the scripts `vector` extra. st-vector-map trace and render checks then run in the container. They do not skip.
+- `Dockerfile.test` installs `./scripts` with `--no-deps`. st-vector-map manifests need the installed wrapper version.
 
 ## Host Path Overrides
 

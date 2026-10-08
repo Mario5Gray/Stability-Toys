@@ -445,3 +445,107 @@ def test_output_alias_to_other_output_is_refused(tmp_path):
     (tmp_path / "out.vector.json").symlink_to(output)
     with pytest.raises(config.ConfigError, match="another output"):
         bundle_at(tmp_path, overwrite=True).check()
+
+
+# --- S2.7 preview in the bundle (STABL-kfrksmnp) ------------------------------
+
+
+def test_manifest_preview_is_null_without_preview(tmp_path, capsys):
+    code, result, error = cli(capsys, tmp_path / "out.svg")
+    assert code == 0, error
+    assert "preview" not in result["artifacts"]
+    assert verify_manifest(tmp_path / "out.vector.json")["preview"] is None
+    assert not (tmp_path / "out.preview.png").exists()
+
+
+@pytest.mark.parametrize("extra", [[], ["--input-kind", "edges", "--line-width-mm", "2"]])
+def test_cli_publishes_hashed_preview_with_provenance(tmp_path, capsys, extra):
+    pytest.importorskip("resvg_py")
+    output = tmp_path / "out.svg"
+    code, result, error = cli(capsys, output, "--preview", *extra)
+    assert code == 0, error
+    preview_path = tmp_path / "out.preview.png"
+    assert result["artifacts"]["preview"] == str(preview_path)
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert "out.preview.png" in {item["path"] for item in manifest["artifacts"]}
+    assert manifest["preview"]["renderer_version"] == version("resvg-py")
+    assert manifest["preview"]["root"] == "pixel"
+    assert manifest["preview"]["resolution"] == manifest["preparation"]["processed_size"]
+    assert preview_path.read_bytes().startswith(b"\x89PNG")
+
+
+def test_existing_preview_collides_before_prepare(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    collision = tmp_path / "out.preview.png"
+    collision.write_bytes(b"old")
+    def forbidden(*args, **kwargs):
+        pytest.fail("Preparation ran before collision refusal")
+    monkeypatch.setattr(vector_map.raster, "prepare", forbidden)
+    code, result, _ = cli(capsys, tmp_path / "out.svg", "--preview")
+    assert code == 2
+    assert "--overwrite" in result["diagnostics"][0]["message"]
+    assert collision.read_bytes() == b"old"
+
+
+def test_unrelated_preview_file_is_kept_without_preview(tmp_path, capsys):
+    unrelated = tmp_path / "out.preview.png"
+    unrelated.write_bytes(b"keep")
+    code, _, error = cli(capsys, tmp_path / "out.svg", "--overwrite")
+    assert code == 0, error
+    assert unrelated.read_bytes() == b"keep"
+
+
+def test_renderer_failure_publishes_nothing(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    def failure(*args, **kwargs):
+        raise ValueError("SVG has an invalid size")
+    monkeypatch.setattr(vector_map.preview, "render_luminance", failure)
+    code, result, error = cli(capsys, tmp_path / "out.svg", "--preview")
+    assert code == 1
+    assert result["status"] == "failed"
+    assert "resvg-py" in error and "invalid size" in error
+    assert "Traceback" not in error
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_renderer_failure_retains_debug_bundle(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    def failure(*args, **kwargs):
+        raise ValueError("render failed")
+    monkeypatch.setattr(vector_map.preview, "render_luminance", failure)
+    code, result, error = cli(capsys, tmp_path / "out.svg", "--preview", "--debug-bundle")
+    assert code == 1
+    assert result["artifacts"] == {"svg": None, "debug": str(tmp_path / "out.debug")}
+    assert (tmp_path / "out.debug/mask.png").is_file()
+    assert not (tmp_path / "out.svg").exists()
+    assert not (tmp_path / "out.preview.png").exists()
+    assert not (tmp_path / "out.vector.json").exists()
+
+
+def test_preview_runs_repeat_bytes(tmp_path, capsys):
+    pytest.importorskip("resvg_py")
+    output = tmp_path / "out.svg"
+    snapshots = []
+    for index in range(2):
+        code, _, error = cli(capsys, output, "--preview", *(["--overwrite"] if index else []))
+        assert code == 0, error
+        snapshots.append({name: (tmp_path / name).read_bytes() for name in ("out.svg", "out.preview.png", "out.vector.json")})
+    assert snapshots[0] == snapshots[1]
+
+
+def test_preview_uses_recipe_source_snapshot(tmp_path, capsys):
+    import vector_map
+
+    pytest.importorskip("resvg_py")
+    source = tmp_path / "in.png"
+    source.write_bytes(FIXTURE.read_bytes())
+    recipe = tmp_path / "recipe.json"
+    recipe.write_text(json.dumps({"schema_version": 1, "input": "in.png", "input_kind": "mask", "width_mm": 40}))
+    code = vector_map.main([str(tmp_path / "out.svg"), "--recipe", str(recipe), "--preview", "--json"])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert "out.preview.png" in {item["path"] for item in manifest["artifacts"]}
