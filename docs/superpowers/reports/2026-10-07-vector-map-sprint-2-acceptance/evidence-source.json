@@ -47,7 +47,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0213
+          "seconds": 0.0397
         },
         {
           "exit": 0,
@@ -55,7 +55,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0134
+          "seconds": 0.0146
         },
         {
           "exit": 0,
@@ -63,7 +63,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0122
+          "seconds": 0.0177
         }
       ],
       "warnings": []
@@ -115,7 +115,15 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0135
+          "seconds": 0.0183
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0159
         },
         {
           "exit": 0,
@@ -124,14 +132,6 @@
             "replace": 5
           },
           "seconds": 0.0133
-        },
-        {
-          "exit": 0,
-          "publication": {
-            "link": 0,
-            "replace": 5
-          },
-          "seconds": 0.0121
         }
       ],
       "warnings": []
@@ -183,7 +183,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.016
+          "seconds": 0.0158
         },
         {
           "exit": 0,
@@ -191,7 +191,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0144
+          "seconds": 0.0158
         },
         {
           "exit": 0,
@@ -199,7 +199,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.015
+          "seconds": 0.0141
         }
       ],
       "warnings": []
@@ -251,7 +251,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0167
+          "seconds": 0.0172
         },
         {
           "exit": 0,
@@ -259,7 +259,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0153
+          "seconds": 0.0161
         },
         {
           "exit": 0,
@@ -267,7 +267,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0159
+          "seconds": 0.0154
         }
       ],
       "warnings": []
@@ -319,7 +319,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0144
+          "seconds": 0.0146
         },
         {
           "exit": 0,
@@ -327,7 +327,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0131
+          "seconds": 0.0139
         },
         {
           "exit": 0,
@@ -335,7 +335,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0135
+          "seconds": 0.0133
         }
       ],
       "warnings": []
@@ -387,7 +387,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0282
+          "seconds": 0.0289
         },
         {
           "exit": 0,
@@ -403,7 +403,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0268
+          "seconds": 0.0275
         }
       ],
       "warnings": [
@@ -460,7 +460,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0241
+          "seconds": 0.0236
         },
         {
           "exit": 0,
@@ -468,7 +468,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0225
+          "seconds": 0.0228
         },
         {
           "exit": 0,
@@ -476,7 +476,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0223
+          "seconds": 0.0218
         }
       ],
       "warnings": [
@@ -534,7 +534,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0344
+          "seconds": 0.0347
         },
         {
           "exit": 0,
@@ -542,7 +542,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0343
+          "seconds": 0.0336
         },
         {
           "exit": 0,
@@ -550,7 +550,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0329
+          "seconds": 0.0327
         }
       ],
       "warnings": [
@@ -605,7 +605,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0252
+          "seconds": 0.026
         },
         {
           "exit": 0,
@@ -613,7 +613,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0241
+          "seconds": 0.025
         },
         {
           "exit": 0,
@@ -621,7 +621,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0243
+          "seconds": 0.0254
         }
       ],
       "warnings": [
@@ -679,7 +679,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0541
+          "seconds": 0.0537
         },
         {
           "exit": 0,
@@ -687,7 +687,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0528
+          "seconds": 0.053
         },
         {
           "exit": 0,
@@ -695,7 +695,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.054
+          "seconds": 0.0535
         }
       ],
       "warnings": [
@@ -753,7 +753,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0237
+          "seconds": 0.0251
         },
         {
           "exit": 0,
@@ -761,7 +761,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0234
+          "seconds": 0.0232
         },
         {
           "exit": 0,
@@ -769,7 +769,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0218
+          "seconds": 0.0246
         }
       ],
       "warnings": [
@@ -832,7 +832,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0302
+          "seconds": 0.0291
         },
         {
           "exit": 0,
@@ -840,7 +840,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0293
+          "seconds": 0.0292
         }
       ],
       "warnings": [
@@ -894,7 +894,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0472
+          "seconds": 0.0473
         },
         {
           "exit": 0,
@@ -902,7 +902,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0506
+          "seconds": 0.047
         },
         {
           "exit": 0,
@@ -910,7 +910,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0476
+          "seconds": 0.046
         }
       ],
       "warnings": [
@@ -919,7 +919,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1972,
+      "canny_seconds": 0.195,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -957,7 +957,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "7a140ad52fa219a6c71115683104943c5b88cbca8581c8f4774df0481f04aca3",
         "result.svg": "fe1c0019a97cbcb6990b1f2cfc0fedfe4b6c3fbae35fd002bf7e2ac74e5da0df",
-        "result.vector.json": "2ed839664b4e325f1536a463200ead4ad02f2ff51c0b453f3dc0ccb3dc02ff91"
+        "result.vector.json": "820b1eb5da964861f5a18f1f19c90c1df17fda31a62e6a3e9d22a661fbaebef0"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -969,7 +969,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0339
+          "seconds": 0.033
         },
         {
           "exit": 0,
@@ -977,7 +977,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0314
+          "seconds": 0.0309
         },
         {
           "exit": 0,
@@ -985,7 +985,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0304
+          "seconds": 0.0315
         }
       ],
       "warnings": [
@@ -995,7 +995,7 @@
       ]
     },
     {
-      "canny_seconds": 0.19,
+      "canny_seconds": 0.1861,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1035,7 +1035,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "4096a86c6ee314c0d8273aa63c723cca9d5400c7014fdc86c2140882c906ab28",
         "result.svg": "cc8a5405a655d4ce0830c713be8a97e7a9b266f5b72a862d5f85e19d93011c4a",
-        "result.vector.json": "0faf98557f1a00855e9ece4d82c800fc5ef33543f270dc41d6ca26a60b16012b"
+        "result.vector.json": "8f61f0dda2b49880f9e862884351f6521035dc7fe662623dcaf78dfa396d4b7b"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1047,7 +1047,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0286
+          "seconds": 0.0266
         },
         {
           "exit": 0,
@@ -1055,7 +1055,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0254
+          "seconds": 0.0245
         },
         {
           "exit": 0,
@@ -1063,7 +1063,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0241
+          "seconds": 0.0243
         }
       ],
       "warnings": [
@@ -1073,7 +1073,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1954,
+      "canny_seconds": 0.188,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1114,7 +1114,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "7448dc703496d9755d350ebb18a3fbd9d38098b3ef246b1355dd20bc0b30b466",
         "result.svg": "727a736185fc77fefe9f968b74a0575e10200a7b14cc94498e33ae88636337eb",
-        "result.vector.json": "a99013fa0010a93ae2fc618ae51fc9c1a996cb239c63dc9a42aa2eef1fca6aca"
+        "result.vector.json": "6db7659c7585e5fe83fe514995f6045f8febab4b7941db0b3b6dcd50d11f0fa6"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1126,7 +1126,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0378
+          "seconds": 0.0406
         },
         {
           "exit": 0,
@@ -1134,7 +1134,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0358
+          "seconds": 0.0365
         },
         {
           "exit": 0,
@@ -1142,7 +1142,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.034
+          "seconds": 0.0486
         }
       ],
       "warnings": [
@@ -1153,7 +1153,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1913,
+      "canny_seconds": 0.1988,
       "canvas": {
         "height_mm": 78.90625,
         "height_px": 202,
@@ -1195,7 +1195,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "f51f6bb4d0c38068ef8465bc04e25dd926ffdb47ff3265d59fb3910fe7de1a35",
         "result.svg": "8943e8bbd21e7fe0811bedbeff392524fc30bbf51ae759a87cbb8dc668a536ee",
-        "result.vector.json": "ef2cd41b5b9f410378d5939e6b5696c39023841a822b682d998f4fa7b86efb2b"
+        "result.vector.json": "648f7c5c5a34ddda38ec628caf3067a06197ce7ea24cefc345590470ee9d6752"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1207,7 +1207,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0352
+          "seconds": 0.0356
         },
         {
           "exit": 0,
@@ -1215,7 +1215,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0323
+          "seconds": 0.0329
         },
         {
           "exit": 0,
@@ -1223,7 +1223,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0331
+          "seconds": 0.0322
         }
       ],
       "warnings": [
@@ -1234,7 +1234,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1906,
+      "canny_seconds": 0.1879,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1274,7 +1274,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "ce7ee0295cfdce4f0115041ae5c152ca496d5b337afa5905b290efeb25a9f72a",
         "result.svg": "eb901a024f934c3f8396263d0e8f6fb8cd9c7468c0a550d2835f43a4ad30e1ae",
-        "result.vector.json": "b3c2d2fc3238b65bb00447cf4447c5671253477c53bc36e7b5b5f6d01d37f4f0"
+        "result.vector.json": "fdf6c8ba5d199632c4fd1567584e58fe9658e48be179ee8e7b207c9c8e617f54"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1286,6 +1286,14 @@
             "link": 5,
             "replace": 0
           },
+          "seconds": 0.0492
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
           "seconds": 0.0499
         },
         {
@@ -1294,15 +1302,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0592
-        },
-        {
-          "exit": 0,
-          "publication": {
-            "link": 0,
-            "replace": 5
-          },
-          "seconds": 0.0482
+          "seconds": 0.0485
         }
       ],
       "warnings": [
@@ -1313,7 +1313,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1885,
+      "canny_seconds": 0.1968,
       "canvas": {
         "height_mm": 82.03125,
         "height_px": 210,
@@ -1354,7 +1354,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "826b3d4ebc12c80d490ed57bb1721fa033cd7a27b7e78e097cda738790b6a451",
         "result.svg": "8c32a66470336dbf0f97c2a3f980b65a7e717e6f15f8a2340ab840f8d6ce007c",
-        "result.vector.json": "f858d66ec8e1320b23f052b25f79bc8c552728e658b073b3f599477a3f452fa2"
+        "result.vector.json": "e1d9a08e70500918fcb46c8a5b3ca81bd1b7ae88a9655e4a8263b0a4c8cbca8b"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1366,7 +1366,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0291
+          "seconds": 0.0299
         },
         {
           "exit": 0,
@@ -1374,7 +1374,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0261
+          "seconds": 0.0275
         },
         {
           "exit": 0,
@@ -1382,7 +1382,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0258
+          "seconds": 0.0276
         }
       ],
       "warnings": [
@@ -1393,7 +1393,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1907,
+      "canny_seconds": 0.211,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1433,7 +1433,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "67e0773ee0e2181d0b4918fc84cd871d84c79a5dbd43212564fc5b175045e223",
         "result.svg": "7208b747d14dc082a168f6afbccede4c73067882bb207b537f1433d215e0c0dc",
-        "result.vector.json": "bc8a638903f31905507182c8e8293a44c7cdcd4755f498edf3d4bbafd3e7dab5"
+        "result.vector.json": "3b7203ea9a9afc6250283e04fba1c45160c5349644ba433b040e89ac1f81171b"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1445,7 +1445,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0413
+          "seconds": 0.0433
         },
         {
           "exit": 0,
@@ -1453,7 +1453,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0385
+          "seconds": 0.0424
         },
         {
           "exit": 0,
@@ -1461,7 +1461,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0382
+          "seconds": 0.0394
         }
       ],
       "warnings": [
@@ -1471,7 +1471,7 @@
       ]
     },
     {
-      "canny_seconds": 0.189,
+      "canny_seconds": 0.2052,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1511,7 +1511,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "fed53f28b411cc19ba4e2981920b020683a5f71bcd3c7663e699c0d8e80f6e62",
         "result.svg": "9ee613798493d8909cea61a44a3105c71fbd1f94804f20f4cae8ec1d3bd14186",
-        "result.vector.json": "f2227f9eab688894a973f219d2b96dc6256c6e51686d4d6fa37efd003432c283"
+        "result.vector.json": "2ea2053864c8bbd4b019a062a78448821f0d48d973563c087f1366f4abbde31d"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1523,7 +1523,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0571
+          "seconds": 0.0599
         },
         {
           "exit": 0,
@@ -1531,7 +1531,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0542
+          "seconds": 0.0579
         },
         {
           "exit": 0,
@@ -1539,7 +1539,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.054
+          "seconds": 0.06
         }
       ],
       "warnings": [
@@ -1576,14 +1576,14 @@
         120,
         128
       ],
-      "seconds": 0.0078,
+      "seconds": 0.0072,
       "xor_px": 0
     },
     {
       "case": "constraint_size_mismatch",
       "exit": 2,
       "group": "coordinates",
-      "message": "/private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-329/test_constraint_mask_with_othe0/include.png: oriented dimensions (64, 64) differ from source dimensions (128, 128).",
+      "message": "/private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-336/test_constraint_mask_with_othe0/include.png: oriented dimensions (64, 64) differ from source dimensions (128, 128).",
       "mode": "mask"
     },
     {
@@ -1652,7 +1652,7 @@
       "debug_retained": true,
       "exit": 1,
       "group": "failure",
-      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-329/test_empty_standalone_material0/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
+      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-336/test_empty_standalone_material0/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
       "mode": "mask"
     },
     {
@@ -1660,7 +1660,7 @@
       "debug_retained": true,
       "exit": 1,
       "group": "failure",
-      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-329/test_empty_standalone_material1/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
+      "message": "VTracer 0.6.15 layer standalone: The traced SVG is empty: it contains no paths. Debug files retained at /private/var/folders/kl/ykc9r7y56899ly09hphb8wf00000gn/T/pytest-of-darkbit1001/pytest-336/test_empty_standalone_material1/out/out.debug. Rerun with --overwrite to replace mask.png and recipe.json.",
       "mode": "mask"
     },
     {
@@ -1724,6 +1724,7 @@
       "svg_replaced_before_failure": true
     }
   ],
+  "command_versions": null,
   "commands": {
     "canny": [
       "/Users/darkbit1001/miniforge3/envs/stability-toys/bin/python",
@@ -1734,15 +1735,19 @@
       "/Users/darkbit1001/workspace/Stability-Toys/.worktrees/ntgnbxci-acceptance/scripts/vector_map.py"
     ]
   },
-  "platform": "darwin",
-  "python": "3.12.13",
-  "versions": {
-    "Pillow": "12.3.0",
-    "numpy": "2.5.1",
-    "opencv-python": "4.11.0.86",
-    "opencv-python-headless": "4.11.0.86",
-    "resvg-py": "0.5.0",
-    "st-controlnet-helpers": "0.1.0",
-    "vtracer": "0.6.15"
+  "in_process": {
+    "interpreter": "/Users/darkbit1001/miniforge3/envs/stability-toys/bin/python",
+    "modules": "/Users/darkbit1001/workspace/Stability-Toys/.worktrees/ntgnbxci-acceptance/scripts",
+    "platform": "darwin",
+    "python": "3.12.13",
+    "versions": {
+      "Pillow": "12.3.0",
+      "numpy": "2.5.1",
+      "opencv-python": "4.11.0.86",
+      "opencv-python-headless": "4.11.0.86",
+      "resvg-py": "0.5.0",
+      "st-controlnet-helpers": "0.1.0",
+      "vtracer": "0.6.15"
+    }
   }
 }

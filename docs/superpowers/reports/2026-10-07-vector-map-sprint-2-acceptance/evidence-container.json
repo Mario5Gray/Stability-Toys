@@ -47,7 +47,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0192
+          "seconds": 0.0189
         },
         {
           "exit": 0,
@@ -55,7 +55,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0207
+          "seconds": 0.0138
         },
         {
           "exit": 0,
@@ -63,7 +63,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0151
+          "seconds": 0.0132
         }
       ],
       "warnings": []
@@ -115,7 +115,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0129
+          "seconds": 0.0144
         },
         {
           "exit": 0,
@@ -123,7 +123,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0147
+          "seconds": 0.015
         },
         {
           "exit": 0,
@@ -131,7 +131,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0153
+          "seconds": 0.0138
         }
       ],
       "warnings": []
@@ -183,7 +183,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0152
+          "seconds": 0.0157
         },
         {
           "exit": 0,
@@ -191,7 +191,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0161
+          "seconds": 0.0151
         },
         {
           "exit": 0,
@@ -199,7 +199,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0182
+          "seconds": 0.0144
         }
       ],
       "warnings": []
@@ -251,7 +251,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0183
+          "seconds": 0.0161
         },
         {
           "exit": 0,
@@ -259,7 +259,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0166
+          "seconds": 0.0153
         },
         {
           "exit": 0,
@@ -267,7 +267,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0163
+          "seconds": 0.0164
         }
       ],
       "warnings": []
@@ -327,7 +327,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0135
+          "seconds": 0.0139
         },
         {
           "exit": 0,
@@ -335,7 +335,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0133
+          "seconds": 0.0139
         }
       ],
       "warnings": []
@@ -387,7 +387,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0341
+          "seconds": 0.0364
         },
         {
           "exit": 0,
@@ -395,7 +395,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0338
+          "seconds": 0.0351
         },
         {
           "exit": 0,
@@ -403,7 +403,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0345
+          "seconds": 0.0359
         }
       ],
       "warnings": [
@@ -460,7 +460,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0301
+          "seconds": 0.0388
         },
         {
           "exit": 0,
@@ -468,7 +468,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0306
+          "seconds": 0.0336
         },
         {
           "exit": 0,
@@ -476,7 +476,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0308
+          "seconds": 0.0307
         }
       ],
       "warnings": [
@@ -534,7 +534,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0426
+          "seconds": 0.0431
         },
         {
           "exit": 0,
@@ -542,7 +542,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0482
+          "seconds": 0.0502
         },
         {
           "exit": 0,
@@ -550,7 +550,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0434
+          "seconds": 0.0445
         }
       ],
       "warnings": [
@@ -605,7 +605,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0309
+          "seconds": 0.0316
         },
         {
           "exit": 0,
@@ -613,7 +613,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.031
+          "seconds": 0.0302
         },
         {
           "exit": 0,
@@ -621,7 +621,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0314
+          "seconds": 0.0313
         }
       ],
       "warnings": [
@@ -679,7 +679,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0674
+          "seconds": 0.0683
         },
         {
           "exit": 0,
@@ -687,7 +687,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0671
+          "seconds": 0.068
         },
         {
           "exit": 0,
@@ -695,7 +695,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0667
+          "seconds": 0.0684
         }
       ],
       "warnings": [
@@ -753,23 +753,23 @@
             "link": 5,
             "replace": 0
           },
+          "seconds": 0.03
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
+          "seconds": 0.0287
+        },
+        {
+          "exit": 0,
+          "publication": {
+            "link": 0,
+            "replace": 5
+          },
           "seconds": 0.0284
-        },
-        {
-          "exit": 0,
-          "publication": {
-            "link": 0,
-            "replace": 5
-          },
-          "seconds": 0.0283
-        },
-        {
-          "exit": 0,
-          "publication": {
-            "link": 0,
-            "replace": 5
-          },
-          "seconds": 0.0289
         }
       ],
       "warnings": [
@@ -824,7 +824,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0369
+          "seconds": 0.0373
         },
         {
           "exit": 0,
@@ -832,7 +832,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0363
+          "seconds": 0.0358
         },
         {
           "exit": 0,
@@ -840,7 +840,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.037
+          "seconds": 0.0362
         }
       ],
       "warnings": [
@@ -894,7 +894,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0592
+          "seconds": 0.059
         },
         {
           "exit": 0,
@@ -902,7 +902,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0682
+          "seconds": 0.058
         },
         {
           "exit": 0,
@@ -910,7 +910,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.062
+          "seconds": 0.0569
         }
       ],
       "warnings": [
@@ -919,7 +919,7 @@
       ]
     },
     {
-      "canny_seconds": 0.125,
+      "canny_seconds": 0.1568,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -957,7 +957,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "ddfc3d9dbf9b2a7a217be783bd9359b9b9cd092a3131ef4e4778d17059f66d64",
         "result.svg": "fe1c0019a97cbcb6990b1f2cfc0fedfe4b6c3fbae35fd002bf7e2ac74e5da0df",
-        "result.vector.json": "481cfbc602a85bddae6e99f9de621514951526c348d660c60518e008564bea4e"
+        "result.vector.json": "626591b964e2990d82861f5f3c993e36e706f6a1a077d21a97a9148d5c5e7ebd"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -969,7 +969,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0374
+          "seconds": 0.04
         },
         {
           "exit": 0,
@@ -977,7 +977,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0369
+          "seconds": 0.0378
         },
         {
           "exit": 0,
@@ -985,7 +985,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0366
+          "seconds": 0.0373
         }
       ],
       "warnings": [
@@ -995,7 +995,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1214,
+      "canny_seconds": 0.1243,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1035,7 +1035,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "d9a48b25ab44ddc67f648ab56441180e5a2c272b3fba2f9553f7d89be6cb6437",
         "result.svg": "cc8a5405a655d4ce0830c713be8a97e7a9b266f5b72a862d5f85e19d93011c4a",
-        "result.vector.json": "92cd4aaedfa587f8e1347224d0c41b5fe233c651167bfa82954d5f127a07b5f8"
+        "result.vector.json": "a1862b755ba15b3c2794d302fb65d232c2f03e9282483a4406c7846b17d5a6b1"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1047,7 +1047,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0297
+          "seconds": 0.0324
         },
         {
           "exit": 0,
@@ -1055,7 +1055,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0294
+          "seconds": 0.0313
         },
         {
           "exit": 0,
@@ -1063,7 +1063,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0287
+          "seconds": 0.0311
         }
       ],
       "warnings": [
@@ -1073,7 +1073,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1205,
+      "canny_seconds": 0.1234,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1114,7 +1114,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "f52f762f7a6f04b6e893a709b79ce4b5b265d09cc4ce6bb0177357a7099b5b29",
         "result.svg": "727a736185fc77fefe9f968b74a0575e10200a7b14cc94498e33ae88636337eb",
-        "result.vector.json": "a018a3c1e822dbff2410b08667b35372e3bddd43484a2aa935279b546ef3a310"
+        "result.vector.json": "a3bf665b8f04a9a8025dff8deb9afc07c9dcdbe4963381d804b4d5e02d2faf0e"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1126,7 +1126,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0411
+          "seconds": 0.0425
         },
         {
           "exit": 0,
@@ -1134,7 +1134,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.041
+          "seconds": 0.0416
         },
         {
           "exit": 0,
@@ -1142,7 +1142,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0402
+          "seconds": 0.0419
         }
       ],
       "warnings": [
@@ -1153,7 +1153,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1289,
+      "canny_seconds": 0.1292,
       "canvas": {
         "height_mm": 78.90625,
         "height_px": 202,
@@ -1195,7 +1195,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "d218fe77766a5f4d0fa746a173aed690592b6d483560ca8b2fac59c46e01a7f8",
         "result.svg": "8943e8bbd21e7fe0811bedbeff392524fc30bbf51ae759a87cbb8dc668a536ee",
-        "result.vector.json": "64cd951e4475a258dc859047777b19676f3ab514f90953037a892a4ef9f318ab"
+        "result.vector.json": "02efc049bde445834cc70483bafeb7b21417070f328d5a6231cb1b6160139faa"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1207,7 +1207,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0389
+          "seconds": 0.0411
         },
         {
           "exit": 0,
@@ -1215,7 +1215,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.048
+          "seconds": 0.0515
         },
         {
           "exit": 0,
@@ -1223,7 +1223,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0381
+          "seconds": 0.04
         }
       ],
       "warnings": [
@@ -1234,7 +1234,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1274,
+      "canny_seconds": 0.1402,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1274,7 +1274,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "aeb7a559259e841d669cf3229b5fc55f2319cba64680292e8ce57210a4dba43b",
         "result.svg": "eb901a024f934c3f8396263d0e8f6fb8cd9c7468c0a550d2835f43a4ad30e1ae",
-        "result.vector.json": "082a7b54178517b74c70420e573853c2b5d0ae5535ed5f427019535b8e0012cc"
+        "result.vector.json": "01e77c3761e5dea967bd3f09cf8d9fd141b0986d84da7772420556054ab012b1"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1286,7 +1286,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0581
+          "seconds": 0.0674
         },
         {
           "exit": 0,
@@ -1294,7 +1294,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0569
+          "seconds": 0.0588
         },
         {
           "exit": 0,
@@ -1302,7 +1302,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0583
+          "seconds": 0.0589
         }
       ],
       "warnings": [
@@ -1313,7 +1313,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1222,
+      "canny_seconds": 0.1314,
       "canvas": {
         "height_mm": 82.03125,
         "height_px": 210,
@@ -1354,7 +1354,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "f53dc27c8283dd47b4cc45770542c47c880cdec4408fb6e520fd1e9fde1f8987",
         "result.svg": "8c32a66470336dbf0f97c2a3f980b65a7e717e6f15f8a2340ab840f8d6ce007c",
-        "result.vector.json": "f854b3cc84b25a475475699f70e6ca68f74f2d5fddbf3d0e482d25507c0d1717"
+        "result.vector.json": "5a39e5bbf65dcaab8b904f01d147f2e61d5d774a500fe9bc40fa406c84967957"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1366,7 +1366,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.03
+          "seconds": 0.0314
         },
         {
           "exit": 0,
@@ -1374,7 +1374,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0297
+          "seconds": 0.0312
         },
         {
           "exit": 0,
@@ -1382,7 +1382,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0289
+          "seconds": 0.0298
         }
       ],
       "warnings": [
@@ -1393,7 +1393,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1124,
+      "canny_seconds": 0.1627,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1433,7 +1433,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "6efa3a2df9c5272c613e2b686d9ba6aa23de7faeed9749872f64107fbc760cf9",
         "result.svg": "7208b747d14dc082a168f6afbccede4c73067882bb207b537f1433d215e0c0dc",
-        "result.vector.json": "c719efb2f7d440844878b9d1ffedfc8103fca56ec0aa3327eacafdc809a2b8d6"
+        "result.vector.json": "3eeb4537a4a0bd2ebf0d579a10083ab693225278eb5f86400d927919704aff03"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1445,7 +1445,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0432
+          "seconds": 0.0462
         },
         {
           "exit": 0,
@@ -1453,7 +1453,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0433
+          "seconds": 0.0453
         },
         {
           "exit": 0,
@@ -1461,7 +1461,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0425
+          "seconds": 0.0443
         }
       ],
       "warnings": [
@@ -1471,7 +1471,7 @@
       ]
     },
     {
-      "canny_seconds": 0.1295,
+      "canny_seconds": 0.1388,
       "canvas": {
         "height_mm": 100.0,
         "height_px": 256,
@@ -1511,7 +1511,7 @@
         "result.debug/recipe.json": "1a505de2df0e59baaf102566867fe89a843c57b8819d627319424f95287f4b6d",
         "result.preview.png": "5e741b098ad41b8bcbcbf17beae62f98a5dcd42c7f16a1aa0eb1fe2dee96c845",
         "result.svg": "9ee613798493d8909cea61a44a3105c71fbd1f94804f20f4cae8ec1d3bd14186",
-        "result.vector.json": "671b93b34ba72261a4f1ff2dfe65a6d89395d06cfea4edf39be2de20f1a69337"
+        "result.vector.json": "7ae3b82b87c7b043024f3bdb4830e84c8133c633373b48566567338f05aad558"
       },
       "identical_runs": 3,
       "mode": "edges",
@@ -1523,7 +1523,7 @@
             "link": 5,
             "replace": 0
           },
-          "seconds": 0.0667
+          "seconds": 0.069
         },
         {
           "exit": 0,
@@ -1531,7 +1531,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0675
+          "seconds": 0.0689
         },
         {
           "exit": 0,
@@ -1539,7 +1539,7 @@
             "link": 0,
             "replace": 5
           },
-          "seconds": 0.0678
+          "seconds": 0.0706
         }
       ],
       "warnings": [
@@ -1576,7 +1576,7 @@
         120,
         128
       ],
-      "seconds": 0.0035,
+      "seconds": 0.0036,
       "xor_px": 0
     },
     {
@@ -1724,6 +1724,7 @@
       "svg_replaced_before_failure": true
     }
   ],
+  "command_versions": null,
   "commands": {
     "canny": [
       "/usr/local/bin/python",
@@ -1734,15 +1735,19 @@
       "/app/scripts/vector_map.py"
     ]
   },
-  "platform": "linux",
-  "python": "3.12.15",
-  "versions": {
-    "Pillow": "12.3.0",
-    "numpy": "1.26.4",
-    "opencv-python": "4.11.0.86",
-    "opencv-python-headless": "4.11.0.86",
-    "resvg-py": "0.5.0",
-    "st-controlnet-helpers": "0.1.0",
-    "vtracer": "0.6.15"
+  "in_process": {
+    "interpreter": "/usr/local/bin/python",
+    "modules": "/app/scripts",
+    "platform": "linux",
+    "python": "3.12.15",
+    "versions": {
+      "Pillow": "12.3.0",
+      "numpy": "1.26.4",
+      "opencv-python": "4.11.0.86",
+      "opencv-python-headless": "4.11.0.86",
+      "resvg-py": "0.5.0",
+      "st-controlnet-helpers": "0.1.0",
+      "vtracer": "0.6.15"
+    }
   }
 }

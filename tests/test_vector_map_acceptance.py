@@ -55,8 +55,11 @@ def _save_evidence():
     target = os.environ.get("VECTOR_MAP_ACCEPTANCE_EVIDENCE")
     if target:
         Path(target).write_text(json.dumps({
-            "versions": _versions(), "python": sys.version.split()[0], "platform": sys.platform,
-            "commands": _commands(), "cases": EVIDENCE,
+            # Repeated conversions call vector_map.main() from source scripts in this interpreter.
+            "in_process": {"interpreter": sys.executable, "modules": str(SCRIPTS), "python": sys.version.split()[0],
+                           "platform": sys.platform, "versions": _versions()},
+            # Subprocess checks only: st-canny-map runs and the command byte-equality cases.
+            "commands": _commands(), "command_versions": _command_versions(), "cases": EVIDENCE,
         }, indent=2, sort_keys=True, default=_plain) + "\n")
 
 
@@ -76,6 +79,21 @@ def _versions():
         except Exception:
             found[name] = None
     return found
+
+
+def _command_versions():
+    """Versions seen by the installed console scripts, read with their own interpreter."""
+    bin_dir = os.environ.get("ST_VECTOR_MAP_BIN")
+    if not bin_dir:
+        return None
+    code = (
+        "import json, sys\nfrom importlib.metadata import version\nfound = {}\n"
+        "for name in sys.argv[1:]:\n    try:\n        found[name] = version(name)\n"
+        "    except Exception:\n        found[name] = None\nprint(json.dumps(found))"
+    )
+    names = list(_versions())
+    result = subprocess.run([str(Path(bin_dir) / "python"), "-c", code, *names], capture_output=True, text=True)
+    return json.loads(result.stdout) if result.returncode == 0 else {"error": result.stderr.strip()}
 
 
 def _commands():

@@ -4,7 +4,7 @@ Issue: `STABL-ntgnbxci` (S2.8). Parent: `STABL-neizotrw`.
 Executed: 2026-10-08. Base: `main` at `363b5ac`. Branch: `feat/ntgnbxci-acceptance`.
 Plan: [remainder plan, S2.8](../plans/2026-10-07-vector-map-sprint-2-remainder.md). Contract: spec sections 8, 10 and 11.2.
 Tests: [`tests/test_vector_map_acceptance.py`](../../../tests/test_vector_map_acceptance.py).
-Evidence JSON: [`evidence-source.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-source.json), [`evidence-installed.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-installed.json), [`evidence-container.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-container.json).
+Evidence JSON: [`evidence-source.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-source.json), [`evidence-installed-commands.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-installed-commands.json), [`evidence-container.json`](2026-10-07-vector-map-sprint-2-acceptance/evidence-container.json).
 
 This report records standalone conversion evidence only. It makes no CAD or physical-print claim.
 Optional empty detail layers and relief composition remain Sprint 3 acceptance.
@@ -28,10 +28,13 @@ Optional empty detail layers and relief composition remain Sprint 3 acceptance.
 | Name | Platform | Python | vtracer | resvg-py | Pillow | numpy | opencv |
 |---|---|---|---|---|---|---|---|
 | Local source | macOS 26.0.1 arm64, conda env `stability-toys` | 3.12.13 | 0.6.15 | 0.5.0 | 12.3.0 | 2.5.1 | 4.11.0.86 |
-| Installed venv | macOS 26.0.1 arm64, fresh `python -m venv` | 3.12.13 | 0.6.15 | 0.5.0 | 12.3.0 | 2.5.3 | headless 5.0.0.93 |
+| Installed venv, console scripts only | macOS 26.0.1 arm64, fresh `python -m venv` | 3.12.13 | 0.6.15 | 0.5.0 | 12.3.0 | 2.5.3 | headless 5.0.0.93 |
 | Native container | `docker-compose.test.yml` service `test`, Linux aarch64, CPU | 3.12.15 | 0.6.15 | 0.5.0 | 12.3.0 | 1.26.4 | 4.11.0.86 |
 
 `st-controlnet-helpers` is 0.1.0 in all three. The installed venv resolved `opencv-python-headless` 5.0.0.93 because the vector extra sets only a floor.
+The acceptance tests always run `vector_map.main()` from the source `scripts/` directory under the pytest interpreter. That covers the 21 repeated conversions and all 18 CLI checks.
+`ST_VECTOR_MAP_BIN` changes only the subprocess checks: the 8 `st-canny-map` runs and the 2 command byte-equality checks.
+Evidence JSON key `in_process` records the pytest interpreter and its versions. Key `command_versions` records the installed venv versions, read with the venv interpreter.
 
 ## Commands
 
@@ -41,10 +44,11 @@ Logs are in the session scratchpad and are not durable. The evidence JSON files 
 |---|---:|---|---|
 | `python -m pytest tests/test_vector_map_acceptance.py -q` | 0 | 41 passed | `s28-acceptance.log` |
 | `python -m pytest tests/test_vector_map_*.py -q -rs` | 0 | 876 passed, 0 skipped. OpenSCAD is present on this host | `s28-vector.log` |
-| `ST_VECTOR_MAP_BIN=<venv>/bin python -m pytest tests/test_vector_map_acceptance.py` | 0 | 41 passed against installed console scripts | `evidence-installed.json` |
+| `ST_VECTOR_MAP_BIN=<venv>/bin python -m pytest tests/test_vector_map_acceptance.py` | 0 | 41 passed. Installed `st-canny-map` for the 8 edge sources and installed `st-vector-map` for the 2 command checks. The 21 repeated conversions ran from source under the conda interpreter | `evidence-installed-commands.json` |
 | `docker compose -f docker-compose.test.yml build test` | 0 | Image built | `s28-container-build.log` |
 | `docker compose -f docker-compose.test.yml run --rm test` | 1 | Cohort 1: 10 failed, 2298 passed, 27 skipped. Real-library cohort: 213 passed. Cohort 2: 1 skipped. Vector files: 862 passed, 14 skipped, 0 failed | `s28-container-run.log` |
 | Container `python -m pytest tests/test_vector_map_acceptance.py` | 0 | 41 passed | `evidence-container.json` |
+| `docker compose -f docker-compose.test.yml run --rm test` from the main checkout at `363b5ac` | 1 | Cohort 1: the same 10 failed, 2257 passed, 27 skipped. Real-library cohort: 213 passed. Cohort 2: 1 skipped | `s28-container-main.log` |
 | `python -m tests.run tests/ -- -q -rs` | 1 | Cohort 1: 1 failed, 2325 passed, 9 skipped. Real-library cohort: 213 passed. Cohort 2: 1 skipped | `s28-full.log` |
 
 Skips. Local cohort 1: 8 SDXL worker checks need CUDA, 1 check needs `env.custom`. Local cohort 2: 1 HunyuanDiT check needs CUDA.
@@ -129,7 +133,7 @@ The depth and pose results are the S2.1 contract for a vector-only install. They
 
 | Comparison | SVG | Recipe | Debug mask PNG | Preview PNG | Manifest |
 |---|---|---|---|---|---|
-| Local source vs installed venv (Canny from opencv 5.0.0.93 vs 4.11.0.86) | equal, 21 of 21 | equal | equal | equal | mask equal. Edge differs: it records the per-session Canny path |
+| Canny from installed venv (opencv 5.0.0.93) vs host (4.11.0.86). Conversions from source under the conda interpreter in both | equal, 21 of 21 | equal | equal | equal | mask equal. Edge differs: it records the per-session Canny path |
 | Local macOS vs Linux container | equal, 21 of 21 | equal | differs | differs | differs (it records PNG hashes) |
 
 PNG bytes differ across platforms. Decoded pixels were not compared. A different zlib build is the likely cause, but this run did not prove it.
@@ -142,9 +146,12 @@ Full isolated suite, local: `tests/test_entry_spans.py::test_an_UNHASHABLE_type_
 Native container, 10 failures:
 
 - The same entry-span test.
-- 9 tests need repository files that `Dockerfile.test` does not copy into the image: `docs/observability-contract.md`, `env.dev` and `env.prod`. Affected tests: `test_log_format.py` (3), `test_log_levels.py` (1), `test_logging_env_contract.py` (4), `test_metrics.py` (1).
+- 8 tests fail with `FileNotFoundError`. They need repository files that `Dockerfile.test` does not copy into the image: `docs/observability-contract.md`, `env.dev` and `env.prod`. Affected tests: `test_log_format.py` (3), `test_logging_env_contract.py` (4), `test_metrics.py` (1). `STABL-tlixascy` tracks them.
+- `test_log_levels.py::test_every_tracking_logger_actually_carries_LOG_LEVEL` fails with `assert 'DEBUG' == 'INFO'`. It is not a missing-file failure. It depends on test order and on `LOG_LEVEL=DEBUG`, which the container gets from `env.dev`.
+  `test_env_accessor.py::test_a_QUOTED_LOG_LEVEL_does_not_break_dictConfig` deletes `LOG_LEVEL` and reloads `server.logging_config`, so `LOG_LEVEL` becomes `INFO`. The log-levels test keeps the `LOGGING_CONFIG` it imported at collection, which still has `DEBUG`.
+  Reproduction: container, test alone, 1 passed. Container, QUOTED test first, 1 failed. Host with `LOG_LEVEL=DEBUG`, QUOTED test first, 1 failed. `STABL-gwrotiyb` tracks it.
 
-This branch changes only test and report files relative to `363b5ac`. These failures do not depend on it. No FP issue tracks the container file gap.
+Classification against `main`: `docker compose -f docker-compose.test.yml run --rm test` from the main checkout at `363b5ac` rebuilt the image from `main` and gave the same 10 failures, exit 1. Cohort 1: 10 failed, 2257 passed, 27 skipped. The 41-test difference in passes is the new acceptance file.
 
 ## Not proven
 
