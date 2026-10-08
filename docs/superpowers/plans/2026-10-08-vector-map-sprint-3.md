@@ -48,6 +48,7 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Select material before the common binary resize. `--invert` reverses every selected image method.
    Keep existing `--invert` behavior for standalone mask and edge modes.
    Image `--mask` selects luminance at or above 128. Ignore mask-file alpha with the existing `alpha_ignored` warning.
+   With image `--mask`, the source supplies the canvas only. Ignore source alpha without an `alpha_ignored` warning.
    Image `--threshold` also reports `alpha_ignored` when the source has alpha.
    Reject `--mask` and `--threshold` in mask and edge modes with exit 2.
    Reject an empty silhouette after constraints with exit 1.
@@ -137,7 +138,8 @@ Never parse or assemble SVG with regular expressions.
    Cover missing method, same-source conflicts, and empty silhouette with exit 1 before VTracer.
    Reject mask and threshold in mask and edge modes, for CLI flags and recipe fields.
    Assert exit 2 and no output when either unsupported method is selected.
-   Test white-mask luminance, ignored mask alpha, and source-alpha warning with threshold.
+   Test white-mask luminance and ignored mask alpha.
+   Test no source-alpha warning with `--mask`, and a source-alpha warning with `--threshold`.
    Keep existing standalone mask and edge routes unchanged.
 2. Run `python -m pytest tests/test_vector_map_image.py tests/test_vector_map_raster_cli.py -q`.
    Record tests that fail because image mode remains deferred.
