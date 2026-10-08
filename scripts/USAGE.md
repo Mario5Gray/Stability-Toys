@@ -136,7 +136,8 @@ The renderer gets the published paths under a pixel root size, so one `viewBox` 
 Do not render the millimetre root with `dpi = 25.4 / mm_per_px`. resvg-py 0.5.0 converts millimetres in float32.
 At 25.4/96 mm/px, 256 px becomes 255.99998 px, and edges move.
 
-Labels use the Pillow embedded default font. The command loads no system font.
+Labels use a Pillow embedded font. The command loads no system font.
+With FreeType on Pillow 10.1 or later, labels use embedded Aileron at 12 px. Otherwise they use the embedded bitmap font.
 Manifest `preview` records renderer version, rendering settings, resolution, Pillow version, font class, and FreeType version.
 FreeType version is `null` when Pillow has no FreeType. Without `--preview`, manifest `preview` is `null`.
 Same inputs, settings, dependency versions, and build give the same bytes. Bytes across platforms can differ.

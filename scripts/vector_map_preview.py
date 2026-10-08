@@ -95,6 +95,22 @@ def render_material(svg, canvas):
     return render_luminance(svg, canvas, shape_rendering=CRISP) < MATERIAL_LUMINANCE
 
 
+def label_font():
+    """Embedded Aileron at LABEL_SIZE with FreeType on Pillow >= 10.1. Else embedded bitmap font.
+
+    A size argument forces FreeType loading, so pass it only when FreeType exists.
+    Pillow 10.0 load_default() takes no size. The pyproject floor is Pillow>=10.0.
+    """
+    from PIL import features
+
+    if features.check("freetype2"):
+        try:
+            return ImageFont.load_default(LABEL_SIZE)
+        except TypeError:
+            pass
+    return ImageFont.load_default()
+
+
 def blend_base(source):
     """Lighten source luminance by half, so overlay colours stay visible."""
     return (np.asarray(source, np.uint16) + 255) // 2
@@ -142,7 +158,7 @@ def compose(prepared, svg, source_bytes):
         "vector": _gray_rgb(luminance),
         "overlay": _overlay(_source(source_bytes, prepared), prepared.material, luminance),
     }
-    font = ImageFont.load_default(LABEL_SIZE)
+    font = label_font()
     measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     column = max(width, *(math.ceil(measure.textlength(text, font=font)) for text in LABELS.values()))
     entries = [

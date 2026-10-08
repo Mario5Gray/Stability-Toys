@@ -260,13 +260,56 @@ def test_provenance_records_renderer_pillow_and_font():
     }
 
 
-def test_provenance_records_null_freetype_when_absent(monkeypatch):
-    from PIL import features
+def test_pillow_without_size_argument_uses_embedded_bitmap_font(monkeypatch):
+    """Pillow 10.0 load_default() takes no size. The pyproject floor is Pillow>=10.0."""
+    from PIL import ImageFont
 
-    real = features.version
-    monkeypatch.setattr(features, "version", lambda name: None if name == "freetype2" else real(name))
-    result, *_ = _build(FIXTURES / "asymmetric.png")
-    assert result.provenance["freetype2"] is None
+    bitmap = ImageFont.load_default_imagefont
+
+    def load_default_10_0():
+        return bitmap()
+
+    monkeypatch.setattr(ImageFont, "load_default", load_default_10_0)
+    result, image, *_ = _build(FIXTURES / "asymmetric.png")
+    assert result.provenance["font"] == "ImageFont"
+    left, top, right, _ = result.panels["mask"]
+    assert np.count_nonzero(image[top - preview.LABEL_HEIGHT:top, left:right].min(axis=2) < 128) > 0
+
+
+_NO_FREETYPE = """
+import json, sys
+
+class Block:
+    def find_spec(self, name, path=None, target=None):
+        if name == "PIL._imagingft":
+            raise ModuleNotFoundError("blocked FreeType", name=name)
+        return None
+
+sys.meta_path.insert(0, Block())
+sys.path.insert(0, sys.argv[1])
+import vector_map
+code = vector_map.main([sys.argv[2], sys.argv[3], "--input-kind", "mask", "--width-mm", "10",
+                        "--preview", "--debug-bundle", "--json"])
+print("EXIT", code)
+"""
+
+
+def test_preview_without_freetype_uses_embedded_bitmap_font(tmp_path):
+    """Real absent FreeType: Pillow cannot import PIL._imagingft in a fresh interpreter."""
+    import json
+    import subprocess
+
+    out = tmp_path / "out.svg"
+    result = subprocess.run(
+        [sys.executable, "-c", _NO_FREETYPE, str(ROOT / "scripts"), str(FIXTURES / "donut.png"), str(out)],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    assert "EXIT 0" in result.stdout, result.stderr
+    payload = json.loads(result.stdout.splitlines()[0])
+    assert payload["artifacts"]["preview"] == str(tmp_path / "out.preview.png")
+    manifest = json.loads((tmp_path / "out.vector.json").read_bytes())
+    assert manifest["preview"]["freetype2"] is None
+    assert manifest["preview"]["font"] == "ImageFont"
 
 
 def test_compose_is_deterministic():
