@@ -256,3 +256,10 @@ def test_missing_renderer_fails_preview_before_processing(tmp_path):
     assert "vector extra" in result.stderr
     assert "Traceback" not in result.stderr
     assert list(tmp_path.iterdir()) == []
+
+
+def test_test_image_installs_wrapper_package_metadata():
+    """The manifest records the wrapper version. Without the installed package, conversion exits 1."""
+    lines = [line.strip() for line in (ROOT / "Dockerfile.test").read_text().splitlines()]
+    copy = lines.index("COPY scripts/ /app/scripts/")
+    assert "RUN pip install --no-cache-dir --no-deps /app/scripts" in lines[copy + 1:]

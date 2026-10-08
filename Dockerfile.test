@@ -122,6 +122,8 @@ COPY backends/ /app/backends/
 COPY invokers/ /app/invokers/
 COPY utils/ /app/utils/
 COPY scripts/ /app/scripts/
+# st-vector-map manifests record the installed wrapper version. Dependencies come from requirements files.
+RUN pip install --no-cache-dir --no-deps /app/scripts
 COPY tests/ /app/tests/
 COPY spikes/ /app/spikes/
 COPY *.py /app/
