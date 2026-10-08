@@ -30,32 +30,76 @@ The three known full-suite failures remain separately tracked. Record them besid
 | 5 | `STABL-mknlfcui` S3.5 | Explicit fabrication preset | S3.4 height controls, overrides, provenance |
 | Last | `STABL-sxcphzwd` S3.6 | Complete CAD acceptance | S3.4 and S3.5 |
 
-Existing FP dependencies encode every required gate except the proposed S3.4-to-S3.5 gate.
-S3.5 currently depends on S3.3. Review should add S3.4 to its dependency list.
+FP now lists S3.3 and S3.4 as dependencies of S3.5.
 Q4 must finish before S3.4 because source generation depends on its Boolean decision.
-Q4's description says "before S3.5", but the S3.4 dependency records the effective gate.
+Q4's description now names S3.4 as its gate.
 No new issue is needed unless review divides an existing issue into smaller independent outputs.
 
 ## Proposed interface decisions for review
 
 1. Image mode requires exactly one silhouette method: `--mask`, `--alpha`, or `--threshold`.
-   `--threshold` uses oriented source luminance at or above an explicit integer from 0 to 255.
-   `--invert` reverses that selection. A missing method exits 2 with an instruction.
-   Reject an empty silhouette after constraints with a processing failure.
+   Recipe fields `mask`, `alpha`, and `threshold` form one method group.
+   Each settings source replaces the prior method when it selects a new method.
+   Thus CLI `--threshold 200` replaces recipe `alpha: true`.
+   Two positive methods from one source exit 2. `--no-alpha` clears inherited alpha selection.
+   If alpha was the only method, `--no-alpha` leaves no method and exits 2.
+   If the recipe selects a mask or threshold, `--no-alpha` leaves that method selected.
+   `--threshold` uses oriented source luminance at or above an integer from 0 to 255.
+   Select material before the common binary resize. `--invert` reverses every selected image method.
+   Keep existing `--invert` behavior for standalone mask and edge modes.
+   Reject `--threshold` in mask and edge modes. Reject an empty silhouette after constraints with exit 1.
 2. `--layers` selects `silhouette`, `structure`, and `detail` in fixed output order.
    Image mode defaults to `silhouette` only. The silhouette is always selected.
-   Optional layers use either a supplied map or an explicit Canny settings object.
+   Reject `--layers` outside image mode. Reject a selection without `silhouette` with exit 2.
+   Selecting structure or detail chooses Canny unless a map is supplied for that role.
+   Recipe `structure` and `detail` objects may select `source: "canny"` or `source: "map"`.
+   A map source requires its path. Canny values may be omitted and use reviewed defaults.
+   Recipe `layers` is a list. CLI `--layers` is a comma-separated list.
+   Normalize either selection to the fixed output order.
    Do not infer structure or detail from image meaning.
 3. Add recipe fields for each layer's map, Canny thresholds, blur, nominal band width, and raster constraints.
+   Each role object contains `source`, optional `path`, optional `canny`, optional `width_mm`, and optional masks.
+   The `canny` object accepts `low_threshold`, `high_threshold`, and `blur`.
+   Role masks use `include_mask` and `exclude_mask`.
+   `--structure-map` and `--detail-map` select external maps from the CLI.
+   `--structure-width-mm` and `--detail-width-mm` override each role's band width.
+   Keep standalone `line_width_mm` limited to edge mode.
    Resolve relative paths from the recipe directory. Keep schema version 1.
    CLI values override recipe values. Unsupported fields exit 2.
-   Choose Canny default values from the reviewed corpus before implementation.
+   S3.2 measures corpus candidates and selects separate coarse and fine Canny defaults.
+   Record selected defaults and per-image overrides before S3.2 implementation.
+   Orient the colour source first. Derive processing dimensions with `_processing_size`.
+   Resize oriented RGB with Pillow LANCZOS to those exact dimensions.
+   Run `canny_map.canny_edges` on those pixels without another resize.
+   Prepare silhouette and external masks before scaling. Resize those binary masks with nearest-neighbour.
 4. Preserve the standalone JSON fields and exit codes.
-   Add relative layer paths and SCAD path under `artifacts` when those files exist.
-   Add selected layer identities and resolved heights to the manifest without changing schema version 1.
+   Use `artifacts.layers` as a role-to-path object and `artifacts.scad` as a path when present.
+   Use the same path string convention as existing `artifacts.svg`.
+   Keep existing `artifacts.svg`, `artifacts.manifest`, `artifacts.preview`, and `artifacts.debug` fields.
+   Layered manifest entries contain `id`, `height_mm`, and `mode`.
+   Before relief selection, `height_mm` and `mode` are null.
+   With relief selection, silhouette mode is `base`, structure mode is `raised`.
+   Detail mode is `raised` or `engraved`. Standalone entries retain their existing two-field shape.
+   Keep schema version 1. Record backing, centering, and preset in resolved relief settings.
+5. Add `--export-scad`, `--preset relief-0.4`, and explicit relief controls.
+   Restrict SCAD export and the relief preset to image mode with a selected silhouette.
+   Reject either control in standalone mask or edge mode with exit 2.
+   CLI and recipe fields are `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, and `detail_height_mm`.
+   CLI flags use matching dashed names. `backing_mm=0` disables backing.
+   CLI `--detail-mode raised|engraved` and recipe `detail_mode` select the detail operation.
+   Default detail mode is `raised`. Default centering is false.
+   CLI `--center` or `--no-center` and recipe `center` select one assembly transform.
+   CLI `--export-scad` or `--no-export-scad` and recipe `export_scad` select source generation.
+   Recipe `preset` selects the same preset as CLI `--preset`.
+   `--structure-width-mm` and `--detail-width-mm` set physical band widths before tracing.
+   `backing_mm` is nonnegative. Zero disables backing.
+   Without a preset, require positive heights for selected layers when `--export-scad` is set.
+   Require `0 < detail_height_mm < silhouette_thickness_mm` for engraving.
+   Resolve built-in defaults, preset, recipe, and CLI in that order.
 
-These choices need review before an implementation task starts.
-The threshold name and recipe field shape are proposed policy, not existing behavior.
+Review decision 1 before S3.1. Review decisions 2 and 3 before S3.2.
+Review decision 4 before S3.3. Review decision 5 before S3.4.
+The new flags and recipe fields are proposed policy, not existing behavior.
 
 ## File responsibilities
 
@@ -81,7 +125,10 @@ Never parse or assemble SVG with regular expressions.
 
 1. Add RED tests in `tests/test_vector_map_image.py` for all three methods.
    Cover EXIF orientation, matching external-mask dimensions, alpha absence, and explicit threshold polarity.
-   Cover missing method, conflicting methods, empty silhouette, and unchanged mask and edge routes.
+   Cover recipe alpha replaced by CLI threshold. Cover recipe alpha cleared by `--no-alpha`.
+   Cover missing method, same-source conflicts, and empty silhouette with exit 1 before VTracer.
+   Reject threshold in mask and edge modes.
+   Keep existing standalone mask and edge routes unchanged.
 2. Run `python -m pytest tests/test_vector_map_image.py tests/test_vector_map_raster_cli.py -q`.
    Record tests that fail because image mode remains deferred.
 3. Extend configuration and raster preparation with one immutable silhouette result.
@@ -94,15 +141,22 @@ Never parse or assemble SVG with regular expressions.
 ## S3.2 structure and detail proposals
 
 1. Add RED tests in `tests/test_vector_map_layers.py` for selected roles and external maps.
+   Reject `--layers` in mask and edge modes.
+   Reject a selected structure or detail role without silhouette.
    Cover mismatched oriented dimensions, empty optional layers, and include/exclude precedence.
-2. Compare candidate edges with direct `canny_map.canny_edges` output on the same oriented, resized RGB pixels.
-   Test separate coarse and fine settings. Record the exact values in the recipe.
-3. Expand feature bands through the existing physical-width function.
+2. Sweep coarse and fine Canny candidates across the reviewed corpus.
+   Record selected defaults and per-image overrides before implementing proposals.
+3. Orient source RGB with EXIF transpose. Derive dimensions with `_processing_size`.
+   Resize RGB once with Pillow LANCZOS. Run `canny_map.canny_edges` after resize.
+   Compare candidate bytes with a direct call on those exact prepared pixels.
+   Do not call `canny_map.load_image`, which uses different resize and orientation rules.
+4. Expand feature bands through the existing physical-width function.
    Reapply constraints, intersect each band with the silhouette, then remove structure from detail.
-4. Add preview tests for selected intermediate masks.
+   Check each role's width independently. Keep `line_width_mm` limited to standalone edges.
+5. Add preview tests for selected intermediate masks.
    S3.3 adds rendered SVG panels after separate layer exports exist.
-5. Run `python -m pytest tests/test_vector_map_layers.py tests/test_vector_map_preview.py -q` to RED and GREEN.
-6. Commit only S3.2 paths. Report candidate settings, tests, and visual limits in FP.
+6. Run `python -m pytest tests/test_vector_map_layers.py tests/test_vector_map_preview.py -q` to RED and GREEN.
+7. Commit only S3.2 paths. Report defaults, overrides, tests, and visual limits in FP.
 
 ## S3.3 aligned SVG and bundle
 
@@ -114,12 +168,21 @@ Never parse or assemble SVG with regular expressions.
    Treat separate normalized layer SVGs as the authoritative CAD inputs.
    Add preview tests for every selected rendered SVG and its prepared mask.
    Keep pixel-root rendering and overlay alignment at non-binary millimetre scales.
-4. Extend `Bundle` to own `<stem>.layers/<role>.svg` only for selected nonempty roles.
+4. Extend `Bundle` to own all three fixed `<stem>.layers/<role>.svg` names in a layered run.
    Reject a symlink layer directory. Protect every source and external map from output aliases.
+   Without `--overwrite`, refuse any existing owned role file.
+   With `--overwrite`, remove unselected role files after invalidating the old manifest.
+   Preserve unrelated files. Do not remove the layer directory.
 5. Include each published artifact and input hash in the manifest.
-   Report omitted optional layers. Do not list stale unrequested files as current outputs.
+   Report omitted optional layers. List only files from the current run.
+   Keep the standalone debug bundle unchanged.
+   For a layered debug bundle, save one fixed PNG per selected mask and a replay recipe.
+   Own all three role PNG names. Remove unselected role PNGs on overwrite.
+   Hash current debug files in the manifest. Preserve unrelated debug files.
 6. Test collision refusal, `--overwrite`, staged failure, manifest-last publication, and repeated bundle hashes.
-   Preserve unrelated files in the layer directory.
+   Test a prior `structure.svg` followed by a run without structure.
+   Check removal on overwrite and preservation of unrelated files.
+   Check layered debug replay and fixed-name ownership before publication.
 7. Run `python -m pytest tests/test_vector_map_layer_export.py tests/test_vector_map_artifacts.py -q` to RED and GREEN.
 8. Commit only S3.3 paths. Report geometry and publication evidence in FP.
 
@@ -130,18 +193,22 @@ Never parse or assemble SVG with regular expressions.
    Render detail minus structure. Use compound paths and a nested hole.
 2. Include a border-touching region and asymmetric placement.
    Compare STL XY/Z bounds, surface components, and genus with expected geometry.
-3. Record OpenSCAD version, exact command, output, and fixture paths in `STABL-szyudowd`.
+3. Add an almost-touching structure/detail boundary after independent VTracer traces.
+   Check that intersection and difference leave no extra sliver components.
+4. Record OpenSCAD version, exact command, output, and fixture paths in `STABL-szyudowd`.
    Keep Flatpak files under the home directory when that executable is used.
-4. Accept 2D booleans only if every required case passes.
+5. Accept 2D booleans only if every required case passes.
    If any case fails, record the failure and review an alternative assembly before S3.4.
 
 ## S3.4 SCAD assembly
 
 1. Add RED tests in `tests/test_vector_map_scad.py` for relative imports and `center=false`.
    Require one assembly-level centering transform when requested.
+   Cover `--export-scad` through CLI and recipe, including absent OpenSCAD.
 2. Implement Q4's accepted Boolean strategy.
    Constrain structure and detail to the silhouette. Remove structure from detail again.
-3. Expose backing `B`, silhouette `S`, structure `H`, and detail `D` as editable millimetre parameters.
+3. Parse and validate the four height controls and `detail_mode` from CLI and recipe.
+   Expose backing `B`, silhouette `S`, structure `H`, and detail `D` as editable millimetre parameters.
    Check the spec's Z intervals for raised and engraved cases.
    Require `0 < D < S` for engraving and positive selected feature heights.
 4. Keep engraving out of structure ridges.
@@ -149,6 +216,7 @@ Never parse or assemble SVG with regular expressions.
 5. Add an optional full-canvas rectangular backing.
    Warn when a disconnected silhouette without backing may form multiple solids.
 6. Add `<stem>.scad` to fixed bundle ownership and manifest hashes.
+   Add `artifacts.scad`. Record height, mode, backing, and centering in the manifest.
    Source generation must work without an OpenSCAD executable.
 7. Run `python -m pytest tests/test_vector_map_scad.py tests/test_vector_map_artifacts.py -q` to RED and GREEN.
 8. Commit only S3.4 paths. Report validated source and remaining CAD evidence in FP.
@@ -156,7 +224,8 @@ Never parse or assemble SVG with regular expressions.
 ## S3.5 explicit relief preset
 
 1. Add RED tests in `tests/test_vector_map_preset.py` for no implicit preset.
-   Check `--preset relief-0.4` and every CLI or recipe override.
+   Check `--preset relief-0.4` through CLI and recipe.
+   Check every height, width, backing, detail mode, and centering override.
 2. Set `S=1.2 mm`, structure width `0.8 mm`, `H=0.6 mm`, detail width `0.5 mm`, and `D=0.2 mm`.
    Keep backing disabled. Do not change S1.4 VTracer defaults.
 3. Record all resolved values in the manifest and replay recipe.
@@ -166,7 +235,8 @@ Never parse or assemble SVG with regular expressions.
 
 ## S3.6 CAD acceptance
 
-1. Run complete image and external-mask workflows with the reviewed corpus.
+1. Run complete image workflows with the reviewed corpus.
+   Include image mode with `--mask` as the external-mask case.
    Save each selected mask, combined SVG, separate SVG, manifest, and SCAD source.
 2. Render actual OpenSCAD meshes for raised structure, raised detail, engraved detail, backing on, and backing off.
    Include a preset end-to-end case and a silhouette with holes.
@@ -183,7 +253,9 @@ Never parse or assemble SVG with regular expressions.
 
 ## Planning and review gates
 
-Review the four proposed interface decisions before S3.1 starts.
+Review decision 1 before S3.1 starts.
+Review decisions 2 and 3 before S3.2 starts.
+Review decision 4 before S3.3 starts. Review decision 5 before S3.4 starts.
 Review Q4's render evidence before S3.4 starts.
 Each human-popped implementation task uses inline RED/GREEN work and stops at ready for review.
 Do not self-pop the next task or mark an issue done before its review cycle.
