@@ -1,8 +1,8 @@
 # Sprint 3 layered image and relief plan
 
-Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: S3.1 interface ready for assignment. Later gates remain under review.
+Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: S3.1 assigned to Theta. Later gates remain under review.
 Baseline: `0c2a773` on `main`, checked 2026-10-08.
-Authority: planning only. Human assigns each implementation issue.
+Authority: Mario assigned S3.1 implementation to Theta. Sigma retains Sprint 3 planning. Mario assigns later implementation issues.
 Contract: [vector-map design](../specs/2026-09-06-vector-map-relief-design.md), sections 4–10 and 11.3.
 Sprint 2 evidence: [standalone acceptance](../reports/2026-10-07-vector-map-sprint-2-acceptance.md).
 
@@ -131,6 +131,8 @@ Use the existing embedded-font fallback on Pillow 10.0 or without FreeType.
 Never parse or assemble SVG with regular expressions.
 
 ## S3.1 image silhouette
+
+Implementer: Theta. A different agent reviews Theta's implementation.
 
 1. Add RED tests in `tests/test_vector_map_image.py` for all three methods.
    Cover EXIF orientation, matching external-mask dimensions, alpha absence, and explicit threshold polarity.
