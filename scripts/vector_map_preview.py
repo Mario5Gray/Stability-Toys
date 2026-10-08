@@ -8,11 +8,14 @@ move (S2.7 measurement). S2.5 measured that dpi only at 0.5 mm/px, where float32
 Render the published paths under a pixel root instead: width and height equal the viewBox.
 """
 
+import math
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from importlib.metadata import version
 from io import BytesIO
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 BACKGROUND = "#ffffff"
 # Geometry checks only. Operator previews keep the renderer default anti-aliasing.
@@ -20,6 +23,35 @@ CRISP = "crisp_edges"
 MATERIAL_LUMINANCE = 128
 
 ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+# Fixed text, layout and colours. Labels use the Pillow embedded default font only.
+LABELS = {
+    "mask": "Prepared material mask",
+    "vector": "Rendered vector output",
+    "overlay": "Vector overlay on source",
+}
+# Okabe-Ito colours. Overlap and difference stay distinct for colour-blind operators.
+LEGEND = {
+    "both": (0, 158, 115),
+    "vector_only": (213, 94, 0),
+    "mask_only": (0, 114, 178),
+}
+LEGEND_TEXT = {"both": "Mask and vector", "vector_only": "Vector only", "mask_only": "Mask only"}
+OVERLAY_ALPHA = 0.65
+LABEL_SIZE = 12
+LABEL_HEIGHT = 18
+LEGEND_HEIGHT = 18
+MARGIN = 8
+SWATCH = 12
+PAGE = (232, 232, 232)
+TEXT = (0, 0, 0)
+
+
+@dataclass(frozen=True)
+class Preview:
+    png: bytes
+    panels: dict
+    provenance: dict
 
 
 def pixel_root(svg, canvas):
@@ -53,3 +85,100 @@ def render_luminance(svg, canvas, *, shape_rendering=None):
 def render_material(svg, canvas):
     """Crisp geometry render. True where the vector output has material."""
     return render_luminance(svg, canvas, shape_rendering=CRISP) < MATERIAL_LUMINANCE
+
+
+def blend_base(source):
+    """Lighten source luminance by half, so overlay colours stay visible."""
+    return (np.asarray(source, np.uint16) + 255) // 2
+
+
+def _source(data, prepared):
+    """Orient like preparation, then resize to the processing canvas like the material."""
+    with Image.open(BytesIO(data)) as image:
+        with ImageOps.exif_transpose(image) as oriented:
+            if oriented.size != tuple(prepared.oriented_size):
+                raise ValueError(f"Preview source size {oriented.size} differs from prepared {prepared.oriented_size}.")
+            with oriented.convert("L") as gray:
+                with gray.resize(tuple(prepared.processed_size), resample=Image.Resampling.NEAREST) as resized:
+                    return np.asarray(resized).copy()
+
+
+def _overlay(source, material, luminance):
+    coverage = (255 - luminance.astype(float)) / 255
+    mask = material.astype(float)
+    weights = {
+        "both": mask * coverage,
+        "vector_only": (1 - mask) * coverage,
+        "mask_only": mask * (1 - coverage),
+    }
+    total = sum(weights.values())
+    out = np.repeat(blend_base(source).astype(float)[..., None] * (1 - OVERLAY_ALPHA * total)[..., None], 3, axis=2)
+    for name, weight in weights.items():
+        out += OVERLAY_ALPHA * weight[..., None] * np.array(LEGEND[name], float)
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+
+
+def _gray_rgb(values):
+    return np.repeat(values[..., None], 3, axis=2)
+
+
+def compose(prepared, svg, source_bytes):
+    """Draw mask, anti-aliased vector render and source overlay at processing resolution.
+
+    The vector panel renders the published SVG. A mask-only preview is not vector proof.
+    """
+    width, height = prepared.processed_size
+    luminance = render_luminance(svg, prepared.canvas)
+    panels = {
+        "mask": _gray_rgb(np.where(prepared.material, 0, 255).astype(np.uint8)),
+        "vector": _gray_rgb(luminance),
+        "overlay": _overlay(_source(source_bytes, prepared), prepared.material, luminance),
+    }
+    font = ImageFont.load_default(LABEL_SIZE)
+    measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    column = max(width, *(math.ceil(measure.textlength(text, font=font)) for text in LABELS.values()))
+    entries = [
+        (name, SWATCH + 4 + math.ceil(measure.textlength(LEGEND_TEXT[name], font=font)) + 12) for name in LEGEND
+    ]
+    legend_width = sum(size for _, size in entries)
+    page_width = max(MARGIN + 3 * (column + MARGIN), legend_width + 2 * MARGIN)
+    top = MARGIN + LABEL_HEIGHT
+    legend_top = top + height + MARGIN
+    page = Image.new("RGB", (page_width, legend_top + LEGEND_HEIGHT + MARGIN), PAGE)
+    draw = ImageDraw.Draw(page)
+    boxes = {}
+    for index, (name, pixels) in enumerate(panels.items()):
+        column_left = MARGIN + index * (column + MARGIN)
+        left = column_left + (column - width) // 2
+        page.paste(Image.fromarray(pixels), (left, top))
+        boxes[name] = (left, top, left + width, top + height)
+        draw.text((column_left, MARGIN), LABELS[name], font=font, fill=TEXT)
+    x = MARGIN
+    for name, size in entries:
+        swatch_top = legend_top + (LEGEND_HEIGHT - SWATCH) // 2
+        draw.rectangle((x, swatch_top, x + SWATCH - 1, swatch_top + SWATCH - 1), fill=LEGEND[name])
+        draw.text((x + SWATCH + 4, legend_top + 2), LEGEND_TEXT[name], font=font, fill=TEXT)
+        x += size
+    boxes["legend"] = (MARGIN, legend_top, MARGIN + legend_width, legend_top + LEGEND_HEIGHT)
+    buffer = BytesIO()
+    page.save(buffer, format="PNG")
+    return Preview(buffer.getvalue(), boxes, provenance(prepared, font))
+
+
+def provenance(prepared, font):
+    """Values that decide preview bytes. Same versions and build give same bytes."""
+    import PIL
+    from PIL import features
+
+    return {
+        "renderer": "resvg-py",
+        "renderer_version": version("resvg-py"),
+        "shape_rendering": "default",
+        "root": "pixel",
+        "resolution": list(prepared.processed_size),
+        "pillow": PIL.__version__,
+        "font": type(font).__name__,
+        "freetype2": features.version("freetype2"),
+        "label_size": LABEL_SIZE,
+        "labels": list(LABELS.values()),
+    }
