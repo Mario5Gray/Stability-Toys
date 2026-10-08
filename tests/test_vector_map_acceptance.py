@@ -238,3 +238,249 @@ def test_real_command_matches_in_process_bytes(capsys, monkeypatch, tmp_path, na
     assert code == 0
     assert _bundle_files(by_command) == _bundle_files(in_process)
     _record(mode="mask", group="command", case=name, command=command[-1], exit=result.returncode)
+
+
+# --- Step 7: coordinates ------------------------------------------------------
+
+
+def _save(path, pixels, **kwargs):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.asarray(pixels, np.uint8)).save(path, **kwargs)
+    return path
+
+
+def _convert(capsys, monkeypatch, source, destination, *extra):
+    code, result, error, _, elapsed = _in_process(capsys, monkeypatch, source, destination, *extra)
+    return code, result, error, elapsed
+
+
+def _published(destination):
+    manifest = _verify_manifest(destination.with_suffix(".vector.json"))
+    canvas = config.Canvas(**manifest["canvas"])
+    rendered = preview.render_material(destination.read_text(), canvas)
+    material = np.asarray(Image.open(destination.with_suffix(".debug") / "mask.png").convert("L")) >= 128
+    return manifest, canvas, rendered, material
+
+
+def _asymmetric(rows=120):
+    return np.asarray(Image.open(FIXTURES / "asymmetric.png").convert("L"))[:rows]
+
+
+def test_exif_orientation_applies_before_tracing(capsys, monkeypatch, tmp_path):
+    oriented = _asymmetric()
+    stored = np.asarray(Image.fromarray(oriented).transpose(Image.Transpose.ROTATE_90))
+    exif = Image.Exif()
+    exif[274] = 6
+    source = _save(tmp_path / "rotated.png", stored, exif=exif)
+    destination = tmp_path / "out.svg"
+    code, _, error, elapsed = _convert(capsys, monkeypatch, source, destination, *MASK_SETTINGS, "--debug-bundle")
+    assert code == 0, error
+    manifest, _, rendered, material = _published(destination)
+    assert manifest["preparation"]["original_size"] == [120, 128]
+    assert manifest["preparation"]["oriented_size"] == [128, 120]
+    assert np.array_equal(material, oriented >= 128)
+    error_px = np.count_nonzero(rendered ^ material)
+    for flipped in (np.fliplr(material), np.flipud(material), np.rot90(material, 2)):
+        assert error_px < np.count_nonzero(rendered ^ flipped)
+    _record(mode="mask", group="coordinates", case="exif_orientation_6", exit=code, seconds=round(elapsed, 4),
+            original_size=[120, 128], oriented_size=[128, 120], xor_px=error_px)
+
+
+def test_constraint_mask_with_other_dimensions_is_rejected(capsys, monkeypatch, tmp_path):
+    include = _save(tmp_path / "include.png", np.full((64, 64), 255))
+    destination = tmp_path / "out" / "out.svg"
+    code, result, error, _ = _convert(capsys, monkeypatch, FIXTURES / "asymmetric.png", destination,
+                                      *MASK_SETTINGS, "--include-mask", include)
+    assert code == 2
+    assert "oriented dimensions" in error
+    assert not destination.parent.exists() or not any(destination.parent.iterdir())
+    _record(mode="mask", group="coordinates", case="constraint_size_mismatch", exit=code,
+            message=result["diagnostics"][0]["message"])
+
+
+def test_common_resize_applies_one_scale_to_source_and_constraints(capsys, monkeypatch, tmp_path):
+    allowed = np.zeros((128, 128), np.uint8)
+    allowed[:, :64] = 255
+    include = _save(tmp_path / "left.png", allowed)
+    destination = tmp_path / "out.svg"
+    code, _, error, _ = _convert(capsys, monkeypatch, FIXTURES / "asymmetric.png", destination, *MASK_SETTINGS,
+                                 "--max-res", "64", "--include-mask", include, "--debug-bundle")
+    assert code == 0, error
+    manifest, canvas, rendered, material = _published(destination)
+    assert manifest["preparation"]["processed_size"] == [64, 64]
+    assert (canvas.width_px, canvas.height_px, canvas.width_mm, canvas.mm_per_px) == (64, 64, 100, 100 / 64)
+    assert material.shape == (64, 64)
+    assert not material[:, 32:].any() and material[:, :32].any()
+    assert not rendered[:, 32:].any()
+    _record(mode="mask", group="coordinates", case="common_resize_max_res_64", exit=code,
+            processed_size=[64, 64], mm_per_px=canvas.mm_per_px)
+
+
+def test_rectangle_has_known_physical_size(capsys, monkeypatch, tmp_path):
+    pixels = np.zeros((100, 200), np.uint8)
+    pixels[20:70, 40:140] = 255
+    source = _save(tmp_path / "rectangle.png", pixels)
+    destination = tmp_path / "out.svg"
+    code, _, error, _ = _convert(capsys, monkeypatch, source, destination,
+                                 "--input-kind", "mask", "--width-mm", "50", "--debug-bundle")
+    assert code == 0, error
+    manifest, canvas, rendered, _ = _published(destination)
+    svg = destination.read_text()
+    assert 'width="50mm"' in svg and 'height="25mm"' in svg and 'viewBox="0 0 200 100"' in svg
+    rows, cols = np.nonzero(rendered)
+    size_mm = ((cols.max() + 1 - cols.min()) * canvas.mm_per_px, (rows.max() + 1 - rows.min()) * canvas.mm_per_px)
+    origin_mm = (cols.min() * canvas.mm_per_px, rows.min() * canvas.mm_per_px)
+    assert size_mm == (25.0, 12.5) and origin_mm == (10.0, 5.0)
+    assert np.count_nonzero(rendered) == 100 * 50
+    _record(mode="mask", group="coordinates", case="physical_rectangle", exit=code,
+            canvas_mm=[canvas.width_mm, canvas.height_mm], rectangle_mm=list(size_mm), origin_mm=list(origin_mm))
+
+
+def test_asymmetric_output_keeps_orientation(capsys, monkeypatch, tmp_path):
+    destination = tmp_path / "out.svg"
+    code, _, error, _ = _convert(capsys, monkeypatch, FIXTURES / "asymmetric.png", destination,
+                                 *MASK_SETTINGS, "--debug-bundle")
+    assert code == 0, error
+    _, _, rendered, material = _published(destination)
+    error_px = np.count_nonzero(rendered ^ material)
+    flips = {name: np.count_nonzero(rendered ^ array) for name, array in
+             {"lr": np.fliplr(material), "ud": np.flipud(material), "transpose": material.T}.items()}
+    assert all(error_px < value for value in flips.values()), (error_px, flips)
+    _record(mode="mask", group="coordinates", case="asymmetric_alignment", exit=code, xor_px=error_px, flipped_xor_px=flips)
+
+
+# --- Step 8: composition --------------------------------------------------------
+
+
+def test_exclusion_wins_over_inclusion(capsys, monkeypatch, tmp_path):
+    include = _save(tmp_path / "include.png", np.full((128, 128), 255))
+    removed = np.zeros((128, 128), np.uint8)
+    removed[60:100, 10:60] = 255
+    exclude = _save(tmp_path / "exclude.png", removed)
+    destination = tmp_path / "out.svg"
+    code, _, error, _ = _convert(capsys, monkeypatch, FIXTURES / "asymmetric.png", destination, *MASK_SETTINGS,
+                                 "--include-mask", include, "--exclude-mask", exclude, "--debug-bundle")
+    assert code == 0, error
+    _, _, rendered, material = _published(destination)
+    source = np.asarray(Image.open(FIXTURES / "asymmetric.png").convert("L")) >= 128
+    assert (source & (removed > 0)).any()
+    assert not (material & (removed > 0)).any()
+    assert not (rendered & (removed > 0)).any()
+    _record(mode="mask", group="composition", case="exclude_wins", exit=code,
+            excluded_source_px=int((source & (removed > 0)).sum()))
+
+
+def test_edge_expansion_is_clipped_by_constraints(capsys, monkeypatch, tmp_path):
+    lines = np.zeros((128, 128), np.uint8)
+    lines[64, :] = 255
+    lines[:, 64] = 255
+    source = _save(tmp_path / "lines.png", lines)
+    allowed = np.zeros((128, 128), np.uint8)
+    allowed[32:96, 32:96] = 255
+    include = _save(tmp_path / "include.png", allowed)
+    destination = tmp_path / "out.svg"
+    code, _, error, _ = _convert(capsys, monkeypatch, source, destination, "--input-kind", "edges",
+                                 "--width-mm", "100", "--line-width-mm", "6", "--include-mask", include, "--debug-bundle")
+    assert code == 0, error
+    manifest, _, rendered, material = _published(destination)
+    outside = allowed == 0
+    assert manifest["preparation"]["expansion"]["radius_px"] >= 3
+    assert material.any() and not (material & outside).any()
+    assert not (rendered & outside).any()
+    _record(mode="edges", group="composition", case="clip_after_expansion", exit=code,
+            expansion=manifest["preparation"]["expansion"])
+
+
+# --- Step 9: failures ------------------------------------------------------------
+
+
+def _no_success(destination):
+    for path in (destination, destination.with_suffix(".vector.json"), destination.with_suffix(".preview.png")):
+        assert not path.exists(), path
+
+
+@pytest.mark.parametrize("case", ["black", "speckle_only"])
+def test_empty_standalone_material_exits_1_without_bundle(capsys, monkeypatch, tmp_path, case):
+    pixels = np.zeros((64, 64), np.uint8)
+    if case == "speckle_only":
+        pixels[10:60:8, 10:60:8] = 255  # filter_speckle 4 removes every single-pixel island
+    source = _save(tmp_path / f"{case}.png", pixels)
+    destination = tmp_path / "out" / "out.svg"
+    code, result, error, _ = _convert(capsys, monkeypatch, source, destination, *MASK_SETTINGS,
+                                      "--preview", "--debug-bundle")
+    assert code == 1
+    assert result["status"] == "failed"
+    _no_success(destination)
+    _record(mode="mask", group="failure", case=f"empty_material_{case}", exit=code,
+            message=result["diagnostics"][0]["message"], debug_retained=(destination.with_suffix(".debug") / "mask.png").is_file())
+
+
+def test_malformed_upstream_svg_exits_1_without_bundle(capsys, monkeypatch, tmp_path):
+    import vtracer
+
+    def malformed(*args, **kwargs):
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><script>x</script></svg>'
+
+    monkeypatch.setattr(vtracer, "convert_raw_image_to_svg", malformed)
+    destination = tmp_path / "out" / "out.svg"
+    code, result, error, _ = _convert(capsys, monkeypatch, FIXTURES / "donut.png", destination, *MASK_SETTINGS)
+    assert code == 1
+    assert "0.6.15" in error
+    _no_success(destination)
+    _record(mode="mask", group="failure", case="malformed_upstream_svg", exit=code,
+            message=result["diagnostics"][0]["message"])
+
+
+@pytest.mark.parametrize("flag, value, unit", [("--max-paths", "2", "path"), ("--max-svg-bytes", "200", "bytes"),
+                                                ("--max-path-commands", "10", "command")])
+def test_exceeded_limits_exit_1_without_bundle(capsys, monkeypatch, tmp_path, flag, value, unit):
+    destination = tmp_path / "out" / "out.svg"
+    code, result, error, _ = _convert(capsys, monkeypatch, FIXTURES / "separate_components.png", destination,
+                                      *MASK_SETTINGS, flag, value)
+    assert code == 1
+    assert f"limit {value}" in error, error
+    _no_success(destination)
+    _record(mode="mask", group="failure", case=f"limit{flag.replace('--max', '')}", exit=code,
+            message=result["diagnostics"][0]["message"])
+
+
+@pytest.mark.parametrize("existing", ["out.svg", "out.vector.json", "out.preview.png", "out.debug/mask.png"])
+def test_existing_bundle_member_is_refused_without_overwrite(capsys, monkeypatch, tmp_path, existing):
+    collision = tmp_path / existing
+    collision.parent.mkdir(parents=True, exist_ok=True)
+    collision.write_bytes(b"old")
+    destination = tmp_path / "out.svg"
+    code, result, error, _ = _convert(capsys, monkeypatch, FIXTURES / "donut.png", destination, *MASK_SETTINGS,
+                                      "--preview", "--debug-bundle")
+    assert code == 2
+    assert "--overwrite" in error
+    assert collision.read_bytes() == b"old"
+    assert not destination.with_suffix(".vector.json").exists() or existing == "out.vector.json"
+    _record(mode="mask", group="failure", case=f"overwrite_refused_{existing}", exit=code)
+
+
+def test_interrupted_overwrite_leaves_no_completion_manifest(capsys, monkeypatch, tmp_path):
+    destination = tmp_path / "out.svg"
+    code, *_ = _convert(capsys, monkeypatch, FIXTURES / "donut.png", destination, *MASK_SETTINGS, "--preview")
+    assert code == 0
+    old_svg = destination.read_bytes()
+    replace = os.replace
+
+    def interrupted(source, target, *args, **kwargs):
+        if Path(target).name == "out.preview.png":
+            raise OSError("injected disk failure")
+        return replace(source, target, *args, **kwargs)
+
+    monkeypatch.setattr(vector_map.artifacts.os, "replace", interrupted)
+    code = vector_map.main([str(FIXTURES / "asymmetric.png"), str(destination), *MASK_SETTINGS,
+                            "--preview", "--overwrite", "--json"])
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert code == 1
+    assert result["status"] == "failed"
+    assert "injected disk failure" in captured.err
+    assert not destination.with_suffix(".vector.json").exists()
+    # Spec 8: renames are not atomic. The new SVG landed before the failure. No manifest marks it complete.
+    assert destination.read_bytes() != old_svg
+    _record(mode="mask", group="failure", case="interrupted_overwrite", exit=code,
+            manifest_present=False, svg_replaced_before_failure=True)
