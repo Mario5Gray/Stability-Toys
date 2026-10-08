@@ -417,3 +417,31 @@ def test_three_runs_save_bytes_before_overwrite(tmp_path, capsys):
         paths = [tmp_path / item["path"] for item in manifest["artifacts"]] + [tmp_path / "out.vector.json"]
         snapshots.append({str(path): path.read_bytes() for path in paths})
     assert snapshots[0] == snapshots[1] == snapshots[2]
+
+
+def test_cleanup_failure_after_manifest_link_invalidates_completion(tmp_path, monkeypatch):
+    bundle = bundle_at(tmp_path)
+    manifest = tmp_path / "out.vector.json"
+    unlink = Path.unlink
+    injected = False
+
+    def fail_once(path, *args, **kwargs):
+        nonlocal injected
+        if manifest.exists() and path.name == "1" and not injected:
+            injected = True
+            raise OSError("injected cleanup failure")
+        return unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_once)
+    with pytest.raises(OSError, match="cleanup failure"):
+        bundle.publish({Path("out.svg"): b"svg"}, b"completion")
+    assert injected
+    assert not manifest.exists()
+
+
+def test_output_alias_to_other_output_is_refused(tmp_path):
+    output = tmp_path / "out.svg"
+    output.write_bytes(b"old")
+    (tmp_path / "out.vector.json").symlink_to(output)
+    with pytest.raises(config.ConfigError, match="another output"):
+        bundle_at(tmp_path, overwrite=True).check()

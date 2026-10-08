@@ -136,26 +136,35 @@ class Bundle:
             raise ValueError("Publication contains a path not owned by this bundle.")
         self.check()
         self.svg.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix=f".{self.svg.name}.stage-", dir=self.svg.parent) as directory:
-            payloads = list(files.items())
-            if manifest is not None:
-                payloads.append((self.relative(self.manifest), manifest))
-            staged = []
-            for index, (relative, data) in enumerate(payloads):
-                path = Path(directory) / str(index)
-                path.write_bytes(data)
-                staged.append((path, self.svg.parent / relative))
-            if self.debug:
-                self.debug_directory.mkdir(exist_ok=True)
-            self.check()
-            if self.overwrite:
-                self.manifest.unlink(missing_ok=True)
-            for source, target in staged:
+        completed = False
+        try:
+            with tempfile.TemporaryDirectory(prefix=f".{self.svg.name}.stage-", dir=self.svg.parent) as directory:
+                payloads = list(files.items())
+                if manifest is not None:
+                    payloads.append((self.relative(self.manifest), manifest))
+                staged = []
+                for index, (relative, data) in enumerate(payloads):
+                    path = Path(directory) / str(index)
+                    path.write_bytes(data)
+                    staged.append((path, self.svg.parent / relative))
+                if self.debug:
+                    self.debug_directory.mkdir(exist_ok=True)
+                self.check()
                 if self.overwrite:
-                    os.replace(source, target)
-                else:
-                    _link(source, target)
-                    source.unlink()
+                    self.manifest.unlink(missing_ok=True)
+                for source, target in staged:
+                    if self.overwrite:
+                        os.replace(source, target)
+                    else:
+                        _link(source, target)
+                    if target == self.manifest:
+                        completed = True
+                    if not self.overwrite:
+                        source.unlink()
+        except OSError:
+            if completed:
+                self.manifest.unlink(missing_ok=True)
+            raise
 
 
 def _same_path(left, right):

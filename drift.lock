@@ -112,5 +112,5 @@ docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_diagnostics.py sig:dbd3942fe371b793
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_raster.py sig:5b0f955b72605ea8
 scripts/USAGE.md -> scripts/vector_map.py sig:52c6d65fd58469fc
-scripts/USAGE.md -> scripts/vector_map_artifacts.py sig:ad235646a154ab69
+scripts/USAGE.md -> scripts/vector_map_artifacts.py sig:fca09e41262b6c04
 scripts/USAGE.md -> scripts/vector_map_svg.py sig:e2fa29a1bad92fc9

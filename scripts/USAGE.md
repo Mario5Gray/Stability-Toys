@@ -102,6 +102,7 @@ Filesystems without hard-link support return a clear error. Explicit `--overwrit
 No automatic overwrite fallback occurs. Input-alias checks still apply.
 Publication stages files on destination filesystem, invalidates old manifest, replaces outputs, then publishes new manifest last.
 Several file publications do not form an atomic transaction. Unrelated files remain unchanged.
+If staging cleanup fails after manifest publication, publisher removes new manifest before reporting failure.
 
 `--debug-bundle` adds `<stem>.debug/mask.png` and `<stem>.debug/recipe.json`.
 Successful manifest lists both hashes. No other debug filenames belong to bundle.
