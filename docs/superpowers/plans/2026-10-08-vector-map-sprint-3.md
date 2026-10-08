@@ -1,6 +1,6 @@
 # Sprint 3 layered image and relief plan
 
-Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: proposed for review.
+Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: S3.1 interface ready for assignment. Later gates remain under review.
 Baseline: `0c2a773` on `main`, checked 2026-10-08.
 Authority: planning only. Human assigns each implementation issue.
 Contract: [vector-map design](../specs/2026-09-06-vector-map-relief-design.md), sections 4–10 and 11.3.
@@ -47,7 +47,10 @@ No new issue is needed unless review divides an existing issue into smaller inde
    `--threshold` uses oriented source luminance at or above an integer from 0 to 255.
    Select material before the common binary resize. `--invert` reverses every selected image method.
    Keep existing `--invert` behavior for standalone mask and edge modes.
-   Reject `--threshold` in mask and edge modes. Reject an empty silhouette after constraints with exit 1.
+   Image `--mask` selects luminance at or above 128. Ignore mask-file alpha with the existing `alpha_ignored` warning.
+   Image `--threshold` also reports `alpha_ignored` when the source has alpha.
+   Reject `--mask` and `--threshold` in mask and edge modes with exit 2.
+   Reject an empty silhouette after constraints with exit 1.
 2. `--layers` selects `silhouette`, `structure`, and `detail` in fixed output order.
    Image mode defaults to `silhouette` only. The silhouette is always selected.
    Reject `--layers` outside image mode. Reject a selection without `silhouette` with exit 2.
@@ -63,13 +66,16 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Role masks use `include_mask` and `exclude_mask`.
    `--structure-map` and `--detail-map` select external maps from the CLI.
    `--structure-width-mm` and `--detail-width-mm` override each role's band width.
+   Without a role width or preset width, keep the candidate band at its input thickness.
    Keep standalone `line_width_mm` limited to edge mode.
+   Validate `canny.blur` as integer 0 or a positive odd integer.
    Resolve relative paths from the recipe directory. Keep schema version 1.
    CLI values override recipe values. Unsupported fields exit 2.
    S3.2 measures corpus candidates and selects separate coarse and fine Canny defaults.
    Record selected defaults and per-image overrides before S3.2 implementation.
-   Orient the colour source first. Derive processing dimensions with `_processing_size`.
-   Resize oriented RGB with Pillow LANCZOS to those exact dimensions.
+   Orient the colour source first. Composite RGBA onto opaque black before Canny.
+   Derive processing dimensions with `_processing_size`.
+   Resize RGB with Pillow LANCZOS to those exact dimensions.
    Run `canny_map.canny_edges` on those pixels without another resize.
    Prepare silhouette and external masks before scaling. Resize those binary masks with nearest-neighbour.
 4. Preserve the standalone JSON fields and exit codes.
@@ -77,8 +83,8 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Use the same path string convention as existing `artifacts.svg`.
    Keep existing `artifacts.svg`, `artifacts.manifest`, `artifacts.preview`, and `artifacts.debug` fields.
    Layered manifest entries contain `id`, `height_mm`, and `mode`.
-   Before relief selection, `height_mm` and `mode` are null.
-   With relief selection, silhouette mode is `base`, structure mode is `raised`.
+   Without `--export-scad`, `height_mm` and `mode` are null, even when a preset is selected.
+   With `--export-scad`, silhouette mode is `base`, structure mode is `raised`.
    Detail mode is `raised` or `engraved`. Standalone entries retain their existing two-field shape.
    Keep schema version 1. Record backing, centering, and preset in resolved relief settings.
 5. Add `--export-scad`, `--preset relief-0.4`, and explicit relief controls.
@@ -91,6 +97,8 @@ No new issue is needed unless review divides an existing issue into smaller inde
    CLI `--center` or `--no-center` and recipe `center` select one assembly transform.
    CLI `--export-scad` or `--no-export-scad` and recipe `export_scad` select source generation.
    Recipe `preset` selects the same preset as CLI `--preset`.
+   A recipe preset cannot be cleared from the CLI. No `--no-preset` option exists.
+   This limit is accepted while `relief-0.4` is the only preset.
    `--structure-width-mm` and `--detail-width-mm` set physical band widths before tracing.
    `backing_mm` is nonnegative. Zero disables backing.
    Without a preset, require positive heights for selected layers when `--export-scad` is set.
@@ -127,7 +135,9 @@ Never parse or assemble SVG with regular expressions.
    Cover EXIF orientation, matching external-mask dimensions, alpha absence, and explicit threshold polarity.
    Cover recipe alpha replaced by CLI threshold. Cover recipe alpha cleared by `--no-alpha`.
    Cover missing method, same-source conflicts, and empty silhouette with exit 1 before VTracer.
-   Reject threshold in mask and edge modes.
+   Reject mask and threshold in mask and edge modes, for CLI flags and recipe fields.
+   Assert exit 2 and no output when either unsupported method is selected.
+   Test white-mask luminance, ignored mask alpha, and source-alpha warning with threshold.
    Keep existing standalone mask and edge routes unchanged.
 2. Run `python -m pytest tests/test_vector_map_image.py tests/test_vector_map_raster_cli.py -q`.
    Record tests that fail because image mode remains deferred.
@@ -144,15 +154,18 @@ Never parse or assemble SVG with regular expressions.
    Reject `--layers` in mask and edge modes.
    Reject a selected structure or detail role without silhouette.
    Cover mismatched oriented dimensions, empty optional layers, and include/exclude precedence.
-2. Sweep coarse and fine Canny candidates across the reviewed corpus.
+2. Add the image-preparation path before the defaults sweep.
+   Orient source RGB with EXIF transpose. Composite RGBA onto opaque black.
+   Derive dimensions with `_processing_size`. Resize RGB once with Pillow LANCZOS.
+3. Sweep coarse and fine Canny candidates across the reviewed corpus through that path.
    Record selected defaults and per-image overrides before implementing proposals.
-3. Orient source RGB with EXIF transpose. Derive dimensions with `_processing_size`.
-   Resize RGB once with Pillow LANCZOS. Run `canny_map.canny_edges` after resize.
+   Run `canny_map.canny_edges` after resize.
    Compare candidate bytes with a direct call on those exact prepared pixels.
    Do not call `canny_map.load_image`, which uses different resize and orientation rules.
 4. Expand feature bands through the existing physical-width function.
    Reapply constraints, intersect each band with the silhouette, then remove structure from detail.
-   Check each role's width independently. Keep `line_width_mm` limited to standalone edges.
+   Check each role's width independently. Leave a band unchanged when no width resolves.
+   Reject invalid Canny blur values. Keep `line_width_mm` limited to standalone edges.
 5. Add preview tests for selected intermediate masks.
    S3.3 adds rendered SVG panels after separate layer exports exist.
 6. Run `python -m pytest tests/test_vector_map_layers.py tests/test_vector_map_preview.py -q` to RED and GREEN.
@@ -183,6 +196,8 @@ Never parse or assemble SVG with regular expressions.
    Test a prior `structure.svg` followed by a run without structure.
    Check removal on overwrite and preservation of unrelated files.
    Check layered debug replay and fixed-name ownership before publication.
+   Document that a later standalone run may leave an old `.layers/` directory.
+   State that the current manifest identifies the current bundle.
 7. Run `python -m pytest tests/test_vector_map_layer_export.py tests/test_vector_map_artifacts.py -q` to RED and GREEN.
 8. Commit only S3.3 paths. Report geometry and publication evidence in FP.
 
@@ -253,7 +268,7 @@ Never parse or assemble SVG with regular expressions.
 
 ## Planning and review gates
 
-Review decision 1 before S3.1 starts.
+Decision 1 meets the stated S3.1 review condition. Human assignment still gates S3.1.
 Review decisions 2 and 3 before S3.2 starts.
 Review decision 4 before S3.3 starts. Review decision 5 before S3.4 starts.
 Review Q4's render evidence before S3.4 starts.
