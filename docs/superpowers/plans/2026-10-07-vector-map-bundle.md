@@ -13,7 +13,7 @@ Python environment: `/Users/darkbit1001/miniforge3/envs/stability-toys`.
 Baseline command: `python -m pytest tests/test_vector_map_*.py -q`.
 Baseline result: 696 passed. Log: `/tmp/fmjwbrzw-baseline.log`.
 SWIM status reports missing schedule, journal, and state.
-Execution waits for supplied bundle or explicit direct-FP authority. Do not recreate removed ledger.
+Human explicitly authorized Sigma to execute directly through FP. Do not recreate removed ledger.
 
 ## File responsibilities
 
