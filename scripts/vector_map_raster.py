@@ -1,4 +1,7 @@
-"""Prepare binary rasters on one physical canvas. STABL-vjpnctjh, spec 5 and 6.1."""
+"""Prepare binary rasters on one physical canvas. STABL-vjpnctjh, spec 5 and 6.1.
+
+Image mode (STABL-memwrtos) selects the silhouette before the common binary resize.
+"""
 
 import math
 import warnings
@@ -35,7 +38,15 @@ class PreparedRaster:
     diagnostics: tuple[dict, ...]
 
 
-def _decode(path, *, alpha=False, invert=False, constraint=False, data=None):
+_ALPHA_NOTICES = {
+    "source": "source has alpha, luminance used, pass --alpha to select it.",
+    "constraint": "constraint has alpha, luminance used. Source --alpha does not select constraint alpha.",
+    "mask": "silhouette mask has alpha, luminance used. --alpha selects source alpha, not mask alpha.",
+}
+
+
+def _decode(path, *, alpha=False, invert=False, role="source", data=None, threshold=FOREGROUND_LUMINANCE,
+            notify_alpha=True):
     """Decode and orient before thresholding. Return material, source dimensions, and warnings."""
     diagnostics = []
     try:
@@ -53,17 +64,13 @@ def _decode(path, *, alpha=False, invert=False, constraint=False, data=None):
                 has_alpha = "A" in image.getbands() or "transparency" in image.info
                 if alpha and not has_alpha:
                     raise ConfigError(f"{path}: --alpha requires an alpha channel or palette transparency.")
-                if has_alpha and not alpha:
-                    message = (
-                        "constraint has alpha, luminance used. Source --alpha does not select constraint alpha."
-                        if constraint else "source has alpha, luminance used, pass --alpha to select it."
-                    )
+                if has_alpha and not alpha and notify_alpha:
                     diagnostics.append({
                         "level": "warning", "code": "alpha_ignored",
-                        "message": f"{path}: {message}",
+                        "message": f"{path}: {_ALPHA_NOTICES[role]}",
                     })
                 channel = image.convert("RGBA").getchannel("A") if alpha else image.convert("L")
-                material = np.asarray(channel) >= FOREGROUND_LUMINANCE
+                material = np.asarray(channel) >= threshold
                 channel.close()
             finally:
                 image.close()
@@ -126,12 +133,33 @@ def _expand(material, requested, scale):
     return expanded.astype(bool), expansion
 
 
+def _oriented_mask(path, oriented_size, role, input_bytes, *, invert=False):
+    """Decode an external mask. Its oriented dimensions must match the oriented source."""
+    material, _, notices = _decode(path, role=role, invert=invert, data=input_bytes.get(path))
+    if material.shape[::-1] != oriented_size:
+        raise ConfigError(
+            f"{path}: oriented dimensions {material.shape[::-1]} differ from source dimensions {oriented_size}."
+        )
+    return material, notices
+
+
+def _select(settings, input_bytes):
+    """Select source material at full oriented resolution. Return material, original size, and warnings."""
+    data = input_bytes.get(settings.input)
+    if settings.silhouette_method == "mask":
+        # The source supplies the canvas only. Its alpha selects nothing, so it raises no notice.
+        source, original_size, diagnostics = _decode(settings.input, data=data, notify_alpha=False)
+        material, notices = _oriented_mask(settings.mask, source.shape[::-1], "mask", input_bytes,
+                                           invert=settings.invert)
+        return material, original_size, diagnostics + notices
+    threshold = settings.threshold if settings.threshold is not None else FOREGROUND_LUMINANCE
+    return _decode(settings.input, alpha=settings.alpha, invert=settings.invert, data=data, threshold=threshold)
+
+
 def prepare(settings, *, input_bytes=None):
     """Prepare one layer and retain complete source canvas. Diagnostics never repair geometry."""
     input_bytes = input_bytes if input_bytes is not None else {}
-    material, original_size, diagnostics = _decode(
-        settings.input, alpha=settings.alpha, invert=settings.invert, data=input_bytes.get(settings.input),
-    )
+    material, original_size, diagnostics = _select(settings, input_bytes)
     oriented_size = material.shape[::-1]
     processed_size = _processing_size(oriented_size, settings.max_res)
     constraints = []
@@ -139,12 +167,8 @@ def prepare(settings, *, input_bytes=None):
         if path is None:
             constraints.append(None)
             continue
-        constraint, _, notices = _decode(path, constraint=True, data=input_bytes.get(path))
+        constraint, notices = _oriented_mask(path, oriented_size, "constraint", input_bytes)
         diagnostics.extend(notices)
-        if constraint.shape[::-1] != oriented_size:
-            raise ConfigError(
-                f"{path}: oriented dimensions {constraint.shape[::-1]} differ from source dimensions {oriented_size}."
-            )
         constraints.append(_resize(constraint, processed_size))
     material = _resize(material, processed_size)
     canvas = physical_canvas(settings, *processed_size)
@@ -158,6 +182,11 @@ def prepare(settings, *, input_bytes=None):
                 "message": "Requested line width covers fewer than four processing pixels.",
             })
         material = _constrain(material, *constraints)
+    if settings.input_kind == "image" and not material.any():
+        raise ValueError(
+            f"The image silhouette is empty after selection and constraints ({settings.silhouette_method} method). "
+            "Check the method, --invert, and the include and exclude masks."
+        )
     diagnostics.extend(feature_diagnostics(material))
     material.setflags(write=False)
     return PreparedRaster(material, canvas, original_size, oriented_size, processed_size, expansion, tuple(diagnostics))

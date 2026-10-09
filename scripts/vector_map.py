@@ -3,7 +3,7 @@
 
 Thin CLI facade. Configuration, raster preparation, the VTracer adapter, and SVG sizing
 live in sibling modules. S2.3 (STABL-vjpnctjh) adds oriented raster preparation and edge bands.
-Deferred features fail with exit 2 and name the task that implements them.
+S3.1 (STABL-memwrtos) adds image mode with one silhouette method: --mask, --alpha, or --threshold.
 
 Exit codes: 0 converted, 2 invalid arguments or configuration, 1 processing or I/O failure.
 Progress and diagnostics go to stderr. --json prints one result object on stdout.
@@ -45,23 +45,27 @@ def build_parser():
         metavar="PATH",
         help="SOURCE DESTINATION. With --recipe, give DESTINATION only to use the recipe input.",
     )
-    parser.add_argument("--input-kind", choices=config.INPUT_KINDS, help="Input meaning. Supports mask and edges. Image mode lands in S3.1.")
+    parser.add_argument("--input-kind", choices=config.INPUT_KINDS, help="Input meaning. Image mode needs --mask, --alpha, or --threshold.")
     parser.add_argument("--width-mm", type=float, help="Physical width of the complete canvas.")
     parser.add_argument("--height-mm", type=float, help="Physical height of the complete canvas.")
     parser.add_argument("--line-width-mm", type=float, help="Nominal one-pixel edge width. Round upward to odd pixels. Existing thick bands expand further.")
     parser.add_argument("--max-res", type=int, metavar="PX", help="Longest processing side. Nearest-neighbour binary resize. Never upscale.")
-    parser.add_argument("--mask", type=Path, help="Image silhouette source. Lands in S3.1.")
+    parser.add_argument("--mask", type=Path,
+                        help="Image mode: white pixels (luminance >= 128) of PATH form the silhouette. Source sets the canvas.")
+    parser.add_argument("--threshold", type=int, metavar="N",
+                        help="Image mode: source luminance >= N (0 to 255) forms the silhouette.")
     parser.add_argument("--include-mask", type=Path, help="Limit material to white mask pixels. Oriented dimensions must match source.")
     parser.add_argument("--exclude-mask", type=Path, help="Remove white mask pixels before and after expansion. Exclusion wins.")
     parser.add_argument(
         "--invert",
         action=argparse.BooleanOptionalAction,
-        help="Treat dark pixels as material. --no-invert overrides a recipe value.",
+        help="Reverse the material selection. Image mode: applies to every silhouette method. --no-invert overrides a recipe value.",
     )
     parser.add_argument(
         "--alpha",
         action=argparse.BooleanOptionalAction,
-        help="Select alpha >= 128 instead of luminance. Requires alpha channel or palette transparency.",
+        help="Select source alpha >= 128 instead of luminance. Image mode: a silhouette method. "
+             "Requires alpha channel or palette transparency.",
     )
     parser.add_argument("--max-svg-bytes", type=int, metavar="N",
                         help="Largest raw or normalized SVG, in UTF-8 bytes. Default 20971520.")
@@ -138,7 +142,7 @@ def _convert(args, diagnostics, published):
         traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
         normalized = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
     except (OSError, RuntimeError, ValueError) as exc:
-        message = f"VTracer {_version('vtracer')} layer standalone: {exc}"
+        message = f"VTracer {_version('vtracer')} layer {artifacts.layer_id(settings)}: {exc}"
         raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
     paths = normalized.metrics.paths
     degenerate = normalized.metrics.degenerate_subpaths
@@ -214,6 +218,7 @@ def _settings(args, *, snapshots=None):
         "exclude_mask": args.exclude_mask,
         "invert": args.invert,
         "alpha": args.alpha,
+        "threshold": args.threshold,
         "vtracer": None,
         "max_svg_bytes": args.max_svg_bytes,
         "max_paths": args.max_paths,

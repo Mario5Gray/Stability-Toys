@@ -165,7 +165,7 @@ def test_invalid_edge_width_rejected(value):
 def test_mask_width_and_reserved_silhouette_mask_rejected():
     with pytest.raises(config.ConfigError, match="edges"):
         settings(Path("unused"), line_width_mm=1)
-    with pytest.raises(config.ConfigError, match="S3.1"):
+    with pytest.raises(config.ConfigError, match="input_kind image"):
         settings(Path("unused"), mask=Path("mask.png"))
 
 
