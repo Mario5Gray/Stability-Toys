@@ -20,7 +20,7 @@ def json_bytes(value):
 
 def input_paths(settings, recipe):
     return [(role, Path(path)) for role, path in (
-        ("source", settings.input), ("recipe", recipe),
+        ("source", settings.input), ("recipe", recipe), ("mask", settings.mask),
         ("include-mask", settings.include_mask), ("exclude-mask", settings.exclude_mask),
     ) if path is not None]
 
@@ -60,6 +60,12 @@ def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *
         "processed_size": prepared.processed_size,
         "expansion": asdict(prepared.expansion) if prepared.expansion else None,
     })
+    if settings.input_kind == "image":
+        preparation["silhouette"] = {
+            "method": settings.silhouette_method,
+            "mask": str(settings.mask) if settings.mask is not None else None,
+            "threshold": settings.threshold,
+        }
     return json_bytes({
         "schema_version": 1,
         "versions": {"wrapper": package_version("st-controlnet-helpers"), "vtracer": package_version("vtracer")},
@@ -69,7 +75,7 @@ def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *
         "vtracer": dict(settings.vtracer),
         "upstream": upstream_args,
         "svg_limits": asdict(settings.svg_limits),
-        "layers": [{"id": "standalone", "height_mm": None}],
+        "layers": [{"id": layer_id(settings), "height_mm": None}],
         "artifacts": [
             {"path": path.as_posix(), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
             for path, data in sorted(files.items())
@@ -78,6 +84,11 @@ def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *
         "warnings": diagnostics,
         "preview": preview,
     })
+
+
+def layer_id(settings):
+    """Image mode traces the silhouette role. Mask and edge modes trace one standalone layer."""
+    return "silhouette" if settings.input_kind == "image" else "standalone"
 
 
 def debug_files(bundle, settings, prepared):

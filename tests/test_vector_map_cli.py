@@ -128,20 +128,13 @@ def test_settings_are_frozen():
         settings.width_mm = 2.0
 
 
-# --- Deferred preparation: exit 2 and the owning task ------------------------
+# --- Silhouette mask outside image mode: exit 2 (S3.1, STABL-memwrtos) -------
 
 
-@pytest.mark.parametrize(
-    "values, owner",
-    [
-        ({"input_kind": "image"}, "S3.1 (STABL-memwrtos)"),
-        ({"mask": Path("m.png")}, "S3.1 (STABL-memwrtos)"),
-    ],
-)
-def test_deferred_settings_name_the_owning_task(values, owner):
-    layer = cli_layer(input=Path("a.png"), input_kind="mask", width_mm=1.0)
-    with pytest.raises(config.ConfigError, match=owner.replace("(", r"\(").replace(")", r"\)")):
-        resolve({}, {}, {**layer, **values})
+def test_silhouette_mask_requires_image_mode():
+    layer = cli_layer(input=Path("a.png"), input_kind="mask", width_mm=1.0, mask=Path("m.png"))
+    with pytest.raises(config.ConfigError, match="input_kind image"):
+        resolve({}, {}, layer)
 
 
 def test_explicit_no_alpha_is_accepted():
@@ -493,24 +486,14 @@ def test_missing_vtracer_is_a_processing_failure_with_install_hint(tmp_path):
     assert not out.exists()
 
 
-@pytest.mark.parametrize(
-    "extra, owner",
-    [
-        (["--input-kind", "image"], "STABL-memwrtos"),
-        (["--mask", "m.png"], "STABL-memwrtos"),
-    ],
-)
-def test_deferred_flags_exit_2_and_name_the_owner(tmp_path, extra, owner):
+def test_mask_flag_outside_image_mode_exits_2(tmp_path):
     out = tmp_path / "o.svg"
-    args = [FIXTURES / "donut.png", out, "--width-mm", 10]
-    if "--input-kind" not in extra:
-        args += ["--input-kind", "mask"]
-    result = run_cli(*args, *extra, "--json")
+    result = run_cli(FIXTURES / "donut.png", out, "--width-mm", 10, "--input-kind", "mask",
+                     "--mask", "m.png", "--json")
     assert result.returncode == 2, result.stderr
     payload = one_result(result)
     assert payload["status"] == "invalid"
-    assert owner in payload["diagnostics"][0]["message"]
-    assert owner in result.stderr
+    assert "input_kind image" in payload["diagnostics"][0]["message"]
     assert not out.exists()
 
 

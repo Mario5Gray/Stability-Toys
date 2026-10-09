@@ -72,7 +72,8 @@ Never crop, center, or recompute canvas from material bounds.
 
 Add `--include-mask` and recipe `include_mask` as inclusion constraint for current layer.
 Add `--exclude-mask` and recipe `exclude_mask` for exclusion constraint.
-Reserve `--mask` and recipe `mask` for S3.1 silhouette selection. Reject them with S3.1 ownership message.
+Current rule (S3.1, STABL-memwrtos): image mode accepts `--mask` and recipe `mask`. Mask and edge modes reject them with exit 2.
+Superseded S2.3 rule: reserve `mask` for S3.1 and reject it with an S3.1 ownership message.
 External constraints use luminance >= 128. Source alpha and inversion options do not change constraint polarity.
 
 Before expansion, compute `(material AND include) AND NOT exclude`.

@@ -44,7 +44,7 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 
 ## st-vector-map
 
-Trace PNG or JPEG masks and edge maps into SVG with physical dimensions.
+Trace PNG or JPEG masks, edge maps, and image silhouettes into SVG with physical dimensions.
 Use PNG for lossless mask pixels. Select exactly one physical dimension.
 Supported pixel modes: `1`, `L`, `LA`, `P`, `RGB`, and `RGBA`.
 Convert other modes, including 16-bit grayscale and CMYK, to supported 8-bit input before tracing.
@@ -54,6 +54,8 @@ Use RGBA PNG when conversion must preserve alpha.
 st-vector-map mask.png silhouette.svg --input-kind mask --width-mm 100
 st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 \
   --line-width-mm 0.8 --include-mask allowed.png --exclude-mask removed.png --json
+st-vector-map photo.png silhouette.svg --input-kind image --mask reviewed-mask.png --width-mm 100
+st-vector-map logo.png silhouette.svg --input-kind image --threshold 128 --invert --width-mm 100
 ```
 
 Default material has luminance >= 128. `--invert` reverses material selection.
@@ -64,7 +66,20 @@ EXIF orientation applies before thresholding and dimension checks.
 External masks must match oriented source dimensions. Source inversion and alpha options do not change their luminance selection.
 `--include-mask` limits material. `--exclude-mask` removes material and always wins.
 Both constraints apply before and after edge expansion.
-`--mask` remains reserved for future image-mode silhouette selection.
+
+Image mode requires exactly one silhouette method. Without a method, the command exits 2.
+`--mask PATH` selects white pixels (luminance >= 128) of PATH. The source sets the canvas only.
+`--alpha` selects source alpha >= 128.
+`--threshold N` selects source luminance >= N. N is an integer from 0 to 255.
+`--invert` reverses every image method.
+Selection happens at oriented source resolution, before the common binary resize.
+The mask file must match oriented source dimensions. Mask-file alpha is ignored with an `alpha_ignored` warning.
+With `--mask`, source alpha selects nothing and gives no warning. With `--threshold`, source alpha gives the warning.
+Recipe fields `mask`, `alpha`, and `threshold` form one group. A later source that selects a method replaces the earlier method.
+For example, `--threshold 200` replaces recipe `alpha: true`. `--no-alpha` clears inherited alpha only.
+Two methods from one source exit 2. Mask and edge modes reject `--mask` and `--threshold` with exit 2.
+An empty silhouette after constraints exits 1 before tracing.
+The manifest records the method under `preparation.silhouette` and names the layer `silhouette`.
 
 `--max-res PX` limits longest processing side without upscaling.
 Binary masks use nearest-neighbour resize. Shorter side rounds half upward, with minimum one pixel.
@@ -191,9 +206,9 @@ A count found while the check stops early is a lower bound, for example `path co
 The message suggests a lower `--max-res` or a different recipe `vtracer.filter_speckle` (0..128). Both can change geometry.
 The command never changes these settings or retries.
 
-Recipe fields match option names with underscores: `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
+Recipe fields match option names with underscores: `mask`, `threshold`, `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
-Image mode remains a separate sprint task.
+Image-mode structure and detail layers remain a separate sprint task.
 
 ---
 

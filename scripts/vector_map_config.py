@@ -7,6 +7,9 @@ A layer that chooses width_mm or height_mm replaces the lower dimension choice.
 Recipe decoding checks the schema: field names, value types, and VTracer control names.
 resolve() checks the merged values, including VTracer value ranges.
 
+Image mode (S3.1, STABL-memwrtos) selects one silhouette method: mask, alpha, or threshold.
+The three fields form one precedence group. A later layer that selects a method replaces it.
+
 The canvas is a value. Derive it once at the entry and copy it into each stage.
 """
 
@@ -22,9 +25,7 @@ from vector_map_svg import SvgLimits
 SCHEMA_VERSION = 1
 INPUT_KINDS = ("mask", "edges", "image")
 DIMENSIONS = ("width_mm", "height_mm")
-
-# A later task owns image mode.
-S31 = "S3.1 (STABL-memwrtos)"
+SILHOUETTE_METHODS = ("mask", "alpha", "threshold")
 
 # Recipe field -> value kind. These are also the settings fields.
 _FIELD_KINDS = {
@@ -39,6 +40,7 @@ _FIELD_KINDS = {
     "exclude_mask": "path",
     "invert": "bool",
     "alpha": "bool",
+    "threshold": "int",
     "vtracer": "vtracer",
     "max_svg_bytes": "int",
     "max_paths": "int",
@@ -59,11 +61,6 @@ class ConfigError(ValueError):
     """Invalid arguments or configuration. The CLI exits with code 2."""
 
 
-def deferred(feature, owner):
-    """Return the error for a feature that a later task implements."""
-    return ConfigError(f"{feature} lands in {owner}. This command does not support it yet.")
-
-
 @dataclass(frozen=True)
 class Settings:
     input: Path
@@ -79,6 +76,14 @@ class Settings:
     alpha: bool
     vtracer: MappingProxyType
     svg_limits: SvgLimits
+    threshold: int | None = None
+
+    @property
+    def silhouette_method(self):
+        """Return the image-mode method, or None in standalone modes."""
+        if self.input_kind != "image":
+            return None
+        return "mask" if self.mask is not None else "threshold" if self.threshold is not None else "alpha"
 
 
 @dataclass(frozen=True)
@@ -119,6 +124,31 @@ def merge(layers):
     return merged
 
 
+def _silhouette_method(layers):
+    """Apply group precedence to mask, alpha, and threshold. Return the selected method or None.
+
+    A layer that selects one method replaces the earlier method. alpha=False clears only alpha.
+    """
+    method = None
+    for layer in layers:
+        chosen = [name for name in SILHOUETTE_METHODS
+                  if (layer.get(name) is True if name == "alpha" else layer.get(name) is not None)]
+        if len(chosen) > 1:
+            raise ConfigError(
+                f"Give one silhouette method per source. One source selects {' and '.join(chosen)}."
+            )
+        if chosen:
+            method = chosen[0]
+        elif layer.get("alpha") is False and method == "alpha":
+            method = None
+    return method
+
+
+def _check_threshold(value):
+    if type(value) is not int or not 0 <= value <= 255:
+        raise ConfigError(f"threshold must be an integer from 0 to 255. Got {value!r}.")
+
+
 def resolve(*layers):
     """Merge the layers and check the merged values. Return frozen Settings."""
     merged = merge(layers)
@@ -128,7 +158,22 @@ def resolve(*layers):
     if kind not in INPUT_KINDS:
         raise ConfigError(f"input_kind must be one of {', '.join(INPUT_KINDS)}. Got {kind!r}.")
     if kind == "image":
-        raise deferred("Image mode (input_kind image)", S31)
+        method = _silhouette_method(layers)
+        if method is None:
+            raise ConfigError(
+                "Image mode needs one silhouette method: --mask PATH (white material), --alpha "
+                "(source alpha >= 128), or --threshold N (source luminance >= N, 0 to 255). "
+                "Add --invert to reverse the selection. Learned segmentation is not supported."
+            )
+        for name in SILHOUETTE_METHODS:
+            if name != method:
+                merged[name] = False if name == "alpha" else None
+        if method == "threshold":
+            _check_threshold(merged["threshold"])
+    else:
+        for name in ("mask", "threshold"):
+            if merged.get(name) is not None:
+                raise ConfigError(f"{name} selects an image silhouette and requires input_kind image.")
     if merged.get("input") is None:
         raise ConfigError("A source image is required. Give SOURCE DESTINATION, or the recipe field input.")
     chosen = [name for name in DIMENSIONS if merged.get(name) is not None]
@@ -137,8 +182,6 @@ def resolve(*layers):
     size = merged[chosen[0]]
     if not (math.isfinite(size) and size > 0):
         raise ConfigError(f"{chosen[0]} must be a positive finite number of millimetres. Got {size!r}.")
-    if merged.get("mask") is not None:
-        raise deferred("Silhouette source (--mask)", S31)
     max_res = merged.get("max_res")
     if max_res is not None and (type(max_res) is not int or max_res <= 0):
         raise ConfigError("max_res must be a positive integer pixel count.")
@@ -171,6 +214,7 @@ def resolve(*layers):
         alpha=bool(merged.get("alpha")),
         vtracer=MappingProxyType(dict(vtracer)),
         svg_limits=svg_limits,
+        threshold=merged.get("threshold"),
     )
 
 
