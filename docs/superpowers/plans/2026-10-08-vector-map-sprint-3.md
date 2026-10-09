@@ -109,6 +109,9 @@ No new issue is needed unless review divides an existing issue into smaller inde
 Review decision 1 before S3.1. Review decisions 2 and 3 before S3.2.
 Review decision 4 before S3.3. Review decision 5 before S3.4.
 The new flags and recipe fields are proposed policy, not existing behavior.
+S3.2 prepares optional masks and candidate preview helpers in-process.
+S3.3 exposes `--layers`, role flags, and role recipe fields when layered SVG publication exists.
+This order prevents a successful CLI run from silently omitting selected SVG layers.
 
 ## File responsibilities
 
@@ -154,56 +157,47 @@ Implementer: Theta. A different agent reviews Theta's implementation.
 
 ## S3.2 structure and detail proposals
 
-1. Add RED tests in `tests/test_vector_map_layers.py` for selected roles and external maps.
-   Reject `--layers` in mask and edge modes.
-   Reject a selected structure or detail role without silhouette.
-   Cover mismatched oriented dimensions, empty optional layers, and include/exclude precedence.
-2. Add the image-preparation path before the defaults sweep.
-   Orient source RGB with EXIF transpose. Composite RGBA onto opaque black.
-   Derive dimensions with `_processing_size`. Resize RGB once with Pillow LANCZOS.
-3. Sweep coarse and fine Canny candidates across the reviewed corpus through that path.
-   Record selected defaults and per-image overrides before implementing proposals.
-   Run `canny_map.canny_edges` after resize.
-   Compare candidate bytes with a direct call on those exact prepared pixels.
-   Do not call `canny_map.load_image`, which uses different resize and orientation rules.
-4. Expand feature bands through the existing physical-width function.
-   Reapply constraints, intersect each band with the silhouette, then remove structure from detail.
-   Check each role's width independently. Leave a band unchanged when no width resolves.
-   Reject invalid Canny blur values. Keep `line_width_mm` limited to standalone edges.
-5. Add preview tests for selected intermediate masks.
-   S3.3 adds rendered SVG panels after separate layer exports exist.
-6. Run `python -m pytest tests/test_vector_map_layers.py tests/test_vector_map_preview.py -q` to RED and GREEN.
-7. Commit only S3.2 paths. Report defaults, overrides, tests, and visual limits in FP.
+Use the [S3.2 cold implementation plan](2026-10-09-vector-map-s3-2.md).
+Keep the role request internal until S3.3 can publish every selected SVG layer.
+Do not add CLI flags or recipe fields that the current CLI would silently ignore.
+The S3.2 preview helper shows candidate masks without claiming vector render proof.
+S3.3 adds CLI and recipe validation, layered artifacts, and rendered SVG panels.
 
 ## S3.3 aligned SVG and bundle
 
-1. Add RED tests in `tests/test_vector_map_layer_export.py` for a common root and `viewBox`.
+1. Add RED tests in `tests/test_vector_map_layer_export.py` for role CLI flags and recipe fields.
+   Test `--layers` order, missing silhouette, duplicate roles, and standalone exit 2.
+   Test map source and path rules, recipe-relative paths, CLI overrides, and no silent layer omission.
+   Test a common root and `viewBox` for selected layers.
    Check an asymmetric source, a donut, and a nested island at known physical dimensions.
-2. Trace each nonempty selected layer with the pinned VTracer adapter.
+2. Add role CLI flags and recipe decoding with the reviewed decision 2 and 3 rules.
+   Resolve requests into the S3.2 internal model. Include external maps and role constraints in input snapshots.
+   Reject any selected role that cannot be published by this run.
+3. Trace each nonempty selected layer with the pinned VTracer adapter.
    Normalize each layer with the S2.5 inspector. Retain the complete canvas.
-3. Build combined SVG named groups with `ElementTree`.
+4. Build combined SVG named groups with `ElementTree`.
    Treat separate normalized layer SVGs as the authoritative CAD inputs.
    Add preview tests for every selected rendered SVG and its prepared mask.
    Keep pixel-root rendering and overlay alignment at non-binary millimetre scales.
-4. Extend `Bundle` to own all three fixed `<stem>.layers/<role>.svg` names in a layered run.
+5. Extend `Bundle` to own all three fixed `<stem>.layers/<role>.svg` names in a layered run.
    Reject a symlink layer directory. Protect every source and external map from output aliases.
    Without `--overwrite`, refuse any existing owned role file.
    With `--overwrite`, remove unselected role files after invalidating the old manifest.
    Preserve unrelated files. Do not remove the layer directory.
-5. Include each published artifact and input hash in the manifest.
+6. Include each published artifact and input hash in the manifest.
    Report omitted optional layers. List only files from the current run.
    Keep the standalone debug bundle unchanged.
    For a layered debug bundle, save one fixed PNG per selected mask and a replay recipe.
    Own all three role PNG names. Remove unselected role PNGs on overwrite.
    Hash current debug files in the manifest. Preserve unrelated debug files.
-6. Test collision refusal, `--overwrite`, staged failure, manifest-last publication, and repeated bundle hashes.
+7. Test collision refusal, `--overwrite`, staged failure, manifest-last publication, and repeated bundle hashes.
    Test a prior `structure.svg` followed by a run without structure.
    Check removal on overwrite and preservation of unrelated files.
    Check layered debug replay and fixed-name ownership before publication.
    Document that a later standalone run may leave an old `.layers/` directory.
    State that the current manifest identifies the current bundle.
-7. Run `python -m pytest tests/test_vector_map_layer_export.py tests/test_vector_map_artifacts.py -q` to RED and GREEN.
-8. Commit only S3.3 paths. Report geometry and publication evidence in FP.
+8. Run `python -m pytest tests/test_vector_map_layer_export.py tests/test_vector_map_artifacts.py -q` to RED and GREEN.
+9. Commit only S3.3 paths. Report geometry and publication evidence in FP.
 
 ## Q4 imported-layer Boolean decision
 
