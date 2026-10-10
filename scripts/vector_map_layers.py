@@ -1,7 +1,7 @@
 """Prepare structure and detail candidate masks on the silhouette canvas. STABL-uifsadne, spec 6.1.
 
 Plan: docs/superpowers/plans/2026-10-09-vector-map-s3-2.md.
-Role requests are internal. S3.3 exposes them through the CLI and recipes.
+S3.3 (STABL-qlagdbmh) builds role requests from the CLI and recipes in vector_map_config.
 Every candidate uses the S3.1 silhouette canvas. No stage derives another canvas.
 """
 
@@ -119,6 +119,13 @@ def _validate(requests):
         _check_length(role, "gap_close_mm", request.gap_close_mm)
         by_role[role] = request
     return by_role
+
+
+def check_requests(requests):
+    """Check role requests and their resolved Canny values before any input is read."""
+    for request in _validate(requests).values():
+        if request.source == "canny":
+            _resolve_canny(request)
 
 
 def _resolve_canny(request):

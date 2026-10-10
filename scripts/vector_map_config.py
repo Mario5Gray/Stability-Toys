@@ -11,6 +11,10 @@ Image mode (S3.1, STABL-memwrtos) selects one silhouette method: mask, alpha, or
 The three fields form one precedence group. A later layer that selects a method replaces it.
 
 The canvas is a value. Derive it once at the entry and copy it into each stage.
+
+Layered image mode (S3.3, STABL-qlagdbmh) selects roles with layers and configures optional roles with
+the structure and detail objects. A role object merges by field. A later layer that sets source drops
+the lower configuration of the other source. A role setting outside the selection is an error.
 """
 
 import json
@@ -45,9 +49,25 @@ _FIELD_KINDS = {
     "max_svg_bytes": "int",
     "max_paths": "int",
     "max_path_commands": "int",
+    "layers": "layers",
+    "structure": "role",
+    "detail": "role",
 }
 SVG_LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
 FIELDS = tuple(_FIELD_KINDS)
+LAYER_ROLES = ("silhouette", "structure", "detail")
+OPTIONAL_ROLES = LAYER_ROLES[1:]
+# Role object field -> value kind. A role request takes these names.
+_ROLE_FIELD_KINDS = {
+    "source": "str",
+    "path": "path",
+    "canny": "canny",
+    "width_mm": "number",
+    "gap_close_mm": "number",
+    "include_mask": "path",
+    "exclude_mask": "path",
+}
+CANNY_FIELDS = ("low_threshold", "high_threshold", "blur")
 
 # Built-in defaults. resolve_options() adds the VTracer defaults.
 # SVG limits are wrapper policy (S2.5, STABL-npoznayt). They never go to VTracer.
@@ -77,6 +97,8 @@ class Settings:
     vtracer: MappingProxyType
     svg_limits: SvgLimits
     threshold: int | None = None
+    layers: tuple[str, ...] | None = None
+    role_requests: tuple = ()
 
     @property
     def silhouette_method(self):
@@ -117,11 +139,74 @@ def merge(layers):
                 raise ConfigError(f"Unknown setting {name!r}.")
             if value is None:
                 continue
-            merged[name] = {**merged.get("vtracer", {}), **value} if name == "vtracer" else value
+            if name == "vtracer":
+                merged[name] = {**merged.get("vtracer", {}), **value}
+            elif name in OPTIONAL_ROLES:
+                merged[name] = _merge_role(merged.get(name), value)
+            else:
+                merged[name] = value
         if any(layer.get(name) is not None for name in DIMENSIONS):
             for name in DIMENSIONS:
                 merged[name] = layer.get(name)
     return merged
+
+
+def _merge_role(lower, upper):
+    """Merge role fields. A source choice drops the lower configuration of the other source."""
+    merged = dict(lower or {})
+    source = upper.get("source")
+    if source == "map":
+        merged.pop("canny", None)
+    elif source == "canny":
+        merged.pop("path", None)
+    merged.update(upper)
+    return merged
+
+
+def _selection(value):
+    """Check a layers selection. Return the roles in fixed output order."""
+    if isinstance(value, str):
+        names = value.split(",") if value else []
+    else:
+        names = list(value)
+    if not names:
+        raise ConfigError("layers must name at least one role. Include silhouette.")
+    for name in names:
+        if name == "":
+            raise ConfigError("layers has an empty role name. Separate role names with one comma.")
+        if name not in LAYER_ROLES:
+            raise ConfigError(f"Unknown layer {name!r}. Use {', '.join(LAYER_ROLES)}.")
+        if names.count(name) > 1:
+            raise ConfigError(f"Layer {name} is selected more than once. Name each role once.")
+    if "silhouette" not in names:
+        raise ConfigError("layers must include silhouette. Structure and detail are clipped to it.")
+    return tuple(role for role in LAYER_ROLES if role in names)
+
+
+def _role_requests(merged, selection):
+    """Admit role settings only for selected roles. Return checked requests in fixed role order."""
+    for role in OPTIONAL_ROLES:
+        if merged.get(role) is not None and (selection is None or role not in selection):
+            raise ConfigError(
+                f"{role} settings were given, but {role} is not selected. "
+                f"Add {role} to --layers or the recipe field layers."
+            )
+    if selection is None:
+        return ()
+    # Local import: vector_map_layers imports this module.
+    import vector_map_layers as layers
+
+    requests = []
+    for role in OPTIONAL_ROLES:
+        if role not in selection:
+            continue
+        fields = dict(merged.get(role) or {})
+        canny = fields.pop("canny", None)
+        requests.append(layers.RoleRequest(
+            role, canny=None if canny is None else layers.CannySpec(**canny), **fields,
+        ))
+    layers.check_requests(requests)
+    return tuple(requests)
 
 
 def _silhouette_method(layers):
@@ -170,7 +255,12 @@ def resolve(*layers):
                 merged[name] = False if name == "alpha" else None
         if method == "threshold":
             _check_threshold(merged["threshold"])
+        selection = None if merged.get("layers") is None else _selection(merged["layers"])
+        role_requests = _role_requests(merged, selection)
     else:
+        if merged.get("layers") is not None or any(merged.get(role) is not None for role in OPTIONAL_ROLES):
+            raise ConfigError("--layers and role settings (structure, detail) require input_kind image.")
+        selection, role_requests = None, ()
         for name in ("mask", "threshold"):
             if merged.get(name) is not None:
                 raise ConfigError(f"{name} selects an image silhouette and requires input_kind image.")
@@ -215,6 +305,8 @@ def resolve(*layers):
         vtracer=MappingProxyType(dict(vtracer)),
         svg_limits=svg_limits,
         threshold=merged.get("threshold"),
+        layers=selection,
+        role_requests=role_requests,
     )
 
 
@@ -249,8 +341,22 @@ def load_recipe(path, *, snapshots=None):
     }
 
 
-def _decode(name, value, base):
-    kind = _FIELD_KINDS[name]
+def _decode(name, value, base, *, kind=None):
+    kind = kind or _FIELD_KINDS[name]
+    if kind == "layers" and isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return tuple(value)
+    if kind == "role" and isinstance(value, dict):
+        unknown = sorted(set(value) - set(_ROLE_FIELD_KINDS))
+        if unknown:
+            raise ConfigError(f"Recipe field {name} has unknown fields: {', '.join(unknown)}.")
+        return {field: _decode(f"{name}.{field}", item, base, kind=_ROLE_FIELD_KINDS[field])
+                for field, item in value.items()}
+    if kind == "canny" and isinstance(value, dict):
+        unknown = sorted(set(value) - set(CANNY_FIELDS))
+        if unknown:
+            raise ConfigError(f"Recipe field {name} has unknown fields: {', '.join(unknown)}. "
+                              f"Supported: {', '.join(CANNY_FIELDS)}.")
+        return {field: _decode(f"{name}.{field}", item, base, kind="int") for field, item in value.items()}
     if kind == "path" and isinstance(value, str):
         return base / value if not Path(value).is_absolute() else Path(value)
     if kind == "str" and isinstance(value, str):
@@ -270,5 +376,6 @@ def _decode(name, value, base):
             )
         return dict(value)
     expected = {"path": "a string path", "str": "a string", "number": "a number", "int": "an integer",
-                "bool": "true or false", "vtracer": "an object"}[kind]
+                "bool": "true or false", "vtracer": "an object", "layers": "a list of role names",
+                "role": "an object", "canny": "an object"}[kind]
     raise ConfigError(f"Recipe field {name} must be {expected}. Got {value!r}.")

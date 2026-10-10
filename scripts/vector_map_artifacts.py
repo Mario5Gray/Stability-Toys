@@ -19,10 +19,16 @@ def json_bytes(value):
 
 
 def input_paths(settings, recipe):
-    return [(role, Path(path)) for role, path in (
+    """Every consumed file with its input role. A shared path appears once per role."""
+    paths = [
         ("source", settings.input), ("recipe", recipe), ("mask", settings.mask),
         ("include-mask", settings.include_mask), ("exclude-mask", settings.exclude_mask),
-    ) if path is not None]
+    ]
+    for request in settings.role_requests:
+        paths.extend((f"{request.role}-{name}", path) for name, path in (
+            ("map", request.path), ("include-mask", request.include_mask), ("exclude-mask", request.exclude_mask),
+        ))
+    return [(role, Path(path)) for role, path in paths if path is not None]
 
 
 def snapshot_inputs(settings, recipe, snapshots):

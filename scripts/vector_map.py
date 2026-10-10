@@ -67,6 +67,16 @@ def build_parser():
         help="Select source alpha >= 128 instead of luminance. Image mode: a silhouette method. "
              "Requires alpha channel or palette transparency.",
     )
+    parser.add_argument("--layers", metavar="ROLES",
+                        help="Image mode: comma-separated roles from silhouette, structure, detail. Must include "
+                             "silhouette. Writes STEM.svg with named groups and STEM.layers/ROLE.svg per nonempty role.")
+    for role in config.OPTIONAL_ROLES:
+        parser.add_argument(f"--{role}-map", type=Path, metavar="PATH",
+                            help=f"Layered image mode: white pixels of PATH form the {role} candidate instead of Canny. "
+                                 f"Requires {role} in --layers.")
+        parser.add_argument(f"--{role}-width-mm", type=float, metavar="MM",
+                            help=f"Layered image mode: widen {role} lines to this nominal width. "
+                                 f"Requires {role} in --layers.")
     parser.add_argument("--max-svg-bytes", type=int, metavar="N",
                         help="Largest raw or normalized SVG, in UTF-8 bytes. Default 20971520.")
     parser.add_argument("--max-paths", type=int, metavar="N", help="Most path elements per layer. Default 10000.")
@@ -223,9 +233,23 @@ def _settings(args, *, snapshots=None):
         "max_svg_bytes": args.max_svg_bytes,
         "max_paths": args.max_paths,
         "max_path_commands": args.max_path_commands,
+        "layers": args.layers,
+        **{role: _role_layer(args, role) for role in config.OPTIONAL_ROLES},
     }
     # No preset layer yet. S3.5 (STABL-mknlfcui) adds --preset and relief-0.4.
     return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
+
+
+def _role_layer(args, role):
+    """Explicit role flags as one role layer. A CLI map selects the map source. None when no flag is given."""
+    fields = {}
+    path = getattr(args, f"{role}_map")
+    if path is not None:
+        fields.update(source="map", path=path)
+    width = getattr(args, f"{role}_width_mm")
+    if width is not None:
+        fields["width_mm"] = width
+    return fields or None
 
 
 def _result(status, *, svg=None, layers=0, paths=0, diagnostics=(), published=None):
