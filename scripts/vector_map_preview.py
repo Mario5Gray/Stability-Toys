@@ -189,6 +189,61 @@ def compose(prepared, svg, source_bytes):
     return Preview(buffer.getvalue(), boxes, provenance(prepared, font))
 
 
+# S3.2 candidate masks (STABL-uifsadne). Prepared masks only. S3.3 adds rendered SVG panels.
+CANDIDATE_LABELS = {
+    "silhouette": "Silhouette mask",
+    "structure": "Structure candidate mask",
+    "detail": "Detail candidate mask",
+}
+CANDIDATE_NOTE = "Prepared masks only. No vector render."
+
+
+def compose_candidates(prepared):
+    """Draw each selected prepared mask in role order. No panel claims vector render proof."""
+    width, height = prepared.silhouette.processed_size
+    masks = {"silhouette": prepared.silhouette.material}
+    masks.update({role: getattr(prepared, role).material for role in prepared.roles[1:]})
+    labels = {role: CANDIDATE_LABELS[role] + ("" if role == "silhouette" or material.any() else " (empty)")
+              for role, material in masks.items()}
+    font = label_font()
+    measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    column = max(width, *(math.ceil(measure.textlength(text, font=font)) for text in labels.values()))
+    note_width = math.ceil(measure.textlength(CANDIDATE_NOTE, font=font))
+    page_width = max(MARGIN + len(masks) * (column + MARGIN), note_width + 2 * MARGIN)
+    top = MARGIN + LABEL_HEIGHT
+    note_top = top + height + MARGIN
+    page = Image.new("RGB", (page_width, note_top + LABEL_HEIGHT + MARGIN), PAGE)
+    draw = ImageDraw.Draw(page)
+    boxes = {}
+    for index, (role, material) in enumerate(masks.items()):
+        column_left = MARGIN + index * (column + MARGIN)
+        left = column_left + (column - width) // 2
+        page.paste(Image.fromarray(_gray_rgb(np.where(material, 0, 255).astype(np.uint8))), (left, top))
+        boxes[role] = (left, top, left + width, top + height)
+        draw.text((column_left, MARGIN), labels[role], font=font, fill=TEXT)
+    draw.text((MARGIN, note_top + 2), CANDIDATE_NOTE, font=font, fill=TEXT)
+    boxes["note"] = (MARGIN, note_top, MARGIN + note_width, note_top + LABEL_HEIGHT)
+    buffer = BytesIO()
+    page.save(buffer, format="PNG")
+    return Preview(buffer.getvalue(), boxes, candidate_provenance(prepared.silhouette, font, list(labels.values())))
+
+
+def candidate_provenance(silhouette, font, labels):
+    """Values that decide candidate preview bytes. No renderer takes part."""
+    import PIL
+    from PIL import features
+
+    return {
+        "vector_render": False,
+        "resolution": list(silhouette.processed_size),
+        "pillow": PIL.__version__,
+        "font": type(font).__name__,
+        "freetype2": features.version("freetype2"),
+        "label_size": LABEL_SIZE,
+        "labels": labels,
+    }
+
+
 def provenance(prepared, font):
     """Values that decide preview bytes. Same versions and build give same bytes."""
     import PIL

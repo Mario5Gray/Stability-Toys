@@ -1,0 +1,2000 @@
+{
+  "version": 1,
+  "issue": "STABL-uifsadne",
+  "grid": {
+    "pairs": [
+      [
+        50,
+        100
+      ],
+      [
+        75,
+        150
+      ],
+      [
+        100,
+        200
+      ],
+      [
+        125,
+        250
+      ]
+    ],
+    "blurs": [
+      0,
+      3,
+      5
+    ]
+  },
+  "path": "vector_map_layers.source_rgb -> canny_map.canny_edges, clipped to reviewed mask",
+  "gap_closing": "disabled",
+  "environment": {
+    "python": "3.12.13",
+    "opencv": "5.0.0",
+    "pillow": "12.3.0",
+    "numpy": "2.5.1"
+  },
+  "cases": {
+    "badge": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 22368,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2088,
+          "edge_density": 0.03186,
+          "clipped_pixels": 1098,
+          "clipped_density": 0.04909,
+          "components": 330
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2127,
+          "edge_density": 0.03246,
+          "clipped_pixels": 1133,
+          "clipped_density": 0.05065,
+          "components": 294
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2147,
+          "edge_density": 0.03276,
+          "clipped_pixels": 1145,
+          "clipped_density": 0.05119,
+          "components": 278
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2088,
+          "edge_density": 0.03186,
+          "clipped_pixels": 1098,
+          "clipped_density": 0.04909,
+          "components": 330
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2127,
+          "edge_density": 0.03246,
+          "clipped_pixels": 1133,
+          "clipped_density": 0.05065,
+          "components": 294
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2147,
+          "edge_density": 0.03276,
+          "clipped_pixels": 1145,
+          "clipped_density": 0.05119,
+          "components": 278
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2088,
+          "edge_density": 0.03186,
+          "clipped_pixels": 1098,
+          "clipped_density": 0.04909,
+          "components": 330
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2127,
+          "edge_density": 0.03246,
+          "clipped_pixels": 1133,
+          "clipped_density": 0.05065,
+          "components": 294
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2147,
+          "edge_density": 0.03276,
+          "clipped_pixels": 1145,
+          "clipped_density": 0.05119,
+          "components": 278
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2088,
+          "edge_density": 0.03186,
+          "clipped_pixels": 1098,
+          "clipped_density": 0.04909,
+          "components": 330
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2127,
+          "edge_density": 0.03246,
+          "clipped_pixels": 1133,
+          "clipped_density": 0.05065,
+          "components": 294
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2147,
+          "edge_density": 0.03276,
+          "clipped_pixels": 1145,
+          "clipped_density": 0.05119,
+          "components": 278
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/badge.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 15,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 22,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 15,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 22,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 15,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 22,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 15,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 22,
+          "structure_pixels": 1133,
+          "detail_parity": true
+        }
+      ]
+    },
+    "bracket": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 3462,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2574,
+          "edge_density": 0.03928,
+          "clipped_pixels": 1208,
+          "clipped_density": 0.34893,
+          "components": 183
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2610,
+          "edge_density": 0.03983,
+          "clipped_pixels": 1178,
+          "clipped_density": 0.34027,
+          "components": 185
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2615,
+          "edge_density": 0.0399,
+          "clipped_pixels": 598,
+          "clipped_density": 0.17273,
+          "components": 175
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2574,
+          "edge_density": 0.03928,
+          "clipped_pixels": 1208,
+          "clipped_density": 0.34893,
+          "components": 183
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2610,
+          "edge_density": 0.03983,
+          "clipped_pixels": 1178,
+          "clipped_density": 0.34027,
+          "components": 185
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2615,
+          "edge_density": 0.0399,
+          "clipped_pixels": 598,
+          "clipped_density": 0.17273,
+          "components": 175
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2574,
+          "edge_density": 0.03928,
+          "clipped_pixels": 1208,
+          "clipped_density": 0.34893,
+          "components": 183
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2610,
+          "edge_density": 0.03983,
+          "clipped_pixels": 1178,
+          "clipped_density": 0.34027,
+          "components": 185
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2614,
+          "edge_density": 0.03989,
+          "clipped_pixels": 597,
+          "clipped_density": 0.17244,
+          "components": 174
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 2574,
+          "edge_density": 0.03928,
+          "clipped_pixels": 1208,
+          "clipped_density": 0.34893,
+          "components": 183
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 2610,
+          "edge_density": 0.03983,
+          "clipped_pixels": 1178,
+          "clipped_density": 0.34027,
+          "components": 185
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2611,
+          "edge_density": 0.03984,
+          "clipped_pixels": 594,
+          "clipped_density": 0.17158,
+          "components": 171
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/bracket.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 56,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 6,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 56,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 6,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 56,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 6,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 56,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 6,
+          "structure_pixels": 1178,
+          "detail_parity": true
+        }
+      ]
+    },
+    "brick": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 13770,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 9410,
+          "edge_density": 0.14359,
+          "clipped_pixels": 6754,
+          "clipped_density": 0.49049,
+          "components": 795
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 9249,
+          "edge_density": 0.14113,
+          "clipped_pixels": 5287,
+          "clipped_density": 0.38395,
+          "components": 871
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 9147,
+          "edge_density": 0.13957,
+          "clipped_pixels": 3944,
+          "clipped_density": 0.28642,
+          "components": 860
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 9320,
+          "edge_density": 0.14221,
+          "clipped_pixels": 6744,
+          "clipped_density": 0.48976,
+          "components": 797
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 9225,
+          "edge_density": 0.14076,
+          "clipped_pixels": 5266,
+          "clipped_density": 0.38243,
+          "components": 873
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 9082,
+          "edge_density": 0.13858,
+          "clipped_pixels": 3904,
+          "clipped_density": 0.28351,
+          "components": 854
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 9307,
+          "edge_density": 0.14201,
+          "clipped_pixels": 6733,
+          "clipped_density": 0.48896,
+          "components": 799
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 9163,
+          "edge_density": 0.13982,
+          "clipped_pixels": 5223,
+          "clipped_density": 0.3793,
+          "components": 880
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 7882,
+          "edge_density": 0.12027,
+          "clipped_pixels": 3544,
+          "clipped_density": 0.25737,
+          "components": 712
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 9275,
+          "edge_density": 0.14153,
+          "clipped_pixels": 6722,
+          "clipped_density": 0.48816,
+          "components": 804
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 8860,
+          "edge_density": 0.13519,
+          "clipped_pixels": 5089,
+          "clipped_density": 0.36957,
+          "components": 840
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2840,
+          "edge_density": 0.04333,
+          "clipped_pixels": 1473,
+          "clipped_density": 0.10697,
+          "components": 221
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/brick.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 1604,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 64,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 85,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 1594,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 43,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 61,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 1583,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 33,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 1572,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 13,
+          "structure_pixels": 5223,
+          "detail_parity": true
+        }
+      ]
+    },
+    "coins": {
+      "processing_size": [
+        256,
+        202
+      ],
+      "silhouette_pixels": 18068,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 7400,
+          "edge_density": 0.1431,
+          "clipped_pixels": 6523,
+          "clipped_density": 0.36103,
+          "components": 451
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 6181,
+          "edge_density": 0.11953,
+          "clipped_pixels": 5454,
+          "clipped_density": 0.30186,
+          "components": 289
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 5057,
+          "edge_density": 0.09779,
+          "clipped_pixels": 4357,
+          "clipped_density": 0.24114,
+          "components": 261
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 6717,
+          "edge_density": 0.12989,
+          "clipped_pixels": 5939,
+          "clipped_density": 0.3287,
+          "components": 373
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 5077,
+          "edge_density": 0.09818,
+          "clipped_pixels": 4350,
+          "clipped_density": 0.24076,
+          "components": 240
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 3776,
+          "edge_density": 0.07302,
+          "clipped_pixels": 3076,
+          "clipped_density": 0.17025,
+          "components": 194
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 5881,
+          "edge_density": 0.11373,
+          "clipped_pixels": 5113,
+          "clipped_density": 0.28299,
+          "components": 334
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 4043,
+          "edge_density": 0.07818,
+          "clipped_pixels": 3316,
+          "clipped_density": 0.18353,
+          "components": 208
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 3060,
+          "edge_density": 0.05917,
+          "clipped_pixels": 2360,
+          "clipped_density": 0.13062,
+          "components": 162
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 5021,
+          "edge_density": 0.0971,
+          "clipped_pixels": 4282,
+          "clipped_density": 0.23699,
+          "components": 302
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 3289,
+          "edge_density": 0.0636,
+          "clipped_pixels": 2562,
+          "clipped_density": 0.1418,
+          "components": 172
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 2781,
+          "edge_density": 0.05378,
+          "clipped_pixels": 2102,
+          "clipped_density": 0.11634,
+          "components": 152
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/coins.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 3600,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 2138,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 1356,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 3016,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 1034,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 303,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 2193,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 119,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 1384,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 83,
+          "structure_pixels": 3316,
+          "detail_parity": true
+        }
+      ]
+    },
+    "gravel": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 26668,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 23701,
+          "edge_density": 0.36165,
+          "clipped_pixels": 7741,
+          "clipped_density": 0.29027,
+          "components": 1788
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 21829,
+          "edge_density": 0.33308,
+          "clipped_pixels": 6831,
+          "clipped_density": 0.25615,
+          "components": 1585
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 20369,
+          "edge_density": 0.31081,
+          "clipped_pixels": 6587,
+          "clipped_density": 0.247,
+          "components": 1522
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 23081,
+          "edge_density": 0.35219,
+          "clipped_pixels": 7256,
+          "clipped_density": 0.27209,
+          "components": 1646
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 21039,
+          "edge_density": 0.32103,
+          "clipped_pixels": 6408,
+          "clipped_density": 0.24029,
+          "components": 1483
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 19133,
+          "edge_density": 0.29195,
+          "clipped_pixels": 6065,
+          "clipped_density": 0.22743,
+          "components": 1417
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 22278,
+          "edge_density": 0.33994,
+          "clipped_pixels": 6753,
+          "clipped_density": 0.25322,
+          "components": 1571
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 19784,
+          "edge_density": 0.30188,
+          "clipped_pixels": 5807,
+          "clipped_density": 0.21775,
+          "components": 1420
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 16795,
+          "edge_density": 0.25627,
+          "clipped_pixels": 5101,
+          "clipped_density": 0.19128,
+          "components": 1314
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 21463,
+          "edge_density": 0.3275,
+          "clipped_pixels": 6282,
+          "clipped_density": 0.23556,
+          "components": 1515
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 18097,
+          "edge_density": 0.27614,
+          "clipped_pixels": 5126,
+          "clipped_density": 0.19222,
+          "components": 1366
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 12895,
+          "edge_density": 0.19676,
+          "clipped_pixels": 3875,
+          "clipped_density": 0.14531,
+          "components": 1077
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/gravel.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 3235,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 1024,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 1631,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 2755,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 601,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 1260,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 2269,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 940,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 1845,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 672,
+          "structure_pixels": 5807,
+          "detail_parity": true
+        }
+      ]
+    },
+    "horse": {
+      "processing_size": [
+        256,
+        210
+      ],
+      "silhouette_pixels": 17779,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 1512,
+          "edge_density": 0.02813,
+          "clipped_pixels": 736,
+          "clipped_density": 0.0414,
+          "components": 219
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 1524,
+          "edge_density": 0.02835,
+          "clipped_pixels": 749,
+          "clipped_density": 0.04213,
+          "components": 214
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 1506,
+          "edge_density": 0.02801,
+          "clipped_pixels": 763,
+          "clipped_density": 0.04292,
+          "components": 208
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 1512,
+          "edge_density": 0.02813,
+          "clipped_pixels": 736,
+          "clipped_density": 0.0414,
+          "components": 219
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 1524,
+          "edge_density": 0.02835,
+          "clipped_pixels": 749,
+          "clipped_density": 0.04213,
+          "components": 214
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 1506,
+          "edge_density": 0.02801,
+          "clipped_pixels": 763,
+          "clipped_density": 0.04292,
+          "components": 208
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 1512,
+          "edge_density": 0.02813,
+          "clipped_pixels": 736,
+          "clipped_density": 0.0414,
+          "components": 219
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 1524,
+          "edge_density": 0.02835,
+          "clipped_pixels": 749,
+          "clipped_density": 0.04213,
+          "components": 214
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 1506,
+          "edge_density": 0.02801,
+          "clipped_pixels": 763,
+          "clipped_density": 0.04292,
+          "components": 208
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 1512,
+          "edge_density": 0.02813,
+          "clipped_pixels": 736,
+          "clipped_density": 0.0414,
+          "components": 219
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 1524,
+          "edge_density": 0.02835,
+          "clipped_pixels": 749,
+          "clipped_density": 0.04213,
+          "components": 214
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 1500,
+          "edge_density": 0.0279,
+          "clipped_pixels": 757,
+          "clipped_density": 0.04258,
+          "components": 207
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/horse.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 29,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 36,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 29,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 36,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 29,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 36,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 29,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 749,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 36,
+          "structure_pixels": 749,
+          "detail_parity": true
+        }
+      ]
+    },
+    "pcb": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 14312,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 3594,
+          "clipped_density": 0.25112,
+          "components": 768
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 6312,
+          "edge_density": 0.09631,
+          "clipped_pixels": 3424,
+          "clipped_density": 0.23924,
+          "components": 768
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 2828,
+          "clipped_density": 0.1976,
+          "components": 768
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 3594,
+          "clipped_density": 0.25112,
+          "components": 768
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 6312,
+          "edge_density": 0.09631,
+          "clipped_pixels": 3424,
+          "clipped_density": 0.23924,
+          "components": 768
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 2828,
+          "clipped_density": 0.1976,
+          "components": 768
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 3594,
+          "clipped_density": 0.25112,
+          "components": 768
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 6312,
+          "edge_density": 0.09631,
+          "clipped_pixels": 3424,
+          "clipped_density": 0.23924,
+          "components": 768
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 2828,
+          "clipped_density": 0.1976,
+          "components": 768
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 3594,
+          "clipped_density": 0.25112,
+          "components": 768
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 6312,
+          "edge_density": 0.09631,
+          "clipped_pixels": 3424,
+          "clipped_density": 0.23924,
+          "components": 768
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 6150,
+          "edge_density": 0.09384,
+          "clipped_pixels": 2828,
+          "clipped_density": 0.1976,
+          "components": 768
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/pcb.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 264,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 264,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 264,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 264,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 3424,
+          "detail_parity": true
+        }
+      ]
+    },
+    "truchet": {
+      "processing_size": [
+        256,
+        256
+      ],
+      "silhouette_pixels": 19468,
+      "candidates": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 14347,
+          "edge_density": 0.21892,
+          "clipped_pixels": 5970,
+          "clipped_density": 0.30666,
+          "components": 2143
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 12959,
+          "edge_density": 0.19774,
+          "clipped_pixels": 5837,
+          "clipped_density": 0.29983,
+          "components": 2115
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 13167,
+          "edge_density": 0.20091,
+          "clipped_pixels": 5648,
+          "clipped_density": 0.29012,
+          "components": 1839
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 12912,
+          "edge_density": 0.19702,
+          "clipped_pixels": 5815,
+          "clipped_density": 0.2987,
+          "components": 2156
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 12916,
+          "edge_density": 0.19708,
+          "clipped_pixels": 5794,
+          "clipped_density": 0.29762,
+          "components": 2118
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 12902,
+          "edge_density": 0.19687,
+          "clipped_pixels": 5409,
+          "clipped_density": 0.27784,
+          "components": 1847
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 12648,
+          "edge_density": 0.19299,
+          "clipped_pixels": 5722,
+          "clipped_density": 0.29392,
+          "components": 2159
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 12454,
+          "edge_density": 0.19003,
+          "clipped_pixels": 5498,
+          "clipped_density": 0.28241,
+          "components": 2045
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 0,
+          "edge_density": 0.0,
+          "clipped_pixels": 0,
+          "clipped_density": 0.0,
+          "components": 0
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "parity": true,
+          "edge_pixels": 12565,
+          "edge_density": 0.19173,
+          "clipped_pixels": 5662,
+          "clipped_density": 0.29084,
+          "components": 2155
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "parity": true,
+          "edge_pixels": 0,
+          "edge_density": 0.0,
+          "clipped_pixels": 0,
+          "clipped_density": 0.0,
+          "components": 0
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "parity": true,
+          "edge_pixels": 0,
+          "edge_density": 0.0,
+          "clipped_pixels": 0,
+          "clipped_density": 0.0,
+          "components": 0
+        }
+      ],
+      "contact_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/truchet.png",
+      "structure": {
+        "low_threshold": 100,
+        "high_threshold": 200,
+        "blur": 3
+      },
+      "detail_after_structure": [
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 0,
+          "detail_pixels": 1185,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 3,
+          "detail_pixels": 339,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 50,
+          "high_threshold": 100,
+          "blur": 5,
+          "detail_pixels": 635,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 0,
+          "detail_pixels": 1030,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 3,
+          "detail_pixels": 296,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 75,
+          "high_threshold": 150,
+          "blur": 5,
+          "detail_pixels": 408,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 0,
+          "detail_pixels": 937,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 100,
+          "high_threshold": 200,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 0,
+          "detail_pixels": 877,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 3,
+          "detail_pixels": 0,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        },
+        {
+          "low_threshold": 125,
+          "high_threshold": 250,
+          "blur": 5,
+          "detail_pixels": 0,
+          "structure_pixels": 5498,
+          "detail_parity": true
+        }
+      ]
+    }
+  },
+  "defaults_sheet": "docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny/defaults.png"
+}

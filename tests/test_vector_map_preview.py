@@ -316,3 +316,82 @@ def test_compose_is_deterministic():
     first, *_ = _build(FIXTURES / "asymmetric.png")
     second, *_ = _build(FIXTURES / "asymmetric.png")
     assert first.png == second.png
+
+
+# --- S3.2 candidate mask preview (STABL-uifsadne) ------------------------------
+
+import vector_map_layers as layers  # noqa: E402
+
+
+def _candidates(tmp_path, *, detail_empty=False):
+    """Silhouette from a mask, structure and detail from supplied maps. One mm per pixel."""
+    shape = (24, 32)
+    source = tmp_path / "source.png"
+    Image.fromarray(np.full((*shape, 3), 90, np.uint8)).save(source)
+    silhouette = np.zeros(shape, bool)
+    silhouette[2:22, 2:30] = True
+    structure = np.zeros(shape, bool)
+    structure[8, :] = True
+    detail = np.zeros(shape, bool)
+    if not detail_empty:
+        detail[14:17, 5:25] = True
+    paths = {}
+    for name, material in (("mask", silhouette), ("structure", structure), ("detail", detail)):
+        paths[name] = tmp_path / f"{name}.png"
+        Image.fromarray(np.where(material, 255, 0).astype(np.uint8)).save(paths[name])
+    layer = {**dict.fromkeys(config.FIELDS), "mask": paths["mask"]}
+    settings = config.resolve(config.DEFAULTS, {"input": source, "input_kind": "image", "width_mm": 32.0}, layer)
+    requests = [layers.RoleRequest("structure", source="map", path=paths["structure"]),
+                layers.RoleRequest("detail", source="map", path=paths["detail"])]
+    return layers.prepare_layers(settings, requests)
+
+
+def _image(result):
+    return np.asarray(Image.open(__import__("io").BytesIO(result.png)).convert("RGB"))
+
+
+def test_candidate_preview_shows_each_selected_mask_in_role_order(tmp_path):
+    prepared = _candidates(tmp_path)
+    result = preview.compose_candidates(prepared)
+    image = _image(result)
+    assert [name for name in result.panels if name in prepared.roles] == list(prepared.roles)
+    lefts = [result.panels[role][0] for role in prepared.roles]
+    assert lefts == sorted(lefts)
+    for role in prepared.roles:
+        material = prepared.silhouette.material if role == "silhouette" else getattr(prepared, role).material
+        panel = _crop(image, result.panels[role])
+        for channel in range(3):
+            assert np.array_equal(panel[..., channel], np.where(material, 0, 255).astype(np.uint8)), role
+
+
+def test_candidate_preview_marks_an_empty_optional_panel(tmp_path):
+    prepared = _candidates(tmp_path, detail_empty=True)
+    result = preview.compose_candidates(prepared)
+    assert result.provenance["labels"][-1] == "Detail candidate mask (empty)"
+    assert (_crop(_image(result), result.panels["detail"]) == 255).all()
+
+
+def test_candidate_preview_labels_masks_not_rendered_vectors(tmp_path):
+    prepared = _candidates(tmp_path)
+    result = preview.compose_candidates(prepared)
+    image = _image(result)
+    assert result.provenance["labels"] == ["Silhouette mask", "Structure candidate mask", "Detail candidate mask"]
+    assert result.provenance["vector_render"] is False
+    assert "renderer" not in result.provenance
+    for role in prepared.roles:
+        left, top, right, _ = result.panels[role]
+        assert np.count_nonzero(image[top - preview.LABEL_HEIGHT:top, left:right].min(axis=2) < 128) > 0, role
+    left, top, right, bottom = result.panels["note"]
+    assert np.count_nonzero(image[top:bottom, left:right].min(axis=2) < 128) > 0
+
+
+def test_candidate_preview_for_a_silhouette_only_run_has_one_panel(tmp_path):
+    prepared = _candidates(tmp_path)
+    only = layers.PreparedLayers(prepared.silhouette)
+    result = preview.compose_candidates(only)
+    assert [name for name in result.panels if name != "note"] == ["silhouette"]
+
+
+def test_candidate_preview_is_deterministic(tmp_path):
+    prepared = _candidates(tmp_path)
+    assert preview.compose_candidates(prepared).png == preview.compose_candidates(prepared).png
