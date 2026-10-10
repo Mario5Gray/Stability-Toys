@@ -245,6 +245,16 @@ def test_deep_group_nesting_has_a_clear_inspection_error():
         inspect(doc(body))
 
 
+@pytest.mark.parametrize("depth, accepted", [(256, True), (257, False)])
+def test_group_nesting_boundary(depth, accepted):
+    body = '<g>' * depth + path() + '</g>' * depth
+    if accepted:
+        assert inspect(doc(body)).metrics.paths == 1
+    else:
+        with pytest.raises(SvgInspectionError, match="group nesting exceeds supported depth 256"):
+            inspect(doc(body))
+
+
 # --- Empty policy -------------------------------------------------------------
 
 
