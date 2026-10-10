@@ -70,6 +70,7 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Without a role width or preset width, keep the candidate band at its input thickness.
    Report each role's effective band expansion. Warn when a role width covers fewer than four processing pixels.
    Gap closing stays disabled unless a role sets a positive finite `gap_close_mm`.
+   `gap_close_mm` is the maximum gap width to close, not a kernel width. Report the achieved gap.
    Recipe `gap_close_mm` is the only gap-closing control. No CLI flag selects it.
    Keep standalone `line_width_mm` limited to edge mode.
    Validate `canny.blur` as integer 0 or a positive odd integer.
