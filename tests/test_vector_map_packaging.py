@@ -61,6 +61,11 @@ def test_vector_adapter_is_packaged():
     assert "vector_map_vtracer" in SETUPTOOLS["py-modules"]
 
 
+def test_layer_module_is_packaged():
+    """S3.2 candidate masks ship with the vector package. STABL-uifsadne."""
+    assert "vector_map_layers" in SETUPTOOLS["py-modules"]
+
+
 VECTOR_CLI_MODULES = {"vector_map", "vector_map_config", "vector_map_raster", "vector_map_svg"}
 
 
@@ -107,6 +112,20 @@ def _run_blocked(blocked, body, *args):
         text=True,
         cwd=ROOT,
     )
+
+
+def test_layer_preparation_imports_without_torch_server_or_model_modules():
+    result = _run_blocked(
+        HEAVY,
+        """
+        import vector_map_layers
+
+        loaded = sorted({m.split(".")[0] for m in sys.modules} & set(sys.argv[1].split(",")))
+        print("HEAVY_LOADED", loaded)
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "HEAVY_LOADED []" in result.stdout
 
 
 def test_vector_conversion_runs_without_torch_server_or_model_modules():

@@ -55,5 +55,6 @@ py-modules = [
     "vector_map_diagnostics",
     "vector_map_artifacts",
     "vector_map_preview",
+    "vector_map_layers",
 ]
 script-files = ["st-resize-for-model", "resize-for-model.sh"]
