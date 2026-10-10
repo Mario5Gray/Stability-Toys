@@ -231,11 +231,19 @@ class Bundle:
             if any(_same_path(target, other) for other in self.members[:index]):
                 raise ConfigError(f"Bundle output {target} aliases another output.")
 
-    def publish(self, files, manifest=None):
-        """Stage bytes before invalidation. Failed publication cannot create completion marker."""
+    def publish(self, files, manifest=None, *, prune=None):
+        """Stage bytes before invalidation. Failed publication cannot create completion marker.
+
+        With overwrite, an owned member absent from files is stale. Remove it after the old manifest is
+        invalidated and before the new manifest. prune limits removal to these members. The default is
+        every member for a complete publication and no member otherwise.
+        """
         owned = {self.relative(path) for path in self.members if path != self.manifest}
         if not set(files) <= owned:
             raise ValueError("Publication contains a path not owned by this bundle.")
+        if prune is None:
+            prune = self.members if manifest is not None else ()
+        stale = [path for path in prune if path != self.manifest and self.relative(path) not in files]
         self.check()
         self.svg.parent.mkdir(parents=True, exist_ok=True)
         completed = False
@@ -249,12 +257,14 @@ class Bundle:
                     path = Path(directory) / str(index)
                     path.write_bytes(data)
                     staged.append((path, self.svg.parent / relative))
-                for _, directory in self._directories():
-                    directory.mkdir(exist_ok=True)
+                for _, owned_directory in self._directories():
+                    owned_directory.mkdir(exist_ok=True)
                 self.check()
                 if self.overwrite:
                     self.manifest.unlink(missing_ok=True)
                 for source, target in staged:
+                    if target == self.manifest:
+                        self._remove(stale)
                     if self.overwrite:
                         os.replace(source, target)
                     else:
@@ -263,10 +273,19 @@ class Bundle:
                         completed = True
                     if not self.overwrite:
                         source.unlink()
+                if manifest is None:
+                    self._remove(stale)
         except OSError:
             if completed:
                 self.manifest.unlink(missing_ok=True)
             raise
+
+
+    def _remove(self, stale):
+        """Remove stale owned files. Without overwrite, preflight refused every existing member."""
+        if self.overwrite:
+            for path in stale:
+                path.unlink(missing_ok=True)
 
 
 def _same_path(left, right):

@@ -549,3 +549,290 @@ def test_preview_uses_recipe_source_snapshot(tmp_path, capsys):
     assert code == 0, captured.err
     manifest = verify_manifest(tmp_path / "out.vector.json")
     assert "out.preview.png" in {item["path"] for item in manifest["artifacts"]}
+
+
+# --- S3.3 layered bundle (STABL-qlagdbmh) -------------------------------------
+
+LAYER_NAMES = ["out.layers/silhouette.svg", "out.layers/structure.svg", "out.layers/detail.svg"]
+LAYER_SHAPE = (24, 32)
+
+
+def layered_scene(tmp_path):
+    """Source, silhouette mask, and structure and detail maps. One mm per pixel."""
+    import numpy as np
+    from PIL import Image
+
+    def save(name, material):
+        path = tmp_path / name
+        Image.fromarray(np.where(material, 255, 0).astype(np.uint8)).save(path)
+        return path
+
+    silhouette = np.zeros(LAYER_SHAPE, bool)
+    silhouette[2:22, 2:30] = True
+    structure = np.zeros(LAYER_SHAPE, bool)
+    structure[6:10, 4:28] = True
+    detail = np.zeros(LAYER_SHAPE, bool)
+    detail[14:18, 5:25] = True
+    source = tmp_path / "source.png"
+    Image.fromarray(np.dstack([np.where(silhouette, 220, 20).astype(np.uint8)] * 3)).save(source)
+    return {"source": source, "mask": save("mask.png", silhouette),
+            "structure": save("structure.png", structure), "detail": save("detail.png", detail)}
+
+
+def layered_cli(capsys, tmp_path, scene, *extra, layers="silhouette,structure,detail", destination="out.svg"):
+    import vector_map
+
+    maps = []
+    if "structure" in layers:
+        maps += ["--structure-map", scene["structure"]]
+    if "detail" in layers:
+        maps += ["--detail-map", scene["detail"]]
+    code = vector_map.main([str(value) for value in (
+        scene["source"], tmp_path / destination, "--input-kind", "image", "--mask", scene["mask"],
+        "--width-mm", "32", "--layers", layers, *maps, "--json", *extra)])
+    captured = capsys.readouterr()
+    assert len(captured.out.splitlines()) == 1
+    return code, json.loads(captured.out), captured.err
+
+
+@pytest.mark.parametrize("name", LAYER_NAMES)
+def test_layered_preflight_refuses_each_owned_layer_name(tmp_path, name):
+    path = tmp_path / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(b"old")
+    with pytest.raises(config.ConfigError, match="--overwrite"):
+        bundle_at(tmp_path, layered=True).check()
+    assert path.read_bytes() == b"old"
+
+
+def test_standalone_bundle_does_not_own_layer_names(tmp_path):
+    (tmp_path / "out.layers").mkdir()
+    (tmp_path / "out.layers/structure.svg").write_bytes(b"old")
+    bundle_at(tmp_path).check()
+
+
+@pytest.mark.parametrize("name", ["out.layers/structure.svg", "out.layers/detail.svg"])
+def test_silhouette_only_run_refuses_unselected_owned_names_before_prepare(tmp_path, capsys, monkeypatch, name):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    collision = tmp_path / name
+    collision.parent.mkdir(exist_ok=True)
+    collision.write_bytes(b"old")
+    def forbidden(*args, **kwargs):
+        pytest.fail("Preparation ran before collision refusal")
+    monkeypatch.setattr(vector_map.layer_prep, "prepare_layers", forbidden)
+    code, result, _ = layered_cli(capsys, tmp_path, scene, layers="silhouette")
+    assert code == 2
+    assert "--overwrite" in result["diagnostics"][0]["message"]
+    assert collision.read_bytes() == b"old"
+
+
+def test_layer_symlink_directory_is_refused(tmp_path):
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    (tmp_path / "out.layers").symlink_to(target, target_is_directory=True)
+    with pytest.raises(config.ConfigError, match="symlink"):
+        bundle_at(tmp_path, layered=True, overwrite=True).check()
+
+
+def test_layer_path_that_is_not_a_directory_is_refused(tmp_path):
+    (tmp_path / "out.layers").write_bytes(b"file")
+    with pytest.raises(config.ConfigError, match="directory"):
+        bundle_at(tmp_path, layered=True, overwrite=True).check()
+
+
+@pytest.mark.parametrize("role", ["source", "mask", "structure-map", "detail-map", "structure-include-mask",
+                                  "detail-exclude-mask"])
+@pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
+@pytest.mark.parametrize("name", ["out.svg", *LAYER_NAMES])
+def test_each_layered_output_refuses_input_aliases(tmp_path, role, kind, name):
+    path = tmp_path / name
+    path.parent.mkdir(exist_ok=True)
+    source = path if kind == "direct" else tmp_path / "input"
+    source.write_bytes(b"input bytes")
+    if kind == "symlink":
+        path.symlink_to(source)
+    elif kind == "hardlink":
+        os.link(source, path)
+    with pytest.raises(config.ConfigError, match=role):
+        bundle_at(tmp_path, layered=True, overwrite=True, inputs=[(role, source)]).check()
+    assert source.read_bytes() == b"input bytes"
+
+
+def test_cli_refuses_a_role_map_that_is_an_owned_output(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    assert layered_cli(capsys, tmp_path, scene)[0] == 0
+    owned = tmp_path / "out.layers/detail.svg"
+    before = owned.read_bytes()
+    scene["detail"] = owned
+    code, _, error = layered_cli(capsys, tmp_path, scene, "--overwrite")
+    assert code == 2
+    assert "detail-map" in error
+    assert owned.read_bytes() == before
+
+
+def test_publisher_rejects_unowned_layer_names(tmp_path):
+    with pytest.raises(ValueError, match="owned"):
+        bundle_at(tmp_path, layered=True).publish({Path("out.layers/other.svg"): b"bad"}, b"manifest")
+
+
+def test_overwrite_removes_unselected_owned_layers_and_keeps_unrelated_files(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    assert layered_cli(capsys, tmp_path, scene)[0] == 0
+    unrelated = [tmp_path / "out.layers/notes.txt", tmp_path / "other.svg"]
+    for path in unrelated:
+        path.write_bytes(b"keep")
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--overwrite", layers="silhouette,detail")
+    assert code == 0, error
+    assert not (tmp_path / "out.layers/structure.svg").exists()
+    assert (tmp_path / "out.layers").is_dir()
+    assert all(path.read_bytes() == b"keep" for path in unrelated)
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert {item["path"] for item in manifest["artifacts"]} == {
+        "out.svg", "out.layers/silhouette.svg", "out.layers/detail.svg"}
+    assert result["artifacts"]["layers"] == {
+        role: str(tmp_path / f"out.layers/{role}.svg") for role in ("silhouette", "detail")}
+
+
+def test_overwrite_removes_a_layer_that_became_empty(tmp_path, capsys):
+    import numpy as np
+    from PIL import Image
+
+    scene = layered_scene(tmp_path)
+    assert layered_cli(capsys, tmp_path, scene)[0] == 0
+    Image.fromarray(np.zeros(LAYER_SHAPE, np.uint8)).save(scene["detail"])
+    code, _, error = layered_cli(capsys, tmp_path, scene, "--overwrite")
+    assert code == 0, error
+    assert not (tmp_path / "out.layers/detail.svg").exists()
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert "out.layers/detail.svg" not in {item["path"] for item in manifest["artifacts"]}
+    assert [(layer["id"], layer["svg"]) for layer in manifest["layers"]] == [
+        ("silhouette", "out.layers/silhouette.svg"), ("structure", "out.layers/structure.svg"), ("detail", None)]
+
+
+def test_stale_layer_removal_follows_invalidation_and_precedes_completion(tmp_path, monkeypatch):
+    bundle = bundle_at(tmp_path, layered=True, overwrite=True)
+    (tmp_path / "out.layers").mkdir()
+    manifest = tmp_path / "out.vector.json"
+    stale = tmp_path / "out.layers/structure.svg"
+    stale.write_bytes(b"old structure")
+    manifest.write_bytes(b"old completion")
+    events = []
+    unlink, replace = Path.unlink, os.replace
+
+    def observe_unlink(path, *args, **kwargs):
+        if path in (manifest, stale):
+            events.append(("unlink", path.name, manifest.exists()))
+        return unlink(path, *args, **kwargs)
+
+    def observe_replace(source, target):
+        events.append(("replace", Path(target).name, stale.exists()))
+        return replace(source, target)
+
+    monkeypatch.setattr(Path, "unlink", observe_unlink)
+    monkeypatch.setattr(os, "replace", observe_replace)
+    bundle.publish({Path("out.svg"): b"svg", Path("out.layers/silhouette.svg"): b"silhouette"}, b"completion")
+    assert events[0] == ("unlink", "out.vector.json", True)
+    assert ("unlink", "structure.svg", False) in events
+    assert events[-1] == ("replace", "out.vector.json", False)
+    assert not stale.exists()
+    assert manifest.read_bytes() == b"completion"
+
+
+@pytest.mark.parametrize("failure", ["stage", "invalidate", "layer", "combined", "stale", "manifest"])
+def test_layered_failures_preserve_old_bundle_or_remove_completion(tmp_path, monkeypatch, failure):
+    bundle = bundle_at(tmp_path, layered=True, overwrite=True)
+    (tmp_path / "out.layers").mkdir()
+    manifest = tmp_path / "out.vector.json"
+    old = {tmp_path / "out.svg": b"old svg", tmp_path / "out.layers/silhouette.svg": b"old silhouette",
+           tmp_path / "out.layers/structure.svg": b"old structure", manifest: b"old completion"}
+    for path, data in old.items():
+        path.write_bytes(data)
+    write, unlink, replace = Path.write_bytes, Path.unlink, os.replace
+
+    def fail_write(path, data):
+        if failure == "stage":
+            raise OSError("injected staging failure")
+        return write(path, data)
+
+    def fail_unlink(path, *args, **kwargs):
+        if (failure == "invalidate" and path == manifest) or (failure == "stale" and path.name == "structure.svg"):
+            raise OSError("injected unlink failure")
+        return unlink(path, *args, **kwargs)
+
+    def fail_replace(source, target):
+        name = Path(target).name
+        if ((failure == "layer" and name == "silhouette.svg") or (failure == "combined" and name == "out.svg")
+                or (failure == "manifest" and name == "out.vector.json")):
+            raise OSError("injected replacement failure")
+        return replace(source, target)
+
+    monkeypatch.setattr(Path, "write_bytes", fail_write)
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    monkeypatch.setattr(os, "replace", fail_replace)
+    with pytest.raises(OSError, match="injected"):
+        bundle.publish({Path("out.svg"): b"new svg", Path("out.layers/silhouette.svg"): b"new silhouette"},
+                       b"new completion")
+    if failure in ("stage", "invalidate"):
+        assert all(path.read_bytes() == data for path, data in old.items())
+    else:
+        assert not manifest.exists()
+    assert not list(tmp_path.glob(".*.stage-*"))
+
+
+def test_layered_runs_repeat_bytes(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    snapshots = []
+    for index in range(2):
+        code, _, error = layered_cli(capsys, tmp_path, scene, *(["--overwrite"] if index else []))
+        assert code == 0, error
+        manifest = verify_manifest(tmp_path / "out.vector.json")
+        paths = [tmp_path / item["path"] for item in manifest["artifacts"]] + [tmp_path / "out.vector.json"]
+        snapshots.append({str(path): path.read_bytes() for path in paths})
+    assert snapshots[0] == snapshots[1]
+
+
+def test_layered_manifest_records_roles_inputs_and_counts(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    recipe = tmp_path / "recipe.json"
+    recipe.write_text(json.dumps({"schema_version": 1, "structure": {"width_mm": 2.0, "gap_close_mm": 1.0}}))
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--recipe", recipe)
+    assert code == 0, error
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert manifest["schema_version"] == 1
+    assert manifest["preparation"]["layers"] == ["silhouette", "structure", "detail"]
+    assert [entry["role"] for entry in manifest["inputs"]] == [
+        "source", "recipe", "mask", "structure-map", "detail-map"]
+    assert {item["path"] for item in manifest["artifacts"]} == {"out.svg", *LAYER_NAMES}
+    layers = manifest["layers"]
+    assert [(layer["id"], layer["height_mm"], layer["mode"]) for layer in layers] == [
+        ("silhouette", None, None), ("structure", None, None), ("detail", None, None)]
+    assert all(layer["counts"]["paths"] >= 1 for layer in layers)
+    structure = manifest["roles"]["structure"]
+    assert (structure["source"], structure["path"]) == ("map", str(scene["structure"]))
+    assert (structure["width_mm"], structure["gap_close_mm"]) == (2.0, 1.0)
+    assert structure["gap_closing"]["radius_px"] == 1
+    assert structure["expansion"]["kernel_size_px"] == 3
+    assert manifest["counts"]["layers"] == 3
+    assert manifest["counts"]["paths"] == sum(layer["counts"]["paths"] for layer in layers) == result["counts"]["paths"]
+    assert manifest["counts"]["combined_bytes"] == len((tmp_path / "out.svg").read_bytes())
+    assert "time" not in json.dumps(manifest).lower()
+
+
+def test_layered_manifest_records_resolved_canny_with_shared_blur(tmp_path, capsys):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    recipe = tmp_path / "recipe.json"
+    recipe.write_text(json.dumps({"schema_version": 1, "detail": {"canny": {"low_threshold": 40,
+                                                                             "high_threshold": 90}}}))
+    code = vector_map.main([str(value) for value in (
+        scene["source"], tmp_path / "out.svg", "--input-kind", "image", "--mask", scene["mask"], "--width-mm", "32",
+        "--layers", "silhouette,structure,detail", "--recipe", recipe, "--json")])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    roles = verify_manifest(tmp_path / "out.vector.json")["roles"]
+    assert roles["structure"]["canny"] == {"low_threshold": 100, "high_threshold": 200, "blur": 3}
+    assert roles["detail"]["canny"] == {"low_threshold": 40, "high_threshold": 90, "blur": 3}
+    assert roles["detail"]["source"] == "canny" and roles["detail"]["path"] is None
