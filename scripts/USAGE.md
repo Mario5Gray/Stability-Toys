@@ -81,6 +81,54 @@ Two methods from one source exit 2. Mask and edge modes reject `--mask` and `--t
 An empty silhouette after constraints exits 1 before tracing.
 The manifest records the method under `preparation.silhouette` and names the layer `silhouette`.
 
+**Layered image mode**
+
+`--layers ROLES` selects image-mode roles. ROLES is a comma-separated list of `silhouette`, `structure`, and `detail`.
+The list must include `silhouette`. Name each role once. Output order is always silhouette, structure, detail.
+An empty, unknown, duplicate, or silhouette-free list exits 2. Mask and edge modes reject `--layers` and role settings with exit 2.
+Without `--layers`, image mode writes one silhouette SVG as before. `--layers silhouette` writes a layered bundle with one layer.
+
+```bash
+st-vector-map photo.png relief.svg --input-kind image --mask reviewed-mask.png --width-mm 100 \
+  --layers silhouette,structure,detail --structure-width-mm 0.8 --detail-width-mm 0.5 --preview
+st-vector-map photo.png relief.svg --input-kind image --mask reviewed-mask.png --width-mm 100 \
+  --layers silhouette,structure --structure-map structure.png
+```
+
+By default, Canny on the source makes structure and detail. Structure uses 100/200 with blur 3. Detail uses 50/100 with blur 3.
+`--structure-map PATH` and `--detail-map PATH` use white pixels of PATH instead of Canny.
+A CLI map replaces the recipe Canny settings of that role.
+`--structure-width-mm` and `--detail-width-mm` widen that role. A CLI width replaces the recipe width.
+A role setting for a role outside the resolved selection exits 2. This includes the default run without `--layers`.
+The command never accepts a setting that it would ignore.
+
+Recipe `layers` is a JSON list of role names. Recipe `structure` and `detail` objects accept these fields only:
+
+| Field | Value |
+|---|---|
+| `source` | `canny` (default) or `map` |
+| `path` | Map path. Required for `map`. Rejected for `canny` |
+| `canny` | Object with `low_threshold`, `high_threshold`, and `blur`. Rejected for `map` |
+| `width_mm` | Positive nominal line width |
+| `gap_close_mm` | Positive width of the widest gap to close. Recipe only, no CLI option |
+| `include_mask`, `exclude_mask` | Role constraint paths |
+
+An omitted Canny value takes the role default. An omitted detail `blur` stays 3, the same as structure.
+Detail must use the structure blur. A different blur moves outlines about 1 px and leaves slivers after structure removal.
+`gap_close_mm` is the widest gap to close, not a kernel width. The radius is `r = max(1, ceil(gap_px / 2))`.
+Row and column kernels are clamped to the canvas. The manifest records requested and achieved gap widths.
+Unknown fields, wrong types, booleans as numbers, and invalid thresholds or blur exit 2. Nonfinite or nonpositive lengths also exit 2.
+Role paths resolve relative to the recipe directory. Every role map and role constraint is a hashed input. Each path is read once.
+
+Every role uses the silhouette canvas and origin. Structure and detail are clipped to the silhouette. Structure is removed from detail.
+Each nonempty selected role becomes `<stem>.layers/<role>.svg`. These separate normalized SVGs are the authoritative SCAD inputs.
+`<stem>.svg` holds the same layers as `<g id="silhouette">`, `<g id="structure">`, and `<g id="detail">` groups. Use it to view and edit.
+All files state the same millimetre root size and pixel `viewBox`. Each group copies its layer paths without change.
+An empty optional role stays selected. It gets a `role_empty` warning, a manifest entry with `svg: null`, and no SVG file.
+An empty silhouette exits 1.
+`--json` success adds `artifacts.layers`. It maps each role to the path of a file from this run only.
+`counts.layers` counts published layers. `counts.paths` sums their paths.
+
 `--max-res PX` limits longest processing side without upscaling.
 Binary masks use nearest-neighbour resize. Shorter side rounds half upward, with minimum one pixel.
 Selected physical dimension stays exact. Other dimension follows processed aspect ratio with one uniform scale.
@@ -119,10 +167,25 @@ Publication stages files on destination filesystem, invalidates old manifest, re
 Several file publications do not form an atomic transaction. Unrelated files remain unchanged.
 If staging cleanup fails after manifest publication, publisher removes new manifest before reporting failure.
 
+A layered run owns all three `<stem>.layers/<role>.svg` names, selected or not. Without `--overwrite`, any existing name exits 2.
+`<stem>.layers` must be a directory. A symlink fails.
+With `--overwrite`, publication invalidates the old manifest and replaces files. Then it removes owned files that this run did not publish.
+The new manifest publishes last. Unrelated files and the `.layers` directory remain.
+A later standalone run does not own `.layers/`, so an old layer directory can remain.
+The current manifest identifies the current bundle. Use only files that it lists with matching hashes.
+A layered manifest lists every selected role under `layers` with `id`, `height_mm: null`, `mode: null`, `svg`, and `counts`.
+`roles` records each optional role request with resolved Canny values, widths, expansion, and gap closing.
+`counts` sums the layer counts and adds `layers` and `combined_bytes`. Standalone manifests keep the two-field layer entry.
+
 `--debug-bundle` adds `<stem>.debug/mask.png` and `<stem>.debug/recipe.json`.
 Successful manifest lists both hashes. No other debug filenames belong to bundle.
 Symlinked debug directories fail. Overwrite preserves unrelated files within ordinary debug directory.
 Replay recipe traces final prepared mask without repeating inversion, constraints, resizing, or edge expansion.
+
+A layered `--debug-bundle` adds `<stem>.debug/<role>.png` for each selected role and `<stem>.debug/recipe.json`.
+A layered run owns all three role PNG names. Overwrite removes unselected role PNGs. It does not own `mask.png`.
+The replay recipe uses `silhouette.png` as source and silhouette mask, and each role PNG as a map.
+Replay traces the saved masks. It does not repeat Canny, constraints, gap closing, or widening.
 
 ```bash
 st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 --line-width-mm 0.8 --debug-bundle
@@ -146,6 +209,12 @@ The image has three labeled panels at processing resolution, one image pixel per
 The overlay legend shows mask and vector overlap, vector-only material, and mask-only material.
 Compare the first two panels to see what fitting changed. The mask panel alone is not proof of vector output.
 Edge mode uses the supplied edge image as source. The preview has no access to an earlier Canny input photograph.
+
+A layered preview has one column for each selected role. The first row shows the prepared mask.
+The second row shows the render of the published `<stem>.layers/<role>.svg`.
+An empty role gets a gray vector panel labelled `<Role> vector: empty, no SVG`. Nothing is rendered for it.
+The third row shows the published roles on the source in role colours. Silhouette is sky blue, structure vermillion, and detail bluish green.
+Later roles draw over earlier roles. The legend lists the published roles. Manifest `preview` adds `layers` and `legend`.
 
 The renderer gets the published paths under a pixel root size, so one `viewBox` unit is one pixel.
 Do not render the millimetre root with `dpi = 25.4 / mm_per_px`. resvg-py 0.5.0 converts millimetres in float32.
@@ -209,8 +278,8 @@ The message suggests a lower `--max-res` or a different recipe `vtracer.filter_s
 The command never changes these settings or retries.
 
 Recipe fields match option names with underscores: `mask`, `threshold`, `include_mask`, `exclude_mask`, `line_width_mm`, `max_res`, `max_svg_bytes`, `max_paths`, and `max_path_commands`.
+Layered image mode adds `layers`, `structure`, and `detail`. See layered image mode above.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
-Image-mode structure and detail layers remain a separate sprint task.
 
 ---
 
