@@ -8,6 +8,7 @@ A role setting outside the resolved selection is exit 2, also for the default si
 import json
 import math
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
@@ -21,8 +22,12 @@ import vector_map  # noqa: E402
 import vector_map_artifacts as artifacts  # noqa: E402
 import vector_map_config as config  # noqa: E402
 import vector_map_layers as layers  # noqa: E402
+import vector_map_preview as preview  # noqa: E402
+import vector_map_svg as svg_io  # noqa: E402
+import vector_map_vtracer as adapter  # noqa: E402
 
 SHAPE = (24, 32)
+SVG = "{http://www.w3.org/2000/svg}"
 
 
 def cli_layer(**values):
@@ -403,3 +408,248 @@ def test_role_maps_and_constraints_decode_from_snapshots(scene, tmp_path):
     for role in ("structure", "detail"):
         assert np.array_equal(getattr(replayed, role).material, getattr(expected, role).material)
     assert not expected.structure.material[:, :8].any()
+
+
+# --- Combined SVG assembly ---------------------------------------------------
+
+GEOMETRY = (30, 40)
+
+
+def geometry_masks():
+    """Asymmetric silhouette touching two borders, with a donut hole and a nested island.
+
+    Structure has separate components and an L. Detail is a donut. All shapes trace exactly.
+    """
+    silhouette = np.zeros(GEOMETRY, bool)
+    silhouette[0:28, 0:35] = True
+    silhouette[10:18, 20:29] = False
+    silhouette[12:16, 23:27] = True
+    structure = np.zeros(GEOMETRY, bool)
+    structure[3:7, 3:15] = True
+    structure[3:7, 18:31] = True
+    structure[3:20, 3:7] = True
+    detail = np.zeros(GEOMETRY, bool)
+    detail[20:27, 8:18] = True
+    detail[22:25, 11:15] = False
+    return {"silhouette": silhouette, "structure": structure, "detail": detail}
+
+
+def canvas_at(mm_per_px, shape=GEOMETRY):
+    height, width = shape
+    return config.Canvas(width, height, width * mm_per_px, height * mm_per_px, mm_per_px)
+
+
+def normalized(material, canvas):
+    return svg_io.normalize_svg(adapter.trace_layer(material).svg, canvas).svg
+
+
+def test_combine_puts_each_layer_in_a_named_group_on_the_common_root():
+    canvas = canvas_at(0.37)
+    parts = [(role, normalized(material, canvas)) for role, material in geometry_masks().items()]
+    combined = ET.fromstring(svg_io.combine_layers(parts))
+    assert combined.tag == f"{SVG}svg"
+    first = ET.fromstring(parts[0][1])
+    assert {name: combined.get(name) for name in ("width", "height", "viewBox")} == {
+        name: first.get(name) for name in ("width", "height", "viewBox")}
+    assert [group.get("id") for group in combined] == ["silhouette", "structure", "detail"]
+    for group, (_, text) in zip(combined, parts):
+        assert group.tag == f"{SVG}g"
+        assert set(group.attrib) == {"id"}
+        assert [(child.tag, child.attrib) for child in group] == [
+            (child.tag, child.attrib) for child in ET.fromstring(text)]
+
+
+def test_combine_keeps_the_given_group_order():
+    canvas = canvas_at(1.0)
+    masks = geometry_masks()
+    parts = [(role, normalized(masks[role], canvas)) for role in ("detail", "silhouette")]
+    combined = ET.fromstring(svg_io.combine_layers(parts))
+    assert [group.get("id") for group in combined] == ["detail", "silhouette"]
+
+
+@pytest.mark.parametrize("change", [
+    {"width": "41mm"}, {"height": "29mm"}, {"viewBox": "0 0 40 31"}, {"viewBox": None},
+])
+def test_combine_rejects_mismatched_roots(change):
+    canvas = canvas_at(1.0)
+    masks = geometry_masks()
+    other = ET.fromstring(normalized(masks["structure"], canvas))
+    for name, value in change.items():
+        if value is None:
+            del other.attrib[name]
+        else:
+            other.set(name, value)
+    parts = [("silhouette", normalized(masks["silhouette"], canvas)),
+             ("structure", ET.tostring(other, encoding="unicode"))]
+    with pytest.raises(svg_io.SvgInspectionError, match="root"):
+        svg_io.combine_layers(parts)
+
+
+@pytest.mark.parametrize("mutate, message", [
+    (lambda root: ET.SubElement(root, f"{SVG}circle", r="3"), "circle"),
+    (lambda root: root[0].set("style", "fill:red"), "style"),
+    (lambda root: root[0].set("fill", "red"), "fill"),
+    (lambda root: root[0].set("id", "structure"), "id"),
+])
+def test_combine_rejects_unsupported_layer_content(mutate, message):
+    canvas = canvas_at(1.0)
+    masks = geometry_masks()
+    root = ET.fromstring(normalized(masks["silhouette"], canvas))
+    mutate(root)
+    parts = [("silhouette", ET.tostring(root, encoding="unicode")),
+             ("structure", normalized(masks["structure"], canvas))]
+    with pytest.raises(svg_io.SvgInspectionError, match=message):
+        svg_io.combine_layers(parts)
+
+
+def test_combine_rejects_a_dtd():
+    canvas = canvas_at(1.0)
+    text = normalized(geometry_masks()["silhouette"], canvas)
+    text = text.replace("<svg", '<!DOCTYPE svg [<!ENTITY x "y">]>\n<svg', 1)
+    with pytest.raises(svg_io.SvgInspectionError, match="DTD"):
+        svg_io.combine_layers([("silhouette", text)])
+
+
+@pytest.mark.parametrize("parts, message", [
+    ([], "at least one"),
+    ([("silhouette", None), ("silhouette", None)], "once"),
+    ([("bad id", None)], "id"),
+])
+def test_combine_rejects_bad_group_lists(parts, message):
+    text = normalized(geometry_masks()["silhouette"], canvas_at(1.0))
+    with pytest.raises(svg_io.SvgInspectionError, match=message):
+        svg_io.combine_layers([(role, text) for role, _ in parts])
+
+
+# --- Layered CLI geometry ----------------------------------------------------
+
+
+@pytest.fixture
+def geometry_scene(tmp_path):
+    masks = geometry_masks()
+    source = tmp_path / "source.png"
+    Image.fromarray(np.dstack([np.where(masks["silhouette"], 200, 30).astype(np.uint8)] * 3)).save(source)
+    paths = {role: write_mask(tmp_path / f"{role}.png", material) for role, material in masks.items()}
+    expected = {
+        "silhouette": masks["silhouette"],
+        "structure": masks["structure"] & masks["silhouette"],
+        "detail": masks["detail"] & masks["silhouette"] & ~(masks["structure"] & masks["silhouette"]),
+    }
+    return {"dir": tmp_path, "source": source, "paths": paths, "expected": expected}
+
+
+def layered_run(capsys, scene, mm_per_px, *extra, destination="out.svg", layers_arg="silhouette,structure,detail"):
+    width_mm = GEOMETRY[1] * mm_per_px
+    return run(capsys, scene["source"], scene["dir"] / destination, "--input-kind", "image",
+               "--mask", scene["paths"]["silhouette"], "--width-mm", repr(width_mm), "--layers", layers_arg,
+               "--structure-map", scene["paths"]["structure"], "--detail-map", scene["paths"]["detail"], *extra)
+
+
+def keep_group(text, role):
+    root = ET.fromstring(text)
+    for group in list(root):
+        if group.get("id") != role:
+            root.remove(group)
+    return ET.tostring(root, encoding="unicode")
+
+
+@pytest.mark.parametrize("mm_per_px", [0.37, 25.4 / 96])
+def test_layered_run_publishes_aligned_separate_and_combined_svgs(geometry_scene, capsys, mm_per_px):
+    code, result, error = layered_run(capsys, geometry_scene, mm_per_px)
+    assert code == 0, error
+    out = geometry_scene["dir"] / "out.svg"
+    roles = ("silhouette", "structure", "detail")
+    separate = {role: geometry_scene["dir"] / "out.layers" / f"{role}.svg" for role in roles}
+    assert result["artifacts"]["svg"] == str(out)
+    assert result["artifacts"]["layers"] == {role: str(path) for role, path in separate.items()}
+    texts = {role: path.read_text() for role, path in separate.items()}
+    assert result["counts"] == {"layers": 3, "paths": sum(svg_io.count_paths(text) for text in texts.values())}
+
+    canvas = canvas_at(mm_per_px)
+    root_attributes = {"width": svg_io._mm(canvas.width_mm), "height": svg_io._mm(canvas.height_mm),
+                       "viewBox": "0 0 40 30"}
+    combined = out.read_text()
+    for text in (combined, *texts.values()):
+        root = ET.fromstring(text)
+        assert {name: root.get(name) for name in root_attributes} == root_attributes
+
+    union = np.zeros(GEOMETRY, bool)
+    for role in roles:
+        expected = geometry_scene["expected"][role]
+        assert np.array_equal(preview.render_material(texts[role], canvas), expected), role
+        assert np.array_equal(preview.render_material(keep_group(combined, role), canvas), expected), role
+        union |= expected
+    rendered = preview.render_material(combined, canvas)
+    assert np.array_equal(rendered, union)
+    assert not rendered[10:12, 20:29].any(), "donut hole lost"
+    assert rendered[12:16, 23:27].all(), "nested island lost"
+
+
+def test_combined_groups_copy_each_separate_layer_unchanged(geometry_scene, capsys):
+    code, _, error = layered_run(capsys, geometry_scene, 1.0)
+    assert code == 0, error
+    combined = ET.fromstring((geometry_scene["dir"] / "out.svg").read_text())
+    assert [group.get("id") for group in combined] == ["silhouette", "structure", "detail"]
+    for group in combined:
+        layer = ET.fromstring((geometry_scene["dir"] / "out.layers" / f"{group.get('id')}.svg").read_text())
+        assert [(child.tag, child.attrib) for child in group] == [(child.tag, child.attrib) for child in layer]
+
+
+@pytest.mark.parametrize("given", ["silhouette", "silhouette,structure", "detail,silhouette"])
+def test_layered_selection_publishes_only_selected_roles(geometry_scene, capsys, given):
+    code, result, error = run(
+        capsys, geometry_scene["source"], geometry_scene["dir"] / "out.svg", "--input-kind", "image",
+        "--mask", geometry_scene["paths"]["silhouette"], "--width-mm", "40", "--layers", given,
+        *(["--structure-map", geometry_scene["paths"]["structure"]] if "structure" in given else []),
+        *(["--detail-map", geometry_scene["paths"]["detail"]] if "detail" in given else []),
+    )
+    assert code == 0, error
+    selected = [role for role in ("silhouette", "structure", "detail") if role in given.split(",")]
+    assert list(result["artifacts"]["layers"]) == selected
+    assert sorted(path.name for path in (geometry_scene["dir"] / "out.layers").iterdir()) == sorted(
+        f"{role}.svg" for role in selected)
+    combined = ET.fromstring((geometry_scene["dir"] / "out.svg").read_text())
+    assert [group.get("id") for group in combined] == selected
+    assert result["counts"]["layers"] == len(selected)
+
+
+def test_empty_optional_role_is_reported_and_not_exported(geometry_scene, capsys):
+    write_mask(geometry_scene["paths"]["detail"], np.zeros(GEOMETRY, bool))
+    code, result, error = layered_run(capsys, geometry_scene, 1.0)
+    assert code == 0, error
+    assert list(result["artifacts"]["layers"]) == ["silhouette", "structure"]
+    assert not (geometry_scene["dir"] / "out.layers" / "detail.svg").exists()
+    assert result["counts"]["layers"] == 2
+    empty = [item for item in result["diagnostics"] if item.get("code") == "role_empty"]
+    assert [(item["level"], item["role"]) for item in empty] == [("warning", "detail")]
+    assert "detail" in error
+    combined = ET.fromstring((geometry_scene["dir"] / "out.svg").read_text())
+    assert [group.get("id") for group in combined] == ["silhouette", "structure"]
+
+
+def test_every_selected_role_is_published_or_reported_empty(geometry_scene, capsys):
+    write_mask(geometry_scene["paths"]["structure"], np.zeros(GEOMETRY, bool))
+    code, result, error = layered_run(capsys, geometry_scene, 1.0)
+    assert code == 0, error
+    reported = {item["role"] for item in result["diagnostics"] if item.get("code") == "role_empty"}
+    assert set(result["artifacts"]["layers"]) | reported == {"silhouette", "structure", "detail"}
+    assert set(result["artifacts"]["layers"]) & reported == set()
+
+
+def test_recipe_gap_closing_keeps_the_s32_radius_and_kernel_cap(geometry_scene, capsys):
+    recipe = write_recipe(geometry_scene["dir"] / "recipe.json", structure={"gap_close_mm": 1000.0})
+    code, result, error = layered_run(capsys, geometry_scene, 1.0, "--recipe", recipe)
+    assert code == 0, error
+    (closing,) = [item for item in result["diagnostics"] if item.get("code") == "gap_closing"]
+    assert closing["role"] == "structure"
+    assert (closing["gap_px"], closing["radius_px"], closing["kernel_size_px"]) == (1000.0, 500, 1001)
+
+
+@pytest.mark.parametrize("gap_mm, radius", [(1.0, 1), (2.0, 1), (2.5, 2), (4.0, 2)])
+def test_recipe_gap_close_mm_is_the_widest_gap_not_a_kernel_width(geometry_scene, capsys, gap_mm, radius):
+    recipe = write_recipe(geometry_scene["dir"] / "recipe.json", detail={"gap_close_mm": gap_mm})
+    code, result, error = layered_run(capsys, geometry_scene, 1.0, "--recipe", recipe)
+    assert code == 0, error
+    (closing,) = [item for item in result["diagnostics"] if item.get("code") == "gap_closing"]
+    assert (closing["role"], closing["radius_px"]) == ("detail", radius)
+    assert closing["radius_px"] == max(1, math.ceil(gap_mm / 2))
