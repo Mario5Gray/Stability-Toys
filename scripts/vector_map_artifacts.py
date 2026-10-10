@@ -161,22 +161,47 @@ def layer_id(settings):
     return "silhouette" if settings.input_kind == "image" else "standalone"
 
 
-def debug_files(bundle, settings, prepared):
-    """Save final mask and replay recipe. Original preparation must not run twice."""
+def _png(material):
     from PIL import Image
 
     buffer = BytesIO()
-    with Image.fromarray(prepared.material.astype("uint8") * 255) as image:
+    with Image.fromarray(material.astype("uint8") * 255) as image:
         image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def debug_files(bundle, settings, prepared):
+    """Save final mask and replay recipe. Original preparation must not run twice."""
     recipe = {
         "schema_version": 1, "input": "mask.png", "input_kind": "mask",
         "width_mm": prepared.canvas.width_mm, "invert": False, "alpha": False,
         "vtracer": dict(settings.vtracer), **asdict(settings.svg_limits),
     }
     return {
-        bundle.relative(bundle.debug_directory / "mask.png"): buffer.getvalue(),
+        bundle.relative(bundle.debug_directory / "mask.png"): _png(prepared.material),
         bundle.relative(bundle.debug_directory / "recipe.json"): json_bytes(recipe),
     }
+
+
+def layered_debug_files(bundle, settings, prepared):
+    """Save each selected prepared mask and a layered replay recipe. STABL-qlagdbmh.
+
+    The recipe replays the saved masks, not the original preparation: the silhouette PNG is the source
+    and the silhouette mask, and each optional role reads its PNG as a map. No constraint, gap closing or
+    widening runs again, so the replay traces the same masks. An empty role stays selected and empty.
+    """
+    materials = {"silhouette": prepared.silhouette.material}
+    materials.update({role: getattr(prepared, role).material for role in prepared.roles[1:]})
+    recipe = {
+        "schema_version": 1, "input": "silhouette.png", "input_kind": "image", "mask": "silhouette.png",
+        "width_mm": prepared.canvas.width_mm, "invert": False, "alpha": False, "layers": list(prepared.roles),
+        **{role: {"source": "map", "path": f"{role}.png"} for role in prepared.roles[1:]},
+        "vtracer": dict(settings.vtracer), **asdict(settings.svg_limits),
+    }
+    files = {bundle.relative(bundle.debug_directory / f"{role}.png"): _png(material)
+             for role, material in materials.items()}
+    files[bundle.relative(bundle.debug_directory / "recipe.json")] = json_bytes(recipe)
+    return files
 
 
 class Bundle:
@@ -198,8 +223,10 @@ class Bundle:
             self.members.extend(self.layer_path(role) for role in LAYER_ROLES)
         if preview:
             self.members.append(self.preview)
-        if debug:
-            self.members.extend(self.debug_directory / name for name in ("mask.png", "recipe.json"))
+        # A layered debug bundle owns every fixed role PNG name, selected or not.
+        names = [f"{role}.png" for role in LAYER_ROLES] if layered else ["mask.png"]
+        self.debug_members = [self.debug_directory / name for name in (*names, "recipe.json")] if debug else []
+        self.members.extend(self.debug_members)
 
     def relative(self, path):
         return path.relative_to(self.svg.parent)

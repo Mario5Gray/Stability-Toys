@@ -174,8 +174,6 @@ def _convert(args, diagnostics, published):
 
 def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, published):
     """Prepare every selected role on one canvas. Publish each nonempty role and the combined SVG."""
-    if args.preview or args.debug_bundle:
-        raise config.ConfigError("Layered --preview and --debug-bundle are not available yet.")
     _progress(f"loading  {settings.input}")
     prepared = layer_prep.prepare_layers(settings, settings.role_requests, input_bytes=snapshots)
     canvas = prepared.canvas
@@ -188,6 +186,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
         _report(candidate.diagnostics, diagnostics)
         _report_band(candidate.expansion, role)
         materials[role] = candidate.material
+    debug = artifacts.layered_debug_files(bundle, settings, prepared) if args.debug_bundle else {}
     normalized = {}
     upstream_args = None
     for role, material in materials.items():
@@ -199,21 +198,41 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
             normalized[role] = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
         except (OSError, RuntimeError, ValueError) as exc:
-            raise RuntimeError(f"VTracer {_version('vtracer')} layer {role}: {exc}") from exc
+            message = f"VTracer {_version('vtracer')} layer {role}: {exc}"
+            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
         upstream_args = traced.upstream_args
         _report_degenerate(normalized[role].metrics.degenerate_subpaths, diagnostics, role)
-    combined = svg_io.combine_layers([(role, layer.svg) for role, layer in normalized.items()],
-                                     limits=settings.svg_limits)
+    try:
+        combined = svg_io.combine_layers([(role, layer.svg) for role, layer in normalized.items()],
+                                         limits=settings.svg_limits)
+    except ValueError as exc:
+        raise RuntimeError(_retain_debug(bundle, debug, f"Combined SVG: {exc}", published)) from exc
     layer_paths = {role: bundle.layer_path(role) for role in normalized}
     layer_files = {role: bundle.relative(path) for role, path in layer_paths.items()}
     files = {bundle.relative(bundle.svg): combined.encode("utf-8")}
     files.update({layer_files[role]: layer.svg.encode("utf-8") for role, layer in normalized.items()})
+    files.update(debug)
+    rendered = None
+    if args.preview:
+        _progress(f"preview  {bundle.preview}")
+        try:
+            rendered = preview.compose_layers(prepared, {role: layer.svg for role, layer in normalized.items()},
+                                              snapshots[settings.input])
+        except (OSError, RuntimeError, ValueError) as exc:
+            message = f"Preview renderer resvg-py {_version('resvg-py')}: {exc}"
+            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+        files[bundle.relative(bundle.preview)] = rendered.png
     manifest = artifacts.layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics,
                                                 combined=bundle.relative(bundle.svg), layer_files=layer_files,
-                                                upstream_args=upstream_args)
+                                                upstream_args=upstream_args,
+                                                preview=rendered.provenance if rendered else None)
     bundle.publish(files, manifest)
     published["manifest"] = str(bundle.manifest)
     published["layers"] = {role: str(path) for role, path in layer_paths.items()}
+    if rendered:
+        published["preview"] = str(bundle.preview)
+    if debug:
+        published["debug"] = str(bundle.debug_directory)
     paths = sum(layer.metrics.paths for layer in normalized.values())
     _progress(f"saved    {bundle.svg} (layers: {', '.join(normalized)}; paths: {paths})")
     return bundle.svg, len(normalized), paths
@@ -273,13 +292,14 @@ def _retain_debug(bundle, debug, message, published):
     if not debug:
         return message
     try:
-        bundle.publish(debug)
+        bundle.publish(debug, prune=bundle.debug_members)
     except (OSError, RuntimeError, ValueError) as debug_exc:
         return message + f" Debug publication failed: {debug_exc}"
     published["debug"] = str(bundle.debug_directory)
+    names = [path.name for path in debug]
     return message + (
         f" Debug files retained at {bundle.debug_directory}. "
-        "Rerun with --overwrite to replace mask.png and recipe.json."
+        f"Rerun with --overwrite to replace {', '.join(names[:-1])} and {names[-1]}."
     )
 
 

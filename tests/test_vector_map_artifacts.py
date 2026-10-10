@@ -836,3 +836,179 @@ def test_layered_manifest_records_resolved_canny_with_shared_blur(tmp_path, caps
     assert roles["structure"]["canny"] == {"low_threshold": 100, "high_threshold": 200, "blur": 3}
     assert roles["detail"]["canny"] == {"low_threshold": 40, "high_threshold": 90, "blur": 3}
     assert roles["detail"]["source"] == "canny" and roles["detail"]["path"] is None
+
+
+# --- S3.3 layered debug bundle (STABL-qlagdbmh) -------------------------------
+
+DEBUG_NAMES = ["out.debug/silhouette.png", "out.debug/structure.png", "out.debug/detail.png"]
+
+
+def _png_material(path):
+    import numpy as np
+    from PIL import Image
+
+    return np.asarray(Image.open(path).convert("L")) >= 128
+
+
+def test_layered_debug_bundle_saves_each_selected_mask_and_a_replay_recipe(tmp_path, capsys):
+    import vector_map_layers as layers
+
+    scene = layered_scene(tmp_path)
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle", "--structure-width-mm", "3")
+    assert code == 0, error
+    assert result["artifacts"]["debug"] == str(tmp_path / "out.debug")
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert {item["path"] for item in manifest["artifacts"]} == {
+        "out.svg", *LAYER_NAMES, *DEBUG_NAMES, "out.debug/recipe.json"}
+    settings = config.resolve(config.DEFAULTS, {}, {
+        "input": scene["source"], "input_kind": "image", "width_mm": 32.0, "mask": scene["mask"],
+        "layers": "silhouette,structure,detail", "structure": {"source": "map", "path": scene["structure"],
+                                                               "width_mm": 3.0},
+        "detail": {"source": "map", "path": scene["detail"]}})
+    prepared = layers.prepare_layers(settings, settings.role_requests)
+    for role in prepared.roles:
+        material = prepared.silhouette.material if role == "silhouette" else getattr(prepared, role).material
+        assert (_png_material(tmp_path / f"out.debug/{role}.png") == material).all(), role
+    recipe = json.loads((tmp_path / "out.debug/recipe.json").read_bytes())
+    assert recipe["layers"] == ["silhouette", "structure", "detail"]
+    assert (recipe["input"], recipe["mask"], recipe["input_kind"]) == ("silhouette.png", "silhouette.png", "image")
+    assert recipe["structure"] == {"source": "map", "path": "structure.png"}
+
+
+@pytest.mark.parametrize("extra", [
+    ["--structure-width-mm", "3"],
+    ["--detail-width-mm", "2", "--layers", "silhouette,detail"],
+])
+def test_layered_debug_recipe_replays_every_layer_without_repreparation(tmp_path, capsys, extra):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    layers_arg = extra[extra.index("--layers") + 1] if "--layers" in extra else "silhouette,structure,detail"
+    extra = [value for index, value in enumerate(extra)
+             if value != "--layers" and (index == 0 or extra[index - 1] != "--layers")]
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle", *extra, layers=layers_arg)
+    assert code == 0, error
+    replay = tmp_path / "replay.svg"
+    code = vector_map.main([str(replay), "--recipe", str(tmp_path / "out.debug/recipe.json"), "--json"])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert replay.read_bytes() == (tmp_path / "out.svg").read_bytes()
+    for role in result["artifacts"]["layers"]:
+        assert (tmp_path / f"replay.layers/{role}.svg").read_bytes() == (
+            tmp_path / f"out.layers/{role}.svg").read_bytes(), role
+
+
+def test_layered_debug_replay_keeps_an_empty_role_empty(tmp_path, capsys):
+    import numpy as np
+    from PIL import Image
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    Image.fromarray(np.zeros(LAYER_SHAPE, np.uint8)).save(scene["detail"])
+    code, _, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle")
+    assert code == 0, error
+    assert not _png_material(tmp_path / "out.debug/detail.png").any()
+    code = vector_map.main([str(tmp_path / "replay.svg"), "--recipe", str(tmp_path / "out.debug/recipe.json"),
+                            "--json"])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    replayed = json.loads(captured.out)
+    assert list(replayed["artifacts"]["layers"]) == ["silhouette", "structure"]
+    assert [item["role"] for item in replayed["diagnostics"] if item.get("code") == "role_empty"] == ["detail"]
+
+
+@pytest.mark.parametrize("name", [*DEBUG_NAMES, "out.debug/recipe.json"])
+def test_layered_debug_owns_every_role_png_name_before_prepare(tmp_path, capsys, monkeypatch, name):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    collision = tmp_path / name
+    collision.parent.mkdir(exist_ok=True)
+    collision.write_bytes(b"old")
+    def forbidden(*args, **kwargs):
+        pytest.fail("Preparation ran before collision refusal")
+    monkeypatch.setattr(vector_map.layer_prep, "prepare_layers", forbidden)
+    code, result, _ = layered_cli(capsys, tmp_path, scene, "--debug-bundle", layers="silhouette")
+    assert code == 2
+    assert "--overwrite" in result["diagnostics"][0]["message"]
+    assert collision.read_bytes() == b"old"
+
+
+def test_layered_debug_bundle_does_not_own_the_standalone_mask_name(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    (tmp_path / "out.debug").mkdir()
+    (tmp_path / "out.debug/mask.png").write_bytes(b"standalone")
+    code, _, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle")
+    assert code == 0, error
+    assert (tmp_path / "out.debug/mask.png").read_bytes() == b"standalone"
+
+
+def test_layered_debug_overwrite_removes_unselected_role_pngs_and_keeps_unrelated_files(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    assert layered_cli(capsys, tmp_path, scene, "--debug-bundle")[0] == 0
+    unrelated = tmp_path / "out.debug/keep.txt"
+    unrelated.write_text("keep")
+    code, _, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle", "--overwrite", layers="silhouette")
+    assert code == 0, error
+    assert sorted(path.name for path in (tmp_path / "out.debug").iterdir()) == [
+        "keep.txt", "recipe.json", "silhouette.png"]
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert {item["path"] for item in manifest["artifacts"]} == {
+        "out.svg", "out.layers/silhouette.svg", "out.debug/silhouette.png", "out.debug/recipe.json"}
+
+
+def test_layered_tracing_failure_retains_debug_without_completion(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    trace = vector_map.adapter.trace_layer
+    calls = []
+    def failure(material, *args, **kwargs):
+        calls.append(material)
+        if len(calls) == 2:
+            raise RuntimeError("native tracing failed")
+        return trace(material, *args, **kwargs)
+    monkeypatch.setattr(vector_map.adapter, "trace_layer", failure)
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--debug-bundle")
+    assert code == 1
+    assert result["artifacts"] == {"svg": None, "debug": str(tmp_path / "out.debug")}
+    assert "native tracing failed" in error and "layer structure" in error
+    assert "Debug files retained" in error and "Rerun with --overwrite" in error
+    assert all((tmp_path / name).is_file() for name in [*DEBUG_NAMES, "out.debug/recipe.json"])
+    assert not (tmp_path / "out.vector.json").exists()
+    assert not (tmp_path / "out.svg").exists()
+    assert not (tmp_path / "out.layers").exists() or not list((tmp_path / "out.layers").iterdir())
+
+
+def test_layered_failed_retry_invalidates_manifest_and_prunes_only_debug_files(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    assert layered_cli(capsys, tmp_path, scene, "--debug-bundle")[0] == 0
+    old_structure = (tmp_path / "out.layers/structure.svg").read_bytes()
+    def failure(*args, **kwargs):
+        raise ValueError("bad upstream geometry")
+    monkeypatch.setattr(vector_map.adapter, "trace_layer", failure)
+    code, result, _ = layered_cli(capsys, tmp_path, scene, "--debug-bundle", "--overwrite", layers="silhouette")
+    assert code == 1
+    assert result["artifacts"]["debug"] == str(tmp_path / "out.debug")
+    assert not (tmp_path / "out.vector.json").exists()
+    assert not (tmp_path / "out.debug/structure.png").exists()
+    assert not (tmp_path / "out.debug/detail.png").exists()
+    assert (tmp_path / "out.layers/structure.svg").read_bytes() == old_structure
+
+
+def test_layered_renderer_failure_retains_debug(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    pytest.importorskip("resvg_py")
+    scene = layered_scene(tmp_path)
+    def failure(*args, **kwargs):
+        raise ValueError("render failed")
+    monkeypatch.setattr(vector_map.preview, "render_luminance", failure)
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--preview", "--debug-bundle")
+    assert code == 1
+    assert "resvg-py" in error and "render failed" in error
+    assert result["artifacts"] == {"svg": None, "debug": str(tmp_path / "out.debug")}
+    assert not (tmp_path / "out.preview.png").exists()
+    assert not (tmp_path / "out.vector.json").exists()
