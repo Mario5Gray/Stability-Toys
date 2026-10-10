@@ -61,19 +61,23 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Recipe `layers` is a list. CLI `--layers` is a comma-separated list.
    Normalize either selection to the fixed output order.
    Do not infer structure or detail from image meaning.
-3. Add recipe fields for each layer's map, Canny thresholds, blur, nominal band width, and raster constraints.
-   Each role object contains `source`, optional `path`, optional `canny`, optional `width_mm`, and optional masks.
+3. Add recipe fields for each layer's map, Canny thresholds, blur, nominal band width, gap closing, and raster constraints.
+   Each role object contains `source`, optional `path`, optional `canny`, optional `width_mm`, optional `gap_close_mm`, and optional masks.
    The `canny` object accepts `low_threshold`, `high_threshold`, and `blur`.
    Role masks use `include_mask` and `exclude_mask`.
    `--structure-map` and `--detail-map` select external maps from the CLI.
    `--structure-width-mm` and `--detail-width-mm` override each role's band width.
    Without a role width or preset width, keep the candidate band at its input thickness.
+   Report each role's effective band expansion. Warn when a role width covers fewer than four processing pixels.
+   Gap closing stays disabled unless a role sets a positive finite `gap_close_mm`.
+   Recipe `gap_close_mm` is the only gap-closing control. No CLI flag selects it.
    Keep standalone `line_width_mm` limited to edge mode.
    Validate `canny.blur` as integer 0 or a positive odd integer.
    Resolve relative paths from the recipe directory. Keep schema version 1.
    CLI values override recipe values. Unsupported fields exit 2.
-   S3.2 step 1 measures corpus candidates and selects separate coarse and fine Canny defaults.
-   Record selected defaults and per-image overrides before S3.2 code changes.
+   S3.2 builds and tests the RGB preparation path before the Canny sweep.
+   The sweep then measures corpus candidates and selects separate coarse and fine Canny defaults.
+   Record selected defaults and per-image overrides before role composition code.
    Orient the colour source first. Composite RGBA onto opaque black before Canny.
    Derive processing dimensions with `_processing_size`.
    Resize RGB with Pillow LANCZOS to those exact dimensions.
