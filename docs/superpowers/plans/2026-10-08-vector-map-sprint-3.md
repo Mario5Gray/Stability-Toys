@@ -1,6 +1,6 @@
 # Sprint 3 layered image and relief plan
 
-Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: S3.1 assigned to Theta. Later gates remain under review.
+Parent: `STABL-gqgxdbjl`. Planner: Sigma. Status: S3.1 done. S3.2 is todo. Later gates remain under review.
 Baseline: `0c2a773` on `main`, checked 2026-10-08.
 Authority: Mario assigned S3.1 implementation to Theta. Sigma retains Sprint 3 planning. Mario assigns later implementation issues.
 Contract: [vector-map design](../specs/2026-09-06-vector-map-relief-design.md), sections 4–10 and 11.3.
@@ -72,8 +72,8 @@ No new issue is needed unless review divides an existing issue into smaller inde
    Validate `canny.blur` as integer 0 or a positive odd integer.
    Resolve relative paths from the recipe directory. Keep schema version 1.
    CLI values override recipe values. Unsupported fields exit 2.
-   S3.2 measures corpus candidates and selects separate coarse and fine Canny defaults.
-   Record selected defaults and per-image overrides before S3.2 implementation.
+   S3.2 step 1 measures corpus candidates and selects separate coarse and fine Canny defaults.
+   Record selected defaults and per-image overrides before S3.2 code changes.
    Orient the colour source first. Composite RGBA onto opaque black before Canny.
    Derive processing dimensions with `_processing_size`.
    Resize RGB with Pillow LANCZOS to those exact dimensions.
