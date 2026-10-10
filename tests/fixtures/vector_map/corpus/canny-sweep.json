@@ -188,7 +188,7 @@
           "blur": 0,
           "detail_pixels": 15,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -196,7 +196,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -204,7 +204,7 @@
           "blur": 5,
           "detail_pixels": 22,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -212,7 +212,7 @@
           "blur": 0,
           "detail_pixels": 15,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -220,7 +220,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -228,7 +228,7 @@
           "blur": 5,
           "detail_pixels": 22,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -236,7 +236,7 @@
           "blur": 0,
           "detail_pixels": 15,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -244,7 +244,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -252,7 +252,7 @@
           "blur": 5,
           "detail_pixels": 22,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -260,7 +260,7 @@
           "blur": 0,
           "detail_pixels": 15,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -268,7 +268,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -276,7 +276,7 @@
           "blur": 5,
           "detail_pixels": 22,
           "structure_pixels": 1133,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -433,7 +433,7 @@
           "blur": 0,
           "detail_pixels": 56,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -441,7 +441,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -449,7 +449,7 @@
           "blur": 5,
           "detail_pixels": 6,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -457,7 +457,7 @@
           "blur": 0,
           "detail_pixels": 56,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -465,7 +465,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -473,7 +473,7 @@
           "blur": 5,
           "detail_pixels": 6,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -481,7 +481,7 @@
           "blur": 0,
           "detail_pixels": 56,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -489,7 +489,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -497,7 +497,7 @@
           "blur": 5,
           "detail_pixels": 6,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -505,7 +505,7 @@
           "blur": 0,
           "detail_pixels": 56,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -513,7 +513,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -521,7 +521,7 @@
           "blur": 5,
           "detail_pixels": 6,
           "structure_pixels": 1178,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -678,7 +678,7 @@
           "blur": 0,
           "detail_pixels": 1604,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -686,7 +686,7 @@
           "blur": 3,
           "detail_pixels": 64,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -694,7 +694,7 @@
           "blur": 5,
           "detail_pixels": 85,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -702,7 +702,7 @@
           "blur": 0,
           "detail_pixels": 1594,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -710,7 +710,7 @@
           "blur": 3,
           "detail_pixels": 43,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -718,7 +718,7 @@
           "blur": 5,
           "detail_pixels": 61,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -726,7 +726,7 @@
           "blur": 0,
           "detail_pixels": 1583,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -734,7 +734,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -742,7 +742,7 @@
           "blur": 5,
           "detail_pixels": 33,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -750,7 +750,7 @@
           "blur": 0,
           "detail_pixels": 1572,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -758,7 +758,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -766,7 +766,7 @@
           "blur": 5,
           "detail_pixels": 13,
           "structure_pixels": 5223,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -923,7 +923,7 @@
           "blur": 0,
           "detail_pixels": 3600,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -931,7 +931,7 @@
           "blur": 3,
           "detail_pixels": 2138,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -939,7 +939,7 @@
           "blur": 5,
           "detail_pixels": 1356,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -947,7 +947,7 @@
           "blur": 0,
           "detail_pixels": 3016,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -955,7 +955,7 @@
           "blur": 3,
           "detail_pixels": 1034,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -963,7 +963,7 @@
           "blur": 5,
           "detail_pixels": 303,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -971,7 +971,7 @@
           "blur": 0,
           "detail_pixels": 2193,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -979,7 +979,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -987,7 +987,7 @@
           "blur": 5,
           "detail_pixels": 119,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -995,7 +995,7 @@
           "blur": 0,
           "detail_pixels": 1384,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1003,7 +1003,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1011,7 +1011,7 @@
           "blur": 5,
           "detail_pixels": 83,
           "structure_pixels": 3316,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -1168,7 +1168,7 @@
           "blur": 0,
           "detail_pixels": 3235,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1176,7 +1176,7 @@
           "blur": 3,
           "detail_pixels": 1024,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1184,7 +1184,7 @@
           "blur": 5,
           "detail_pixels": 1631,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1192,7 +1192,7 @@
           "blur": 0,
           "detail_pixels": 2755,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1200,7 +1200,7 @@
           "blur": 3,
           "detail_pixels": 601,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1208,7 +1208,7 @@
           "blur": 5,
           "detail_pixels": 1260,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1216,7 +1216,7 @@
           "blur": 0,
           "detail_pixels": 2269,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1224,7 +1224,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1232,7 +1232,7 @@
           "blur": 5,
           "detail_pixels": 940,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1240,7 +1240,7 @@
           "blur": 0,
           "detail_pixels": 1845,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1248,7 +1248,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1256,7 +1256,7 @@
           "blur": 5,
           "detail_pixels": 672,
           "structure_pixels": 5807,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -1413,7 +1413,7 @@
           "blur": 0,
           "detail_pixels": 29,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1421,7 +1421,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1429,7 +1429,7 @@
           "blur": 5,
           "detail_pixels": 36,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1437,7 +1437,7 @@
           "blur": 0,
           "detail_pixels": 29,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1445,7 +1445,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1453,7 +1453,7 @@
           "blur": 5,
           "detail_pixels": 36,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1461,7 +1461,7 @@
           "blur": 0,
           "detail_pixels": 29,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1469,7 +1469,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1477,7 +1477,7 @@
           "blur": 5,
           "detail_pixels": 36,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1485,7 +1485,7 @@
           "blur": 0,
           "detail_pixels": 29,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1493,7 +1493,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1501,7 +1501,7 @@
           "blur": 5,
           "detail_pixels": 36,
           "structure_pixels": 749,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -1658,7 +1658,7 @@
           "blur": 0,
           "detail_pixels": 264,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1666,7 +1666,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1674,7 +1674,7 @@
           "blur": 5,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1682,7 +1682,7 @@
           "blur": 0,
           "detail_pixels": 264,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1690,7 +1690,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1698,7 +1698,7 @@
           "blur": 5,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1706,7 +1706,7 @@
           "blur": 0,
           "detail_pixels": 264,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1714,7 +1714,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1722,7 +1722,7 @@
           "blur": 5,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1730,7 +1730,7 @@
           "blur": 0,
           "detail_pixels": 264,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1738,7 +1738,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,
@@ -1746,7 +1746,7 @@
           "blur": 5,
           "detail_pixels": 0,
           "structure_pixels": 3424,
-          "detail_parity": false
+          "detail_parity": true
         }
       ]
     },
@@ -1903,7 +1903,7 @@
           "blur": 0,
           "detail_pixels": 1185,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1911,7 +1911,7 @@
           "blur": 3,
           "detail_pixels": 339,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 50,
@@ -1919,7 +1919,7 @@
           "blur": 5,
           "detail_pixels": 635,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1927,7 +1927,7 @@
           "blur": 0,
           "detail_pixels": 1030,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1935,7 +1935,7 @@
           "blur": 3,
           "detail_pixels": 296,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 75,
@@ -1943,7 +1943,7 @@
           "blur": 5,
           "detail_pixels": 408,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1951,7 +1951,7 @@
           "blur": 0,
           "detail_pixels": 937,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1959,7 +1959,7 @@
           "blur": 3,
           "detail_pixels": 0,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 100,
@@ -1975,7 +1975,7 @@
           "blur": 0,
           "detail_pixels": 877,
           "structure_pixels": 5498,
-          "detail_parity": false
+          "detail_parity": true
         },
         {
           "low_threshold": 125,

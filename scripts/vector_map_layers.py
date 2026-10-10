@@ -11,6 +11,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
+import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
@@ -42,11 +43,21 @@ class RoleRequest:
 
 
 @dataclass(frozen=True)
+class GapClosing:
+    requested_gap_mm: float
+    gap_px: float
+    radius_px: int
+    kernel_size_px: int
+    achieved_gap_mm: float
+
+
+@dataclass(frozen=True)
 class PreparedCandidate:
     role: str
     source: str
     material: np.ndarray
     canny: CannySpec | None
+    gap_closing: GapClosing | None
     expansion: raster.BandExpansion | None
     diagnostics: tuple[dict, ...]
 
@@ -148,6 +159,74 @@ def canny_material(rgb, spec):
             return np.asarray(edges) >= raster.FOREGROUND_LUMINANCE
 
 
+def close_gaps(material, gap_close_mm, mm_per_px):
+    """Close every gap up to gap_close_mm wide. Return material and the achieved closing.
+
+    A closing of radius r closes gaps up to 2r pixels, so r = max(1, ceil(gap_px / 2)).
+    It equals a square closing of side 2r + 1. Reach is clamped to the canvas and applied as
+    row then column passes, so kernel memory stays below 2 * (width + height) bytes.
+    Reach beyond the canvas changes no pixel. The default borders keep edge material.
+    """
+    gap_px = gap_close_mm / mm_per_px
+    if not math.isfinite(gap_px):
+        raise ConfigError("Requested gap_close_mm exceeds supported gap dimensions.")
+    # Suppress float noise at exact even widths before rounding upward.
+    radius = max(1, math.ceil(gap_px / 2 - 1e-9))
+    achieved = 2 * radius * mm_per_px
+    if not math.isfinite(achieved):
+        raise ConfigError("Achieved gap width must remain finite.")
+    record = GapClosing(gap_close_mm, gap_px, radius, 2 * radius + 1, achieved)
+    rx = min(radius, material.shape[1] - 1)
+    ry = min(radius, material.shape[0] - 1)
+    row = np.ones((1, 2 * rx + 1), np.uint8)
+    column = np.ones((2 * ry + 1, 1), np.uint8)
+    closed = cv2.dilate(cv2.dilate(material.astype(np.uint8), row), column)
+    closed = cv2.erode(cv2.erode(closed, row), column)
+    return closed.astype(bool), record
+
+
+def _map_material(path, silhouette, input_bytes, role):
+    """Decode a supplied binary map on the oriented source size. Resize it once with nearest-neighbour."""
+    material, notices = raster._oriented_mask(path, silhouette.oriented_size, role, input_bytes)
+    return raster._resize(material, silhouette.processed_size), notices
+
+
+def _candidate(role, request, raw, silhouette, input_bytes):
+    """Constrain, close gaps, widen, constrain again, then clip to the silhouette."""
+    diagnostics = []
+    constraints = []
+    for path in (request.include_mask, request.exclude_mask):
+        if path is None:
+            constraints.append(None)
+            continue
+        constraint, notices = _map_material(path, silhouette, input_bytes, "constraint")
+        diagnostics.extend(notices)
+        constraints.append(constraint)
+    scale = silhouette.canvas.mm_per_px
+    material = raster._constrain(raw, *constraints)
+    gap_closing = None
+    if request.gap_close_mm is not None:
+        material, gap_closing = close_gaps(material, request.gap_close_mm, scale)
+        diagnostics.append({
+            "level": "info", "code": "gap_closing", "role": role,
+            "requested_gap_mm": gap_closing.requested_gap_mm, "gap_px": gap_closing.gap_px,
+            "radius_px": gap_closing.radius_px, "kernel_size_px": gap_closing.kernel_size_px,
+            "achieved_gap_mm": gap_closing.achieved_gap_mm,
+            "message": f"{role}: gaps up to {gap_closing.achieved_gap_mm:g} mm closed "
+                       f"({gap_closing.requested_gap_mm:g} mm requested).",
+        })
+    expansion = None
+    if request.width_mm is not None:
+        material, expansion = raster._expand(material, request.width_mm, scale)
+        if request.width_mm / scale < 4:
+            diagnostics.append({
+                "level": "warning", "code": "requested_width_below_four_pixels", "role": role,
+                "message": f"{role}: Requested line width covers fewer than four processing pixels.",
+            })
+    material = raster._constrain(material, *constraints)
+    return material & silhouette.material, gap_closing, expansion, diagnostics
+
+
 def prepare_layers(settings, requests, *, input_bytes=None):
     """Prepare the silhouette and selected optional roles on one canvas."""
     if settings.input_kind != "image":
@@ -160,11 +239,29 @@ def prepare_layers(settings, requests, *, input_bytes=None):
     if specs:
         rgb = source_rgb(settings.input, silhouette.oriented_size, silhouette.processed_size,
                          data=input_bytes.get(settings.input))
+    prepared = {}
+    for role in ROLES:
+        request = by_role.get(role)
+        if request is None:
+            continue
+        if request.source == "map":
+            raw, notices = _map_material(request.path, silhouette, input_bytes, "map")
+        else:
+            raw, notices = canny_material(rgb, specs[role]), []
+        material, gap_closing, expansion, diagnostics = _candidate(role, request, raw, silhouette, input_bytes)
+        prepared[role] = [material, gap_closing, expansion, notices + diagnostics]
+    if "structure" in prepared and "detail" in prepared:
+        prepared["detail"][0] = prepared["detail"][0] & ~prepared["structure"][0]
     candidates = {}
-    for role, request in by_role.items():
-        material = canny_material(rgb, specs[role]) & silhouette.material
+    for role, (material, gap_closing, expansion, diagnostics) in prepared.items():
+        if not material.any():
+            diagnostics.append({
+                "level": "warning", "code": "role_empty", "role": role,
+                "message": f"{role}: selected role has no material after constraints and clipping.",
+            })
         material.setflags(write=False)
-        candidates[role] = PreparedCandidate(role, request.source, material, specs.get(role), None, ())
+        candidates[role] = PreparedCandidate(role, by_role[role].source, material, specs.get(role), gap_closing,
+                                             expansion, tuple(diagnostics))
     return PreparedLayers(silhouette, **candidates)
 
 

@@ -42,6 +42,7 @@ _ALPHA_NOTICES = {
     "source": "source has alpha, luminance used, pass --alpha to select it.",
     "constraint": "constraint has alpha, luminance used. Source --alpha does not select constraint alpha.",
     "mask": "silhouette mask has alpha, luminance used. --alpha selects source alpha, not mask alpha.",
+    "map": "role map has alpha, luminance used. Map alpha selects nothing.",
 }
 
 
