@@ -85,7 +85,8 @@ def test_nonzero_fill_rule_is_accepted():
 
 @pytest.mark.parametrize(
     "extra, width, height",
-    [("", "20px", "10px"), (' viewBox="0 0 20 10"', "20", "10"), (' viewBox="0,0,20,10"', "20.0", "10")],
+    [("", "20px", "10px"), (' viewBox="0 0 20 10"', "20", "10"),
+     (' viewBox="0,0,20,10"', "20.0", "10"), (' viewBox="0, 0, 20, 10"', "20", "10")],
 )
 def test_pixel_canvas_spellings_are_accepted(extra, width, height):
     assert inspect(doc(extra=extra, width=width, height=height)).metrics.paths == 1
@@ -219,6 +220,10 @@ REJECTED = {
     "viewBox extent": (doc(extra=' viewBox="0 0 40 20"'), "viewBox"),
     "viewBox short": (doc(extra=' viewBox="0 0 20"'), "viewBox"),
     "viewBox junk": (doc(extra=' viewBox="0 0 20 ten"'), "viewBox"),
+    "viewBox repeated comma": (doc(extra=' viewBox="0,,0,20,10"'), "viewBox"),
+    "viewBox spaced repeated comma": (doc(extra=' viewBox="0, ,0,20,10"'), "viewBox"),
+    "viewBox leading comma": (doc(extra=' viewBox=",0,0,20,10"'), "viewBox"),
+    "viewBox trailing comma": (doc(extra=' viewBox="0,0,20,10,"'), "viewBox"),
     # Empty output
     "no paths": (doc(""), "empty: it contains no paths"),
 }
@@ -232,6 +237,12 @@ def test_incompatible_output_is_rejected(svg, match):
 
 def test_inspection_error_is_a_value_error():
     assert issubclass(SvgInspectionError, ValueError)
+
+
+def test_deep_group_nesting_has_a_clear_inspection_error():
+    body = '<g>' * 1200 + path() + '</g>' * 1200
+    with pytest.raises(SvgInspectionError, match="group nesting exceeds supported depth"):
+        inspect(doc(body))
 
 
 # --- Empty policy -------------------------------------------------------------

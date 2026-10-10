@@ -827,6 +827,9 @@ def run_injected(tmp_path, monkeypatch, capsys):
 
 FAILURES = {
     "malformed": (injected(TRIANGLE_PATH)[:-3], (), "malformed SVG"),
+    "viewBox repeated comma": (injected(TRIANGLE_PATH).replace('<svg ', '<svg viewBox="0,,0,128,128" '), (), "viewBox"),
+    "deep groups": (injected('<g>' * 1200 + TRIANGLE_PATH + '</g>' * 1200), (),
+                    "group nesting exceeds supported depth"),
     "dtd": (injected(TRIANGLE_PATH, prolog="<!DOCTYPE svg>"), (), "DTD"),
     "image": (injected(TRIANGLE_PATH + '<image href="x.png"/>'), (), "unsupported element image"),
     "curve": (injected('<path d="M0,0 C1,1 2,2 0,3 Z"/>'), (), "unsupported path"),

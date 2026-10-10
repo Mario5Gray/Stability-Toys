@@ -176,6 +176,8 @@ Before publication, the command checks VTracer output against the pinned polygon
 - Path data uses absolute `Mx,y`, `Lx,y`, and `Z` tokens only, separated by spaces. Each subpath closes with an explicit `Z`.
 - Coordinates are finite ASCII decimal numbers. NaN, infinity, overflow, and underscores fail.
 - Raw `width` and `height` equal the processing size in pixels. A raw `viewBox` must be `0 0 W H`.
+- A raw `viewBox` accepts spaces or commas between numbers. Empty comma fields fail.
+- Group nesting above 256 levels fails with a clear error before XML serialization.
 
 DTDs, processing instructions, images, `use`, `defs`, scripts, masks, clipping, styles, strokes, and opacity fail.
 The command never removes unsupported content and never repairs geometry. It reports incompatible upstream output with exit 1.

@@ -27,6 +27,7 @@ _ATTRIBUTES = {
 }
 _BLACK = frozenset({"black", "#000", "#000000"})
 _NUMBER_CHARS = frozenset("0123456789+-.eE")
+_MAX_GROUP_DEPTH = 256
 
 _SUGGESTION = (
     "Lower --max-res, or adjust recipe vtracer.filter_speckle within 0..128. "
@@ -149,12 +150,13 @@ def _check_root(root, width_px, height_px):
             raise SvgInspectionError(f"The traced SVG {name} is {value!r}, but the canvas is {expected} px.")
     view_box = root.get("viewBox")
     if view_box is not None:
+        valid_separators = all(part.strip() for part in view_box.split(","))
         fields = view_box.replace(",", " ").split()
         try:
             numbers = [_number(value, "viewBox", SvgInspectionError) for value in fields]
         except SvgInspectionError:
             numbers = None
-        if numbers != [0, 0, width_px, height_px]:
+        if not valid_separators or numbers != [0, 0, width_px, height_px]:
             raise SvgInspectionError(f"viewBox {view_box!r} must be '0 0 {width_px} {height_px}'.")
 
 
@@ -183,15 +185,17 @@ class _Walk:
         self.degenerate_only = 0
         self.subpaths = []
 
-    def visit(self, element, offset, fill):
+    def visit(self, element, offset, fill, depth=0):
         if element.tag not in (_G, _PATH):
             raise SvgInspectionError(f"unsupported element {_local(element.tag)}. Only g and path are accepted.")
         _check_element(element)
         offset = _add(offset, _translate(element.get("transform")))
         fill = _fill(element, fill)
         if element.tag == _G:
+            if depth >= _MAX_GROUP_DEPTH:
+                raise SvgInspectionError(f"SVG group nesting exceeds supported depth {_MAX_GROUP_DEPTH}.")
             for child in element:
-                self.visit(child, offset, fill)
+                self.visit(child, offset, fill, depth + 1)
             return
         if len(element):
             raise SvgInspectionError("A path must be a leaf element. It has child elements.")
