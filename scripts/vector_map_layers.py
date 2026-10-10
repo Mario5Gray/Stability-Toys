@@ -168,5 +168,9 @@ def prepare_layers(settings, requests, *, input_bytes=None):
     return PreparedLayers(silhouette, **candidates)
 
 
-# Placeholder until the S3.2 corpus sweep selects measured defaults.
-DEFAULT_CANNY = {}
+# Measured on the reviewed corpus: docs/superpowers/reports/2026-10-09-vector-map-s3-2-canny.md.
+# Equal blur makes detail a superset of structure, so structure removal leaves only weaker edges.
+DEFAULT_CANNY = {
+    "structure": CannySpec(low_threshold=100, high_threshold=200, blur=3),
+    "detail": CannySpec(low_threshold=50, high_threshold=100, blur=3),
+}
