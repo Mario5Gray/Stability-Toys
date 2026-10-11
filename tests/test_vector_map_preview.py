@@ -4,6 +4,7 @@ Real vtracer==0.6.15 traces and real resvg-py==0.5.0 renders. Mocks are not rend
 The locked corpus renderer (metrics.render) renders the raw pixel trace. It is the reference.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -323,8 +324,8 @@ def test_compose_is_deterministic():
 import vector_map_layers as layers  # noqa: E402
 
 
-def _candidates(tmp_path, *, detail_empty=False):
-    """Silhouette from a mask, structure and detail from supplied maps. One mm per pixel."""
+def _candidates(tmp_path, *, detail_empty=False, mm_per_px=1.0):
+    """Silhouette from a mask, structure and detail from supplied maps. One mm per pixel by default."""
     shape = (24, 32)
     source = tmp_path / "source.png"
     Image.fromarray(np.full((*shape, 3), 90, np.uint8)).save(source)
@@ -340,7 +341,8 @@ def _candidates(tmp_path, *, detail_empty=False):
         paths[name] = tmp_path / f"{name}.png"
         Image.fromarray(np.where(material, 255, 0).astype(np.uint8)).save(paths[name])
     layer = {**dict.fromkeys(config.FIELDS), "mask": paths["mask"]}
-    settings = config.resolve(config.DEFAULTS, {"input": source, "input_kind": "image", "width_mm": 32.0}, layer)
+    settings = config.resolve(config.DEFAULTS, {"input": source, "input_kind": "image",
+                                                "width_mm": 32 * mm_per_px}, layer)
     requests = [layers.RoleRequest("structure", source="map", path=paths["structure"]),
                 layers.RoleRequest("detail", source="map", path=paths["detail"])]
     return layers.prepare_layers(settings, requests)
@@ -395,3 +397,182 @@ def test_candidate_preview_for_a_silhouette_only_run_has_one_panel(tmp_path):
 def test_candidate_preview_is_deterministic(tmp_path):
     prepared = _candidates(tmp_path)
     assert preview.compose_candidates(prepared).png == preview.compose_candidates(prepared).png
+
+
+# --- S3.3 layered preview (STABL-qlagdbmh) -------------------------------------
+
+
+def _published(prepared):
+    """Trace and normalize each nonempty selected role like the CLI. Return role -> normalized SVG."""
+    svgs = {}
+    for role in prepared.roles:
+        material = _material(prepared, role)
+        if material.any():
+            svgs[role] = svg_io.normalize_svg(adapter.trace_layer(material).svg, prepared.canvas).svg
+    return svgs
+
+
+def _material(prepared, role):
+    return prepared.silhouette.material if role == "silhouette" else getattr(prepared, role).material
+
+
+def _compose(tmp_path, prepared, svgs=None):
+    svgs = _published(prepared) if svgs is None else svgs
+    return preview.compose_layers(prepared, svgs, (tmp_path / "source.png").read_bytes())
+
+
+def test_layered_preview_has_a_mask_and_a_vector_panel_per_selected_role(tmp_path):
+    prepared = _candidates(tmp_path)
+    result = _compose(tmp_path, prepared)
+    image = _image(result)
+    width, height = prepared.silhouette.processed_size
+    names = [f"{role}_{kind}" for kind in ("mask", "vector") for role in prepared.roles] + ["overlay"]
+    assert [name for name in result.panels if name != "legend"] == names
+    boxes = [result.panels[name] for name in names]
+    for left, top, right, bottom in boxes:
+        assert (right - left, bottom - top) == (width, height)
+        assert 0 <= left and right <= image.shape[1] and 0 <= top and bottom <= image.shape[0]
+    for index, a in enumerate(boxes):
+        for b in boxes[index + 1:]:
+            assert a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
+    for role in prepared.roles:
+        assert result.panels[f"{role}_mask"][3] <= result.panels[f"{role}_vector"][1]
+        assert result.panels[f"{role}_mask"][0] == result.panels[f"{role}_vector"][0]
+    assert result.png.startswith(bytes([0x89]) + b"PNG")
+
+
+def test_layered_mask_panels_show_prepared_masks_exactly(tmp_path):
+    prepared = _candidates(tmp_path)
+    result = _compose(tmp_path, prepared)
+    image = _image(result)
+    for role in prepared.roles:
+        panel = _crop(image, result.panels[f"{role}_mask"])
+        expected = np.where(_material(prepared, role), 0, 255).astype(np.uint8)
+        for channel in range(3):
+            assert np.array_equal(panel[..., channel], expected), role
+
+
+@pytest.mark.parametrize("mm_per_px", [1.0, 0.37, 25.4 / 96])
+def test_layered_vector_panels_render_the_published_svgs_under_a_pixel_root(tmp_path, mm_per_px):
+    prepared = _candidates(tmp_path, mm_per_px=mm_per_px)
+    svgs = _published(prepared)
+    result = _compose(tmp_path, prepared, svgs)
+    image = _image(result)
+    for role, svg in svgs.items():
+        expected = preview.render_luminance(svg, prepared.canvas)
+        panel = _crop(image, result.panels[f"{role}_vector"])
+        for channel in range(3):
+            assert np.array_equal(panel[..., channel], expected), role
+        assert np.array_equal(preview.render_material(svg, prepared.canvas), _material(prepared, role)), role
+
+
+def test_layered_preview_marks_an_empty_role_and_renders_no_svg_for_it(tmp_path, monkeypatch):
+    prepared = _candidates(tmp_path, detail_empty=True)
+    svgs = _published(prepared)
+    assert list(svgs) == ["silhouette", "structure"]
+    rendered = []
+    render = preview.render_luminance
+
+    def record(svg, canvas, **kwargs):
+        rendered.append(svg)
+        return render(svg, canvas, **kwargs)
+
+    monkeypatch.setattr(preview, "render_luminance", record)
+    result = _compose(tmp_path, prepared, svgs)
+    assert sorted(rendered) == sorted(svgs.values())
+    labels = result.provenance["labels"]
+    assert "Detail mask (empty)" in labels
+    assert "Detail vector: empty, no SVG" in labels
+    panel = _crop(_image(result), result.panels["detail_vector"])
+    assert (panel == np.array(preview.EMPTY_PANEL, np.uint8)).all()
+
+
+def test_layered_overlay_tints_source_with_each_role_in_order(tmp_path):
+    prepared = _candidates(tmp_path)
+    source_bytes = (tmp_path / "source.png").read_bytes()
+    result = _compose(tmp_path, prepared)
+    overlay = _crop(_image(result), result.panels["overlay"]).astype(int)
+    base = preview.blend_base(preview._source(source_bytes, prepared.silhouette)).astype(float)
+
+    def tint(value, roles):
+        out = np.array([value] * 3, float)
+        for role in roles:
+            out = out * (1 - preview.OVERLAY_ALPHA) + preview.OVERLAY_ALPHA * np.array(preview.ROLE_COLOURS[role])
+        return np.rint(out).astype(int)
+
+    assert (overlay[0, 0] == tint(base[0, 0], [])).all()
+    assert (overlay[4, 4] == tint(base[4, 4], ["silhouette"])).all()
+    assert (overlay[8, 10] == tint(base[8, 10], ["silhouette", "structure"])).all()
+    assert (overlay[15, 10] == tint(base[15, 10], ["silhouette", "detail"])).all()
+
+
+def test_layered_legend_shows_each_selected_role_colour(tmp_path):
+    prepared = _candidates(tmp_path)
+    result = _compose(tmp_path, prepared)
+    assert result.provenance["legend"] == ["silhouette", "structure", "detail"]
+    legend = _crop(_image(result), result.panels["legend"]).reshape(-1, 3)
+    colours = {tuple(int(value) for value in pixel) for pixel in legend}
+    assert all(tuple(preview.ROLE_COLOURS[role]) in colours for role in prepared.roles)
+
+
+def test_silhouette_only_layered_preview_has_one_column(tmp_path):
+    prepared = layers.PreparedLayers(_candidates(tmp_path).silhouette)
+    result = _compose(tmp_path, prepared)
+    assert [name for name in result.panels if name != "legend"] == ["silhouette_mask", "silhouette_vector", "overlay"]
+    assert result.provenance["legend"] == ["silhouette"]
+
+
+def test_layered_preview_provenance_records_renderer_and_font(tmp_path):
+    from importlib.metadata import version
+
+    prepared = _candidates(tmp_path)
+    provenance = _compose(tmp_path, prepared).provenance
+    assert (provenance["renderer"], provenance["root"]) == ("resvg-py", "pixel")
+    assert provenance["renderer_version"] == version("resvg-py")
+    assert provenance["resolution"] == list(prepared.silhouette.processed_size)
+    assert provenance["layers"] == list(prepared.roles)
+    assert provenance["font"] in ("FreeTypeFont", "ImageFont")
+
+
+def test_layered_preview_without_freetype_uses_embedded_bitmap_font(tmp_path):
+    """Real absent FreeType in a fresh interpreter. Pillow >= 10.1 load_default() otherwise returns FreeType."""
+    import subprocess
+
+    _candidates(tmp_path)
+    script = _NO_FREETYPE.split("import vector_map")[0] + (
+        "import vector_map\ncode = vector_map.main(json.loads(sys.argv[2]))\nprint('EXIT', code)\n")
+    argv = [str(value) for value in (
+        tmp_path / "source.png", tmp_path / "out.svg", "--input-kind", "image", "--mask", tmp_path / "mask.png",
+        "--width-mm", "32", "--layers", "silhouette,structure,detail", "--structure-map", tmp_path / "structure.png",
+        "--detail-map", tmp_path / "detail.png", "--preview", "--json")]
+    result = subprocess.run([sys.executable, "-c", script, str(ROOT / "scripts"), json.dumps(argv)],
+                            capture_output=True, text=True, cwd=ROOT)
+    assert "EXIT 0" in result.stdout, result.stderr
+    manifest = json.loads((tmp_path / "out.vector.json").read_bytes())
+    assert manifest["preview"]["freetype2"] is None
+    assert manifest["preview"]["font"] == "ImageFont"
+
+
+def test_layered_preview_is_deterministic(tmp_path):
+    prepared = _candidates(tmp_path)
+    svgs = _published(prepared)
+    assert _compose(tmp_path, prepared, svgs).png == _compose(tmp_path, prepared, svgs).png
+
+
+def test_layered_cli_preview_renders_the_published_layer_files(tmp_path, capsys):
+    import vector_map
+
+    prepared = _candidates(tmp_path)
+    code = vector_map.main([str(value) for value in (
+        tmp_path / "source.png", tmp_path / "out.svg", "--input-kind", "image", "--mask", tmp_path / "mask.png",
+        "--width-mm", "32", "--layers", "silhouette,structure,detail", "--structure-map", tmp_path / "structure.png",
+        "--detail-map", tmp_path / "detail.png", "--preview", "--json")])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    result = json.loads(captured.out)
+    assert result["artifacts"]["preview"] == str(tmp_path / "out.preview.png")
+    published = {role: (tmp_path / "out.layers" / f"{role}.svg").read_text() for role in prepared.roles}
+    assert (tmp_path / "out.preview.png").read_bytes() == _compose(tmp_path, prepared, published).png
+    manifest = json.loads((tmp_path / "out.vector.json").read_bytes())
+    assert "out.preview.png" in {item["path"] for item in manifest["artifacts"]}
+    assert manifest["preview"]["layers"] == ["silhouette", "structure", "detail"]

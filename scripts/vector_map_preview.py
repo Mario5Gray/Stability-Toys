@@ -228,6 +228,87 @@ def compose_candidates(prepared):
     return Preview(buffer.getvalue(), boxes, candidate_provenance(prepared.silhouette, font, list(labels.values())))
 
 
+# S3.3 layered preview (STABL-qlagdbmh). Each selected role shows its prepared mask above the render of its
+# published SVG. The overlay draws every published role on the source. Later roles draw over earlier roles.
+ROLE_NAMES = {"silhouette": "Silhouette", "structure": "Structure", "detail": "Detail"}
+# Okabe-Ito colours: sky blue, vermillion, bluish green.
+ROLE_COLOURS = {"silhouette": (86, 180, 233), "structure": (213, 94, 0), "detail": (0, 158, 115)}
+EMPTY_PANEL = (200, 200, 200)
+LAYER_OVERLAY_LABEL = "Vector layers on source"
+
+
+def compose_layers(prepared, svgs, source_bytes):
+    """Draw each selected role's mask above its rendered published SVG, then the source overlay.
+
+    svgs maps each published role to its normalized SVG. A selected role without an SVG is empty.
+    Its vector panel is a plain fill with an explicit label, and nothing is rendered for it.
+    """
+    silhouette = prepared.silhouette
+    width, height = silhouette.processed_size
+    luminance = {role: render_luminance(svgs[role], prepared.canvas) for role in prepared.roles if role in svgs}
+    panels, labels = {}, {}
+    for role in prepared.roles:
+        material = silhouette.material if role == "silhouette" else getattr(prepared, role).material
+        panels[f"{role}_mask"] = _gray_rgb(np.where(material, 0, 255).astype(np.uint8))
+        labels[f"{role}_mask"] = f"{ROLE_NAMES[role]} mask" + ("" if material.any() else " (empty)")
+    for role in prepared.roles:
+        if role in luminance:
+            panels[f"{role}_vector"] = _gray_rgb(luminance[role])
+            labels[f"{role}_vector"] = f"{ROLE_NAMES[role]} vector"
+        else:
+            panels[f"{role}_vector"] = np.full((height, width, 3), EMPTY_PANEL, np.uint8)
+            labels[f"{role}_vector"] = f"{ROLE_NAMES[role]} vector: empty, no SVG"
+    panels["overlay"] = _role_overlay(_source(source_bytes, silhouette), luminance)
+    labels["overlay"] = LAYER_OVERLAY_LABEL
+    font = label_font()
+    measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    column = max(width, *(math.ceil(measure.textlength(text, font=font)) for text in labels.values()))
+    entries = [
+        (role, SWATCH + 4 + math.ceil(measure.textlength(ROLE_NAMES[role], font=font)) + 12) for role in luminance
+    ]
+    legend_width = sum(size for _, size in entries)
+    columns = len(prepared.roles)
+    page_width = max(MARGIN + columns * (column + MARGIN), legend_width + 2 * MARGIN)
+    row = LABEL_HEIGHT + height + MARGIN
+    legend_top = MARGIN + 3 * row
+    page = Image.new("RGB", (page_width, legend_top + LEGEND_HEIGHT + MARGIN), PAGE)
+    draw = ImageDraw.Draw(page)
+    boxes = {}
+    for name, pixels in panels.items():
+        role, _, kind = name.rpartition("_")
+        index, line = (0, 2) if name == "overlay" else (prepared.roles.index(role), 0 if kind == "mask" else 1)
+        column_left = MARGIN + index * (column + MARGIN)
+        left = column_left + (column - width) // 2
+        top = MARGIN + line * row + LABEL_HEIGHT
+        page.paste(Image.fromarray(pixels), (left, top))
+        boxes[name] = (left, top, left + width, top + height)
+        draw.text((column_left, top - LABEL_HEIGHT), labels[name], font=font, fill=TEXT)
+    x = MARGIN
+    for role, size in entries:
+        swatch_top = legend_top + (LEGEND_HEIGHT - SWATCH) // 2
+        draw.rectangle((x, swatch_top, x + SWATCH - 1, swatch_top + SWATCH - 1), fill=ROLE_COLOURS[role])
+        draw.text((x + SWATCH + 4, legend_top + 2), ROLE_NAMES[role], font=font, fill=TEXT)
+        x += size
+    boxes["legend"] = (MARGIN, legend_top, MARGIN + legend_width, legend_top + LEGEND_HEIGHT)
+    buffer = BytesIO()
+    page.save(buffer, format="PNG")
+    return Preview(buffer.getvalue(), boxes, {
+        **provenance(silhouette, font),
+        "labels": list(labels.values()),
+        "layers": list(prepared.roles),
+        "legend": list(luminance),
+    })
+
+
+def _role_overlay(source, luminance):
+    """Tint the lightened source with each rendered role in order. Coverage scales the tint."""
+    out = np.repeat(blend_base(source).astype(float)[..., None], 3, axis=2)
+    for role, values in luminance.items():
+        weight = (OVERLAY_ALPHA * (255 - values.astype(float)) / 255)[..., None]
+        out = out * (1 - weight) + weight * np.array(ROLE_COLOURS[role], float)
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+
+
 def candidate_provenance(silhouette, font, labels):
     """Values that decide candidate preview bytes. No renderer takes part."""
     import PIL

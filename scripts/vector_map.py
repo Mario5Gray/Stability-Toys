@@ -4,6 +4,8 @@
 Thin CLI facade. Configuration, raster preparation, the VTracer adapter, and SVG sizing
 live in sibling modules. S2.3 (STABL-vjpnctjh) adds oriented raster preparation and edge bands.
 S3.1 (STABL-memwrtos) adds image mode with one silhouette method: --mask, --alpha, or --threshold.
+S3.3 (STABL-qlagdbmh) adds layered image mode: --layers publishes one normalized SVG per nonempty role
+and a combined SVG with named groups. The separate layer SVGs are the SCAD inputs.
 
 Exit codes: 0 converted, 2 invalid arguments or configuration, 1 processing or I/O failure.
 Progress and diagnostics go to stderr. --json prints one result object on stdout.
@@ -15,6 +17,7 @@ import sys
 from pathlib import Path
 
 import vector_map_config as config
+import vector_map_layers as layer_prep
 import vector_map_raster as raster
 import vector_map_svg as svg_io
 import vector_map_vtracer as adapter
@@ -67,6 +70,16 @@ def build_parser():
         help="Select source alpha >= 128 instead of luminance. Image mode: a silhouette method. "
              "Requires alpha channel or palette transparency.",
     )
+    parser.add_argument("--layers", metavar="ROLES",
+                        help="Image mode: comma-separated roles from silhouette, structure, detail. Must include "
+                             "silhouette. Writes STEM.svg with named groups and STEM.layers/ROLE.svg per nonempty role.")
+    for role in config.OPTIONAL_ROLES:
+        parser.add_argument(f"--{role}-map", type=Path, metavar="PATH",
+                            help=f"Layered image mode: white pixels of PATH form the {role} candidate instead of Canny. "
+                                 f"Requires {role} in --layers.")
+        parser.add_argument(f"--{role}-width-mm", type=float, metavar="MM",
+                            help=f"Layered image mode: widen {role} lines to this nominal width. "
+                                 f"Requires {role} in --layers.")
     parser.add_argument("--max-svg-bytes", type=int, metavar="N",
                         help="Largest raw or normalized SVG, in UTF-8 bytes. Default 20971520.")
     parser.add_argument("--max-paths", type=int, metavar="N", help="Most path elements per layer. Default 10000.")
@@ -89,7 +102,7 @@ def main(argv=None):
     published = {}
     try:
         args = parser.parse_args(argv)
-        destination, paths = _convert(args, diagnostics, published)
+        destination, layers, paths = _convert(args, diagnostics, published)
     except UsageError as exc:
         print(parser.format_usage(), end="", file=sys.stderr)
         return _fail(2, "invalid", exc, as_json, diagnostics, published)
@@ -98,40 +111,30 @@ def main(argv=None):
     except (OSError, RuntimeError, ValueError) as exc:
         return _fail(1, "failed", exc, as_json, diagnostics, published)
     if as_json:
-        print(json.dumps(_result("converted", svg=str(destination), layers=1, paths=paths, diagnostics=diagnostics, published=published)))
+        print(json.dumps(_result("converted", svg=str(destination), layers=layers, paths=paths, diagnostics=diagnostics, published=published)))
     return 0
 
 
 def _convert(args, diagnostics, published):
     snapshots = {}
     destination, settings = _settings(args, snapshots=snapshots)
+    layered = settings.layers is not None
     bundle = artifacts.Bundle(destination, debug=args.debug_bundle, preview=args.preview, overwrite=args.overwrite,
-                              inputs=artifacts.input_paths(settings, args.recipe))
+                              inputs=artifacts.input_paths(settings, args.recipe), layered=layered)
     bundle.check()
     if args.preview:
         preview.require_renderer()
     inputs = artifacts.snapshot_inputs(settings, args.recipe, snapshots)
+    if layered:
+        return _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, published)
 
     _progress(f"loading  {settings.input}")
     prepared = raster.prepare(settings, input_bytes=snapshots)
     material = prepared.material
     canvas = prepared.canvas
-    diagnostics.extend(prepared.diagnostics)
-    for diagnostic in prepared.diagnostics:
-        _progress(f"warning: {diagnostic['message']}")
-    _progress(
-        f"raster   original {prepared.original_size[0]}x{prepared.original_size[1]}, "
-        f"oriented {prepared.oriented_size[0]}x{prepared.oriented_size[1]}, "
-        f"processed {prepared.processed_size[0]}x{prepared.processed_size[1]} px, "
-        f"scale {canvas.mm_per_px:g} mm/px"
-    )
-    if prepared.expansion is not None:
-        band = prepared.expansion
-        _progress(
-            f"band     requested {band.requested_width_mm:g} mm, nominal achieved {band.achieved_width_mm:g} mm, "
-            f"kernel {band.kernel_size_px} px, radius {band.radius_px} px, "
-            f"expansion {band.expansion_mm:g} mm per side"
-        )
+    _report(prepared.diagnostics, diagnostics)
+    _report_raster(prepared)
+    _report_band(prepared.expansion)
     height, width = material.shape
     _progress(
         f"tracing  {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm"
@@ -145,17 +148,7 @@ def _convert(args, diagnostics, published):
         message = f"VTracer {_version('vtracer')} layer {artifacts.layer_id(settings)}: {exc}"
         raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
     paths = normalized.metrics.paths
-    degenerate = normalized.metrics.degenerate_subpaths
-    if degenerate:
-        diagnostic = {
-            "level": "warning", "code": "degenerate_subpaths", "subpaths": degenerate,
-            "message": (
-                f"VTracer returned {degenerate} degenerate subpaths (points or lines) inside valid paths. "
-                "They are kept unchanged and add no area."
-            ),
-        }
-        diagnostics.append(diagnostic)
-        _progress(f"warning: {diagnostic['message']}")
+    _report_degenerate(normalized.metrics.degenerate_subpaths, diagnostics)
     files = {bundle.relative(destination): normalized.svg.encode("utf-8"), **debug}
     rendered = None
     if args.preview:
@@ -176,7 +169,115 @@ def _convert(args, diagnostics, published):
     if debug:
         published["debug"] = str(bundle.debug_directory)
     _progress(f"saved    {destination} (paths: {paths})")
-    return destination, paths
+    return destination, 1, paths
+
+
+def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, published):
+    """Prepare every selected role on one canvas. Publish each nonempty role and the combined SVG."""
+    _progress(f"loading  {settings.input}")
+    prepared = layer_prep.prepare_layers(settings, settings.role_requests, input_bytes=snapshots)
+    canvas = prepared.canvas
+    _report(prepared.silhouette.diagnostics, diagnostics)
+    _report_raster(prepared.silhouette)
+    _report_band(prepared.silhouette.expansion)
+    materials = {"silhouette": prepared.silhouette.material}
+    for role in prepared.roles[1:]:
+        candidate = getattr(prepared, role)
+        _report(candidate.diagnostics, diagnostics)
+        _report_band(candidate.expansion, role)
+        materials[role] = candidate.material
+    debug = artifacts.layered_debug_files(bundle, settings, prepared) if args.debug_bundle else {}
+    normalized = {}
+    upstream_args = None
+    for role, material in materials.items():
+        if not material.any():
+            continue  # prepare_layers reported role_empty. An empty silhouette already failed.
+        height, width = material.shape
+        _progress(f"tracing  {role} {width}x{height} px as {canvas.width_mm:g}x{canvas.height_mm:g} mm")
+        try:
+            traced = adapter.trace_layer(material, settings.vtracer, svg_limits=settings.svg_limits)
+            normalized[role] = svg_io.normalize_svg(traced.svg, canvas, limits=settings.svg_limits)
+        except (OSError, RuntimeError, ValueError) as exc:
+            message = f"VTracer {_version('vtracer')} layer {role}: {exc}"
+            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+        upstream_args = traced.upstream_args
+        _report_degenerate(normalized[role].metrics.degenerate_subpaths, diagnostics, role)
+    try:
+        combined = svg_io.combine_layers([(role, layer.svg) for role, layer in normalized.items()],
+                                         limits=settings.svg_limits)
+    except ValueError as exc:
+        raise RuntimeError(_retain_debug(bundle, debug, f"Combined SVG: {exc}", published)) from exc
+    layer_paths = {role: bundle.layer_path(role) for role in normalized}
+    layer_files = {role: bundle.relative(path) for role, path in layer_paths.items()}
+    files = {bundle.relative(bundle.svg): combined.encode("utf-8")}
+    files.update({layer_files[role]: layer.svg.encode("utf-8") for role, layer in normalized.items()})
+    files.update(debug)
+    rendered = None
+    if args.preview:
+        _progress(f"preview  {bundle.preview}")
+        try:
+            rendered = preview.compose_layers(prepared, {role: layer.svg for role, layer in normalized.items()},
+                                              snapshots[settings.input])
+        except (OSError, RuntimeError, ValueError) as exc:
+            message = f"Preview renderer resvg-py {_version('resvg-py')}: {exc}"
+            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+        files[bundle.relative(bundle.preview)] = rendered.png
+    manifest = artifacts.layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics,
+                                                combined=bundle.relative(bundle.svg), layer_files=layer_files,
+                                                upstream_args=upstream_args,
+                                                preview=rendered.provenance if rendered else None)
+    bundle.publish(files, manifest)
+    published["manifest"] = str(bundle.manifest)
+    published["layers"] = {role: str(path) for role, path in layer_paths.items()}
+    if rendered:
+        published["preview"] = str(bundle.preview)
+    if debug:
+        published["debug"] = str(bundle.debug_directory)
+    paths = sum(layer.metrics.paths for layer in normalized.values())
+    _progress(f"saved    {bundle.svg} (layers: {', '.join(normalized)}; paths: {paths})")
+    return bundle.svg, len(normalized), paths
+
+
+def _report(new, diagnostics):
+    diagnostics.extend(new)
+    for diagnostic in new:
+        _progress(f"warning: {diagnostic['message']}" if diagnostic["level"] == "warning" else diagnostic["message"])
+
+
+def _report_raster(prepared):
+    _progress(
+        f"raster   original {prepared.original_size[0]}x{prepared.original_size[1]}, "
+        f"oriented {prepared.oriented_size[0]}x{prepared.oriented_size[1]}, "
+        f"processed {prepared.processed_size[0]}x{prepared.processed_size[1]} px, "
+        f"scale {prepared.canvas.mm_per_px:g} mm/px"
+    )
+
+
+def _report_band(band, role=None):
+    if band is None:
+        return
+    _progress(
+        f"band     {role + ' ' if role else ''}requested {band.requested_width_mm:g} mm, "
+        f"nominal achieved {band.achieved_width_mm:g} mm, "
+        f"kernel {band.kernel_size_px} px, radius {band.radius_px} px, "
+        f"expansion {band.expansion_mm:g} mm per side"
+    )
+
+
+def _report_degenerate(degenerate, diagnostics, role=None):
+    if not degenerate:
+        return
+    diagnostic = {
+        "level": "warning", "code": "degenerate_subpaths", "subpaths": degenerate,
+        "message": (
+            f"{role + ': ' if role else ''}VTracer returned {degenerate} degenerate subpaths (points or lines) "
+            "inside valid paths. They are kept unchanged and add no area."
+        ),
+    }
+    if role:
+        diagnostic["role"] = role
+    diagnostics.append(diagnostic)
+    _progress(f"warning: {diagnostic['message']}")
 
 
 def _version(name):
@@ -191,13 +292,14 @@ def _retain_debug(bundle, debug, message, published):
     if not debug:
         return message
     try:
-        bundle.publish(debug)
+        bundle.publish(debug, prune=bundle.debug_members)
     except (OSError, RuntimeError, ValueError) as debug_exc:
         return message + f" Debug publication failed: {debug_exc}"
     published["debug"] = str(bundle.debug_directory)
+    names = [path.name for path in debug]
     return message + (
         f" Debug files retained at {bundle.debug_directory}. "
-        "Rerun with --overwrite to replace mask.png and recipe.json."
+        f"Rerun with --overwrite to replace {', '.join(names[:-1])} and {names[-1]}."
     )
 
 
@@ -223,9 +325,23 @@ def _settings(args, *, snapshots=None):
         "max_svg_bytes": args.max_svg_bytes,
         "max_paths": args.max_paths,
         "max_path_commands": args.max_path_commands,
+        "layers": args.layers,
+        **{role: _role_layer(args, role) for role in config.OPTIONAL_ROLES},
     }
     # No preset layer yet. S3.5 (STABL-mknlfcui) adds --preset and relief-0.4.
     return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
+
+
+def _role_layer(args, role):
+    """Explicit role flags as one role layer. A CLI map selects the map source. None when no flag is given."""
+    fields = {}
+    path = getattr(args, f"{role}_map")
+    if path is not None:
+        fields.update(source="map", path=path)
+    width = getattr(args, f"{role}_width_mm")
+    if width is not None:
+        fields["width_mm"] = width
+    return fields or None
 
 
 def _result(status, *, svg=None, layers=0, paths=0, diagnostics=(), published=None):

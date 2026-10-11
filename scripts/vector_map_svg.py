@@ -345,6 +345,55 @@ def _check_canvas(canvas):
             raise ValueError(f"The canvas scale must be uniform: {mm} mm is not {px} px x {canvas.mm_per_px} mm/px.")
 
 
+_GROUP_ID_START = frozenset("abcdefghijklmnopqrstuvwxyz")
+_GROUP_ID_CHARS = _GROUP_ID_START | frozenset("0123456789_-")
+_ROOT_SIZE = ("width", "height", "viewBox")
+
+
+def combine_layers(layers, *, limits=None):
+    """Place normalized layers in named groups under one root. STABL-qlagdbmh, spec 6.4.
+
+    layers is a sequence of (group id, normalized SVG text) in output order. Every root must state
+    the same width, height and viewBox. Layer content must stay in the accepted dialect. Children are
+    copied unchanged: paths, transforms, paint and order. Geometry is never adapted.
+    The combined file is for viewing and editing. The separate layers are the SCAD inputs.
+    """
+    limits = limits or SvgLimits()
+    ids = [layer_id for layer_id, _ in layers]
+    if not ids:
+        raise SvgInspectionError("A combined SVG needs at least one layer.")
+    for layer_id in ids:
+        if not layer_id or layer_id[0] not in _GROUP_ID_START or not set(layer_id) <= _GROUP_ID_CHARS:
+            raise SvgInspectionError(f"Layer id {layer_id!r} is not a supported group id.")
+        if ids.count(layer_id) > 1:
+            raise SvgInspectionError(f"Layer id {layer_id} must appear once.")
+    combined = ET.Element(_SVG, {"version": "1.1"})
+    common = None
+    for layer_id, text in layers:
+        root = _parse(text)
+        if root.tag != _SVG:
+            raise SvgInspectionError(f"Layer {layer_id} root must be svg in namespace {SVG_NS}.")
+        _check_element(root)
+        if root.get("version") not in (None, "1.1"):
+            raise SvgInspectionError(f"Layer {layer_id} root SVG version {root.get('version')!r} is not supported.")
+        size = {name: root.get(name) for name in _ROOT_SIZE}
+        if None in size.values():
+            raise SvgInspectionError(f"Layer {layer_id} root must state width, height and viewBox.")
+        if common is None:
+            common = size
+            combined.attrib.update(common)
+        elif size != common:
+            raise SvgInspectionError(f"Layer {layer_id} root {size} differs from the common root {common}.")
+        walk = _Walk(limits)
+        for child in root:
+            walk.visit(child, (0.0, 0.0), None)
+        for element in root.iter():
+            if element.get("id") in ids:
+                raise SvgInspectionError(f"Layer {layer_id} content uses id {element.get('id')!r}, a group id.")
+        ET.SubElement(combined, _G, {"id": layer_id}).extend(list(root))
+    return ET.tostring(combined, encoding="unicode", xml_declaration=True) + "\n"
+
+
 def size_svg(svg, canvas):
     """Compatibility name for normalize_svg with default limits. Returns the SVG text only."""
     return normalize_svg(svg, canvas).svg
