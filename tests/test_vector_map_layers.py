@@ -436,10 +436,41 @@ def test_omitted_canny_values_use_separate_role_defaults(tmp_path):
     for spec in defaults.values():
         assert None not in (spec.low_threshold, spec.high_threshold, spec.blur)
     source = rectangle_source(tmp_path)
-    requests = [RoleRequest("structure"), RoleRequest("detail", canny=CannySpec(blur=0))]
+    requests = [RoleRequest("structure"), RoleRequest("detail")]
     prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), requests)
     assert prepared.structure.canny == defaults["structure"]
-    assert prepared.detail.canny == CannySpec(defaults["detail"].low_threshold, defaults["detail"].high_threshold, 0)
+    assert prepared.detail.canny == CannySpec(defaults["detail"].low_threshold, defaults["detail"].high_threshold,
+                                              defaults["structure"].blur)
+
+
+def test_detail_omitted_blur_follows_an_explicit_structure_blur(tmp_path):
+    source = rectangle_source(tmp_path)
+    requests = [RoleRequest("structure", canny=CannySpec(blur=5)), RoleRequest("detail")]
+    prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), requests)
+    assert prepared.structure.canny.blur == 5
+    assert prepared.detail.canny.blur == 5
+
+
+def test_detail_blur_that_differs_from_structure_is_rejected(tmp_path):
+    source = rectangle_source(tmp_path)
+    requests = [RoleRequest("structure", canny=CannySpec(blur=5)), RoleRequest("detail", canny=CannySpec(blur=3))]
+    with pytest.raises(config.ConfigError, match="blur"):
+        layers.prepare_layers(settings(source, full_mask(tmp_path)), requests)
+
+
+def test_detail_keeps_its_own_blur_when_structure_is_a_map(tmp_path):
+    source = rectangle_source(tmp_path)
+    requests = [RoleRequest("structure", source="map", path=full_mask(tmp_path, name="structure.png")),
+                RoleRequest("detail", canny=CannySpec(blur=5))]
+    prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), requests)
+    assert prepared.detail.canny.blur == 5
+
+
+def test_detail_keeps_its_own_blur_without_a_structure_role(tmp_path):
+    source = rectangle_source(tmp_path)
+    prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)),
+                                     [RoleRequest("detail", canny=CannySpec(blur=5))])
+    assert prepared.detail.canny.blur == 5
 
 
 # --- Gap closing --------------------------------------------------------------

@@ -3,6 +3,8 @@
 Plan: docs/superpowers/plans/2026-10-09-vector-map-s3-2.md.
 S3.3 (STABL-qlagdbmh) builds role requests from the CLI and recipes in vector_map_config.
 Every candidate uses the S3.1 silhouette canvas. No stage derives another canvas.
+Detail keeps the structure Canny blur. A different blur moves outlines about one pixel, so
+structure removal leaves slivers.
 """
 
 import math
@@ -122,10 +124,25 @@ def _validate(requests):
 
 
 def check_requests(requests):
-    """Check role requests and their resolved Canny values before any input is read."""
-    for request in _validate(requests).values():
-        if request.source == "canny":
-            _resolve_canny(request)
+    """Check role requests before any input is read. Return the resolved Canny values per role."""
+    return _canny_specs(_validate(requests))
+
+
+def _canny_specs(by_role):
+    """Resolve each Canny role. Detail follows the structure blur."""
+    specs = {role: _resolve_canny(request) for role, request in by_role.items() if request.source == "canny"}
+    structure, detail = specs.get("structure"), specs.get("detail")
+    if structure is None or detail is None:
+        return specs
+    requested = (by_role["detail"].canny or CannySpec()).blur
+    if requested is None:
+        specs["detail"] = CannySpec(detail.low_threshold, detail.high_threshold, structure.blur)
+    elif requested != structure.blur:
+        raise ConfigError(
+            f"detail: Canny blur {requested} differs from the structure blur {structure.blur}. "
+            "Detail must use the structure blur. Omit blur to follow structure."
+        )
+    return specs
 
 
 def _resolve_canny(request):
@@ -239,7 +256,7 @@ def prepare_layers(settings, requests, *, input_bytes=None):
     if settings.input_kind != "image":
         raise ConfigError("Optional roles require image mode.")
     by_role = _validate(requests)
-    specs = {role: _resolve_canny(request) for role, request in by_role.items() if request.source == "canny"}
+    specs = _canny_specs(by_role)
     input_bytes = input_bytes if input_bytes is not None else {}
     silhouette = raster.prepare(settings, input_bytes=input_bytes)
     rgb = None

@@ -242,7 +242,29 @@ def test_detail_canny_keeps_omitted_blur_for_the_shared_default(tmp_path):
                              recipe={"detail": {"canny": {"low_threshold": 40, "high_threshold": 90}}})
     (request,) = settings.role_requests
     assert request.canny == layers.CannySpec(40, 90, None)
-    assert layers._resolve_canny(request).blur == layers.DEFAULT_CANNY["structure"].blur
+    assert layers.check_requests(settings.role_requests)["detail"].blur == layers.DEFAULT_CANNY["structure"].blur
+
+
+def test_recipe_detail_omitted_blur_follows_an_explicit_structure_blur(tmp_path):
+    settings = resolve_image(tmp_path, layers="silhouette,structure,detail",
+                             recipe={"structure": {"canny": {"blur": 5}}})
+    specs = layers.check_requests(settings.role_requests)
+    assert specs["structure"].blur == 5
+    assert specs["detail"].blur == 5
+    assert specs["detail"].low_threshold == layers.DEFAULT_CANNY["detail"].low_threshold
+
+
+def test_recipe_detail_blur_that_differs_from_structure_exits_two(tmp_path):
+    with pytest.raises(config.ConfigError, match="blur"):
+        resolve_image(tmp_path, layers="silhouette,structure,detail",
+                      recipe={"structure": {"canny": {"blur": 5}}, "detail": {"canny": {"blur": 3}}})
+
+
+def test_recipe_detail_blur_matching_structure_is_accepted(tmp_path):
+    settings = resolve_image(tmp_path, layers="silhouette,structure,detail",
+                             recipe={"structure": {"canny": {"blur": 5}}, "detail": {"canny": {"blur": 5}}})
+    specs = layers.check_requests(settings.role_requests)
+    assert specs["detail"].blur == 5
 
 
 @pytest.mark.parametrize("role", ["structure", "detail"])

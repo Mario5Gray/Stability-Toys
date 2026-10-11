@@ -113,8 +113,9 @@ Recipe `layers` is a JSON list of role names. Recipe `structure` and `detail` ob
 | `gap_close_mm` | Positive width of the widest gap to close. Recipe only, no CLI option |
 | `include_mask`, `exclude_mask` | Role constraint paths |
 
-An omitted Canny value takes the role default. An omitted detail `blur` stays 3, the same as structure.
+An omitted Canny value takes the role default. An omitted detail `blur` follows the structure blur.
 Detail must use the structure blur. A different blur moves outlines about 1 px and leaves slivers after structure removal.
+An explicit detail `blur` that differs from the structure blur exits 2. A map source imposes no blur rule.
 `gap_close_mm` is the widest gap to close, not a kernel width. The radius is `r = max(1, ceil(gap_px / 2))`.
 Row and column kernels are clamped to the canvas. The manifest records requested and achieved gap widths.
 Unknown fields, wrong types, booleans as numbers, and invalid thresholds or blur exit 2. Nonfinite or nonpositive lengths also exit 2.
