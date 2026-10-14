@@ -151,15 +151,41 @@ st-vector-map photo.png relief.svg --input-kind image --mask reviewed-mask.png -
 | `--backing-mm MM` | 0 | Rectangular backing thickness B. `0` omits the backing. Zero or positive. |
 | `--detail-mode raised\|engraved` | raised | Raised detail sits above the silhouette top. Engraved detail cuts into the silhouette. |
 | `--center`, `--no-center` | off | Center the whole assembly on the XY origin. |
+| `--preset NAME` | none | Fabrication preset that fills the values above. Needs an export. `relief-0.4` is the only preset. |
 
 Every length is a finite number of millimetres. Only backing may be zero. Nonpositive or nonfinite lengths exit 2.
 Booleans are not numbers, so `--backing-mm true` exits 2. Engraved detail requires `0 < D < S` when both are known.
 
-Recipe fields are `export_scad`, `center`, `detail_mode`, `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, and `detail_height_mm`.
+Recipe fields are `export_scad`, `center`, `detail_mode`, `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, `detail_height_mm`, `preset`, and `relief_recorded`.
 Explicit CLI values override recipe values. Relief fields stay outside the recipe `structure` and `detail` objects.
+`relief_recorded` is a replay-bundle field with no CLI flag. It requires `export_scad: false`.
+
+**Fabrication presets**
+
+A preset is a bundle of fabrication values. It is never implicit: without `--preset` or a recipe `preset`, every
+value comes from the flags, the recipe, or its own default. At most one preset exists today.
+
+| Preset | S | Structure width | H | Detail width | D | Backing |
+|---|---|---|---|---|---|---|
+| `relief-0.4` | 1.2 mm | 0.8 mm | 0.6 mm | 0.5 mm | 0.2 mm | 0.0 mm (off) |
+
+A preset supplies fabrication values only. It never selects roles, so `--layers` stays explicit. A preset without
+`--layers` exits 2. A preset also needs an effective export: `--preset` alone exits 2, and the S3.4
+`--no-export-scad` opt-out over a recipe export still validates the values and writes no source. A preset applies
+in image mode only, so mask and edge modes reject it.
+
+Preset values resolve in this order: built-in defaults, then the preset, then the recipe, then explicit CLI flags.
+So `--preset relief-0.4 --silhouette-thickness-mm 1.5` keeps 1.5 mm and the remaining preset values.
+A role value is dropped when its role is not selected, because the preset never decides selection. An explicit
+flag for an absent role still exits 2. A preset leaves every VTracer and Canny value untouched, and the fitting
+defaults come from S1.4, not the preset.
+
+The preset describes fabrication settings only. Its values do not guarantee suitability for a given 0.4 mm nozzle,
+extrusion width, material, or slicer configuration. Suitability needs separate evidence.
 
 Relief settings need an export. Without it they do nothing, so a supplied non-default value exits 2.
-The one exception is an explicit `--no-export-scad` over a recipe export request. That opt-out validates the heights and writes no SCAD.
+Two paths are exceptions. An explicit `--no-export-scad` over a recipe export request validates the heights and writes no SCAD.
+A recipe that carries `relief_recorded: true` records the values of such a run, and a replay of it publishes the same manifest without an export.
 Export requires a positive `silhouette_thickness_mm`. A published role requires a positive height. An empty optional role needs none.
 Every supplied value is still validated for an empty role.
 
@@ -199,7 +225,7 @@ A standalone run does not own or remove `<stem>.scad`.
 
 Every layered manifest states a top-level `relief` object with exactly `export_scad`, `center`, `backing_mm`,
 `silhouette_thickness_mm`, `structure_height_mm`, `detail_height_mm`, `detail_mode`, and `preset`.
-`preset` stays null until a later release fits a preset above the recipe. The other fields hold resolved values.
+`preset` names the selected preset, or null without one. The other fields hold resolved values.
 An explicit `--no-export-scad` keeps the validated heights and leaves `export_scad` false.
 A layer entry states its height and mode only with an export. Silhouette records S with mode `base`.
 Structure records H with mode `raised`. Detail records D with mode `raised` or `engraved`.
@@ -262,7 +288,16 @@ Replay recipe traces final prepared mask without repeating inversion, constraint
 A layered `--debug-bundle` adds `<stem>.debug/<role>.png` for each selected role and `<stem>.debug/recipe.json`.
 A layered run owns all three role PNG names. Overwrite removes unselected role PNGs. It does not own `mask.png`.
 The replay recipe uses `silhouette.png` as source and silhouette mask, and each role PNG as a map.
+Each role in the recipe records its resolved `width_mm` and `prepared: true`. A prepared role is used as it is,
+so a replay of a preset run never widens a mask twice. An exported run also carries the preset and the resolved
+relief values, so a replay publishes the same source.
 Replay traces the saved masks. It does not repeat Canny, constraints, gap closing, or widening.
+
+A run that recorded a relief value but wrote no source, which is the `--no-export-scad` opt-out path, records
+those values too, plus the recipe field `relief_recorded: true`. That field requires `export_scad: false`, and it
+admits the recorded preset and heights without an export. The replay then publishes the same manifest object and
+writes no source. A run that recorded no relief value beyond the defaults adds neither, so its recipe is unchanged.
+Replaying the opt-out bundle takes the same one command as any other replay.
 
 ```bash
 st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 --line-width-mm 0.8 --debug-bundle

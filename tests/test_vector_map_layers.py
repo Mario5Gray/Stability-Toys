@@ -596,3 +596,48 @@ def test_second_exclusion_removes_a_gap_bridge(tmp_path):
     prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), [request])
     assert not prepared.structure.material[:, 18:21].any()
     assert np.array_equal(prepared.structure.material, edge_map)
+
+
+# --- Prepared masks (S3.5, STABL-mknlfcui) ------------------------------------
+
+
+def test_a_prepared_role_requires_a_map_source(tmp_path):
+    source = rectangle_source(tmp_path)
+    with pytest.raises(config.ConfigError, match="prepared") as error:
+        layers.prepare_layers(settings(source, full_mask(tmp_path)),
+                              [RoleRequest("structure", prepared=True)])
+    assert "map" in str(error.value)
+
+
+def test_a_prepared_role_skips_expansion_and_records_none(tmp_path):
+    """The mask is already at its width, so a recorded width is provenance and not a second widening."""
+    source = rectangle_source(tmp_path)
+    line = np.zeros((32, 40), bool)
+    line[16, :] = True
+    map_path = binary(tmp_path, line, "map.png")
+    request = RoleRequest("structure", source="map", path=map_path, width_mm=3.0, prepared=True)
+    prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), [request])
+    assert np.array_equal(prepared.structure.material, line)
+    assert prepared.structure.expansion is None
+
+
+def test_a_prepared_role_emits_no_low_width_warning(tmp_path):
+    source = rectangle_source(tmp_path)
+    line = np.zeros((32, 40), bool)
+    line[16, :] = True
+    map_path = binary(tmp_path, line, "map.png")
+    request = RoleRequest("structure", source="map", path=map_path, width_mm=0.5, prepared=True)
+    prepared = layers.prepare_layers(settings(source, full_mask(tmp_path)), [request])
+    assert "requested_width_below_four_pixels" not in codes(prepared.structure.diagnostics)
+
+
+def test_a_prepared_role_still_clips_to_the_silhouette(tmp_path):
+    source = rectangle_source(tmp_path)
+    band = np.zeros((32, 40), bool)
+    band[2:30, 2:38] = True
+    mask = np.zeros((32, 40), np.uint8)
+    mask[10:22, 10:30] = 255
+    request = RoleRequest("structure", source="map", path=binary(tmp_path, band, "map.png"), prepared=True)
+    prepared = layers.prepare_layers(settings(source, save(tmp_path / "mask.png", mask, mode="L")), [request])
+    assert prepared.structure.material.any()
+    assert not prepared.structure.material[:10].any() and not prepared.structure.material[22:].any()
