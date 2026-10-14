@@ -104,6 +104,8 @@ def build_parser():
                         help="SCAD source: structure height above the silhouette. Required when structure is published.")
     parser.add_argument("--detail-height-mm", type=float, metavar="MM",
                         help="SCAD source: detail height, or engraving depth. Required when detail is published.")
+    parser.add_argument("--preset", metavar="NAME",
+                        help=f"Fabrication preset for the SCAD source. {', '.join(config.RELIEF_PRESETS)} is the only preset. Needs an export.")
     parser.add_argument("--preview", action="store_true",
                         help="Write STEM.preview.png: prepared mask, rendered vector, and source overlay. Needs resvg-py.")
     parser.add_argument("--debug-bundle", action="store_true", help="Save prepared mask and replay recipe in STEM.debug.")
@@ -359,10 +361,13 @@ def _settings(args, *, snapshots=None):
         "max_path_commands": args.max_path_commands,
         "layers": args.layers,
         **{role: _role_layer(args, role) for role in config.OPTIONAL_ROLES},
-        **{name: getattr(args, name) for name in ("export_scad", "center", "detail_mode", *config.RELIEF_NUMBERS)},
+        **{name: getattr(args, name) for name in ("export_scad", "center", "detail_mode", "preset", *config.RELIEF_NUMBERS)},
     }
-    # No preset layer yet. S3.5 (STABL-mknlfcui) adds --preset and relief-0.4.
-    return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
+    # The preset fills the layer between the defaults and the recipe. It never decides role selection,
+    # so its role values follow the selection the recipe and CLI layers choose.
+    preset = args.preset if args.preset is not None else recipe.get("preset")
+    return args.paths[-1], config.resolve(config.DEFAULTS, config.preset_layer(preset, recipe, cli),
+                                          recipe, cli)
 
 
 def _role_layer(args, role):

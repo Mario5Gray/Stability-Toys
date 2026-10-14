@@ -42,6 +42,7 @@ class RoleRequest:
     gap_close_mm: float | None = None
     include_mask: Path | None = None
     exclude_mask: Path | None = None
+    prepared: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +118,8 @@ def _validate(requests):
                 raise ConfigError(f"{role}: a map source rejects canny values.")
         elif request.path is not None:
             raise ConfigError(f"{role}: a canny source rejects a map path.")
+        if request.prepared and request.source != "map":
+            raise ConfigError(f"{role}: prepared requires a map source. A prepared mask is used as it is.")
         _check_length(role, "width_mm", request.width_mm)
         _check_length(role, "gap_close_mm", request.gap_close_mm)
         by_role[role] = request
@@ -216,7 +219,11 @@ def _map_material(path, silhouette, input_bytes, role):
 
 
 def _candidate(role, request, raw, silhouette, input_bytes):
-    """Constrain, close gaps, widen, constrain again, then clip to the silhouette."""
+    """Constrain, close gaps, widen, constrain again, then clip to the silhouette.
+
+    A prepared request reads a mask that already carries its width (S3.5, STABL-mknlfcui). It skips
+    the widening and records no expansion, so a replay of that mask traces the same band.
+    """
     diagnostics = []
     constraints = []
     for path in (request.include_mask, request.exclude_mask):
@@ -240,7 +247,7 @@ def _candidate(role, request, raw, silhouette, input_bytes):
                        f"({gap_closing.requested_gap_mm:g} mm requested).",
         })
     expansion = None
-    if request.width_mm is not None:
+    if request.width_mm is not None and not request.prepared:
         material, expansion = raster._expand(material, request.width_mm, scale)
         if request.width_mm / scale < 4:
             diagnostics.append({

@@ -872,7 +872,9 @@ def test_layered_debug_bundle_saves_each_selected_mask_and_a_replay_recipe(tmp_p
     recipe = json.loads((tmp_path / "out.debug/recipe.json").read_bytes())
     assert recipe["layers"] == ["silhouette", "structure", "detail"]
     assert (recipe["input"], recipe["mask"], recipe["input_kind"]) == ("silhouette.png", "silhouette.png", "image")
-    assert recipe["structure"] == {"source": "map", "path": "structure.png"}
+    # Each role records its resolved width and marks the mask prepared, so a replay never widens again (S3.5).
+    assert recipe["structure"] == {"source": "map", "path": "structure.png", "width_mm": 3.0, "prepared": True}
+    assert recipe["detail"] == {"source": "map", "path": "detail.png", "prepared": True}
 
 
 @pytest.mark.parametrize("extra", [

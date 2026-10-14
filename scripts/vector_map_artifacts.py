@@ -117,7 +117,7 @@ def layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagno
 
 
 def _relief(settings):
-    """The exact relief contract. preset stays null until S3.5 fits a preset above the recipe."""
+    """The exact relief contract. preset names the selected fabrication preset, or null."""
     return {
         "export_scad": settings.export_scad,
         "center": settings.center,
@@ -126,7 +126,7 @@ def _relief(settings):
         "structure_height_mm": settings.structure_height_mm,
         "detail_height_mm": settings.detail_height_mm,
         "detail_mode": settings.detail_mode,
-        "preset": None,
+        "preset": settings.preset,
     }
 
 
@@ -211,21 +211,45 @@ def debug_files(bundle, settings, prepared):
     }
 
 
+def _replay_relief(settings):
+    """Relief values a replay needs. A null value is absent, because a recipe number field has no null."""
+    relief = {
+        "preset": settings.preset, "export_scad": settings.export_scad, "center": settings.center,
+        "detail_mode": settings.detail_mode, "backing_mm": settings.backing_mm,
+        "silhouette_thickness_mm": settings.silhouette_thickness_mm,
+        "structure_height_mm": settings.structure_height_mm,
+        "detail_height_mm": settings.detail_height_mm,
+    }
+    return {name: value for name, value in relief.items() if value is not None}
+
+
 def layered_debug_files(bundle, settings, prepared):
     """Save each selected prepared mask and a layered replay recipe. STABL-qlagdbmh.
 
     The recipe replays the saved masks, not the original preparation: the silhouette PNG is the source
     and the silhouette mask, and each optional role reads its PNG as a map. No constraint, gap closing or
     widening runs again, so the replay traces the same masks. An empty role stays selected and empty.
+    Each role records its resolved width and prepared: true, because a preset width would otherwise reach
+    the replay and widen a mask that already carries that width (S3.5, STABL-mknlfcui).
     """
     materials = {"silhouette": prepared.silhouette.material}
     materials.update({role: getattr(prepared, role).material for role in prepared.roles[1:]})
+    requests = {request.role: request for request in settings.role_requests}
+    roles = {}
+    for role in prepared.roles[1:]:
+        role_recipe = {"source": "map", "path": f"{role}.png", "prepared": True}
+        width = requests[role].width_mm if role in requests else None
+        if width is not None:
+            role_recipe["width_mm"] = width
+        roles[role] = role_recipe
     recipe = {
         "schema_version": 1, "input": "silhouette.png", "input_kind": "image", "mask": "silhouette.png",
         "width_mm": prepared.canvas.width_mm, "invert": False, "alpha": False, "layers": list(prepared.roles),
-        **{role: {"source": "map", "path": f"{role}.png"} for role in prepared.roles[1:]},
+        **roles,
         "vtracer": dict(settings.vtracer), **asdict(settings.svg_limits),
     }
+    if settings.export_scad:
+        recipe.update(_replay_relief(settings))
     files = {bundle.relative(bundle.debug_directory / f"{role}.png"): _png(material)
              for role, material in materials.items()}
     files[bundle.relative(bundle.debug_directory / "recipe.json")] = json_bytes(recipe)

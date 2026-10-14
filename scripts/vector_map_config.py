@@ -59,6 +59,7 @@ _FIELD_KINDS = {
     "silhouette_thickness_mm": "number",
     "structure_height_mm": "number",
     "detail_height_mm": "number",
+    "preset": "str",
 }
 SVG_LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
 FIELDS = tuple(_FIELD_KINDS)
@@ -75,6 +76,15 @@ RELIEF_DEFAULTS = {
     "export_scad": False, "center": False, "detail_mode": "raised", "backing_mm": 0.0,
     "silhouette_thickness_mm": None, "structure_height_mm": None, "detail_height_mm": None,
 }
+# Fabrication presets (S3.5, STABL-mknlfcui). Spec 7. A preset fills the layer between the built-in
+# defaults and the recipe. It supplies fabrication values only: no export request, no centering, no
+# detail mode, and no VTracer or Canny values. S1.4 owns the fitting defaults.
+RELIEF_PRESETS = {
+    "relief-0.4": {
+        "silhouette_thickness_mm": 1.2, "structure_height_mm": 0.6, "detail_height_mm": 0.2,
+        "backing_mm": 0.0, "structure": {"width_mm": 0.8}, "detail": {"width_mm": 0.5},
+    },
+}
 # Role object field -> value kind. A role request takes these names.
 _ROLE_FIELD_KINDS = {
     "source": "str",
@@ -84,6 +94,7 @@ _ROLE_FIELD_KINDS = {
     "gap_close_mm": "number",
     "include_mask": "path",
     "exclude_mask": "path",
+    "prepared": "bool",
 }
 CANNY_FIELDS = ("low_threshold", "high_threshold", "blur")
 
@@ -124,6 +135,7 @@ class Settings:
     silhouette_thickness_mm: float | None = None
     structure_height_mm: float | None = None
     detail_height_mm: float | None = None
+    preset: str | None = None
 
     @property
     def silhouette_method(self):
@@ -268,29 +280,91 @@ def check_relief_length(name, value, *, positive=True):
     return float(value)
 
 
+def preset_values(name):
+    """Return one preset's fabrication values. An unknown name is an argument error."""
+    if name not in RELIEF_PRESETS:
+        raise ConfigError(f"Unknown preset {name!r}. The only preset is {', '.join(RELIEF_PRESETS)}.")
+    return {key: dict(value) if isinstance(value, dict) else value
+            for key, value in RELIEF_PRESETS[name].items()}
+
+
+def _later_selection(*later_layers):
+    """Return the role names the later layers select, or None. The last layer that names layers wins."""
+    value = None
+    for layer in later_layers:
+        if layer.get("layers") is not None:
+            value = layer["layers"]
+    if value is None:
+        return None
+    return tuple(value.split(",") if isinstance(value, str) else value)
+
+
+def preset_layer(name, *later_layers):
+    """Build the preset layer for one selected preset. None selects nothing.
+
+    The preset never decides role selection, so a role value survives only when the later layers
+    select that role. That covers a role object and the height of a role. The operator's own role
+    settings keep the selection rule in _role_requests().
+    """
+    if name is None:
+        return {}
+    values = preset_values(name)
+    selected = set(_later_selection(*later_layers) or ())
+    layer = {}
+    for key, value in values.items():
+        if key in OPTIONAL_ROLES:
+            if key in selected:
+                layer[key] = value
+        elif key not in HEIGHT_ROLES or HEIGHT_ROLES[key] in selected:
+            layer[key] = value
+    return layer
+
+
+def _preset_name(merged):
+    """Return the selected preset name, or None. An unknown name is an argument error."""
+    name = merged.get("preset")
+    if name is None:
+        return None
+    preset_values(name)
+    return name
+
+
+def _relief_off():
+    """The relief mapping of a run with no relief settings at all."""
+    return {
+        "export_scad": False, "center": False, "detail_mode": RELIEF_DEFAULTS["detail_mode"],
+        "backing_mm": 0.0, "silhouette_thickness_mm": None, "structure_height_mm": None,
+        "detail_height_mm": None, "preset": None,
+    }
+
+
 def _relief(layers, merged, selection, kind):
     """Check relief admission. Return the resolved relief values.
 
     Relief settings need input_kind image, explicit layers, and SCAD export. Without export they
     do nothing, so a supplied non-default value is an error. The one exception is an explicit
     export_scad false in a later layer, which suppresses an earlier export request. A role height
-    also needs its role in the selection, the same rule that admits role settings.
+    also needs its role in the selection, the same rule that admits role settings. A selected
+    preset needs an export too, because its values are fabrication values for the SCAD source.
     """
     supplied = {name for name in RELIEF_FIELDS if any(layer.get(name) is not None for layer in layers)}
+    preset = _preset_name(merged)
+    if preset is not None:
+        supplied.add("preset")
     if kind != "image":
         if supplied:
             raise ConfigError(
                 "Relief settings and SCAD export require input_kind image. "
                 f"Given: {', '.join(sorted(supplied))}."
             )
-        return dict(RELIEF_DEFAULTS)
+        return _relief_off()
     if selection is None:
         if supplied:
             raise ConfigError(
                 "Relief settings and SCAD export require explicit layers with silhouette. "
                 "Add --layers or the recipe field layers."
             )
-        return dict(RELIEF_DEFAULTS)
+        return _relief_off()
     for name, role in HEIGHT_ROLES.items():
         if merged.get(name) is not None and role not in selection:
             raise ConfigError(
@@ -299,6 +373,10 @@ def _relief(layers, merged, selection, kind):
             )
     export_scad = bool(merged.get("export_scad", False))
     suppressed = export_scad is False and any(layer.get("export_scad") is True for layer in layers)
+    if preset is not None and not export_scad and not suppressed:
+        raise ConfigError(
+            f"The {preset} preset needs an export. Add --export-scad, or the recipe field export_scad."
+        )
     dormant = sorted(name for name in RELIEF_FIELDS
                      if merged.get(name, RELIEF_DEFAULTS[name]) != RELIEF_DEFAULTS[name])
     if not export_scad and not suppressed and dormant:
@@ -325,6 +403,7 @@ def _relief(layers, merged, selection, kind):
         "export_scad": export_scad, "center": bool(merged.get("center", False)), "detail_mode": mode,
         "backing_mm": values["backing_mm"] or 0.0, "silhouette_thickness_mm": thickness,
         "structure_height_mm": values["structure_height_mm"], "detail_height_mm": detail,
+        "preset": preset,
     }
 
 def resolve(*layers):
