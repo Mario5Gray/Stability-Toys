@@ -4,6 +4,27 @@ import cv2
 import numpy as np
 
 
+def separate_solids(material):
+    """Warn about unbacked islands. S3.4, STABL-gorlibrt. Each island becomes one solid."""
+    count = _component_count(material)
+    if count < 2:
+        return ()
+    return ({
+        "level": "warning", "code": "multiple_solids", "components": count,
+        "message": (
+            f"The prepared silhouette has {count} disconnected components and no backing. "
+            "The relief becomes that many separate solids, an approximation until S3.6 mesh "
+            "validation. Add --backing-mm to join them."
+        ),
+    },)
+
+
+def _component_count(material):
+    """Count raster-connected foreground islands. Label 0 is the background."""
+    count, _ = cv2.connectedComponents(material.astype(np.uint8), connectivity=8)
+    return int(count) - 1
+
+
 def feature_diagnostics(material):
     """Warn about possible thin material and gaps without changing input pixels."""
     diagnostics = []

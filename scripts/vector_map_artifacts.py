@@ -66,17 +66,19 @@ def manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *
 
 def layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagnostics, *, combined, layer_files,
                            upstream_args=None, preview=None):
-    """Describe a layered bundle. STABL-qlagdbmh, spec 8.
+    """Describe a layered bundle. STABL-qlagdbmh, spec 8. S3.4 adds the relief section.
 
     combined and layer_files are bundle-relative paths of the combined SVG and of each published layer.
     Every selected role has a layer entry. An empty optional role has svg null and no artifact.
-    Layer heights and modes are S3.4 values, so they are null here.
+    A relief value is recorded whenever it was supplied and validated. A per-layer height and mode
+    appear only with an export, because an export is what publishes the geometry.
     """
     layers = []
     for role in prepared.roles:
         layer = normalized.get(role)
+        height, mode = _relief_layer(settings, role) if layer else (None, None)
         layers.append({
-            "id": role, "height_mm": None, "mode": None,
+            "id": role, "height_mm": height, "mode": mode,
             "svg": layer_files[role].as_posix() if layer else None,
             "counts": asdict(layer.metrics) if layer else None,
         })
@@ -106,11 +108,37 @@ def layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagno
         **common,
         "roles": roles,
         "layers": layers,
+        "relief": _relief(settings),
         "artifacts": _artifacts(files),
         "counts": counts,
         "warnings": diagnostics,
         "preview": preview,
     })
+
+
+def _relief(settings):
+    """The exact relief contract. preset stays null until S3.5 fits a preset above the recipe."""
+    return {
+        "export_scad": settings.export_scad,
+        "center": settings.center,
+        "backing_mm": settings.backing_mm,
+        "silhouette_thickness_mm": settings.silhouette_thickness_mm,
+        "structure_height_mm": settings.structure_height_mm,
+        "detail_height_mm": settings.detail_height_mm,
+        "detail_mode": settings.detail_mode,
+        "preset": None,
+    }
+
+
+def _relief_layer(settings, role):
+    """Return the published relief height and mode of one role. No export publishes no geometry."""
+    if not settings.export_scad:
+        return None, None
+    return {
+        "silhouette": (settings.silhouette_thickness_mm, "base"),
+        "structure": (settings.structure_height_mm, "raised"),
+        "detail": (settings.detail_height_mm, settings.detail_mode),
+    }[role]
 
 
 def _path(path):
@@ -211,6 +239,7 @@ class Bundle:
         self.svg = Path(destination)
         self.manifest = self.svg.with_suffix(".vector.json")
         self.preview = self.svg.with_suffix(".preview.png")
+        self.scad = self.svg.with_suffix(".scad")
         self.debug_directory = self.svg.with_suffix(".debug")
         self.layer_directory = self.svg.with_suffix(".layers")
         self.debug = debug
@@ -219,8 +248,9 @@ class Bundle:
         self.inputs = tuple(inputs)
         self.members = [self.svg, self.manifest]
         if layered:
-            # A layered run owns every fixed role name, selected or not.
+            # A layered run owns every fixed role name, selected or not, and the SCAD source.
             self.members.extend(self.layer_path(role) for role in LAYER_ROLES)
+            self.members.append(self.scad)
         if preview:
             self.members.append(self.preview)
         # A layered debug bundle owns every fixed role PNG name, selected or not.

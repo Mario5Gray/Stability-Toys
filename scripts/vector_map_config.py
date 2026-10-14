@@ -52,11 +52,29 @@ _FIELD_KINDS = {
     "layers": "layers",
     "structure": "role",
     "detail": "role",
+    "export_scad": "bool",
+    "center": "bool",
+    "detail_mode": "str",
+    "backing_mm": "number",
+    "silhouette_thickness_mm": "number",
+    "structure_height_mm": "number",
+    "detail_height_mm": "number",
 }
 SVG_LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
 FIELDS = tuple(_FIELD_KINDS)
 LAYER_ROLES = ("silhouette", "structure", "detail")
 OPTIONAL_ROLES = LAYER_ROLES[1:]
+DETAIL_MODES = ("raised", "engraved")
+# Relief settings (S3.4, STABL-gorlibrt). They describe the SCAD source, never the SVG.
+RELIEF_FIELDS = ("export_scad", "center", "detail_mode", "backing_mm",
+                 "silhouette_thickness_mm", "structure_height_mm", "detail_height_mm")
+RELIEF_NUMBERS = ("backing_mm", "silhouette_thickness_mm", "structure_height_mm", "detail_height_mm")
+# A role height needs its role in the selection. The other relief numbers apply to silhouette alone.
+HEIGHT_ROLES = {"structure_height_mm": "structure", "detail_height_mm": "detail"}
+RELIEF_DEFAULTS = {
+    "export_scad": False, "center": False, "detail_mode": "raised", "backing_mm": 0.0,
+    "silhouette_thickness_mm": None, "structure_height_mm": None, "detail_height_mm": None,
+}
 # Role object field -> value kind. A role request takes these names.
 _ROLE_FIELD_KINDS = {
     "source": "str",
@@ -99,6 +117,13 @@ class Settings:
     threshold: int | None = None
     layers: tuple[str, ...] | None = None
     role_requests: tuple = ()
+    export_scad: bool = False
+    center: bool = False
+    detail_mode: str = "raised"
+    backing_mm: float = 0.0
+    silhouette_thickness_mm: float | None = None
+    structure_height_mm: float | None = None
+    detail_height_mm: float | None = None
 
     @property
     def silhouette_method(self):
@@ -234,6 +259,74 @@ def _check_threshold(value):
         raise ConfigError(f"threshold must be an integer from 0 to 255. Got {value!r}.")
 
 
+def check_relief_length(name, value, *, positive=True):
+    """Check one relief length in millimetres. Backing may be zero. The rest must be positive."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ConfigError(f"{name} must be a finite number of millimetres. Got {value!r}.")
+    if value < 0 or (positive and value == 0):
+        raise ConfigError(f"{name} must be {'positive' if positive else 'zero or positive'}. Got {value!r}.")
+    return float(value)
+
+
+def _relief(layers, merged, selection, kind):
+    """Check relief admission. Return the resolved relief values.
+
+    Relief settings need input_kind image, explicit layers, and SCAD export. Without export they
+    do nothing, so a supplied non-default value is an error. The one exception is an explicit
+    export_scad false in a later layer, which suppresses an earlier export request. A role height
+    also needs its role in the selection, the same rule that admits role settings.
+    """
+    supplied = {name for name in RELIEF_FIELDS if any(layer.get(name) is not None for layer in layers)}
+    if kind != "image":
+        if supplied:
+            raise ConfigError(
+                "Relief settings and SCAD export require input_kind image. "
+                f"Given: {', '.join(sorted(supplied))}."
+            )
+        return dict(RELIEF_DEFAULTS)
+    if selection is None:
+        if supplied:
+            raise ConfigError(
+                "Relief settings and SCAD export require explicit layers with silhouette. "
+                "Add --layers or the recipe field layers."
+            )
+        return dict(RELIEF_DEFAULTS)
+    for name, role in HEIGHT_ROLES.items():
+        if merged.get(name) is not None and role not in selection:
+            raise ConfigError(
+                f"{name} was given, but {role} is not selected. "
+                f"Add {role} to --layers or the recipe field layers."
+            )
+    export_scad = bool(merged.get("export_scad", False))
+    suppressed = export_scad is False and any(layer.get("export_scad") is True for layer in layers)
+    dormant = sorted(name for name in RELIEF_FIELDS
+                     if merged.get(name, RELIEF_DEFAULTS[name]) != RELIEF_DEFAULTS[name])
+    if not export_scad and not suppressed and dormant:
+        raise ConfigError(
+            f"SCAD export is off, so these relief settings do nothing: {', '.join(dormant)}. "
+            "Add --export-scad, or remove them."
+        )
+    mode = merged.get("detail_mode", RELIEF_DEFAULTS["detail_mode"])
+    if mode not in DETAIL_MODES:
+        raise ConfigError(f"detail_mode must be one of {', '.join(DETAIL_MODES)}. Got {mode!r}.")
+    values = {name: None if merged.get(name) is None
+              else check_relief_length(name, merged[name], positive=name != "backing_mm")
+              for name in RELIEF_NUMBERS}
+    thickness = values["silhouette_thickness_mm"]
+    if export_scad and thickness is None:
+        raise ConfigError("SCAD export requires a positive silhouette_thickness_mm. Add --silhouette-thickness-mm.")
+    detail = values["detail_height_mm"]
+    if mode == "engraved" and detail is not None and thickness is not None and not 0 < detail < thickness:
+        raise ConfigError(
+            f"Engraved detail height {detail:g} mm must be above 0 and below the silhouette "
+            f"thickness {thickness:g} mm. Reduce detail_height_mm."
+        )
+    return {
+        "export_scad": export_scad, "center": bool(merged.get("center", False)), "detail_mode": mode,
+        "backing_mm": values["backing_mm"] or 0.0, "silhouette_thickness_mm": thickness,
+        "structure_height_mm": values["structure_height_mm"], "detail_height_mm": detail,
+    }
+
 def resolve(*layers):
     """Merge the layers and check the merged values. Return frozen Settings."""
     merged = merge(layers)
@@ -290,6 +383,7 @@ def resolve(*layers):
         svg_limits = SvgLimits(**{name: merged.get(name, getattr(defaults, name)) for name in SVG_LIMITS})
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+    relief = _relief(layers, merged, selection, kind)
     return Settings(
         input=Path(merged["input"]),
         input_kind=kind,
@@ -307,6 +401,7 @@ def resolve(*layers):
         threshold=merged.get("threshold"),
         layers=selection,
         role_requests=role_requests,
+        **relief,
     )
 
 
