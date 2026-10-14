@@ -645,7 +645,7 @@ def test_layer_path_that_is_not_a_directory_is_refused(tmp_path):
 @pytest.mark.parametrize("role", ["source", "mask", "structure-map", "detail-map", "structure-include-mask",
                                   "detail-exclude-mask"])
 @pytest.mark.parametrize("kind", ["direct", "symlink", "hardlink"])
-@pytest.mark.parametrize("name", ["out.svg", *LAYER_NAMES])
+@pytest.mark.parametrize("name", ["out.svg", "out.scad", *LAYER_NAMES])
 def test_each_layered_output_refuses_input_aliases(tmp_path, role, kind, name):
     path = tmp_path / name
     path.parent.mkdir(exist_ok=True)
@@ -1012,3 +1012,116 @@ def test_layered_renderer_failure_retains_debug(tmp_path, capsys, monkeypatch):
     assert result["artifacts"] == {"svg": None, "debug": str(tmp_path / "out.debug")}
     assert not (tmp_path / "out.preview.png").exists()
     assert not (tmp_path / "out.vector.json").exists()
+
+
+# --- S3.4 SCAD ownership ------------------------------------------------------
+
+
+SCAD_NAME = "out.scad"
+EXPORT = ("--export-scad", "--silhouette-thickness-mm", "2", "--structure-height-mm", "1",
+          "--detail-height-mm", "0.5")
+
+
+def test_layered_preflight_refuses_an_existing_scad(tmp_path):
+    (tmp_path / SCAD_NAME).write_bytes(b"old")
+    with pytest.raises(config.ConfigError, match="--overwrite"):
+        bundle_at(tmp_path, layered=True).check()
+    assert (tmp_path / SCAD_NAME).read_bytes() == b"old"
+
+
+def test_scad_collision_is_refused_before_prepare(tmp_path, capsys, monkeypatch):
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    (tmp_path / SCAD_NAME).write_bytes(b"old")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Preparation ran before SCAD collision refusal")
+
+    monkeypatch.setattr(vector_map.layer_prep, "prepare_layers", forbidden)
+    code, result, _ = layered_cli(capsys, tmp_path, scene)
+    assert code == 2
+    assert SCAD_NAME in result["diagnostics"][0]["message"]
+    assert (tmp_path / SCAD_NAME).read_bytes() == b"old"
+
+
+def test_standalone_run_does_not_own_the_layered_scad(tmp_path, capsys):
+    import vector_map
+
+    (tmp_path / SCAD_NAME).write_bytes(b"keep me")
+    code = vector_map.main([str(FIXTURE), str(tmp_path / "out.svg"), "--input-kind", "mask",
+                            "--width-mm", "100", "--json"])
+    capsys.readouterr()
+    assert code == 0
+    assert (tmp_path / SCAD_NAME).read_bytes() == b"keep me"
+
+
+def test_scad_replacement_failure_removes_the_completion_marker(tmp_path, monkeypatch):
+    bundle = bundle_at(tmp_path, layered=True, overwrite=True)
+    (tmp_path / "out.layers").mkdir()
+    manifest = tmp_path / "out.vector.json"
+    manifest.write_bytes(b"old completion")
+    replace = os.replace
+
+    def fail_replace(source, target):
+        if Path(target).name == SCAD_NAME:
+            raise OSError("injected scad replacement failure")
+        return replace(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_replace)
+    with pytest.raises(OSError, match="injected scad"):
+        bundle.publish({Path("out.svg"): b"svg", Path(SCAD_NAME): b"source"}, b"new completion")
+    assert not manifest.exists()
+    assert not list(tmp_path.glob(".*.stage-*"))
+
+
+def test_overwrite_removes_a_stale_scad_when_export_is_off(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    code, _, error = layered_cli(capsys, tmp_path, scene, *EXPORT)
+    assert code == 0, error
+    assert (tmp_path / SCAD_NAME).exists()
+    code, result, error = layered_cli(capsys, tmp_path, scene, "--overwrite")
+    assert code == 0, error
+    assert not (tmp_path / SCAD_NAME).exists()
+    assert "scad" not in result["artifacts"]
+    assert SCAD_NAME not in {item["path"] for item in verify_manifest(tmp_path / "out.vector.json")["artifacts"]}
+
+
+def test_stale_scad_removal_follows_invalidation_and_precedes_completion(tmp_path, monkeypatch):
+    bundle = bundle_at(tmp_path, layered=True, overwrite=True)
+    (tmp_path / "out.layers").mkdir()
+    manifest = tmp_path / "out.vector.json"
+    stale = tmp_path / SCAD_NAME
+    stale.write_bytes(b"old source")
+    manifest.write_bytes(b"old completion")
+    events = []
+    unlink, replace = Path.unlink, os.replace
+
+    def observe_unlink(path, *args, **kwargs):
+        if path in (manifest, stale):
+            events.append(("unlink", path.name, manifest.exists()))
+        return unlink(path, *args, **kwargs)
+
+    def observe_replace(source, target):
+        events.append(("replace", Path(target).name, stale.exists()))
+        return replace(source, target)
+
+    monkeypatch.setattr(Path, "unlink", observe_unlink)
+    monkeypatch.setattr(os, "replace", observe_replace)
+    bundle.publish({Path("out.svg"): b"svg", Path("out.layers/silhouette.svg"): b"silhouette"}, b"completion")
+    assert events[0] == ("unlink", "out.vector.json", True)
+    assert ("unlink", SCAD_NAME, False) in events
+    assert events[-1] == ("replace", "out.vector.json", False)
+    assert not stale.exists()
+    assert manifest.read_bytes() == b"completion"
+
+
+def test_exported_scad_repeats_bytes(tmp_path, capsys):
+    scene = layered_scene(tmp_path)
+    snapshots = []
+    for index in range(2):
+        code, _, error = layered_cli(capsys, tmp_path, scene, *EXPORT, *(["--overwrite"] if index else []))
+        assert code == 0, error
+        snapshots.append((tmp_path / SCAD_NAME).read_bytes())
+    assert snapshots[0] == snapshots[1]
+    assert b'import("out.layers/silhouette.svg", center=false);' in snapshots[0]

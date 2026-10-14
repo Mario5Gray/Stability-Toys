@@ -130,6 +130,76 @@ An empty silhouette exits 1.
 `--json` success adds `artifacts.layers`. It maps each role to the path of a file from this run only.
 `counts.layers` counts published layers. `counts.paths` sums their paths.
 
+**SCAD source export**
+
+`--export-scad` writes `<stem>.scad` beside `<stem>.svg`. Source generation never starts OpenSCAD.
+Export requires `--input-kind image` and explicit `--layers` with `silhouette`. `--layers silhouette` alone is valid.
+A default image run without `--layers` exits 2. Mask and edge modes reject export and relief settings with exit 2.
+
+```bash
+st-vector-map photo.png relief.svg --input-kind image --mask reviewed-mask.png --width-mm 100 \
+  --layers silhouette,structure,detail --structure-map structure.png --detail-map detail.png \
+  --export-scad --silhouette-thickness-mm 2 --structure-height-mm 1 --detail-height-mm 0.5 --backing-mm 1
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--export-scad`, `--no-export-scad` | off | Write `<stem>.scad`. `--no-export-scad` overrides a recipe export request. |
+| `--silhouette-thickness-mm MM` | none | Silhouette thickness S. Required for export. |
+| `--structure-height-mm MM` | none | Structure height H above the silhouette. Required when structure is published. |
+| `--detail-height-mm MM` | none | Detail height D above the top, or the engraving depth below it. Required when detail is published. |
+| `--backing-mm MM` | 0 | Rectangular backing thickness B. `0` omits the backing. Zero or positive. |
+| `--detail-mode raised\|engraved` | raised | Raised detail sits above the silhouette top. Engraved detail cuts into the silhouette. |
+| `--center`, `--no-center` | off | Center the whole assembly on the XY origin. |
+
+Every length is a finite number of millimetres. Only backing may be zero. Nonpositive or nonfinite lengths exit 2.
+Booleans are not numbers, so `--backing-mm true` exits 2. Engraved detail requires `0 < D < S` when both are known.
+
+Recipe fields are `export_scad`, `center`, `detail_mode`, `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, and `detail_height_mm`.
+Explicit CLI values override recipe values. Relief fields stay outside the recipe `structure` and `detail` objects.
+
+Relief settings need an export. Without it they do nothing, so a supplied non-default value exits 2.
+The one exception is an explicit `--no-export-scad` over a recipe export request. That opt-out validates the heights and writes no SCAD.
+Export requires a positive `silhouette_thickness_mm`. A published role requires a positive height. An empty optional role needs none.
+Every supplied value is still validated for an empty role.
+
+The source imports `<stem>.layers/<role>.svg` for each published role with `center=false`.
+It never imports the combined grouped SVG. An unpublished role gets no import and no solid.
+OpenSCAD resolves a relative import beside the source file, not in the working directory.
+A centered export applies one outer `translate` to the whole assembly. Each import stays uncentered.
+Import strings are quoted, so a stem with quotes, backslashes, or non-ASCII characters stays valid.
+The SCAD source uses the same canvas millimetres as the SVGs.
+
+Nominal Z intervals, with backing B, silhouette S, structure H, and detail D:
+
+| Element | Z interval |
+|---|---|
+| Backing, if B > 0 | `[0, B]` |
+| Silhouette | `[B, B + S]` |
+| Raised structure | `[B + S, B + S + H]` |
+| Raised detail | `[B + S, B + S + D]` |
+| Engraving removal | `[B + S - D, B + S]` |
+
+A bounded overlap of 0.01 mm joins solids at support planes. Z never goes below zero and top heights stay exact.
+Structure and detail are intersected with the silhouette in 2D. Detail is then reduced by structure.
+Engraving subtracts detail from the silhouette only, so structure ridges stay uncut. The floor stays at `B + S - D`.
+
+The backing spans the full canvas and joins separate islands.
+Without a backing, two or more raster-connected silhouette components give a `multiple_solids` warning.
+That warning states the solid count and names the approximation. It waits for S3.6 mesh validation. No bridges are added.
+
+A layered run owns `<stem>.scad`, with or without export. Without `--overwrite`, an existing owned SCAD file exits 2.
+With `--overwrite` and export off, publication removes a stale SCAD after invalidating the old manifest.
+A standalone run does not own or remove `<stem>.scad`.
+`--json` success with export adds `artifacts.scad`, and the manifest hashes the same bytes. Without export both are absent.
+
+Every layered manifest states a top-level `relief` object with exactly `export_scad`, `center`, `backing_mm`,
+`silhouette_thickness_mm`, `structure_height_mm`, `detail_height_mm`, `detail_mode`, and `preset`.
+`preset` stays null until a later release fits a preset above the recipe. The other fields hold resolved values.
+An explicit `--no-export-scad` keeps the validated heights and leaves `export_scad` false.
+A layer entry states its height and mode only with an export. Silhouette records S with mode `base`.
+Structure records H with mode `raised`. Detail records D with mode `raised` or `engraved`.
+
 `--max-res PX` limits longest processing side without upscaling.
 Binary masks use nearest-neighbour resize. Shorter side rounds half upward, with minimum one pixel.
 Selected physical dimension stays exact. Other dimension follows processed aspect ratio with one uniform scale.
@@ -168,13 +238,15 @@ Publication stages files on destination filesystem, invalidates old manifest, re
 Several file publications do not form an atomic transaction. Unrelated files remain unchanged.
 If staging cleanup fails after manifest publication, publisher removes new manifest before reporting failure.
 
-A layered run owns all three `<stem>.layers/<role>.svg` names, selected or not. Without `--overwrite`, any existing name exits 2.
+A layered run owns all three `<stem>.layers/<role>.svg` names and `<stem>.scad`, selected or not.
+Without `--overwrite`, any existing owned name exits 2.
 `<stem>.layers` must be a directory. A symlink fails.
 With `--overwrite`, publication invalidates the old manifest and replaces files. Then it removes owned files that this run did not publish.
 The new manifest publishes last. Unrelated files and the `.layers` directory remain.
-A later standalone run does not own `.layers/`, so an old layer directory can remain.
+A later standalone run does not own `.layers/` or the SCAD source, so both can remain.
 The current manifest identifies the current bundle. Use only files that it lists with matching hashes.
-A layered manifest lists every selected role under `layers` with `id`, `height_mm: null`, `mode: null`, `svg`, and `counts`.
+A layered manifest lists every selected role under `layers` with `id`, `svg`, `counts`, and `height_mm` with `mode`.
+Without an export the height and the mode are null. With an export they hold the resolved relief values.
 `roles` records each optional role request with resolved Canny values, widths, expansion, and gap closing.
 `counts` sums the layer counts and adds `layers` and `combined_bytes`. Standalone manifests keep the two-field layer entry.
 

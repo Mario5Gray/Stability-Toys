@@ -6,6 +6,8 @@ live in sibling modules. S2.3 (STABL-vjpnctjh) adds oriented raster preparation 
 S3.1 (STABL-memwrtos) adds image mode with one silhouette method: --mask, --alpha, or --threshold.
 S3.3 (STABL-qlagdbmh) adds layered image mode: --layers publishes one normalized SVG per nonempty role
 and a combined SVG with named groups. The separate layer SVGs are the SCAD inputs.
+S3.4 (STABL-gorlibrt) adds --export-scad: a layered run also writes editable STEM.scad source.
+Source generation never starts OpenSCAD.
 
 Exit codes: 0 converted, 2 invalid arguments or configuration, 1 processing or I/O failure.
 Progress and diagnostics go to stderr. --json prints one result object on stdout.
@@ -19,10 +21,12 @@ from pathlib import Path
 import vector_map_config as config
 import vector_map_layers as layer_prep
 import vector_map_raster as raster
+import vector_map_scad as scad
 import vector_map_svg as svg_io
 import vector_map_vtracer as adapter
 import vector_map_artifacts as artifacts
 import vector_map_preview as preview
+from vector_map_diagnostics import separate_solids
 
 RESULT_SCHEMA_VERSION = 1
 
@@ -85,6 +89,21 @@ def build_parser():
     parser.add_argument("--max-paths", type=int, metavar="N", help="Most path elements per layer. Default 10000.")
     parser.add_argument("--max-path-commands", type=int, metavar="N",
                         help="Most M, L and Z path commands per layer. Default 1000000.")
+    parser.add_argument("--export-scad", action=argparse.BooleanOptionalAction,
+                        help="Layered image mode: write STEM.scad beside STEM.svg. Needs explicit --layers "
+                             "with silhouette. --no-export-scad overrides a recipe export request.")
+    parser.add_argument("--center", action=argparse.BooleanOptionalAction,
+                        help="SCAD source: center the assembly on the XY origin.")
+    parser.add_argument("--detail-mode", choices=config.DETAIL_MODES, metavar="MODE",
+                        help="SCAD source: raised detail sits on the silhouette. Engraved detail cuts into it.")
+    parser.add_argument("--backing-mm", type=float, metavar="MM",
+                        help="SCAD source: rectangular backing thickness under everything. 0 omits it.")
+    parser.add_argument("--silhouette-thickness-mm", type=float, metavar="MM",
+                        help="SCAD source: silhouette thickness. Required for export.")
+    parser.add_argument("--structure-height-mm", type=float, metavar="MM",
+                        help="SCAD source: structure height above the silhouette. Required when structure is published.")
+    parser.add_argument("--detail-height-mm", type=float, metavar="MM",
+                        help="SCAD source: detail height, or engraving depth. Required when detail is published.")
     parser.add_argument("--preview", action="store_true",
                         help="Write STEM.preview.png: prepared mask, rendered vector, and source overlay. Needs resvg-py.")
     parser.add_argument("--debug-bundle", action="store_true", help="Save prepared mask and replay recipe in STEM.debug.")
@@ -186,6 +205,8 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
         _report(candidate.diagnostics, diagnostics)
         _report_band(candidate.expansion, role)
         materials[role] = candidate.material
+    if settings.export_scad and not settings.backing_mm:
+        _report(separate_solids(materials["silhouette"]), diagnostics)
     debug = artifacts.layered_debug_files(bundle, settings, prepared) if args.debug_bundle else {}
     normalized = {}
     upstream_args = None
@@ -212,6 +233,15 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
     files = {bundle.relative(bundle.svg): combined.encode("utf-8")}
     files.update({layer_files[role]: layer.svg.encode("utf-8") for role, layer in normalized.items()})
     files.update(debug)
+    if settings.export_scad:
+        _progress(f"scad     {bundle.scad}")
+        files[bundle.relative(bundle.scad)] = scad.build_scad(
+            canvas, {role: layer_files[role].as_posix() for role in normalized},
+            center=settings.center, detail_mode=settings.detail_mode, backing_mm=settings.backing_mm,
+            silhouette_thickness_mm=settings.silhouette_thickness_mm,
+            structure_height_mm=settings.structure_height_mm,
+            detail_height_mm=settings.detail_height_mm,
+        ).encode("utf-8")
     rendered = None
     if args.preview:
         _progress(f"preview  {bundle.preview}")
@@ -229,6 +259,8 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
     bundle.publish(files, manifest)
     published["manifest"] = str(bundle.manifest)
     published["layers"] = {role: str(path) for role, path in layer_paths.items()}
+    if settings.export_scad:
+        published["scad"] = str(bundle.scad)
     if rendered:
         published["preview"] = str(bundle.preview)
     if debug:
@@ -327,6 +359,7 @@ def _settings(args, *, snapshots=None):
         "max_path_commands": args.max_path_commands,
         "layers": args.layers,
         **{role: _role_layer(args, role) for role in config.OPTIONAL_ROLES},
+        **{name: getattr(args, name) for name in ("export_scad", "center", "detail_mode", *config.RELIEF_NUMBERS)},
     }
     # No preset layer yet. S3.5 (STABL-mknlfcui) adds --preset and relief-0.4.
     return args.paths[-1], config.resolve(config.DEFAULTS, {}, recipe, cli)
