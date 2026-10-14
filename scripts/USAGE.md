@@ -163,6 +163,10 @@ The one exception is an explicit `--no-export-scad` over a recipe export request
 Export requires a positive `silhouette_thickness_mm`. A published role requires a positive height. An empty optional role needs none.
 Every supplied value is still validated for an empty role.
 
+A role height needs its role in the selection. `--structure-height-mm` needs structure and `--detail-height-mm` needs detail.
+A height whose role is absent exits 2 before processing, on the same rule that rejects any role setting outside the selection.
+`--layers silhouette` alone is complete. It takes no role heights.
+
 The source imports `<stem>.layers/<role>.svg` for each published role with `center=false`.
 It never imports the combined grouped SVG. An unpublished role gets no import and no solid.
 OpenSCAD resolves a relative import beside the source file, not in the working directory.

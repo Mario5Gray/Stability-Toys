@@ -69,6 +69,8 @@ DETAIL_MODES = ("raised", "engraved")
 RELIEF_FIELDS = ("export_scad", "center", "detail_mode", "backing_mm",
                  "silhouette_thickness_mm", "structure_height_mm", "detail_height_mm")
 RELIEF_NUMBERS = ("backing_mm", "silhouette_thickness_mm", "structure_height_mm", "detail_height_mm")
+# A role height needs its role in the selection. The other relief numbers apply to silhouette alone.
+HEIGHT_ROLES = {"structure_height_mm": "structure", "detail_height_mm": "detail"}
 RELIEF_DEFAULTS = {
     "export_scad": False, "center": False, "detail_mode": "raised", "backing_mm": 0.0,
     "silhouette_thickness_mm": None, "structure_height_mm": None, "detail_height_mm": None,
@@ -271,7 +273,8 @@ def _relief(layers, merged, selection, kind):
 
     Relief settings need input_kind image, explicit layers, and SCAD export. Without export they
     do nothing, so a supplied non-default value is an error. The one exception is an explicit
-    export_scad false in a later layer, which suppresses an earlier export request.
+    export_scad false in a later layer, which suppresses an earlier export request. A role height
+    also needs its role in the selection, the same rule that admits role settings.
     """
     supplied = {name for name in RELIEF_FIELDS if any(layer.get(name) is not None for layer in layers)}
     if kind != "image":
@@ -288,6 +291,12 @@ def _relief(layers, merged, selection, kind):
                 "Add --layers or the recipe field layers."
             )
         return dict(RELIEF_DEFAULTS)
+    for name, role in HEIGHT_ROLES.items():
+        if merged.get(name) is not None and role not in selection:
+            raise ConfigError(
+                f"{name} was given, but {role} is not selected. "
+                f"Add {role} to --layers or the recipe field layers."
+            )
     export_scad = bool(merged.get("export_scad", False))
     suppressed = export_scad is False and any(layer.get("export_scad") is True for layer in layers)
     dormant = sorted(name for name in RELIEF_FIELDS

@@ -106,6 +106,37 @@ def test_export_admits_omitted_optional_heights(tmp_path):
     assert settings.structure_height_mm is None
 
 
+@pytest.mark.parametrize("field, kept, absent", [
+    ("structure_height_mm", "detail", "structure"),
+    ("detail_height_mm", "structure", "detail"),
+])
+def test_height_for_an_unselected_role_is_rejected(tmp_path, field, kept, absent):
+    """S3.3 rejects a role setting outside the selection. A role height is one."""
+    with pytest.raises(config.ConfigError, match=field) as error:
+        resolve_image(tmp_path, layers=f"silhouette,{kept}", export_scad=True,
+                      silhouette_thickness_mm=2, **{field: 0.5})
+    assert f"{absent} is not selected" in str(error.value)
+    assert "layers" in str(error.value)
+
+
+@pytest.mark.parametrize("field, absent", [("structure_height_mm", "structure"),
+                                           ("detail_height_mm", "detail")])
+def test_recipe_height_for_an_unselected_role_is_rejected(tmp_path, field, absent):
+    recipe = write_recipe(tmp_path / "recipe.json", export_scad=True, layers=["silhouette"],
+                          silhouette_thickness_mm=2, **{field: 1})
+    with pytest.raises(config.ConfigError, match=field) as error:
+        resolve_image(tmp_path, recipe=config.load_recipe(recipe))
+    assert f"{absent} is not selected" in str(error.value)
+
+
+def test_unselected_height_is_rejected_before_the_dormancy_rule(tmp_path):
+    """The absent role is the root cause. It fails even when export is on and the value is valid."""
+    with pytest.raises(config.ConfigError, match="detail_height_mm") as error:
+        resolve_image(tmp_path, layers="silhouette", export_scad=True,
+                      silhouette_thickness_mm=2, detail_height_mm=0.5)
+    assert "export" not in str(error.value)
+
+
 def test_dormant_relief_setting_without_export_is_rejected(tmp_path):
     with pytest.raises(config.ConfigError, match="export"):
         resolve_image(tmp_path, layers="silhouette,structure", center=True, structure_height_mm=1)
@@ -529,6 +560,20 @@ def test_empty_optional_role_still_validates_a_supplied_height(scene, capsys):
     code, _, error = run(capsys, *export_args(scene, "--detail-height-mm", "-1"))
     assert code == 2
     assert "detail_height_mm" in error
+
+
+@pytest.mark.parametrize("flag, role", [("--structure-height-mm", "structure"),
+                                        ("--detail-height-mm", "detail")])
+def test_cli_height_for_an_unselected_role_exits_2(scene, capsys, flag, role):
+    """A height for a role outside the selection is ignored geometry. It exits 2 before processing."""
+    code, _, error = run(capsys, scene["source"], scene["dir"] / "out.svg", "--input-kind", "image",
+                         "--mask", scene["mask"], "--width-mm", "32", "--layers", "silhouette",
+                         "--export-scad", "--silhouette-thickness-mm", "2", flag, "0.5")
+    assert code == 2
+    assert f"{role} is not selected" in error
+    assert not (scene["dir"] / "out.scad").exists()
+    assert not (scene["dir"] / "out.svg").exists()
+    assert not (scene["dir"] / "out.vector.json").exists()
 
 
 def test_centered_export_translates_the_whole_assembly(scene, capsys):
