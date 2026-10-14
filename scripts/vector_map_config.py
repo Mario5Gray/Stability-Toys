@@ -60,6 +60,7 @@ _FIELD_KINDS = {
     "structure_height_mm": "number",
     "detail_height_mm": "number",
     "preset": "str",
+    "relief_recorded": "bool",
 }
 SVG_LIMITS = ("max_svg_bytes", "max_paths", "max_path_commands")
 FIELDS = tuple(_FIELD_KINDS)
@@ -346,6 +347,10 @@ def _relief(layers, merged, selection, kind):
     export_scad false in a later layer, which suppresses an earlier export request. A role height
     also needs its role in the selection, the same rule that admits role settings. A selected
     preset needs an export too, because its values are fabrication values for the SCAD source.
+
+    A replay bundle that recorded relief values carries evidence of that admission: the recipe field
+    relief_recorded, which requires export_scad false. It admits those values without an export so a
+    replay of the S3.4 opt-out path publishes the manifest the original run published.
     """
     supplied = {name for name in RELIEF_FIELDS if any(layer.get(name) is not None for layer in layers)}
     preset = _preset_name(merged)
@@ -372,14 +377,22 @@ def _relief(layers, merged, selection, kind):
                 f"Add {role} to --layers or the recipe field layers."
             )
     export_scad = bool(merged.get("export_scad", False))
+    # relief_recorded is a recipe-only field of a replay bundle. It states that the relief values here
+    # are recorded from a run that wrote no source, so they are provenance and need no export.
+    recorded = merged.get("relief_recorded") is True
+    if recorded and export_scad:
+        raise ConfigError(
+            "relief_recorded requires export_scad false. A recipe that asks for a source records no relief."
+        )
     suppressed = export_scad is False and any(layer.get("export_scad") is True for layer in layers)
-    if preset is not None and not export_scad and not suppressed:
+    admitted = export_scad or suppressed or recorded
+    if preset is not None and not admitted:
         raise ConfigError(
             f"The {preset} preset needs an export. Add --export-scad, or the recipe field export_scad."
         )
     dormant = sorted(name for name in RELIEF_FIELDS
                      if merged.get(name, RELIEF_DEFAULTS[name]) != RELIEF_DEFAULTS[name])
-    if not export_scad and not suppressed and dormant:
+    if not admitted and dormant:
         raise ConfigError(
             f"SCAD export is off, so these relief settings do nothing: {', '.join(dormant)}. "
             "Add --export-scad, or remove them."

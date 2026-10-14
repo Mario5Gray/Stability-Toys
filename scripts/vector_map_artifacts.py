@@ -10,7 +10,7 @@ from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from pathlib import Path
 
-from vector_map_config import LAYER_ROLES, ConfigError
+from vector_map_config import LAYER_ROLES, RELIEF_DEFAULTS, ConfigError
 
 
 def json_bytes(value):
@@ -223,6 +223,22 @@ def _replay_relief(settings):
     return {name: value for name, value in relief.items() if value is not None}
 
 
+def _recorded_relief(settings):
+    """The relief block of a layered replay recipe.
+
+    An exported run records every value it wrote. A run that wrote no source still records what it
+    validated, because its manifest states those values and a replay must publish the same manifest.
+    That block carries relief_recorded true, which admits the values without an export. A run that
+    recorded no relief value beyond the defaults adds nothing, so its recipe stays as it was.
+    """
+    relief = _replay_relief(settings)
+    if settings.export_scad:
+        return relief
+    if not any(value != RELIEF_DEFAULTS.get(name) for name, value in relief.items()):
+        return {}
+    return {**relief, "relief_recorded": True}
+
+
 def layered_debug_files(bundle, settings, prepared):
     """Save each selected prepared mask and a layered replay recipe. STABL-qlagdbmh.
 
@@ -231,6 +247,8 @@ def layered_debug_files(bundle, settings, prepared):
     widening runs again, so the replay traces the same masks. An empty role stays selected and empty.
     Each role records its resolved width and prepared: true, because a preset width would otherwise reach
     the replay and widen a mask that already carries that width (S3.5, STABL-mknlfcui).
+    The recipe also carries the relief values the run recorded, including the S3.4 opt-out path, which
+    wrote no source but still states a preset and resolved heights in its manifest.
     """
     materials = {"silhouette": prepared.silhouette.material}
     materials.update({role: getattr(prepared, role).material for role in prepared.roles[1:]})
@@ -248,8 +266,7 @@ def layered_debug_files(bundle, settings, prepared):
         **roles,
         "vtracer": dict(settings.vtracer), **asdict(settings.svg_limits),
     }
-    if settings.export_scad:
-        recipe.update(_replay_relief(settings))
+    recipe.update(_recorded_relief(settings))
     files = {bundle.relative(bundle.debug_directory / f"{role}.png"): _png(material)
              for role, material in materials.items()}
     files[bundle.relative(bundle.debug_directory / "recipe.json")] = json_bytes(recipe)

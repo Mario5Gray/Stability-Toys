@@ -156,8 +156,9 @@ st-vector-map photo.png relief.svg --input-kind image --mask reviewed-mask.png -
 Every length is a finite number of millimetres. Only backing may be zero. Nonpositive or nonfinite lengths exit 2.
 Booleans are not numbers, so `--backing-mm true` exits 2. Engraved detail requires `0 < D < S` when both are known.
 
-Recipe fields are `export_scad`, `center`, `detail_mode`, `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, `detail_height_mm`, and `preset`.
+Recipe fields are `export_scad`, `center`, `detail_mode`, `backing_mm`, `silhouette_thickness_mm`, `structure_height_mm`, `detail_height_mm`, `preset`, and `relief_recorded`.
 Explicit CLI values override recipe values. Relief fields stay outside the recipe `structure` and `detail` objects.
+`relief_recorded` is a replay-bundle field with no CLI flag. It requires `export_scad: false`.
 
 **Fabrication presets**
 
@@ -183,7 +184,8 @@ The preset describes fabrication settings only. Its values do not guarantee suit
 extrusion width, material, or slicer configuration. Suitability needs separate evidence.
 
 Relief settings need an export. Without it they do nothing, so a supplied non-default value exits 2.
-The one exception is an explicit `--no-export-scad` over a recipe export request. That opt-out validates the heights and writes no SCAD.
+Two paths are exceptions. An explicit `--no-export-scad` over a recipe export request validates the heights and writes no SCAD.
+A recipe that carries `relief_recorded: true` records the values of such a run, and a replay of it publishes the same manifest without an export.
 Export requires a positive `silhouette_thickness_mm`. A published role requires a positive height. An empty optional role needs none.
 Every supplied value is still validated for an empty role.
 
@@ -290,6 +292,12 @@ Each role in the recipe records its resolved `width_mm` and `prepared: true`. A 
 so a replay of a preset run never widens a mask twice. An exported run also carries the preset and the resolved
 relief values, so a replay publishes the same source.
 Replay traces the saved masks. It does not repeat Canny, constraints, gap closing, or widening.
+
+A run that recorded a relief value but wrote no source, which is the `--no-export-scad` opt-out path, records
+those values too, plus the recipe field `relief_recorded: true`. That field requires `export_scad: false`, and it
+admits the recorded preset and heights without an export. The replay then publishes the same manifest object and
+writes no source. A run that recorded no relief value beyond the defaults adds neither, so its recipe is unchanged.
+Replaying the opt-out bundle takes the same one command as any other replay.
 
 ```bash
 st-vector-map edges.png detail.svg --input-kind edges --width-mm 100 --line-width-mm 0.8 --debug-bundle

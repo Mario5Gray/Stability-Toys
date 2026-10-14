@@ -150,6 +150,33 @@ def test_an_explicit_no_export_over_a_recipe_export_keeps_the_preset_values(tmp_
     assert settings.structure_height_mm == 0.6
 
 
+def test_a_recorded_relief_recipe_is_admitted_without_an_export(tmp_path):
+    """The opt-out path's replay recipe records what the run validated, and needs no export."""
+    settings = resolve_image(tmp_path, layers="silhouette,structure,detail",
+                             recipe={"preset": PRESET, "export_scad": False, "relief_recorded": True,
+                                     "silhouette_thickness_mm": 1.2, "structure_height_mm": 0.6,
+                                     "detail_height_mm": 0.2})
+    assert settings.export_scad is False
+    assert settings.preset == PRESET
+    assert (settings.silhouette_thickness_mm, settings.structure_height_mm) == (1.2, 0.6)
+
+
+def test_a_recorded_relief_recipe_rejects_a_requested_export(tmp_path):
+    """A recipe that asks for a source records no relief. The two claims contradict."""
+    with pytest.raises(config.ConfigError, match="relief_recorded") as error:
+        resolve_image(tmp_path, layers="silhouette,structure",
+                      recipe={"preset": PRESET, "export_scad": True, "relief_recorded": True,
+                              "silhouette_thickness_mm": 1.2, "structure_height_mm": 0.6})
+    assert "export_scad" in str(error.value)
+
+
+def test_a_recorded_relief_recipe_still_needs_its_heights_to_be_valid(tmp_path):
+    """The marker relaxes the export rule only. Every other admission rule still holds."""
+    with pytest.raises(config.ConfigError, match="structure_height_mm"):
+        resolve_image(tmp_path, layers="silhouette",
+                      recipe={"export_scad": False, "relief_recorded": True, "structure_height_mm": 0.6})
+
+
 def test_a_preset_is_rejected_in_standalone_mask_mode(tmp_path):
     with pytest.raises(config.ConfigError, match="image") as error:
         resolve_mask(tmp_path, preset=PRESET)
@@ -355,6 +382,53 @@ def test_a_replayed_preset_bundle_matches_the_original_layers(scene, capsys):
     assert roles["structure"]["width_mm"] == 0.8
     assert roles["structure"]["expansion"] is None
     assert roles["detail"]["expansion"] is None
+
+
+def test_a_suppressed_preset_replay_matches_the_original_layers(scene, capsys):
+    """S3.4's opt-out still records the preset and heights, so its replay must record them too."""
+    recipe = scene["dir"] / "recipe.json"
+    recipe.write_text(json.dumps({"schema_version": 1, "preset": PRESET, "export_scad": True}))
+    code, result, error = run(capsys, *layered_args(scene, "--recipe", recipe, "--no-export-scad",
+                                                    "--debug-bundle", width_mm="3.2"))
+    assert code == 0, error
+    assert "scad" not in result["artifacts"]
+    original_relief = manifest(scene["dir"])["relief"]
+    assert (original_relief["preset"], original_relief["export_scad"]) == (PRESET, False)
+    assert original_relief["structure_height_mm"] == 0.6
+    original = {name: (scene["dir"] / f"out.layers/{name}.svg").read_bytes()
+                for name in ("silhouette", "structure", "detail")}
+    original_masks = {name: (scene["dir"] / f"out.debug/{name}.png").read_bytes()
+                      for name in ("silhouette", "structure", "detail")}
+
+    replay_recipe = json.loads((scene["dir"] / "out.debug/recipe.json").read_bytes())
+    assert replay_recipe["relief_recorded"] is True
+    assert replay_recipe["export_scad"] is False
+    assert replay_recipe["preset"] == PRESET
+    assert replay_recipe["silhouette_thickness_mm"] == 1.2
+    assert replay_recipe["structure_height_mm"] == 0.6
+    assert replay_recipe["detail_height_mm"] == 0.2
+
+    target = scene["dir"] / "replay"
+    target.mkdir()
+    code, _, error = run(capsys, target / "out.svg", "--recipe", scene["dir"] / "out.debug/recipe.json",
+                         "--debug-bundle")
+    assert code == 0, error
+    for name, expected in original.items():
+        assert (target / f"out.layers/{name}.svg").read_bytes() == expected, name
+    for name, expected in original_masks.items():
+        assert (target / f"out.debug/{name}.png").read_bytes() == expected, name
+    assert manifest(scene["dir"], "replay/out.vector.json")["relief"] == original_relief
+    assert not (target / "out.scad").exists()
+
+
+def test_a_layered_run_without_relief_records_none_in_its_recipe(scene, capsys):
+    """Only a run that records a relief value carries the block. A plain replay recipe stays as it was."""
+    code, _, error = run(capsys, *layered_args(scene, "--debug-bundle"))
+    assert code == 0, error
+    recipe = json.loads((scene["dir"] / "out.debug/recipe.json").read_bytes())
+    assert "relief_recorded" not in recipe
+    assert "preset" not in recipe
+    assert "silhouette_thickness_mm" not in recipe
 
 
 def test_a_replay_keeps_the_published_scad_identical(scene, capsys):
