@@ -142,21 +142,46 @@ def _top_at(vertices: np.ndarray, triangles: np.ndarray, x: float, y: float) -> 
 
 
 def _preview(vertices: np.ndarray, triangles: np.ndarray, path: Path) -> None:
-    """Draw a compact isometric mesh view with Pillow, without a plotting dependency."""
-    projected = np.stack((vertices[:, 0] - 0.45 * vertices[:, 1],
-                          0.30 * vertices[:, 1] - 1.5 * vertices[:, 2]), axis=1)
-    low, high = projected.min(axis=0), projected.max(axis=0)
-    span = np.maximum(high - low, 1)
-    factor = min(560 / span[0], 360 / span[1])
-    points = (projected - low) * factor + [40, 40]
-    image = Image.new("RGB", (640, 440), "#ffffff")
+    """Rasterize the highest STL surface at each XY pixel as a top-view height map."""
+    low, high = vertices[:, :2].min(0), vertices[:, :2].max(0)
+    span = np.maximum(high - low, 1e-9)
+    scale = min(560 / span[0], 360 / span[1])
+    xy = np.column_stack((40 + (vertices[:, 0] - low[0]) * scale,
+                          40 + (high[1] - vertices[:, 1]) * scale))
+    top = np.full((440, 640), -np.inf)
+    for face in triangles:
+        p0, p1, p2 = xy[face]
+        denominator = ((p1[0] - p0[0]) * (p2[1] - p0[1])
+                       - (p1[1] - p0[1]) * (p2[0] - p0[0]))
+        if abs(denominator) < 1e-9:  # Vertical faces have no top-view area.
+            continue
+        x0, x1 = max(0, int(np.floor(xy[face, 0].min()))), min(639, int(np.ceil(xy[face, 0].max())))
+        y0, y1 = max(0, int(np.floor(xy[face, 1].min()))), min(439, int(np.ceil(xy[face, 1].max())))
+        if x0 > x1 or y0 > y1:
+            continue
+        yy, xx = np.mgrid[y0:y1 + 1, x0:x1 + 1]
+        dx, dy = xx + 0.5 - p0[0], yy + 0.5 - p0[1]
+        u = (dx * (p2[1] - p0[1]) - dy * (p2[0] - p0[0])) / denominator
+        v = ((p1[0] - p0[0]) * dy - (p1[1] - p0[1]) * dx) / denominator
+        inside = (u >= -1e-7) & (v >= -1e-7) & (u + v <= 1 + 1e-7)
+        z0, z1, z2 = vertices[face, 2]
+        z = z0 + u * (z1 - z0) + v * (z2 - z0)
+        region = top[y0:y1 + 1, x0:x1 + 1]
+        region[inside] = np.maximum(region[inside], z[inside])
+    occupied = np.isfinite(top)
+    image_pixels = np.full((440, 640, 3), 255, dtype=np.uint8)
+    if occupied.any():
+        z_min, z_max = float(top[occupied].min()), float(top[occupied].max())
+        height_fraction = ((top[occupied] - z_min) / (z_max - z_min)
+                           if z_max > z_min else np.ones(occupied.sum()))
+        image_pixels[occupied] = np.column_stack((220 - 115 * height_fraction,
+                                                   228 - 115 * height_fraction,
+                                                   244 - 58 * height_fraction)).astype(np.uint8)
+    image = Image.fromarray(image_pixels, "RGB")
     draw = ImageDraw.Draw(image)
-    for face in sorted(triangles, key=lambda t: float(vertices[t, 1].mean()), reverse=True):
-        z = float(vertices[face, 2].mean())
-        shade = max(125, min(230, int(220 - 35 * z)))
-        polygon = [tuple(points[index]) for index in face]
-        draw.polygon(polygon, fill=(shade, shade + 5 if shade < 230 else shade, 238),
-                     outline=(70, 80, 95))
+    draw.text((40, 8), "Top view - color shows top surface height", fill=(30, 36, 54))
+    if occupied.any():
+        draw.text((420, 8), f"Z {z_min:g} to {z_max:g} mm", fill=(30, 36, 54))
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
 
@@ -257,9 +282,11 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
                                    "ridge": _top_at(vertices, triangles, 10.5, 15.5)}
         if measured["sample_tops"] != {"recess": 1.5, "ridge": 3.0}:
             errors.append(f"Engraved support samples differ: {measured['sample_tops']}.")
-    _preview(vertices, triangles, previews / f"{name}.png")
+    preview = previews / f"{name}.png"
+    _preview(vertices, triangles, preview)
     row.update(measured=measured, expected=expectation, artifacts=_hashes(directory),
-               preview=str(previews / f"{name}.png"), errors=errors, passed=not errors)
+               preview=str(preview), preview_sha256=hashlib.sha256(preview.read_bytes()).hexdigest(),
+               errors=errors, passed=not errors)
     return row
 
 

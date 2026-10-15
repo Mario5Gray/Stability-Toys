@@ -11,6 +11,7 @@ Result: 10/15 cases passed.
 Manifest artifact hashes: 115 checked, 0 mismatches.
 OpenSCAD may return exit 0 while reporting a non-closed or non-manifold mesh; those diagnostics fail a CAD row.
 The volume formula uses full published SVG areas. CAD intersections can clip these areas, so a volume mismatch alone does not isolate a defect; inspect the render diagnostic and effective geometry.
+Each PNG is a top-down map of the STL's highest surface at each XY location; white means no material. The JSON records each preview's SHA-256. The earlier isometric painter preview could draw back faces over front faces and was replaced after review.
 
 | Case | CAD result |
 |---|---|

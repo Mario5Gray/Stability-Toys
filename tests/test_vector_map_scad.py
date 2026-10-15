@@ -768,6 +768,8 @@ def test_native_render_shows_two_islands_and_the_backing_join(render_scene, rend
 
 @open_scad.needs_openscad
 def test_native_donut_backing_fills_the_through_hole(render_scene, render_dir, capsys):
+    from tests import vector_map_s3_6_cad_probe as probe
+
     ring = np.zeros(SHAPE, bool)
     ring[2:22, 2:30] = True
     ring[8:16, 11:21] = False
@@ -777,12 +779,29 @@ def test_native_donut_backing_fills_the_through_hole(render_scene, render_dir, c
     bare = render_scad(render_scene["dir"] / "out.scad", render_dir / "donut-open.stl")[:2]
     assert len(solids(*bare)) == 1
     assert solids(*bare)[0][2] == 1
+    open_preview = render_dir / "donut-open-preview.png"
+    probe._preview(*bare, open_preview)
     code, _, error = run(capsys, *silhouette_export_args(render_scene, "--backing-mm", "1",
                                                         "--overwrite"))
     assert code == 0, error
     backed = render_scad(render_scene["dir"] / "out.scad", render_dir / "donut-filled.stl")[:2]
     assert len(solids(*backed)) == 1
     assert solids(*backed)[0][2] == 0
+    filled_preview = render_dir / "donut-filled-preview.png"
+    probe._preview(*backed, filled_preview)
+
+    def sample(preview, mesh, x, y):
+        low, high = mesh[0][:, :2].min(0), mesh[0][:, :2].max(0)
+        scale = min(560 / (high[0] - low[0]), 360 / (high[1] - low[1]))
+        px = round(40 + (x - low[0]) * scale)
+        py = round(40 + (high[1] - y) * scale)
+        return Image.open(preview).convert("RGB").getpixel((px, py))
+
+    assert sample(open_preview, bare, 15.5, 12.5) == (255, 255, 255)
+    assert sample(filled_preview, backed, 15.5, 12.5) == sample(
+        filled_preview, backed, 1.5, 1.5)
+    assert sample(filled_preview, backed, 5.5, 5.5) != sample(
+        filled_preview, backed, 15.5, 12.5)
 
 
 @open_scad.needs_openscad

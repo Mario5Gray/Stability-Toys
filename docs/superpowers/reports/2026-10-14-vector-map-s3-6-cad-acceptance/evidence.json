@@ -186,6 +186,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/raised_backed.png",
+      "preview_sha256": "dd1c5e172ed2a79204ce0694e72ecc2e1f1543940f9fd440c01e361a2da57e60",
       "relief": {
         "backing_mm": 1.0,
         "center": false,
@@ -399,6 +400,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/engraved.png",
+      "preview_sha256": "1b6d7f0768ea16d14acfcb163f904087cf9b17b895b0ffb45db1e448d13acff8",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -580,6 +582,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/islands_loose.png",
+      "preview_sha256": "299f633f607837e1c10824338d8c92a475d4f7edc8d45a223b0028e69907db6f",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -756,6 +759,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/islands_backed.png",
+      "preview_sha256": "8c0abb38b4386aa4f870116043fc2f8694e27c7c282502a4b127fcdca5ffd73f",
       "relief": {
         "backing_mm": 1.0,
         "center": false,
@@ -929,6 +933,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/donut_open.png",
+      "preview_sha256": "816061ddd0f189166232776a0d91791d203f653c88a2a4daab65f4f7ac148be9",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -1105,6 +1110,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/donut_filled.png",
+      "preview_sha256": "0f0754a118b3208c518826d848a6aa912b8260bea7a840d07a4d0a4eec02006f",
       "relief": {
         "backing_mm": 1.0,
         "center": false,
@@ -1321,6 +1327,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/preset.png",
+      "preview_sha256": "2a5c462003cd8fc04293d53129cd8896a6c2afd552cee4850883903d40448752",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -1547,6 +1554,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_badge.png",
+      "preview_sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -1773,6 +1781,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_bracket.png",
+      "preview_sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -2000,6 +2009,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": false,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_brick.png",
+      "preview_sha256": "1840a8ae46df33e0331037c8c8b5392cdcf4b5510bbda1fb94c817ec34857547",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -2262,6 +2272,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": false,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_coins.png",
+      "preview_sha256": "dd3297b51b29ba51e85c583e842ef98db2ecaa36b8651d8dd7d7f12d448d4ef2",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -2704,6 +2715,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": false,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_gravel.png",
+      "preview_sha256": "df8a200e9573f59f72a7c80c0dcba6e527593b852587c6e36e1fe5f8ddeb72c1",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -2919,6 +2931,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_horse.png",
+      "preview_sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -3165,6 +3178,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": false,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_pcb.png",
+      "preview_sha256": "03c27300ad5936596befff085cd621fdac878099ab21824b1f447305101950a1",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -3459,6 +3473,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": false,
       "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_truchet.png",
+      "preview_sha256": "bc16d9e4d0f55e77ced785a36ce02e2dee221528050f8cca423ce691286c67a3",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
