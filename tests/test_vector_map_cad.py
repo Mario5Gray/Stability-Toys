@@ -9,6 +9,7 @@ import math
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -45,9 +46,9 @@ def rings_of(svg_text):
     out = []
     for path in ET.fromstring(svg_text).iter(f"{{{SVG_NS}}}path"):
         shift = (0.0, 0.0)
-        if path.get("transform"):
-            shift = tuple(float(v) for v in path.get("transform")[len("translate("):-1].split(","))
-        for sub in path.get("d").split("Z"):
+        if transform := path.get("transform"):
+            shift = tuple(float(v) for v in transform[len("translate("):-1].split(","))
+        for sub in (path.get("d") or "").split("Z"):
             pairs = [token[1:].split(",") for token in sub.split() if token]
             if pairs:
                 out.append([(float(x) + shift[0], float(y) + shift[1]) for x, y in pairs])
@@ -237,7 +238,7 @@ import vector_map_scad as scad  # noqa: E402
 
 SCAD_LAYERS = {"silhouette": "out.layers/silhouette.svg", "structure": "out.layers/structure.svg",
                "detail": "out.layers/detail.svg"}
-SCAD_HEIGHTS = {"silhouette_thickness_mm": 1.2, "structure_height_mm": 0.6, "detail_height_mm": 0.2}
+SCAD_HEIGHTS: dict[str, Any] = {"silhouette_thickness_mm": 1.2, "structure_height_mm": 0.6, "detail_height_mm": 0.2}
 
 
 def test_scad_without_growth_is_unchanged_and_names_no_growth():
@@ -266,6 +267,77 @@ def test_scad_growth_is_ignored_without_a_detail_layer():
     source = scad.build_scad(canvas(), layers, silhouette_thickness_mm=1.2, structure_height_mm=0.6,
                              detail_growth_mm=0.01)
     assert "DETAIL_GROW" not in source
+
+
+# --- Probe solid-count rule ----------------------------------------------------
+#
+# The S3.6 probe expects one solid per 4-connected mask component of at least filter_speckle²
+# pixels. These tests hold that rule against the real tracer at the threshold.
+
+import numpy as np  # noqa: E402
+from PIL import Image  # noqa: E402
+
+import vector_map_vtracer as vt  # noqa: E402
+
+
+def _shapes(n):
+    """Four 4-connected shapes of exactly n pixels."""
+    side = math.isqrt(n - 1) + 1
+    block = np.zeros((side, side), bool)
+    block.flat[:n] = True
+    line = np.ones((1, n), bool)
+    ell = np.zeros((n // 2 + 1, n - n // 2), bool)
+    ell[:, 0] = ell[-1, :] = True
+    stair = np.zeros((n, n), bool)
+    y = x = 0
+    for i in range(n):
+        stair[y, x] = True
+        y, x = (y, x + 1) if i % 2 == 0 else (y + 1, x)
+    return {"block": block, "line": line, "L": ell, "stair": stair}
+
+
+def _padded(material):
+    out = np.zeros((material.shape[0] + 8, material.shape[1] + 8), bool)
+    out[4:-4, 4:-4] = material
+    return out
+
+
+def _traced_islands(material, speckle):
+    svg = vt.trace_layer(material, {"filter_speckle": speckle}).svg
+    return sum(1 for ring in cad._rings(cad._parse(svg))[1] if ring.solid and not ring.hole)
+
+
+def _expected_solids(material, speckle, tmp_path):
+    from tests import vector_map_s3_6_cad_probe as probe
+    path = tmp_path / "mask.png"
+    Image.fromarray(np.where(material, 255, 0).astype(np.uint8), mode="L").save(path)
+    return probe._mask_expectation(path, {"mm_per_px": 0.4}, 0, speckle)["solids"]
+
+
+@pytest.mark.parametrize("speckle", (3, 4, 5, 6))
+@pytest.mark.parametrize("offset", (-1, 0, 1))
+@pytest.mark.parametrize("shape", ("block", "line", "L", "stair"))
+def test_probe_solid_rule_matches_the_tracer_at_the_speckle_threshold(speckle, offset, shape, tmp_path):
+    material = _padded(_shapes(speckle * speckle + offset)[shape])
+    assert material.sum() == speckle * speckle + offset
+    assert _expected_solids(material, speckle, tmp_path) == _traced_islands(material, speckle)
+
+
+@pytest.mark.parametrize("side, solids", ((3, 0), (4, 2)))
+def test_probe_solid_rule_counts_corner_touching_blocks_apart(side, solids, tmp_path):
+    material = np.zeros((2 * side, 2 * side), bool)
+    material[:side, :side] = material[side:, side:] = True
+    material = _padded(material)
+    assert _traced_islands(material, 4) == solids
+    assert _expected_solids(material, 4, tmp_path) == solids
+
+
+@pytest.mark.parametrize("speckle", (0, 1, 2))
+def test_probe_refuses_a_solid_count_below_speckle_three(speckle, tmp_path):
+    # At these values components of up to 4 px can trace to degenerate rings and give no solid.
+    # A 1 x 4 line gives none and a 2 x 2 block gives one, so pixel count cannot predict it.
+    with pytest.raises(ValueError, match="filter_speckle"):
+        _expected_solids(_padded(np.ones((2, 2), bool)), speckle, tmp_path)
 
 
 # --- Native OpenSCAD gates ----------------------------------------------------
@@ -305,6 +377,7 @@ def test_native_assembled_mesh_is_closed_at_the_specified_heights(case, tmp_path
 @pytest.mark.parametrize("case", AFFECTED_ROWS)
 def test_native_each_published_layer_extrudes_to_a_closed_mesh(case, tmp_path):
     _, directory = _probe_row(case, tmp_path)
+    assert open_scad.OPENSCAD
     for svg in sorted((directory / "out.layers").glob("*.svg")):
         source = directory / f"extrude-{svg.stem}.scad"
         # The tiny cube forces the conversion that finds a non-closed mesh. A bare extrude does not.

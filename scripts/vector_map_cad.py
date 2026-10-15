@@ -144,12 +144,12 @@ def _rings(root):
 
 def _subpaths(d):
     """Closed M/L/Z data in the accepted dialect. Inspection already ran, so no format checks here."""
-    subpaths, points = [], None
+    subpaths, points = [], []
     for token in filter(None, d.split(" ")):
         command, coords = token[0], token[1:]
         if command == "Z":
             subpaths.append(points)
-            points = None
+            points = []
         else:
             x, y = coords.split(",")
             if command == "M":

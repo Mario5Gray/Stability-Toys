@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy import ndimage
@@ -101,11 +102,17 @@ def expected_volume(manifest: dict, directory: Path, command: list[str] | None =
     return volume, areas
 
 
-def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: int = 0) -> dict:
+MIN_SPECKLE = 3
+
+
+def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: int) -> dict:
     """Expected bounds, solids and genus from the mask.
 
-    The tracer drops components smaller than speckle**2 pixels (vtracer filter_speckle, S1.4). The
-    expected solid count skips them. The raw mask count stays in mask_solids.
+    The tracer drops 4-connected components smaller than speckle**2 pixels (vtracer filter_speckle,
+    S1.4). The expected solid count skips them. The raw mask count stays in mask_solids.
+    tests/test_vector_map_cad.py holds this rule against the tracer at speckle**2 - 1, speckle**2
+    and speckle**2 + 1 for speckle 3 to 6. Below speckle 3, components of up to 4 px can trace to
+    degenerate rings, and pixel count cannot predict which. The rule is refused there.
     """
     material = np.asarray(Image.open(mask_path).convert("L")) >= 128
     components, holes = metrics.topology(material)
@@ -118,7 +125,11 @@ def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: in
         raise ValueError(f"Empty silhouette mask: {mask_path}")
     bounds = [[float(xs.min() * scale), float((material.shape[0] - 1 - ys.max()) * scale)],
               [float((xs.max() + 1) * scale), float((material.shape[0] - ys.min()) * scale)]]
-    sizes = np.bincount(ndimage.label(material)[0].ravel())[1:]
+    if speckle < MIN_SPECKLE:
+        raise ValueError(f"The solid-count rule needs filter_speckle >= {MIN_SPECKLE}. Got {speckle}.")
+    labeled: Any = ndimage.label(material)
+    labels = labeled[0]
+    sizes = np.bincount(labels.ravel())[1:]
     traced = int(np.count_nonzero(sizes >= speckle * speckle))
     return {"bounds_xy": bounds, "solids": traced, "mask_solids": int(components),
             "filter_speckle_px": speckle, "genus_sum": int(holes)}
@@ -279,12 +290,13 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
     row["relief"] = manifest["relief"]
     render_argv = [*command, "-o", str(directory / "out.stl"), str(directory / "out.scad")]
     row["render"] = {"argv": render_argv}
+    render_record: dict[str, Any] = row["render"]
     if issue := open_scad.sandbox_error(command, [directory / "out.scad", directory / "out.stl"]):
         row["passed"], row["errors"] = False, [issue]
         return row
     started = time.perf_counter()
     render = subprocess.run(render_argv, capture_output=True, text=True, timeout=300)
-    row["render"].update(exit_code=render.returncode, stdout=render.stdout, stderr=render.stderr,
+    render_record.update(exit_code=render.returncode, stdout=render.stdout, stderr=render.stderr,
                          seconds=time.perf_counter() - started)
     if render.returncode:
         row["passed"], row["errors"] = False, ["OpenSCAD render failed."]

@@ -230,7 +230,11 @@ The blocking volume check uses effective areas, as stated above. The published-a
 
 The expected solid count skips mask components smaller than `filter_speckle` squared pixels, because the S1.4 tracer drops them. For gravel the mask has 225 components, 209 have at least 16 pixels, and the mesh has 209. The row records both counts.
 
+The rule was then held against the real tracer at the threshold. For filter_speckle 3, 4, 5 and 6, components of speckle² − 1, speckle² and speckle² + 1 pixels were traced as a block, a line, an L and a staircase. Every count agreed with the rule. Two blocks that touch only at a corner trace as separate parts, which agrees with the 4-connected count. Below filter_speckle 3 the rule does not hold. Components of up to 4 px can trace to degenerate rings, and pixel count cannot predict which: a 1 x 4 line gives no solid, but a 2 x 2 block gives one. The probe therefore refuses filter_speckle below 3. All matrix rows use 4. `tests/test_vector_map_cad.py` keeps these checks.
+
 Native gates in `tests/test_vector_map_cad.py` guard the repair. Per-layer extrusion checks cover Defect A. Assembled OpenSCAD mesh checks cover Defect B.
+
+Engraved detail is outside this matrix, except for the synthetic `engraved` row. All eight corpus fixtures were also run with `--detail-mode engraved` and the same checks. Badge, bracket, coins, horse and pcb pass. Brick, gravel and truchet fail with a non-manifold warning. Their volume, solid count and genus checks pass. Each failure is a vertical edge with four faces in the engraving band, Z 1.0 to 1.2: one in brick, four in gravel and one in truchet. At each edge, a recess vertex lies on a silhouette outline vertex. Cutting the recess leaves two silhouette wedges that meet only at that point. The detail growth does not apply in engraved mode. This defect is open in `STABL-ygtexxzr` and has no repair yet.
 
 The records below come from the earlier acceptance run and were not repeated.
 
