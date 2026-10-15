@@ -220,6 +220,7 @@ Findings: WARNING: Object may not be a valid 2-manifold and may need repair!; EX
 
 These renders test CAD geometry on the listed fixtures.
 S1.4 tracing fidelity and physical print suitability have separate evidence.
+The `corpus_brick` fixture is an oblique view of a brick path. Its apparent perspective is already in the source and mask: the 256 x 256 raster is mapped uniformly onto a 100 x 100 mm XY canvas at 0.390625 mm per pixel, then traced and extruded. The top-down PNG shows that resulting planar geometry and height; it does not remove the image perspective, recover true brick dimensions, or establish the camera angle. Rectifying the path would require a calibrated image transform before mask preparation and is outside this CAD acceptance run.
 
 ## Findings and provenance
 
