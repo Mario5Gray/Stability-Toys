@@ -1,0 +1,3525 @@
+{
+  "cases": [
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/mask.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.debug/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 743,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.debug/recipe.json",
+          "sha256": "b370b9d71eef699e93d892a284c73d3ab6d7949de19916deb460ac2c5a8ae702"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.debug/silhouette.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.debug/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 229,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.layers/detail.svg",
+          "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 230,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.layers/silhouette.svg",
+          "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 228,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.layers/structure.svg",
+          "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
+        },
+        "out.scad": {
+          "bytes": 1353,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.scad",
+          "sha256": "b3d50c83f3fb1633778242196ab85ea3cf06e983f3e9378524fe1c04316a6273"
+        },
+        "out.stl": {
+          "bytes": 7285,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.stl",
+          "sha256": "37bcee5a7b2ab9de9d9c9f763eeb71603047d699b0e3702b402b18779e531ff2"
+        },
+        "out.svg": {
+          "bytes": 454,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.svg",
+          "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
+        },
+        "out.vector.json": {
+          "bytes": 5658,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/out.vector.json",
+          "sha256": "d177c39a159928fb95eba0cdba7b694328e3629194e5dd386c7658debde57495"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/raised_backed/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "raised_backed",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/raised_backed/source.png",
+          "/private/tmp/s36-cad-final2/raised_backed/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/raised_backed/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette,structure,detail",
+          "--structure-map",
+          "/private/tmp/s36-cad-final2/raised_backed/structure.png",
+          "--detail-map",
+          "/private/tmp/s36-cad-final2/raised_backed/detail.png",
+          "--silhouette-thickness-mm",
+          "2",
+          "--structure-height-mm",
+          "1",
+          "--detail-height-mm",
+          "0.5",
+          "--backing-mm",
+          "1",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/raised_backed/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/raised_backed/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/raised_backed/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/raised_backed/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/raised_backed/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/raised_backed/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/raised_backed/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 3
+          },
+          "diagnostics": [],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.032397125381976366,
+        "stderr": "loading  /private/tmp/s36-cad-final2/raised_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/raised_backed/out.scad\nsaved    /private/tmp/s36-cad-final2/raised_backed/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "detail": 60.0,
+          "silhouette": 560.0,
+          "structure": 72.0
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1990.0,
+        "z_max": 4.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0,
+            4.0
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1990.0,
+        "z_planes": [
+          0.0,
+          1.0,
+          3.0,
+          3.5,
+          4.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/raised_backed.png",
+      "preview_sha256": "dd1c5e172ed2a79204ce0694e72ecc2e1f1543940f9fd440c01e361a2da57e60",
+      "relief": {
+        "backing_mm": 1.0,
+        "center": false,
+        "detail_height_mm": 0.5,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": 1.0
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/raised_backed/out.stl",
+          "/private/tmp/s36-cad-final2/raised_backed/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.16518554091453552,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 8120\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 44368\nTotal rendering time: 0:00:00.055\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       32\n   Halfedges:      96\n   Edges:          48\n   Halffacets:     42\n   Facets:         21\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/raised_backed"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/engraved/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/engraved/mask.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.debug/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 745,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.debug/recipe.json",
+          "sha256": "486effa185237314cabc8ba6139a0276e2e6b0f1e52203baea17e2eab668b0a3"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.debug/silhouette.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.debug/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 229,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.layers/detail.svg",
+          "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 230,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.layers/silhouette.svg",
+          "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 228,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.layers/structure.svg",
+          "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
+        },
+        "out.scad": {
+          "bytes": 1362,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.scad",
+          "sha256": "3edc48d47992d92cce71fba231ee78b2dc64a3edf18cf33187ecff3091e7af3b"
+        },
+        "out.stl": {
+          "bytes": 5370,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.stl",
+          "sha256": "ee3b1622fbe27c2d0daa95d8e5858425e1909c115331bc74d7cc22fa85fca123"
+        },
+        "out.svg": {
+          "bytes": 454,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.svg",
+          "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
+        },
+        "out.vector.json": {
+          "bytes": 5627,
+          "path": "/private/tmp/s36-cad-final2/engraved/out.vector.json",
+          "sha256": "1c604012dc460d3bbe2183ed667ee2f46b0b6293485aa93f9e726d4e0a7e147f"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/engraved/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/engraved/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "engraved",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/engraved/source.png",
+          "/private/tmp/s36-cad-final2/engraved/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/engraved/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette,structure,detail",
+          "--structure-map",
+          "/private/tmp/s36-cad-final2/engraved/structure.png",
+          "--detail-map",
+          "/private/tmp/s36-cad-final2/engraved/detail.png",
+          "--silhouette-thickness-mm",
+          "2",
+          "--structure-height-mm",
+          "1",
+          "--detail-height-mm",
+          "0.5",
+          "--detail-mode",
+          "engraved",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/engraved/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/engraved/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/engraved/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/engraved/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/engraved/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/engraved/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/engraved/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 3
+          },
+          "diagnostics": [],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.023559541907161474,
+        "stderr": "loading  /private/tmp/s36-cad-final2/engraved/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/engraved/out.scad\nsaved    /private/tmp/s36-cad-final2/engraved/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "detail": 60.0,
+          "silhouette": 560.0,
+          "structure": 72.0
+        },
+        "bounds_xy": [
+          [
+            2.0,
+            2.0
+          ],
+          [
+            30.0,
+            22.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1162.0,
+        "z_max": 3.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            2.0,
+            2.0,
+            0.0
+          ],
+          [
+            30.0,
+            22.0,
+            3.0
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "sample_tops": {
+          "recess": 1.5,
+          "ridge": 3.0
+        },
+        "solids": 1,
+        "volume_mm3": 1162.0,
+        "z_planes": [
+          0.0,
+          1.5,
+          2.0,
+          3.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/engraved.png",
+      "preview_sha256": "1b6d7f0768ea16d14acfcb163f904087cf9b17b895b0ffb45db1e448d13acff8",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.5,
+        "detail_mode": "engraved",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": 1.0
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/engraved/out.stl",
+          "/private/tmp/s36-cad-final2/engraved/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.1606646659784019,
+        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 6960\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 55712\nTotal rendering time: 0:00:00.040\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/engraved"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 100,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/mask.png",
+          "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 475,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.debug/recipe.json",
+          "sha256": "7f22a30bad213e97d2664dfa3e2993e5278629e774e806bdd1b70f8371778f1c"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 100,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.debug/silhouette.png",
+          "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 310,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.layers/silhouette.svg",
+          "sha256": "08f30c8eba8ccbac6ce083e093f552939963b0556b25c00b07d7b9b895e6eb06"
+        },
+        "out.scad": {
+          "bytes": 738,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.scad",
+          "sha256": "d13860d1c59fac030f83fc1efaaa3754b16bfe7a4e2aa13ab5a9513f9136e764"
+        },
+        "out.stl": {
+          "bytes": 2952,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.stl",
+          "sha256": "cc4389e63cadd9bb194d9e305970d1bc73d3ffb6286df20d7c3c4cceae895e00"
+        },
+        "out.svg": {
+          "bytes": 332,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.svg",
+          "sha256": "ebb972d4f46d88b910ffc0e02ca5a790250ef430729a440b19c603137cbad7ae"
+        },
+        "out.vector.json": {
+          "bytes": 3665,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/out.vector.json",
+          "sha256": "450756b653bc4710ca68986fade4a4bcba15ed5a84a0c8f0d8407da99a1000f8"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/islands_loose/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "islands_loose",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/islands_loose/source.png",
+          "/private/tmp/s36-cad-final2/islands_loose/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/islands_loose/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette",
+          "--silhouette-thickness-mm",
+          "2",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/islands_loose/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/islands_loose/out.layers/silhouette.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/islands_loose/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/islands_loose/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/islands_loose/out.svg"
+          },
+          "counts": {
+            "layers": 1,
+            "paths": 2
+          },
+          "diagnostics": [
+            {
+              "code": "multiple_solids",
+              "components": 2,
+              "level": "warning",
+              "message": "The prepared silhouette has 2 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.015117582865059376,
+        "stderr": "loading  /private/tmp/s36-cad-final2/islands_loose/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: The prepared silhouette has 2 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/islands_loose/out.scad\nsaved    /private/tmp/s36-cad-final2/islands_loose/out.svg (layers: silhouette; paths: 2)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "silhouette": 198.0
+        },
+        "bounds_xy": [
+          [
+            2.0,
+            2.0
+          ],
+          [
+            30.0,
+            22.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 2,
+        "volume_mm3": 396.0,
+        "z_max": 2.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            2.0,
+            2.0,
+            0.0
+          ],
+          [
+            30.0,
+            22.0,
+            2.0
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 2,
+        "volume_mm3": 396.0,
+        "z_planes": [
+          0.0,
+          2.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/islands_loose.png",
+      "preview_sha256": "299f633f607837e1c10824338d8c92a475d4f7edc8d45a223b0028e69907db6f",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": null,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": null
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/islands_loose/out.stl",
+          "/private/tmp/s36-cad-final2/islands_loose/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.10657679103314877,
+        "stderr": "Geometries in cache: 3\nGeometry cache size in bytes: 4000\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.001\n   Top level object is a 3D object:\n   Facets:         24\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/islands_loose"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 100,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/mask.png",
+          "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 475,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.debug/recipe.json",
+          "sha256": "cdf36adf5bf05fdbba8982590403301049c45765479526f4e660500da0865c48"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 100,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.debug/silhouette.png",
+          "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 310,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.layers/silhouette.svg",
+          "sha256": "08f30c8eba8ccbac6ce083e093f552939963b0556b25c00b07d7b9b895e6eb06"
+        },
+        "out.scad": {
+          "bytes": 738,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.scad",
+          "sha256": "eecf0e1eabd0e786c5d4aa01390721cc0c4f5457d16ad9973a9f5672412ff43f"
+        },
+        "out.stl": {
+          "bytes": 5359,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.stl",
+          "sha256": "1682057e7f7c20534a29e37bb31b1b164c4f6e46337179e6a10cb23dc2fe196c"
+        },
+        "out.svg": {
+          "bytes": 332,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.svg",
+          "sha256": "ebb972d4f46d88b910ffc0e02ca5a790250ef430729a440b19c603137cbad7ae"
+        },
+        "out.vector.json": {
+          "bytes": 3360,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/out.vector.json",
+          "sha256": "6c7d999dc17782f651f22ee52ac7e7c8dedf51a43fbcb4ab5046b3b6c02753e0"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/islands_backed/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "islands_backed",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/islands_backed/source.png",
+          "/private/tmp/s36-cad-final2/islands_backed/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/islands_backed/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette",
+          "--silhouette-thickness-mm",
+          "2",
+          "--backing-mm",
+          "1",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/islands_backed/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/islands_backed/out.layers/silhouette.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/islands_backed/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/islands_backed/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/islands_backed/out.svg"
+          },
+          "counts": {
+            "layers": 1,
+            "paths": 2
+          },
+          "diagnostics": [],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.024374541826546192,
+        "stderr": "loading  /private/tmp/s36-cad-final2/islands_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/islands_backed/out.scad\nsaved    /private/tmp/s36-cad-final2/islands_backed/out.svg (layers: silhouette; paths: 2)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "silhouette": 198.0
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1164.0,
+        "z_max": 3.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0,
+            3.0
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1164.0,
+        "z_planes": [
+          0.0,
+          1.0,
+          3.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/islands_backed.png",
+      "preview_sha256": "8c0abb38b4386aa4f870116043fc2f8694e27c7c282502a4b127fcdca5ffd73f",
+      "relief": {
+        "backing_mm": 1.0,
+        "center": false,
+        "detail_height_mm": null,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": null
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/islands_backed/out.stl",
+          "/private/tmp/s36-cad-final2/islands_backed/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.13182237511500716,
+        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 5160\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.028\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/islands_backed"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/donut_open/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 104,
+          "path": "/private/tmp/s36-cad-final2/donut_open/mask.png",
+          "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 475,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.debug/recipe.json",
+          "sha256": "7f22a30bad213e97d2664dfa3e2993e5278629e774e806bdd1b70f8371778f1c"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 104,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.debug/silhouette.png",
+          "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 256,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.layers/silhouette.svg",
+          "sha256": "1e46b2c44b0cf3a8d57716b85e0d880fa572f20f30b74ef016a892af8af69c80"
+        },
+        "out.scad": {
+          "bytes": 738,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.scad",
+          "sha256": "d13860d1c59fac030f83fc1efaaa3754b16bfe7a4e2aa13ab5a9513f9136e764"
+        },
+        "out.stl": {
+          "bytes": 3904,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.stl",
+          "sha256": "b5e40377511592078ffb6b4058d8eab072f5ddb758376eafffd1f5584dcc21d0"
+        },
+        "out.svg": {
+          "bytes": 278,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.svg",
+          "sha256": "3ec25998264aa33ec24b9e39fa0e9bbe46b8343071ba0fc0b917689f6c06beb4"
+        },
+        "out.vector.json": {
+          "bytes": 3348,
+          "path": "/private/tmp/s36-cad-final2/donut_open/out.vector.json",
+          "sha256": "177a513bb7eabfabb5e4f50e297dce6ee3d3514876fe036c790569213d4d4d4b"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/donut_open/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/donut_open/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "donut_open",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/donut_open/source.png",
+          "/private/tmp/s36-cad-final2/donut_open/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/donut_open/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette",
+          "--silhouette-thickness-mm",
+          "2",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/donut_open/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/donut_open/out.layers/silhouette.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/donut_open/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/donut_open/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/donut_open/out.svg"
+          },
+          "counts": {
+            "layers": 1,
+            "paths": 1
+          },
+          "diagnostics": [],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.015559916850179434,
+        "stderr": "loading  /private/tmp/s36-cad-final2/donut_open/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/donut_open/out.scad\nsaved    /private/tmp/s36-cad-final2/donut_open/out.svg (layers: silhouette; paths: 1)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "silhouette": 480.0
+        },
+        "bounds_xy": [
+          [
+            2.0,
+            2.0
+          ],
+          [
+            30.0,
+            22.0
+          ]
+        ],
+        "genus_sum": 1,
+        "solids": 1,
+        "volume_mm3": 960.0,
+        "z_max": 2.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            2.0,
+            2.0,
+            0.0
+          ],
+          [
+            30.0,
+            22.0,
+            2.0
+          ]
+        ],
+        "genus_per_solid": [
+          1
+        ],
+        "genus_sum": 1,
+        "solids": 1,
+        "volume_mm3": 960.0,
+        "z_planes": [
+          0.0,
+          2.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/donut_open.png",
+      "preview_sha256": "816061ddd0f189166232776a0d91791d203f653c88a2a4daab65f4f7ac148be9",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": null,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": null
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/donut_open/out.stl",
+          "/private/tmp/s36-cad-final2/donut_open/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.10560858296230435,
+        "stderr": "Geometries in cache: 3\nGeometry cache size in bytes: 5152\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.001\n   Top level object is a 3D object:\n   Facets:         32\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/donut_open"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 104,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/mask.png",
+          "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 475,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.debug/recipe.json",
+          "sha256": "cdf36adf5bf05fdbba8982590403301049c45765479526f4e660500da0865c48"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 104,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.debug/silhouette.png",
+          "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 256,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.layers/silhouette.svg",
+          "sha256": "1e46b2c44b0cf3a8d57716b85e0d880fa572f20f30b74ef016a892af8af69c80"
+        },
+        "out.scad": {
+          "bytes": 738,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.scad",
+          "sha256": "eecf0e1eabd0e786c5d4aa01390721cc0c4f5457d16ad9973a9f5672412ff43f"
+        },
+        "out.stl": {
+          "bytes": 5337,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.stl",
+          "sha256": "4d81b6e8ae77340efff420387d229aaddbb326d8cffe990ef92c2f5d73e02d0b"
+        },
+        "out.svg": {
+          "bytes": 278,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.svg",
+          "sha256": "3ec25998264aa33ec24b9e39fa0e9bbe46b8343071ba0fc0b917689f6c06beb4"
+        },
+        "out.vector.json": {
+          "bytes": 3354,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/out.vector.json",
+          "sha256": "fbd349967a5ffdca3312f21bb1e761f83aae0f5e3f1572546e03ea8ba6a5e13a"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/donut_filled/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "donut_filled",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/donut_filled/source.png",
+          "/private/tmp/s36-cad-final2/donut_filled/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/donut_filled/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette",
+          "--silhouette-thickness-mm",
+          "2",
+          "--backing-mm",
+          "1",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/donut_filled/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/donut_filled/out.layers/silhouette.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/donut_filled/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/donut_filled/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/donut_filled/out.svg"
+          },
+          "counts": {
+            "layers": 1,
+            "paths": 1
+          },
+          "diagnostics": [],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.015001416206359863,
+        "stderr": "loading  /private/tmp/s36-cad-final2/donut_filled/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/donut_filled/out.scad\nsaved    /private/tmp/s36-cad-final2/donut_filled/out.svg (layers: silhouette; paths: 1)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "silhouette": 480.0
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1728.0,
+        "z_max": 3.0
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            32.0,
+            24.0,
+            3.0
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 1728.0,
+        "z_planes": [
+          0.0,
+          1.0,
+          3.0
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/donut_filled.png",
+      "preview_sha256": "0f0754a118b3208c518826d848a6aa912b8260bea7a840d07a4d0a4eec02006f",
+      "relief": {
+        "backing_mm": 1.0,
+        "center": false,
+        "detail_height_mm": null,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": null,
+        "silhouette_thickness_mm": 2.0,
+        "structure_height_mm": null
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/donut_filled/out.stl",
+          "/private/tmp/s36-cad-final2/donut_filled/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.13209199998527765,
+        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 6312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.029\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/donut_filled"
+    },
+    {
+      "artifacts": {
+        "detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/preset/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "mask.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/preset/mask.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/detail.png": {
+          "bytes": 88,
+          "path": "/private/tmp/s36-cad-final2/preset/out.debug/detail.png",
+          "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 811,
+          "path": "/private/tmp/s36-cad-final2/preset/out.debug/recipe.json",
+          "sha256": "8bc06d7436e2888d92f72cf269fcff74af316d9c23642a22fb250a45b7fb4f49"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 91,
+          "path": "/private/tmp/s36-cad-final2/preset/out.debug/silhouette.png",
+          "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
+        },
+        "out.debug/structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/preset/out.debug/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 229,
+          "path": "/private/tmp/s36-cad-final2/preset/out.layers/detail.svg",
+          "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 230,
+          "path": "/private/tmp/s36-cad-final2/preset/out.layers/silhouette.svg",
+          "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 228,
+          "path": "/private/tmp/s36-cad-final2/preset/out.layers/structure.svg",
+          "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
+        },
+        "out.scad": {
+          "bytes": 1357,
+          "path": "/private/tmp/s36-cad-final2/preset/out.scad",
+          "sha256": "02d5b882f249e3a57ccbbe9b1687344303f9ad6f4d76ce896a94371fba44d012"
+        },
+        "out.stl": {
+          "bytes": 5562,
+          "path": "/private/tmp/s36-cad-final2/preset/out.stl",
+          "sha256": "17f1876ef99c17c1e0319f38ba41328a1bccc11541b555422f560b915440ff36"
+        },
+        "out.svg": {
+          "bytes": 454,
+          "path": "/private/tmp/s36-cad-final2/preset/out.svg",
+          "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
+        },
+        "out.vector.json": {
+          "bytes": 6341,
+          "path": "/private/tmp/s36-cad-final2/preset/out.vector.json",
+          "sha256": "c3806f9ebea41e2954659948e6965fd72414ecde7bc9ae9e3820278efd301d5f"
+        },
+        "source.png": {
+          "bytes": 109,
+          "path": "/private/tmp/s36-cad-final2/preset/source.png",
+          "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
+        },
+        "structure.png": {
+          "bytes": 86,
+          "path": "/private/tmp/s36-cad-final2/preset/structure.png",
+          "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
+        }
+      },
+      "case": "preset",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/preset/source.png",
+          "/private/tmp/s36-cad-final2/preset/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/preset/mask.png",
+          "--width-mm",
+          "32",
+          "--layers",
+          "silhouette,structure,detail",
+          "--structure-map",
+          "/private/tmp/s36-cad-final2/preset/structure.png",
+          "--detail-map",
+          "/private/tmp/s36-cad-final2/preset/detail.png",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/preset/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/preset/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/preset/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/preset/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/preset/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/preset/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/preset/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 3
+          },
+          "diagnostics": [
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.02106754155829549,
+        "stderr": "loading  /private/tmp/s36-cad-final2/preset/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final2/preset/out.scad\nsaved    /private/tmp/s36-cad-final2/preset/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 768.0,
+          "detail": 60.0,
+          "silhouette": 560.0,
+          "structure": 72.0
+        },
+        "bounds_xy": [
+          [
+            2.0,
+            2.0
+          ],
+          [
+            30.0,
+            22.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 727.2,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            2.0,
+            2.0,
+            0.0
+          ],
+          [
+            30.0,
+            22.0,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 727.1999999999999,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.4,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/preset.png",
+      "preview_sha256": "2a5c462003cd8fc04293d53129cd8896a6c2afd552cee4850883903d40448752",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/preset/out.stl",
+          "/private/tmp/s36-cad-final2/preset/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.14497712487354875,
+        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 6960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.040\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/preset"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 1817,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/mask.png",
+          "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+        },
+        "out.debug/detail.png": {
+          "bytes": 143,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.debug/detail.png",
+          "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 1817,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.debug/silhouette.png",
+          "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+        },
+        "out.debug/structure.png": {
+          "bytes": 2460,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.debug/structure.png",
+          "sha256": "8010e7fdc6a886a99cc9577a30a4c5ec3667106ace6f2a8b6894fee639348fd3"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 1590,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.layers/silhouette.svg",
+          "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 2809,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.layers/structure.svg",
+          "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
+        },
+        "out.scad": {
+          "bytes": 1032,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.scad",
+          "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+        },
+        "out.stl": {
+          "bytes": 193156,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.stl",
+          "sha256": "cd310568f4b501893ba9b4739c24ed6dc587563200f16862cb55e5f67f604d10"
+        },
+        "out.svg": {
+          "bytes": 4291,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.svg",
+          "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
+        },
+        "out.vector.json": {
+          "bytes": 6851,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/out.vector.json",
+          "sha256": "b7434f246c00c7c1730bcb43434bac736be7674bfff189b17602c962b0d75848"
+        },
+        "source.png": {
+          "bytes": 4038,
+          "path": "/private/tmp/s36-cad-final2/corpus_badge/source.png",
+          "sha256": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f"
+        }
+      },
+      "case": "corpus_badge",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_badge/source.png",
+          "/private/tmp/s36-cad-final2/corpus_badge/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_badge/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_badge/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_badge/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_badge/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_badge/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_badge/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_badge/out.svg"
+          },
+          "counts": {
+            "layers": 2,
+            "paths": 14
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 38
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 5
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "role_empty",
+              "level": "warning",
+              "message": "detail: selected role has no material after constraints and clipping.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 6,
+              "level": "warning",
+              "message": "The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.02850179187953472,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final2/corpus_badge/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_badge/out.svg (layers: silhouette, structure; paths: 14)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 0.0,
+          "silhouette": 3456.4971923828125,
+          "structure": 531.3873291015625
+        },
+        "bounds_xy": [
+          [
+            3.90625,
+            3.90625
+          ],
+          [
+            96.09375,
+            96.09375
+          ]
+        ],
+        "genus_sum": 2,
+        "solids": 6,
+        "volume_mm3": 4466.6290283203125,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            3.90625,
+            3.90625,
+            0.0
+          ],
+          [
+            96.0938,
+            96.0938,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          0,
+          1,
+          1,
+          0,
+          0
+        ],
+        "genus_sum": 2,
+        "solids": 6,
+        "volume_mm3": 4466.632948238609,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_badge.png",
+      "preview_sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_badge/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_badge/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 3.1186606669798493,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:02.976\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_badge"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 968,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/mask.png",
+          "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+        },
+        "out.debug/detail.png": {
+          "bytes": 143,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.debug/detail.png",
+          "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 968,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.debug/silhouette.png",
+          "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+        },
+        "out.debug/structure.png": {
+          "bytes": 995,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.debug/structure.png",
+          "sha256": "2a67cac4201478e8c4e90de6b1e83ffcd3bbc8328b6587ced831a9950af6aef6"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 1467,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.layers/silhouette.svg",
+          "sha256": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 1534,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.layers/structure.svg",
+          "sha256": "31fae193dc2105d5be4cd350fb8e7ec2e757ee6574aee01421d7a2d3dc33fd99"
+        },
+        "out.scad": {
+          "bytes": 1032,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.scad",
+          "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+        },
+        "out.stl": {
+          "bytes": 90892,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.stl",
+          "sha256": "f0dfd912cbaac082e2ba7edc26f90c50dc56bee6e885c0cecb9867dcf4c9aed4"
+        },
+        "out.svg": {
+          "bytes": 2893,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.svg",
+          "sha256": "a9f7da4e395ffd005af8f526c190d7d76db43147db4a82879eb54d28d4675ac9"
+        },
+        "out.vector.json": {
+          "bytes": 6860,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/out.vector.json",
+          "sha256": "1914611501586e8938733b89d3d6112d18780681dfde85b1ffdc522aadb2dcba"
+        },
+        "source.png": {
+          "bytes": 1847,
+          "path": "/private/tmp/s36-cad-final2/corpus_bracket/source.png",
+          "sha256": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3"
+        }
+      },
+      "case": "corpus_bracket",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_bracket/source.png",
+          "/private/tmp/s36-cad-final2/corpus_bracket/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_bracket/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_bracket/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_bracket/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_bracket/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_bracket/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_bracket/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_bracket/out.svg"
+          },
+          "counts": {
+            "layers": 2,
+            "paths": 12
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 3367
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 11
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "role_empty",
+              "level": "warning",
+              "message": "detail: selected role has no material after constraints and clipping.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 6,
+              "level": "warning",
+              "message": "The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.0264485408551991,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_bracket/source.png\nwarning: Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final2/corpus_bracket/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_bracket/out.svg (layers: silhouette, structure; paths: 12)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 0.0,
+          "silhouette": 549.163818359375,
+          "structure": 543.212890625
+        },
+        "bounds_xy": [
+          [
+            11.71875,
+            17.96875
+          ],
+          [
+            88.28125,
+            90.234375
+          ]
+        ],
+        "genus_sum": 3,
+        "solids": 6,
+        "volume_mm3": 984.92431640625,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            11.7188,
+            17.9688,
+            0.0
+          ],
+          [
+            88.2812,
+            90.2344,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          1,
+          1,
+          0,
+          1,
+          0
+        ],
+        "genus_sum": 3,
+        "solids": 6,
+        "volume_mm3": 984.8927812349983,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_bracket.png",
+      "preview_sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_bracket/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_bracket/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 2.617324166931212,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.488\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_bracket"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 2705,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/mask.png",
+          "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+        },
+        "out.debug/detail.png": {
+          "bytes": 257,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.debug/detail.png",
+          "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 2705,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.debug/silhouette.png",
+          "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+        },
+        "out.debug/structure.png": {
+          "bytes": 2861,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.debug/structure.png",
+          "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 234,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/detail.svg",
+          "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 5497,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/silhouette.svg",
+          "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 6242,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/structure.svg",
+          "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
+        },
+        "out.scad": {
+          "bytes": 1359,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.scad",
+          "sha256": "837b7b563a2e6d0138d10f3267b879febb23a0e7181945c8a2ef8411cac16240"
+        },
+        "out.stl": {
+          "bytes": 493975,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.stl",
+          "sha256": "9a0c8ba858113a4f11cbdef90722198f1289cbcaccdecbbbe60e205822d5ff4b"
+        },
+        "out.svg": {
+          "bytes": 11732,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.svg",
+          "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
+        },
+        "out.vector.json": {
+          "bytes": 6998,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/out.vector.json",
+          "sha256": "8359fc9c9925664c56a44499c5a24497fef5e6b2a57dae562ce3df6dda9ec3ff"
+        },
+        "source.png": {
+          "bytes": 32373,
+          "path": "/private/tmp/s36-cad-final2/corpus_brick/source.png",
+          "sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435"
+        }
+      },
+      "case": "corpus_brick",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_brick/source.png",
+          "/private/tmp/s36-cad-final2/corpus_brick/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_brick/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_brick/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_brick/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_brick/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_brick/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_brick/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 3
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 10378
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 181
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "structure",
+              "subpaths": 22
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.038839082699269056,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_brick/source.png\nwarning: Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final2/corpus_brick/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_brick/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+      },
+      "errors": [
+        "WARNING: Object may not be a valid 2-manifold and may need repair!",
+        "EXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair",
+        "Volume 3500.3688402302364 versus 3507.5531005859375 mm\u00b3 exceeds 1e-4 relative."
+      ],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 3.814697265625,
+          "silhouette": 1955.718994140625,
+          "structure": 1933.2122802734375
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0
+          ]
+        ],
+        "genus_sum": 53,
+        "solids": 1,
+        "volume_mm3": 3507.5531005859375,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          53
+        ],
+        "genus_sum": 53,
+        "solids": 1,
+        "volume_mm3": 3500.3688402302364,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.4,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": false,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_brick.png",
+      "preview_sha256": "1840a8ae46df33e0331037c8c8b5392cdcf4b5510bbda1fb94c817ec34857547",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_brick/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_brick/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 15.307193542364985,
+        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 891792\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 1989600\nTotal rendering time: 0:00:15.093\n   Top level object is a 3D object:\n   Simple:         no\n   Vertices:     1466\n   Halfedges:    4418\n   Edges:        2209\n   Halffacets:   1514\n   Facets:        757\n   Volumes:         2\nWARNING: Object may not be a valid 2-manifold and may need repair!\nEXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_brick"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 1713,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/mask.png",
+          "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+        },
+        "out.debug/detail.png": {
+          "bytes": 2366,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.debug/detail.png",
+          "sha256": "cc808c53906da381b579583839362eb37503d347e34326611c5cf23a43ef080e"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 1713,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.debug/silhouette.png",
+          "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+        },
+        "out.debug/structure.png": {
+          "bytes": 3211,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.debug/structure.png",
+          "sha256": "ee786281d1b868fbe589f81acd3b3bf085e77d2fc50abf0c1204c5bb11793870"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 7038,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/detail.svg",
+          "sha256": "9dfdb90f58cfdda35ae76102c0ba75e164854e234fb4c4c86f98378e804cd410"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 3702,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/silhouette.svg",
+          "sha256": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 7925,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/structure.svg",
+          "sha256": "4f3572b5a06912e56360997279b51dde38c19ff38412538808cd7b0250fabd6d"
+        },
+        "out.scad": {
+          "bytes": 1364,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.scad",
+          "sha256": "d8fd5687fc358bab5282592f1edfed68f3b8d6a299182fa644ff0d48f8f4439b"
+        },
+        "out.stl": {
+          "bytes": 187941,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.stl",
+          "sha256": "30c3926294a854dac8374d32c885cabf1936d6f72d1c2ab2a84cca79e8972d0c"
+        },
+        "out.svg": {
+          "bytes": 18414,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.svg",
+          "sha256": "1e72c0b204be4a00715ff6c596bc27e6dd7234f41f4aa2eae16afb0a9902f1ee"
+        },
+        "out.vector.json": {
+          "bytes": 7584,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/out.vector.json",
+          "sha256": "c69efa1e89a06b5d1919391548ed54dc1166515acc8496e9f7604aca6bba82bc"
+        },
+        "source.png": {
+          "bytes": 35775,
+          "path": "/private/tmp/s36-cad-final2/corpus_coins/source.png",
+          "sha256": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5"
+        }
+      },
+      "case": "corpus_coins",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_coins/source.png",
+          "/private/tmp/s36-cad-final2/corpus_coins/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_coins/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_coins/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_coins/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_coins/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_coins/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_coins/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 101
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 18
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 15
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 24,
+              "level": "warning",
+              "message": "The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "structure",
+              "subpaths": 27
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "detail",
+              "subpaths": 12
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.04254575027152896,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_coins/source.png\nwarning: Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x202, oriented 256x202, processed 256x202 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x202 px as 100x78.9062 mm\ntracing  structure 256x202 px as 100x78.9062 mm\nwarning: structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x202 px as 100x78.9062 mm\nwarning: detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final2/corpus_coins/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_coins/out.svg (layers: silhouette, structure, detail; paths: 101)\n"
+      },
+      "errors": [
+        "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.",
+        "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.",
+        "Z bounds differ: [[4.6875, 3.51562, 0.0], [99.6094, 75.0, 1.2]] versus [0, 1.7999999999999998].",
+        "Volume 3365.3947863387607 versus 4375.3509521484375 mm\u00b3 exceeds 1e-4 relative."
+      ],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 7890.625,
+          "detail": 957.6416015625,
+          "silhouette": 2804.4891357421875,
+          "structure": 1364.0594482421875
+        },
+        "bounds_xy": [
+          [
+            4.6875,
+            3.515625
+          ],
+          [
+            99.609375,
+            75.0
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 24,
+        "volume_mm3": 4375.3509521484375,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            4.6875,
+            3.51562,
+            0.0
+          ],
+          [
+            99.6094,
+            75.0,
+            1.2
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 24,
+        "volume_mm3": 3365.3947863387607,
+        "z_planes": [
+          0.0,
+          1.2
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": false,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_coins.png",
+      "preview_sha256": "dd3297b51b29ba51e85c583e842ef98db2ecaa36b8651d8dd7d7f12d448d4ef2",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_coins/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_coins/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 0.43036083318293095,
+        "stderr": "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.\nERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.\nGeometries in cache: 12\nGeometry cache size in bytes: 1174080\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 864096\nTotal rendering time: 0:00:00.274\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      634\n   Halfedges:    1902\n   Edges:         951\n   Halffacets:    730\n   Facets:        365\n   Volumes:        25\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_coins"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 7971,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/mask.png",
+          "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+        },
+        "out.debug/detail.png": {
+          "bytes": 2598,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.debug/detail.png",
+          "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 7971,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.debug/silhouette.png",
+          "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+        },
+        "out.debug/structure.png": {
+          "bytes": 9534,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.debug/structure.png",
+          "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 3945,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/detail.svg",
+          "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 28836,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/silhouette.svg",
+          "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 35956,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/structure.svg",
+          "sha256": "fd4d57fcfb621188491950017e37e4f31f54a84bd51e0cfdf126a1d2fa3de078"
+        },
+        "out.scad": {
+          "bytes": 1359,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.scad",
+          "sha256": "837b7b563a2e6d0138d10f3267b879febb23a0e7181945c8a2ef8411cac16240"
+        },
+        "out.stl": {
+          "bytes": 1701194,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.stl",
+          "sha256": "6f26e7affd334e5730fefd5aa53db72b4dd47f3a7020570e71debb2a3cfef4b0"
+        },
+        "out.svg": {
+          "bytes": 68496,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.svg",
+          "sha256": "a85bb7dbae56486edd67dbd1f60e6169391fe6bfd6eed9d7dbeb49e3c8b3dd0d"
+        },
+        "out.vector.json": {
+          "bytes": 7339,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/out.vector.json",
+          "sha256": "84750281e8d56ff3b0733c18d5b7b0294a9b10e6e80986a9fad336a32e11e44d"
+        },
+        "source.png": {
+          "bytes": 54353,
+          "path": "/private/tmp/s36-cad-final2/corpus_gravel/source.png",
+          "sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543"
+        }
+      },
+      "case": "corpus_gravel",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_gravel/source.png",
+          "/private/tmp/s36-cad-final2/corpus_gravel/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_gravel/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_gravel/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_gravel/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_gravel/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_gravel/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_gravel/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 474
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 6310
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 5856
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 225,
+              "level": "warning",
+              "message": "The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "structure",
+              "subpaths": 141
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.08424225030466914,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final2/corpus_gravel/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_gravel/out.svg (layers: silhouette, structure, detail; paths: 474)\n"
+      },
+      "errors": [
+        "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.",
+        "Z bounds differ: [[0.0, 0.0, 0.0], [100.0, 100.0, 1.4]] versus [0, 1.7999999999999998].",
+        "Solid count 209 versus 225.",
+        "Volume 5170.305583455119 versus 7075.775146484375 mm\u00b3 exceeds 1e-4 relative."
+      ],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 160.369873046875,
+          "silhouette": 4284.97314453125,
+          "structure": 3169.5556640625
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0
+          ]
+        ],
+        "genus_sum": 13,
+        "solids": 225,
+        "volume_mm3": 7075.775146484375,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0,
+            1.4
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "genus_sum": 13,
+        "solids": 209,
+        "volume_mm3": 5170.305583455119,
+        "z_planes": [
+          0.0,
+          1.19,
+          1.2,
+          1.4
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": false,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_gravel.png",
+      "preview_sha256": "df8a200e9573f59f72a7c80c0dcba6e527593b852587c6e36e1fe5f8ddeb72c1",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_gravel/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_gravel/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 8.52457695826888,
+        "stderr": "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.\nGeometries in cache: 12\nGeometry cache size in bytes: 3764240\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 7786032\nTotal rendering time: 0:00:08.063\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     5700\n   Halfedges:   17136\n   Edges:        8568\n   Halffacets:   6612\n   Facets:       3306\n   Volumes:       210\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_gravel"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 1236,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/mask.png",
+          "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+        },
+        "out.debug/detail.png": {
+          "bytes": 132,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.debug/detail.png",
+          "sha256": "ecfeb413d83685b9485b07939ba8606b999a333d65ae6a8f75f92a1e69e0650b"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 1236,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.debug/silhouette.png",
+          "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+        },
+        "out.debug/structure.png": {
+          "bytes": 1753,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.debug/structure.png",
+          "sha256": "52d62e1f487173738d75034defa9f40be6076a81866815badfe3f1ea33dd39aa"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 1390,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.layers/silhouette.svg",
+          "sha256": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 2425,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.layers/structure.svg",
+          "sha256": "402f12c823d3ad271bc756701c6260f28e96cbf0587f544d27d943d97256105c"
+        },
+        "out.scad": {
+          "bytes": 1037,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.scad",
+          "sha256": "c5adf7a4013cd8c2f1d3b616828bc8d416906659d26151505abb6a8d891c606a"
+        },
+        "out.stl": {
+          "bytes": 158072,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.stl",
+          "sha256": "102e7cf0c2aea6b32f9cc53543bb5439fe1a99bc6be8fbf7ba87864ca17e70d3"
+        },
+        "out.svg": {
+          "bytes": 3702,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.svg",
+          "sha256": "7cd01393a4ad97ddc28e6cce718248f642b2fb3f4cc7bb86ad464c5d4ca01aaf"
+        },
+        "out.vector.json": {
+          "bytes": 6549,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/out.vector.json",
+          "sha256": "9bbc160c95983091c19b83294ea036278c6cc171c403991db942aff4dd3f60cd"
+        },
+        "source.png": {
+          "bytes": 5858,
+          "path": "/private/tmp/s36-cad-final2/corpus_horse/source.png",
+          "sha256": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d"
+        }
+      },
+      "case": "corpus_horse",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_horse/source.png",
+          "/private/tmp/s36-cad-final2/corpus_horse/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_horse/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_horse/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_horse/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_horse/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_horse/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_horse/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_horse/out.svg"
+          },
+          "counts": {
+            "layers": 2,
+            "paths": 2
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 64
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 178
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "role_empty",
+              "level": "warning",
+              "message": "detail: selected role has no material after constraints and clipping.",
+              "role": "detail"
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.025893083307892084,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_horse/source.png\nwarning: Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x210, oriented 256x210, processed 256x210 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x210 px as 100x82.0312 mm\ntracing  structure 256x210 px as 100x82.0312 mm\nscad     /private/tmp/s36-cad-final2/corpus_horse/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_horse/out.svg (layers: silhouette, structure; paths: 2)\n"
+      },
+      "errors": [],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 8203.125,
+          "detail": 0.0,
+          "silhouette": 2803.7261962890625,
+          "structure": 370.78857421875
+        },
+        "bounds_xy": [
+          [
+            4.296875,
+            3.90625
+          ],
+          [
+            97.265625,
+            79.6875
+          ]
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 3586.944580078125,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            4.29688,
+            3.90625,
+            0.0
+          ],
+          [
+            97.2656,
+            79.6875,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          0
+        ],
+        "genus_sum": 0,
+        "solids": 1,
+        "volume_mm3": 3586.9439566395,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": true,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_horse.png",
+      "preview_sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_horse/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_horse/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 2.8798878751695156,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.733\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_horse"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 898,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/mask.png",
+          "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+        },
+        "out.debug/detail.png": {
+          "bytes": 143,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.debug/detail.png",
+          "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 898,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.debug/silhouette.png",
+          "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+        },
+        "out.debug/structure.png": {
+          "bytes": 1322,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.debug/structure.png",
+          "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 8350,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.layers/silhouette.svg",
+          "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 18697,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.layers/structure.svg",
+          "sha256": "210c773dbf60fd439454ab44abd0b0f0a46bf2223a14044df9a23ad6ac5d52ea"
+        },
+        "out.scad": {
+          "bytes": 1032,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.scad",
+          "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+        },
+        "out.stl": {
+          "bytes": 654742,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.stl",
+          "sha256": "43c7b3b67d54df4a96dad45af4d6193880912ec56e65ba5a7a05421cdadeff4d"
+        },
+        "out.svg": {
+          "bytes": 26939,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.svg",
+          "sha256": "b1728a21c11a917a736790292b82036912a03b49dfe92fbb3994b1ed0be1cadd"
+        },
+        "out.vector.json": {
+          "bytes": 6556,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/out.vector.json",
+          "sha256": "3274c3f471fa46d9669eaac32e1bb677ec06c1bdf2c388e49853197dac182588"
+        },
+        "source.png": {
+          "bytes": 1373,
+          "path": "/private/tmp/s36-cad-final2/corpus_pcb/source.png",
+          "sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c"
+        }
+      },
+      "case": "corpus_pcb",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_pcb/source.png",
+          "/private/tmp/s36-cad-final2/corpus_pcb/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_pcb/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_pcb/out.debug",
+            "layers": {
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_pcb/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_pcb/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_pcb/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_pcb/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_pcb/out.svg"
+          },
+          "counts": {
+            "layers": 2,
+            "paths": 124
+          },
+          "diagnostics": [
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 128
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "role_empty",
+              "level": "warning",
+              "message": "detail: selected role has no material after constraints and clipping.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 30,
+              "level": "warning",
+              "message": "The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.045367415994405746,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_pcb/source.png\nwarning: Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final2/corpus_pcb/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_pcb/out.svg (layers: silhouette, structure; paths: 124)\n"
+      },
+      "errors": [
+        "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.",
+        "Z bounds differ: [[5.85938, 5.46875, 0.0], [94.5312, 94.1406, 1.2]] versus [0, 1.7999999999999998].",
+        "Volume 2648.988850805997 versus 3599.945068359375 mm\u00b3 exceeds 1e-4 relative."
+      ],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 0.0,
+          "silhouette": 2207.489013671875,
+          "structure": 1584.930419921875
+        },
+        "bounds_xy": [
+          [
+            5.859375,
+            5.46875
+          ],
+          [
+            94.53125,
+            94.140625
+          ]
+        ],
+        "genus_sum": 64,
+        "solids": 30,
+        "volume_mm3": 3599.945068359375,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            5.85938,
+            5.46875,
+            0.0
+          ],
+          [
+            94.5312,
+            94.1406,
+            1.2
+          ]
+        ],
+        "genus_per_solid": [
+          2,
+          6,
+          1,
+          2,
+          5,
+          2,
+          2,
+          1,
+          1,
+          1,
+          1,
+          2,
+          1,
+          2,
+          4,
+          2,
+          5,
+          3,
+          1,
+          1,
+          2,
+          1,
+          3,
+          1,
+          1,
+          6,
+          1,
+          1,
+          1,
+          2
+        ],
+        "genus_sum": 64,
+        "solids": 30,
+        "volume_mm3": 2648.988850805997,
+        "z_planes": [
+          0.0,
+          1.2
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": false,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_pcb.png",
+      "preview_sha256": "03c27300ad5936596befff085cd621fdac878099ab21824b1f447305101950a1",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_pcb/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_pcb/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 1.1588520002551377,
+        "stderr": "ERROR: The given mesh is not closed! Unable to convert to CGAL_Nef_Polyhedron.\nGeometries in cache: 7\nGeometry cache size in bytes: 1890128\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 2678912\nTotal rendering time: 0:00:00.890\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1976\n   Halfedges:    5928\n   Edges:        2964\n   Halffacets:   2096\n   Facets:       1048\n   Volumes:        31\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_pcb"
+    },
+    {
+      "artifacts": {
+        "mask.png": {
+          "bytes": 4855,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/mask.png",
+          "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+        },
+        "out.debug/detail.png": {
+          "bytes": 641,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.debug/detail.png",
+          "sha256": "1c3ed33d1b6ba03bde4bde0d49fa413f53eeaa984675e75a82f999c41da61b5f"
+        },
+        "out.debug/recipe.json": {
+          "bytes": 812,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.debug/recipe.json",
+          "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+        },
+        "out.debug/silhouette.png": {
+          "bytes": 4855,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.debug/silhouette.png",
+          "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+        },
+        "out.debug/structure.png": {
+          "bytes": 5842,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.debug/structure.png",
+          "sha256": "91995e87e0af7023b1831dae1749e65f08f2cfa3b86206f2e46fc97056dee3e3"
+        },
+        "out.layers/detail.svg": {
+          "bytes": 1482,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/detail.svg",
+          "sha256": "fcffbb2b358bf43a9ebf9f063ca19d7ef91c1bd5d6ef75f4d064f3cead77eba1"
+        },
+        "out.layers/silhouette.svg": {
+          "bytes": 19400,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/silhouette.svg",
+          "sha256": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 24622,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/structure.svg",
+          "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
+        },
+        "out.scad": {
+          "bytes": 1359,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.scad",
+          "sha256": "837b7b563a2e6d0138d10f3267b879febb23a0e7181945c8a2ef8411cac16240"
+        },
+        "out.stl": {
+          "bytes": 1626259,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.stl",
+          "sha256": "4042a14bbbda8c7e258d8773a290ee8af6178823d6d85813f17a73958cc8b45c"
+        },
+        "out.svg": {
+          "bytes": 45263,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.svg",
+          "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
+        },
+        "out.vector.json": {
+          "bytes": 7602,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/out.vector.json",
+          "sha256": "76f137e0cac9a752975e9017810151ce7066e09c14e76bc457e3f206bb6c58c7"
+        },
+        "source.png": {
+          "bytes": 47939,
+          "path": "/private/tmp/s36-cad-final2/corpus_truchet/source.png",
+          "sha256": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51"
+        }
+      },
+      "case": "corpus_truchet",
+      "conversion": {
+        "argv": [
+          "python",
+          "scripts/vector_map.py",
+          "/private/tmp/s36-cad-final2/corpus_truchet/source.png",
+          "/private/tmp/s36-cad-final2/corpus_truchet/out.svg",
+          "--input-kind",
+          "image",
+          "--mask",
+          "/private/tmp/s36-cad-final2/corpus_truchet/mask.png",
+          "--width-mm",
+          "100",
+          "--layers",
+          "silhouette,structure,detail",
+          "--preset",
+          "relief-0.4",
+          "--export-scad",
+          "--debug-bundle",
+          "--json"
+        ],
+        "exit_code": 0,
+        "result": {
+          "artifacts": {
+            "debug": "/private/tmp/s36-cad-final2/corpus_truchet/out.debug",
+            "layers": {
+              "detail": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final2/corpus_truchet/out.layers/structure.svg"
+            },
+            "manifest": "/private/tmp/s36-cad-final2/corpus_truchet/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final2/corpus_truchet/out.scad",
+            "svg": "/private/tmp/s36-cad-final2/corpus_truchet/out.svg"
+          },
+          "counts": {
+            "layers": 3,
+            "paths": 120
+          },
+          "diagnostics": [
+            {
+              "code": "thin_material",
+              "level": "warning",
+              "message": "Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 13197
+            },
+            {
+              "code": "thin_background",
+              "level": "warning",
+              "message": "Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+              "method": "square_coverage_4px",
+              "pixels": 121
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "structure: Requested line width covers fewer than four processing pixels.",
+              "role": "structure"
+            },
+            {
+              "code": "requested_width_below_four_pixels",
+              "level": "warning",
+              "message": "detail: Requested line width covers fewer than four processing pixels.",
+              "role": "detail"
+            },
+            {
+              "code": "multiple_solids",
+              "components": 55,
+              "level": "warning",
+              "message": "The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "structure",
+              "subpaths": 357
+            },
+            {
+              "code": "degenerate_subpaths",
+              "level": "warning",
+              "message": "detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+              "role": "detail",
+              "subpaths": 1
+            }
+          ],
+          "schema_version": 1,
+          "status": "converted"
+        },
+        "seconds": 0.06633895821869373,
+        "stderr": "loading  /private/tmp/s36-cad-final2/corpus_truchet/source.png\nwarning: Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nwarning: detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final2/corpus_truchet/out.scad\nsaved    /private/tmp/s36-cad-final2/corpus_truchet/out.svg (layers: silhouette, structure, detail; paths: 120)\n"
+      },
+      "errors": [
+        "WARNING: Object may not be a valid 2-manifold and may need repair!",
+        "EXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair",
+        "Volume 5962.058863710845 versus 5964.2181396484375 mm\u00b3 exceeds 1e-4 relative."
+      ],
+      "expected": {
+        "areas_mm2": {
+          "canvas": 10000.0,
+          "detail": 74.6917724609375,
+          "silhouette": 3349.8382568359375,
+          "structure": 3215.789794921875
+        },
+        "bounds_xy": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0
+          ]
+        ],
+        "genus_sum": 20,
+        "solids": 55,
+        "volume_mm3": 5964.2181396484375,
+        "z_max": 1.7999999999999998
+      },
+      "measured": {
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            100.0,
+            100.0,
+            1.8
+          ]
+        ],
+        "genus_per_solid": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "genus_sum": 20,
+        "solids": 55,
+        "volume_mm3": 5962.058863710845,
+        "z_planes": [
+          0.0,
+          1.2,
+          1.4,
+          1.8
+        ]
+      },
+      "openscad_version": "OpenSCAD version 2021.01",
+      "passed": false,
+      "preview": "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/corpus_truchet.png",
+      "preview_sha256": "bc16d9e4d0f55e77ced785a36ce02e2dee221528050f8cca423ce691286c67a3",
+      "relief": {
+        "backing_mm": 0.0,
+        "center": false,
+        "detail_height_mm": 0.2,
+        "detail_mode": "raised",
+        "export_scad": true,
+        "preset": "relief-0.4",
+        "silhouette_thickness_mm": 1.2,
+        "structure_height_mm": 0.6
+      },
+      "render": {
+        "argv": [
+          "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+          "-o",
+          "/private/tmp/s36-cad-final2/corpus_truchet/out.stl",
+          "/private/tmp/s36-cad-final2/corpus_truchet/out.scad"
+        ],
+        "exit_code": 0,
+        "seconds": 55.755702416878194,
+        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 2898656\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 7093288\nTotal rendering time: 0:00:55.310\n   Top level object is a 3D object:\n   Simple:         no\n   Vertices:     5223\n   Halfedges:   15732\n   Edges:        7866\n   Halffacets:   5630\n   Facets:       2815\n   Volumes:        56\nWARNING: Object may not be a valid 2-manifold and may need repair!\nEXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair\n",
+        "stdout": ""
+      },
+      "work_dir": "/private/tmp/s36-cad-final2/corpus_truchet"
+    }
+  ],
+  "invocation": [
+    "/Users/darkbit1001/miniforge3/envs/stability-toys/bin/python",
+    "-m",
+    "tests.vector_map_s3_6_cad_probe",
+    "--work-dir",
+    "/private/tmp/s36-cad-final2",
+    "--evidence-json",
+    "docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance/evidence.json",
+    "--report",
+    "docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance.md",
+    "--preview-dir",
+    "docs/superpowers/reports/2026-10-14-vector-map-s3-6-cad-acceptance"
+  ],
+  "manifest_hash_check": {
+    "checked": 115,
+    "mismatches": []
+  },
+  "openscad_command": [
+    "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD"
+  ],
+  "openscad_version": "OpenSCAD version 2021.01",
+  "schema_version": 1,
+  "work_dir": "/private/tmp/s36-cad-final2"
+}

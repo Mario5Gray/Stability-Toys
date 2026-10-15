@@ -648,6 +648,23 @@ def test_module_is_listed_for_installation():
 
 
 # --- Native OpenSCAD smoke render ---------------------------------------------
+
+
+def test_s36_probe_blocks_when_openscad_is_missing(monkeypatch, tmp_path, capsys):
+    from tests import vector_map_s3_6_cad_probe as probe
+
+    monkeypatch.setattr(probe.open_scad, "_openscad", lambda: None)
+    code = probe.main(["--work-dir", str(tmp_path / "work")])
+    assert code != 0
+    assert "OpenSCAD" in capsys.readouterr().err
+
+
+def test_s36_area_conversion_uses_manifest_canvas_scale():
+    from tests import vector_map_s3_6_cad_probe as probe
+
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64mm" height="48mm" viewBox="0 0 32 24"><path d="M0,0 L28,0 L28,20 L0,20 Z" fill="black"/></svg>'
+    canvas = {"width_px": 32, "height_px": 24, "width_mm": 64, "height_mm": 48, "mm_per_px": 2}
+    assert probe.role_area_mm2(svg, canvas) == 2240
 #
 # The sections above never start OpenSCAD. These tests render generated source in a real OpenSCAD
 # 2021.01, so a mesher checks the Z intervals, the canvas, and the relative imports.
@@ -747,3 +764,75 @@ def test_native_render_shows_two_islands_and_the_backing_join(render_scene, rend
     joined = render_scad(render_scene["dir"] / "out.scad", render_dir / "joined.stl")[:2]
     assert len(solids(*joined)) == 1
     assert np.allclose(joined[0].max(0)[:2], [32, 24], atol=1e-4)
+
+
+@open_scad.needs_openscad
+def test_native_donut_backing_fills_the_through_hole(render_scene, render_dir, capsys):
+    from tests import vector_map_s3_6_cad_probe as probe
+
+    ring = np.zeros(SHAPE, bool)
+    ring[2:22, 2:30] = True
+    ring[8:16, 11:21] = False
+    write_mask(render_scene["mask"], ring)
+    code, _, error = run(capsys, *silhouette_export_args(render_scene))
+    assert code == 0, error
+    bare = render_scad(render_scene["dir"] / "out.scad", render_dir / "donut-open.stl")[:2]
+    assert len(solids(*bare)) == 1
+    assert solids(*bare)[0][2] == 1
+    open_preview = render_dir / "donut-open-preview.png"
+    probe._preview(*bare, open_preview)
+    code, _, error = run(capsys, *silhouette_export_args(render_scene, "--backing-mm", "1",
+                                                        "--overwrite"))
+    assert code == 0, error
+    backed = render_scad(render_scene["dir"] / "out.scad", render_dir / "donut-filled.stl")[:2]
+    assert len(solids(*backed)) == 1
+    assert solids(*backed)[0][2] == 0
+    filled_preview = render_dir / "donut-filled-preview.png"
+    probe._preview(*backed, filled_preview)
+
+    def sample(preview, mesh, x, y):
+        low, high = mesh[0][:, :2].min(0), mesh[0][:, :2].max(0)
+        scale = min(560 / (high[0] - low[0]), 360 / (high[1] - low[1]))
+        px = round(40 + (x - low[0]) * scale)
+        py = round(40 + (high[1] - y) * scale)
+        return Image.open(preview).convert("RGB").getpixel((px, py))
+
+    assert sample(open_preview, bare, 15.5, 12.5) == (255, 255, 255)
+    assert sample(filled_preview, backed, 15.5, 12.5) == sample(
+        filled_preview, backed, 1.5, 1.5)
+    assert sample(filled_preview, backed, 5.5, 5.5) != sample(
+        filled_preview, backed, 15.5, 12.5)
+
+
+@open_scad.needs_openscad
+def test_native_preset_reaches_every_raised_height(render_scene, render_dir, capsys):
+    code, _, error = run(capsys, *layered_args(render_scene, "--preset", "relief-0.4",
+                                               "--export-scad"))
+    assert code == 0, error
+    vertices, triangles, _ = render_scad(render_scene["dir"] / "out.scad",
+                                         render_dir / "preset.stl")
+    assert planes(vertices) == [0.0, 1.2, 1.4, 1.8]
+    assert len(solids(vertices, triangles)) == 1
+
+
+@open_scad.needs_openscad
+@pytest.mark.parametrize("case", ("badge", "bracket", "brick", "coins", "gravel", "horse",
+                                  "pcb", "truchet"))
+def test_native_corpus_layered_preset_renders(case, render_dir, capsys):
+    """Every reviewed corpus mask gets a real layered image-to-mesh path."""
+    from shutil import copyfile
+
+    corpus = ROOT / "tests/fixtures/vector_map/corpus" / case
+    directory = render_dir / f"cad-{case}"
+    directory.mkdir()
+    for name in ("source.png", "mask.png"):
+        copyfile(corpus / name, directory / name)
+    code, _, error = run(capsys, directory / "source.png", directory / "out.svg",
+                         "--input-kind", "image", "--mask", directory / "mask.png",
+                         "--width-mm", "100", "--layers", "silhouette,structure,detail",
+                         "--preset", "relief-0.4", "--export-scad")
+    assert code == 0, error
+    vertices, triangles, _ = render_scad(directory / "out.scad", directory / "out.stl")
+    assert len(vertices) and len(triangles)
+    assert vertices[:, 2].min() == pytest.approx(0)
+    assert vertices[:, 2].max() <= 1.8 + 1e-6

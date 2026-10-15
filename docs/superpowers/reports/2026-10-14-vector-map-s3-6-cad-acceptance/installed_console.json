@@ -1,0 +1,138 @@
+{
+  "base_commit": "fe2e195f576c7ff8503d325d6119edbeeac2e73e",
+  "install_argv": [
+    "/private/tmp/s36-vector-venv/bin/pip",
+    "install",
+    "./scripts[vector]"
+  ],
+  "mask_mode_conversion": {
+    "argv": [
+      "/private/tmp/s36-vector-venv/bin/st-vector-map",
+      "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/mask.png",
+      "/private/tmp/s36-console-final/mask_only/out.svg",
+      "--input-kind",
+      "mask",
+      "--width-mm",
+      "100",
+      "--json"
+    ],
+    "exit_code": 0,
+    "files": {
+      "out.svg": {
+        "bytes": 1590,
+        "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+      },
+      "out.vector.json": {
+        "bytes": 2533,
+        "sha256": "10d94acd2b1b0e0ec335206619b818308b05d22f7e2e06a14a57613d0312acba"
+      }
+    },
+    "stderr": "loading  /Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/mask.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\ntracing  256x256 px as 100x100 mm (vtracer {'mode': 'polygon', 'filter_speckle': 4})\nsaved    /private/tmp/s36-console-final/mask_only/out.svg (paths: 6)\n",
+    "stdout": "{\"schema_version\": 1, \"status\": \"converted\", \"artifacts\": {\"svg\": \"/private/tmp/s36-console-final/mask_only/out.svg\", \"manifest\": \"/private/tmp/s36-console-final/mask_only/out.vector.json\"}, \"counts\": {\"layers\": 1, \"paths\": 6}, \"diagnostics\": [{\"level\": \"warning\", \"code\": \"thin_material\", \"pixels\": 38, \"method\": \"square_coverage_4px\", \"message\": \"Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}, {\"level\": \"warning\", \"code\": \"thin_background\", \"pixels\": 5, \"method\": \"square_coverage_4px\", \"message\": \"Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}]}\n"
+  },
+  "packages": {
+    "Pillow": "12.3.0",
+    "numpy": "2.5.4",
+    "opencv-python-headless": "5.0.0.93",
+    "resvg-py": "0.5.0",
+    "st-controlnet-helpers": "0.1.0",
+    "vtracer": "0.6.15"
+  },
+  "rows": [
+    {
+      "argv": [
+        "/private/tmp/s36-vector-venv/bin/st-vector-map",
+        "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/source.png",
+        "/private/tmp/s36-console-final/corpus/out.svg",
+        "--input-kind",
+        "image",
+        "--mask",
+        "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/mask.png",
+        "--width-mm",
+        "100",
+        "--layers",
+        "silhouette,structure,detail",
+        "--export-scad",
+        "--json",
+        "--silhouette-thickness-mm",
+        "1.2",
+        "--structure-height-mm",
+        "0.6",
+        "--detail-height-mm",
+        "0.2"
+      ],
+      "exit_code": 0,
+      "files": {
+        "out.layers/silhouette.svg": {
+          "bytes": 1590,
+          "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 319,
+          "sha256": "f79244612005dc077b4a4f40623321a2f2e3180c3aa5800969e42abee05095ee"
+        },
+        "out.scad": {
+          "bytes": 1032,
+          "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+        },
+        "out.svg": {
+          "bytes": 1801,
+          "sha256": "2d2d5c08e4d642672d2acc2ba5d361484f94fb98d2d66675f2a4225c722db684"
+        },
+        "out.vector.json": {
+          "bytes": 5724,
+          "sha256": "b9ac7d79b3a78d7813ff16c75a62777e4841e3115ddf3549b59b7b382b0e4bfc"
+        }
+      },
+      "name": "corpus",
+      "stderr": "loading  /Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: detail: selected role has no material after constraints and clipping.\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-console-final/corpus/out.scad\nsaved    /private/tmp/s36-console-final/corpus/out.svg (layers: silhouette, structure; paths: 8)\n",
+      "stdout": "{\"schema_version\": 1, \"status\": \"converted\", \"artifacts\": {\"svg\": \"/private/tmp/s36-console-final/corpus/out.svg\", \"manifest\": \"/private/tmp/s36-console-final/corpus/out.vector.json\", \"layers\": {\"silhouette\": \"/private/tmp/s36-console-final/corpus/out.layers/silhouette.svg\", \"structure\": \"/private/tmp/s36-console-final/corpus/out.layers/structure.svg\"}, \"scad\": \"/private/tmp/s36-console-final/corpus/out.scad\"}, \"counts\": {\"layers\": 2, \"paths\": 8}, \"diagnostics\": [{\"level\": \"warning\", \"code\": \"thin_material\", \"pixels\": 38, \"method\": \"square_coverage_4px\", \"message\": \"Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}, {\"level\": \"warning\", \"code\": \"thin_background\", \"pixels\": 5, \"method\": \"square_coverage_4px\", \"message\": \"Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}, {\"level\": \"warning\", \"code\": \"role_empty\", \"role\": \"detail\", \"message\": \"detail: selected role has no material after constraints and clipping.\"}, {\"level\": \"warning\", \"code\": \"multiple_solids\", \"components\": 6, \"message\": \"The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\"}]}\n"
+    },
+    {
+      "argv": [
+        "/private/tmp/s36-vector-venv/bin/st-vector-map",
+        "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/source.png",
+        "/private/tmp/s36-console-final/preset/out.svg",
+        "--input-kind",
+        "image",
+        "--mask",
+        "/Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/mask.png",
+        "--width-mm",
+        "100",
+        "--layers",
+        "silhouette,structure,detail",
+        "--export-scad",
+        "--json",
+        "--preset",
+        "relief-0.4"
+      ],
+      "exit_code": 0,
+      "files": {
+        "out.layers/silhouette.svg": {
+          "bytes": 1590,
+          "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+        },
+        "out.layers/structure.svg": {
+          "bytes": 2809,
+          "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
+        },
+        "out.scad": {
+          "bytes": 1032,
+          "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+        },
+        "out.svg": {
+          "bytes": 4291,
+          "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
+        },
+        "out.vector.json": {
+          "bytes": 6480,
+          "sha256": "440e36ee3ea1e391b8449ac0dcc6d64ca19a6110bb8417799bd4b2af9d640494"
+        }
+      },
+      "name": "preset",
+      "stderr": "loading  /Users/darkbit1001/.codex/worktrees/c868/Stability-Toys/.worktrees/sxcphzwd-acceptance/tests/fixtures/vector_map/corpus/badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-console-final/preset/out.scad\nsaved    /private/tmp/s36-console-final/preset/out.svg (layers: silhouette, structure; paths: 14)\n",
+      "stdout": "{\"schema_version\": 1, \"status\": \"converted\", \"artifacts\": {\"svg\": \"/private/tmp/s36-console-final/preset/out.svg\", \"manifest\": \"/private/tmp/s36-console-final/preset/out.vector.json\", \"layers\": {\"silhouette\": \"/private/tmp/s36-console-final/preset/out.layers/silhouette.svg\", \"structure\": \"/private/tmp/s36-console-final/preset/out.layers/structure.svg\"}, \"scad\": \"/private/tmp/s36-console-final/preset/out.scad\"}, \"counts\": {\"layers\": 2, \"paths\": 14}, \"diagnostics\": [{\"level\": \"warning\", \"code\": \"thin_material\", \"pixels\": 38, \"method\": \"square_coverage_4px\", \"message\": \"Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}, {\"level\": \"warning\", \"code\": \"thin_background\", \"pixels\": 5, \"method\": \"square_coverage_4px\", \"message\": \"Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\"}, {\"level\": \"warning\", \"code\": \"requested_width_below_four_pixels\", \"role\": \"structure\", \"message\": \"structure: Requested line width covers fewer than four processing pixels.\"}, {\"level\": \"warning\", \"code\": \"requested_width_below_four_pixels\", \"role\": \"detail\", \"message\": \"detail: Requested line width covers fewer than four processing pixels.\"}, {\"level\": \"warning\", \"code\": \"role_empty\", \"role\": \"detail\", \"message\": \"detail: selected role has no material after constraints and clipping.\"}, {\"level\": \"warning\", \"code\": \"multiple_solids\", \"components\": 6, \"message\": \"The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\"}]}\n"
+    }
+  ],
+  "venv": "/private/tmp/s36-vector-venv"
+}
