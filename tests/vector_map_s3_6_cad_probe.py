@@ -289,13 +289,16 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
                 "z_planes": sorted({round(float(z), 6) for z in vertices[:, 2]}),
                 "volume_mm3": metrics.mesh_volume(vertices[triangles])}
     volume, areas = expected_volume(manifest, directory, command)
+    raw_volume, raw_areas = expected_volume(manifest, directory)
     expectation = _mask_expectation(directory / "out.debug/silhouette.png", manifest["canvas"],
                                     manifest["relief"]["backing_mm"])
     relief = manifest["relief"]
     ztop = relief["backing_mm"] + (relief["silhouette_thickness_mm"] or 0)
     ztop += max(relief["structure_height_mm"] or 0,
                 0 if relief["detail_mode"] == "engraved" else relief["detail_height_mm"] or 0)
-    expectation.update(volume_mm3=volume, areas_mm2=areas, z_max=ztop)
+    expectation.update(volume_mm3=volume, areas_mm2=areas, z_max=ztop, volume_basis="effective_openscad_2d",
+                       published_areas_mm2=raw_areas, published_volume_mm3=raw_volume,
+                       published_volume_excess=(raw_volume - volume) / volume if volume else 0.0)
     errors = [line for line in render.stderr.splitlines()
               if line.startswith("ERROR:") or "not be a valid 2-manifold" in line]
     scale = manifest["canvas"]["mm_per_px"]
@@ -311,7 +314,8 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
     if measured["genus_sum"] != expectation["genus_sum"]:
         errors.append(f"Genus sum {measured['genus_sum']} versus {expectation['genus_sum']}.")
     if not metrics.mesh_volume_ok(measured["volume_mm3"], volume):
-        errors.append(f"Volume {measured['volume_mm3']} versus {volume} mm³ exceeds 1e-4 relative.")
+        errors.append(f"Volume {measured['volume_mm3']} versus {volume} mm³ exceeds 1e-4 relative "
+                      f"(published-area figure {raw_volume}).")
     if name in EXPECTED_PLANES and measured["z_planes"] != EXPECTED_PLANES[name]:
         errors.append(f"Z planes {measured['z_planes']} versus {EXPECTED_PLANES[name]}.")
     if name == "engraved":
@@ -336,7 +340,8 @@ def _report(evidence: dict) -> str:
              f"Result: {sum(row['passed'] for row in evidence['cases'])}/{len(evidence['cases'])} cases passed.",
              f"Manifest artifact hashes: {evidence['manifest_hash_check']['checked']} checked, {len(evidence['manifest_hash_check']['mismatches'])} mismatches.",
              "OpenSCAD may return exit 0 while reporting a non-closed or non-manifold mesh; those diagnostics fail a CAD row.",
-             "The volume formula uses full published SVG areas. CAD intersections can clip these areas, so a volume mismatch alone does not isolate a defect; inspect the render diagnostic and effective geometry.", ""]
+             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW forced to zero. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
+             "Each row also records the published-area figure (the sum of the published SVG areas times the heights) and its excess over the effective figure. The published figure overcounts material that structure or detail loses to clipping, so it is evidence and not a blocking check.", ""]
     lines += ["| Case | CAD result |", "|---|---|"]
     lines += [f"| {row['case']} | {'PASS' if row['passed'] else 'FAIL'} |"
               for row in evidence["cases"]]
