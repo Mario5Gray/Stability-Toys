@@ -25,6 +25,7 @@ import vector_map_scad as scad
 import vector_map_svg as svg_io
 import vector_map_vtracer as adapter
 import vector_map_artifacts as artifacts
+import vector_map_cad as cad
 import vector_map_preview as preview
 from vector_map_diagnostics import separate_solids
 
@@ -225,6 +226,10 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
         upstream_args = traced.upstream_args
         _report_degenerate(normalized[role].metrics.degenerate_subpaths, diagnostics, role)
+        repaired = cad.close_pinches(normalized[role], canvas)
+        normalized[role] = repaired.layer
+        _report_pinches(repaired, diagnostics, role)
+    growth = _detail_growth(settings, normalized, canvas, diagnostics)
     try:
         combined = svg_io.combine_layers([(role, layer.svg) for role, layer in normalized.items()],
                                          limits=settings.svg_limits)
@@ -243,6 +248,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             silhouette_thickness_mm=settings.silhouette_thickness_mm,
             structure_height_mm=settings.structure_height_mm,
             detail_height_mm=settings.detail_height_mm,
+            detail_growth_mm=growth,
         ).encode("utf-8")
     rendered = None
     if args.preview:
@@ -296,6 +302,44 @@ def _report_band(band, role=None):
         f"kernel {band.kernel_size_px} px, radius {band.radius_px} px, "
         f"expansion {band.expansion_mm:g} mm per side"
     )
+
+
+def _report_pinches(result, diagnostics, role):
+    """Say what the CAD compatibility step did to a layer. A closed pinch adds material."""
+    if result.closed:
+        diagnostics.append({
+            "level": "warning", "code": "cad_pinch_closed", "role": role, "pinches": result.closed,
+            "message": (
+                f"{role}: {result.closed} places where two rings touched at a point. OpenSCAD cannot "
+                "extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller "
+                "island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none."
+            ),
+        })
+    if result.unrepaired:
+        diagnostics.append({
+            "level": "warning", "code": "cad_pinch_unrepaired", "role": role, "pinches": result.unrepaired,
+            "message": (
+                f"{role}: {result.unrepaired} places where rings touch at a point and the repair did not close them. "
+                "Geometry unchanged. OpenSCAD can report a non-closed mesh for this layer."
+            ),
+        })
+
+
+def _detail_growth(settings, normalized, canvas, diagnostics):
+    """Return the SCAD detail growth in mm, or zero. Only raised detail that touches structure grows."""
+    if not (settings.export_scad and settings.detail_mode == "raised" and {"structure", "detail"} <= set(normalized)):
+        return 0.0
+    if not cad.structure_detail_contact(normalized["structure"].svg, normalized["detail"].svg):
+        return 0.0
+    growth = cad.detail_growth_mm(canvas)
+    diagnostics.append({
+        "level": "warning", "code": "cad_detail_growth", "growth_mm": growth,
+        "message": (
+            "Detail touches structure at a point. The two tops differ, so OpenSCAD cannot join them "
+            f"in a manifold mesh. The SCAD source grows detail by {growth:g} mm. Structure hides the overlap."
+        ),
+    })
+    return growth
 
 
 def _report_degenerate(degenerate, diagnostics, role=None):

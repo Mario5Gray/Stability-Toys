@@ -26,12 +26,14 @@ HEIGHT_FIELDS = {
 
 
 def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm=0.0,
-               silhouette_thickness_mm=None, structure_height_mm=None, detail_height_mm=None):
+               silhouette_thickness_mm=None, structure_height_mm=None, detail_height_mm=None,
+               detail_growth_mm=0.0):
     """Return deterministic OpenSCAD source for the relief assembly.
 
     canvas gives width_mm and height_mm. layers maps every published role to its SVG path relative
     to the source file. An unpublished role gets no import and no solid. center applies one outer
-    translate to the whole assembly.
+    translate to the whole assembly. detail_growth_mm above zero grows raised detail by that much
+    (CAD compatibility, STABL-ygtexxzr). It applies only with raised detail and a structure layer.
     """
     unknown = sorted(set(layers) - set(ROLE_ORDER))
     if unknown:
@@ -53,7 +55,8 @@ def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm
                 f"Engraved detail_height_mm {_number(detail)} must be below the silhouette "
                 f"thickness {_number(thickness)} mm. Reduce detail_height_mm."
             )
-    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights)) + "\n"
+    growth = detail_growth_mm if detail_mode == "raised" and {"structure", "detail"} <= set(layers) else 0.0
+    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights, growth)) + "\n"
 
 
 def _published_height(layers, role, value):
@@ -66,7 +69,7 @@ def _published_height(layers, role, value):
     return check_relief_length(name, value)
 
 
-def _source(canvas, layers, center, detail_mode, backing, heights):
+def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
     width, height = _number(canvas.width_mm), _number(canvas.height_mm)
     lines = [
         "// st-vector-map S3.4 relief source (STABL-gorlibrt). Generated file.",
@@ -85,6 +88,10 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
         lines.append(f"D = {_number(heights['detail'])}; // {note}")
     lines += [
         f"OVERLAP = {_number(OVERLAP_MM)}; // bounded support overlap. Z never goes below 0.",
+    ]
+    if growth > 0:
+        lines.append(f"DETAIL_GROW = {_number(growth)}; // detail grows by this much so it never meets structure at a point.")
+    lines += [
         "",
         "module silhouette_2d() {",
         f"  import({_literal(layers['silhouette'])}, center=false);",
@@ -103,11 +110,12 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
         ]
     if "detail" in layers:
         if "structure" in layers:
+            grow = "offset(delta = DETAIL_GROW) " if growth > 0 else ""
             lines += [
                 "module detail_2d() {",
                 "  difference() {",
                 "    intersection() {",
-                f"      import({_literal(layers['detail'])}, center=false);",
+                f"      {grow}import({_literal(layers['detail'])}, center=false);",
                 "      silhouette_2d();",
                 "    }",
                 "    structure_2d();",

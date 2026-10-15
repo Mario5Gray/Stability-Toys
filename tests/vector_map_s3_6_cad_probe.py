@@ -46,8 +46,42 @@ def role_area_mm2(svg: str, canvas: dict) -> float:
     return metrics.polygon_area(svg) * canvas["mm_per_px"] ** 2
 
 
-def expected_volume(manifest: dict, directory: Path) -> tuple[float, dict]:
-    """Use published polygons, the manifest scale, and the requested relief heights."""
+MODULES = {"silhouette": "silhouette_2d", "structure": "structure_2d", "detail": "detail_2d"}
+
+
+def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str, float]:
+    """Areas of the 2D regions the SCAD extrudes, in mm².
+
+    The source clips structure and detail to the silhouette and removes structure from detail, so
+    the published polygon area overcounts any clipped material. OpenSCAD exports each module as SVG
+    with DETAIL_GROW forced to zero, so a growth shows up in the measured mesh, not the expectation.
+    """
+    text = (directory / "out.scad").read_text()
+    head = text[:text.index("module relief")]
+    areas = {}
+    for role in roles:
+        source, svg = directory / f"area-{role}.scad", directory / f"area-{role}.svg"
+        source.write_text(f"{head}{MODULES[role]}();\n")
+        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-o", str(svg), str(source)],
+                             capture_output=True, text=True, timeout=300, cwd=directory)
+        if run.returncode:
+            raise RuntimeError(f"OpenSCAD 2D export of {role} failed: {run.stderr}")
+        total = 0.0
+        for data in re.findall(r' d="([^"]*)"', svg.read_text()):
+            for ring in re.findall(r"M[^M]*", data):
+                points = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.e+-]+),(-?[\d.e+-]+)", ring)]
+                total += sum(points[i][0] * points[(i + 1) % len(points)][1]
+                             - points[(i + 1) % len(points)][0] * points[i][1] for i in range(len(points))) / 2
+        areas[role] = abs(total)
+    return areas
+
+
+def expected_volume(manifest: dict, directory: Path, command: list[str] | None = None) -> tuple[float, dict]:
+    """Use the manifest scale, the requested heights, and the regions the SCAD extrudes.
+
+    With a command the areas are effective, after clipping and removal (see effective_areas_mm2).
+    Without one they are the published polygon areas, which overcount clipped material.
+    """
     canvas = manifest["canvas"]
     relief = manifest["relief"]
     areas = {"canvas": canvas["width_mm"] * canvas["height_mm"]}
@@ -55,6 +89,9 @@ def expected_volume(manifest: dict, directory: Path) -> tuple[float, dict]:
         role = entry["id"]
         areas[role] = (role_area_mm2((directory / entry["svg"]).read_text(), canvas)
                        if entry["svg"] else 0.0)
+    if command:
+        published = [role for role in MODULES if areas.get(role)]
+        areas.update(effective_areas_mm2(directory, command, published))
     sign = -1 if relief["detail_mode"] == "engraved" else 1
     volume = relief["backing_mm"] * areas["canvas"]
     volume += (relief["silhouette_thickness_mm"] or 0) * areas.get("silhouette", 0)
@@ -251,7 +288,7 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
                 "genus_sum": int(sum(part[2] for part in parts)),
                 "z_planes": sorted({round(float(z), 6) for z in vertices[:, 2]}),
                 "volume_mm3": metrics.mesh_volume(vertices[triangles])}
-    volume, areas = expected_volume(manifest, directory)
+    volume, areas = expected_volume(manifest, directory, command)
     expectation = _mask_expectation(directory / "out.debug/silhouette.png", manifest["canvas"],
                                     manifest["relief"]["backing_mm"])
     relief = manifest["relief"]
