@@ -111,6 +111,7 @@ def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
     if "detail" in layers:
         if "structure" in layers:
             grow = "offset(delta = DETAIL_GROW) " if growth > 0 else ""
+            shrink = "offset(delta = -DETAIL_GROW) " if growth > 0 else ""
             lines += [
                 "module detail_2d() {",
                 "  difference() {",
@@ -118,7 +119,7 @@ def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
                 f"      {grow}import({_literal(layers['detail'])}, center=false);",
                 "      silhouette_2d();",
                 "    }",
-                "    structure_2d();",
+                f"    {shrink}structure_2d();",
                 "  }",
                 "}",
                 "",

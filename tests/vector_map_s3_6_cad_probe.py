@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from scipy import ndimage
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,7 +101,12 @@ def expected_volume(manifest: dict, directory: Path, command: list[str] | None =
     return volume, areas
 
 
-def _mask_expectation(mask_path: Path, canvas: dict, backing: float) -> dict:
+def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: int = 0) -> dict:
+    """Expected bounds, solids and genus from the mask.
+
+    The tracer drops components smaller than speckle**2 pixels (vtracer filter_speckle, S1.4). The
+    expected solid count skips them. The raw mask count stays in mask_solids.
+    """
     material = np.asarray(Image.open(mask_path).convert("L")) >= 128
     components, holes = metrics.topology(material)
     scale = canvas["mm_per_px"]
@@ -112,7 +118,10 @@ def _mask_expectation(mask_path: Path, canvas: dict, backing: float) -> dict:
         raise ValueError(f"Empty silhouette mask: {mask_path}")
     bounds = [[float(xs.min() * scale), float((material.shape[0] - 1 - ys.max()) * scale)],
               [float((xs.max() + 1) * scale), float((material.shape[0] - ys.min()) * scale)]]
-    return {"bounds_xy": bounds, "solids": int(components), "genus_sum": int(holes)}
+    sizes = np.bincount(ndimage.label(material)[0].ravel())[1:]
+    traced = int(np.count_nonzero(sizes >= speckle * speckle))
+    return {"bounds_xy": bounds, "solids": traced, "mask_solids": int(components),
+            "filter_speckle_px": speckle, "genus_sum": int(holes)}
 
 
 def _save_scene(directory: Path, name: str) -> tuple[dict, list[str]]:
@@ -291,7 +300,8 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
     volume, areas = expected_volume(manifest, directory, command)
     raw_volume, raw_areas = expected_volume(manifest, directory)
     expectation = _mask_expectation(directory / "out.debug/silhouette.png", manifest["canvas"],
-                                    manifest["relief"]["backing_mm"])
+                                    manifest["relief"]["backing_mm"],
+                                    manifest["vtracer"]["filter_speckle"])
     relief = manifest["relief"]
     ztop = relief["backing_mm"] + (relief["silhouette_thickness_mm"] or 0)
     ztop += max(relief["structure_height_mm"] or 0,

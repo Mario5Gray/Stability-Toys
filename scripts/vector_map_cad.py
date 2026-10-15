@@ -19,7 +19,11 @@ that leaves a pinch, or that makes a new one, is rejected whole.
 Structure and detail layers need a second rule. A detail ring that touches a structure ring at a
 point makes a vertical edge with four faces where the two extrusions meet, because the tops
 differ. structure_detail_contact() finds this contact. The SCAD source then grows the detail by
-detail_growth_mm(). That growth is a SCAD operation. Python holds no polygon clipper.
+detail_growth_mm() and subtracts a structure shrunk by the same amount. The shrink moves detail
+edges that follow structure edges inside the taller structure. Rounding noise otherwise leaves a
+hairline gap that closes to a point. The growth cap is 0.002 mm. At 0.01 mm the coins corpus
+volume rose 1.48 mm3, above the 1e-4 tolerance. These are SCAD operations. Python holds no polygon
+clipper.
 """
 
 import math
@@ -30,6 +34,7 @@ from vector_map_svg import NormalizedSvg, _add, _G, _PATH, _parse, _translate
 
 PINCH_CAP_MM = 0.01
 PINCH_CAP_PX = 0.25
+GROWTH_CAP_MM = 0.002
 CONTACT_TOLERANCE_PX = 1e-9
 
 
@@ -54,8 +59,8 @@ def pinch_width_px(canvas):
 
 
 def detail_growth_mm(canvas):
-    """The detail growth in millimetres. It equals the pinch width."""
-    return pinch_width_px(canvas) * canvas.mm_per_px
+    """The detail growth in millimetres: at most 0.002 mm and at most a quarter pixel."""
+    return min(GROWTH_CAP_MM / canvas.mm_per_px, PINCH_CAP_PX) * canvas.mm_per_px
 
 
 def find_pinches(svg):

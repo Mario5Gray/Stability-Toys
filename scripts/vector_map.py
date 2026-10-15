@@ -336,7 +336,7 @@ def _detail_growth(settings, normalized, canvas, diagnostics):
         "level": "warning", "code": "cad_detail_growth", "growth_mm": growth,
         "message": (
             "Detail touches structure at a point. The two tops differ, so OpenSCAD cannot join them "
-            f"in a manifold mesh. The SCAD source grows detail by {growth:g} mm. Structure hides the overlap."
+            f"in a manifold mesh. The SCAD source grows detail by {growth:g} mm and subtracts structure shrunk by the same amount. Structure hides the overlap."
         ),
     })
     return growth

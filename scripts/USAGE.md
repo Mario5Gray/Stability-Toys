@@ -127,6 +127,10 @@ Each nonempty selected role becomes `<stem>.layers/<role>.svg`. These separate n
 All files state the same millimetre root size and pixel `viewBox`. Each group copies its layer paths without change.
 An empty optional role stays selected. It gets a `role_empty` warning, a manifest entry with `svg: null`, and no SVG file.
 An empty silhouette exits 1.
+OpenSCAD cannot extrude two rings that touch at one point. It exits 0 and loses material. A CAD compatibility step repairs this before each layer is published.
+The step moves the contact points of one ring by at most 0.01 mm and a quarter pixel. A hole shrinks. An island grows. The step adds material and removes none.
+It reports `cad_pinch_closed`. It reports `cad_pinch_unrepaired` and keeps the layer unchanged when a contact remains.
+A detail ring can also touch a structure ring at one point. The SCAD file then grows detail by at most 0.002 mm and a quarter pixel. It subtracts a structure shrunk by the same amount. The step reports `cad_detail_growth`. Raised mode only.
 `--json` success adds `artifacts.layers`. It maps each role to the path of a file from this run only.
 `counts.layers` counts published layers. `counts.paths` sums their paths.
 

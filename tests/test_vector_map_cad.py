@@ -226,8 +226,8 @@ def test_detail_that_only_crosses_structure_needs_no_growth():
     assert not cad.structure_detail_contact(layer((STRUCTURE, None)), layer((DETAIL_CROSSING, None)))
 
 
-def test_detail_growth_is_the_pinch_width_in_millimetres():
-    assert cad.detail_growth_mm(canvas(mm_per_px=0.4)) == pytest.approx(0.01)
+def test_detail_growth_is_at_most_two_micrometres_and_a_quarter_pixel():
+    assert cad.detail_growth_mm(canvas(mm_per_px=0.4)) == pytest.approx(0.002)
     assert cad.detail_growth_mm(canvas(mm_per_px=0.001)) == pytest.approx(0.25 * 0.001)
 
 
@@ -245,12 +245,14 @@ def test_scad_without_growth_is_unchanged_and_names_no_growth():
     assert "DETAIL_GROW" not in source and "offset(" not in source
 
 
-def test_scad_with_growth_offsets_only_the_detail_import_and_keeps_the_difference():
+def test_scad_with_growth_offsets_the_detail_import_and_subtracts_a_shrunk_structure():
     source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_growth_mm=0.01)
     assert "DETAIL_GROW = 0.01;" in source
     assert 'offset(delta = DETAIL_GROW) import("out.layers/detail.svg", center=false);' in source
-    assert source.count("offset(") == 1
-    assert "    structure_2d();\n  }\n}" in source  # the difference stays
+    assert source.count("offset(") == 2
+    # Detail edges that run along structure edges differ by rounding noise. The shrunk subtrahend
+    # moves them inside the taller structure, so no hairline gap closes to a point.
+    assert "    offset(delta = -DETAIL_GROW) structure_2d();\n  }\n}" in source
     assert "H = 0.6;" in source and "D = 0.2;" in source  # heights untouched
 
 
