@@ -30,6 +30,7 @@ import vector_map_svg as svg_io  # noqa: E402
 
 SVG_NS = "{http://www.w3.org/2000/svg}"
 RESULT_KEYS = {"schema_version", "status", "artifacts", "counts", "diagnostics"}
+ZERO_COUNTS = {"layers": 0, "paths": 0, "commands": 0, "vertices": 0, "svg_bytes": 0, "by_layer": {}}
 S23 = "S2.3 (STABL-vjpnctjh)"
 
 
@@ -404,15 +405,31 @@ def test_height_mm_sizes_the_written_svg(tmp_path):
     assert (root.get("width"), root.get("height")) == ("32mm", "32mm")
 
 
-def test_json_success_reports_the_published_svg_and_measured_paths(tmp_path):
+@pytest.mark.parametrize("input_kind, role, extra", [
+    ("mask", "standalone", ()),
+    ("image", "silhouette", ("--mask", FIXTURES / "donut.png")),
+])
+def test_json_success_reports_published_complexity(tmp_path, input_kind, role, extra):
     pytest.importorskip("vtracer")
     out = tmp_path / "donut.svg"
-    result = run_cli(FIXTURES / "donut.png", out, "--input-kind", "mask", "--width-mm", 100, "--json")
+    result = run_cli(FIXTURES / "donut.png", out, "--input-kind", input_kind,
+                     "--width-mm", 100, *extra, "--json")
     assert result.returncode == 0, result.stderr
     payload = one_result(result)
     assert payload["status"] == "converted"
     assert payload["artifacts"] == {"svg": str(out), "manifest": str(out.with_suffix(".vector.json"))}
-    assert payload["counts"] == {"layers": 1, "paths": svg_io.count_paths(out.read_text())}
+    manifest = json.loads(out.with_suffix(".vector.json").read_text())
+    measured = svg_io.inspect_published_svg(out.read_text(), config.Canvas(**manifest["canvas"])).metrics
+    assert manifest["layers"][0]["id"] == role
+    assert payload["counts"] == {
+        "layers": 1, "paths": measured.paths, "commands": measured.commands,
+        "vertices": measured.vertices, "svg_bytes": len(out.read_bytes()),
+        "by_layer": {role: {"paths": measured.paths, "commands": measured.commands,
+                             "vertices": measured.vertices, "svg_bytes": len(out.read_bytes())}},
+    }
+    assert manifest["counts"]["paths"] == measured.paths
+    assert manifest["counts"]["commands"] == measured.commands
+    assert manifest["counts"]["vertices"] == measured.vertices
     assert all(item["level"] == "warning" for item in payload["diagnostics"])
 
 
@@ -430,7 +447,7 @@ def test_json_on_argparse_failure_is_one_invalid_result(tmp_path):
     payload = one_result(result)
     assert payload["status"] == "invalid"
     assert payload["artifacts"] == {"svg": None}
-    assert payload["counts"] == {"layers": 0, "paths": 0}
+    assert payload["counts"] == ZERO_COUNTS
     assert payload["diagnostics"][0]["level"] == "error"
     assert "--bogus" in payload["diagnostics"][0]["message"]
     assert "--bogus" in result.stderr
@@ -451,7 +468,7 @@ def test_json_on_processing_failure_is_one_failed_result(tmp_path):
     payload = one_result(result)
     assert payload["status"] == "failed"
     assert payload["artifacts"] == {"svg": None}
-    assert payload["counts"] == {"layers": 0, "paths": 0}
+    assert payload["counts"] == ZERO_COUNTS
     assert not out.exists()
 
 
@@ -852,7 +869,7 @@ def test_incompatible_output_fails_without_publishing_or_retrying(run_injected, 
     assert code == 1
     assert payload["status"] == "failed"
     assert payload["artifacts"] == {"svg": None}
-    assert payload["counts"] == {"layers": 0, "paths": 0}
+    assert payload["counts"] == ZERO_COUNTS
     assert match in payload["diagnostics"][0]["message"]
     assert match in stderr
     assert len(calls) == 1
@@ -886,7 +903,9 @@ def test_degenerate_subpaths_publish_with_one_counted_warning(run_injected):
     code, payload, stderr, out, _ = run_injected(MIXED)
     assert code == 0
     assert payload["status"] == "converted"
-    assert payload["counts"] == {"layers": 1, "paths": 1}
+    assert payload["counts"]["layers"] == 1
+    assert payload["counts"]["paths"] == 1
+    assert payload["counts"]["by_layer"]["standalone"]["paths"] == 1
     warnings = [item for item in payload["diagnostics"] if item.get("code") == "degenerate_subpaths"]
     assert len(warnings) == 1
     assert warnings[0]["level"] == "warning"

@@ -585,9 +585,24 @@ def test_layered_run_publishes_aligned_separate_and_combined_svgs(geometry_scene
     assert result["artifacts"]["svg"] == str(out)
     assert result["artifacts"]["layers"] == {role: str(path) for role, path in separate.items()}
     texts = {role: path.read_text() for role, path in separate.items()}
-    assert result["counts"] == {"layers": 3, "paths": sum(svg_io.count_paths(text) for text in texts.values())}
-
     canvas = canvas_at(mm_per_px)
+    by_layer = {}
+    for role, path in separate.items():
+        measured = svg_io.inspect_published_svg(texts[role], canvas).metrics
+        by_layer[role] = {"paths": measured.paths, "commands": measured.commands,
+                          "vertices": measured.vertices, "svg_bytes": len(path.read_bytes())}
+    assert result["counts"] == {
+        "layers": len(roles),
+        "paths": sum(item["paths"] for item in by_layer.values()),
+        "commands": sum(item["commands"] for item in by_layer.values()),
+        "vertices": sum(item["vertices"] for item in by_layer.values()),
+        "svg_bytes": len(out.read_bytes()),
+        "by_layer": by_layer,
+    }
+    manifest = json.loads(out.with_suffix(".vector.json").read_text())
+    assert {item["id"]: item["counts"]["vertices"] for item in manifest["layers"]} == {
+        role: item["vertices"] for role, item in by_layer.items()}
+
     root_attributes = {"width": svg_io._mm(canvas.width_mm), "height": svg_io._mm(canvas.height_mm),
                        "viewBox": "0 0 40 30"}
     combined = out.read_text()
@@ -642,6 +657,8 @@ def test_empty_optional_role_is_reported_and_not_exported(geometry_scene, capsys
     assert list(result["artifacts"]["layers"]) == ["silhouette", "structure"]
     assert not (geometry_scene["dir"] / "out.layers" / "detail.svg").exists()
     assert result["counts"]["layers"] == 2
+    assert list(result["counts"]["by_layer"]) == ["silhouette", "structure"]
+    assert result["counts"]["svg_bytes"] == len((geometry_scene["dir"] / "out.svg").read_bytes())
     empty = [item for item in result["diagnostics"] if item.get("code") == "role_empty"]
     assert [(item["level"], item["role"]) for item in empty] == [("warning", "detail")]
     assert "detail" in error

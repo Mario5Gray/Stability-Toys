@@ -124,7 +124,7 @@ def main(argv=None):
     published = {}
     try:
         args = parser.parse_args(argv)
-        destination, layers, paths = _convert(args, diagnostics, published)
+        destination, counts = _convert(args, diagnostics, published)
     except UsageError as exc:
         print(parser.format_usage(), end="", file=sys.stderr)
         return _fail(2, "invalid", exc, as_json, diagnostics, published)
@@ -133,7 +133,7 @@ def main(argv=None):
     except (OSError, RuntimeError, ValueError) as exc:
         return _fail(1, "failed", exc, as_json, diagnostics, published)
     if as_json:
-        print(json.dumps(_result("converted", svg=str(destination), layers=layers, paths=paths, diagnostics=diagnostics, published=published)))
+        print(json.dumps(_result("converted", svg=str(destination), counts=counts, diagnostics=diagnostics, published=published)))
     return 0
 
 
@@ -191,7 +191,9 @@ def _convert(args, diagnostics, published):
     if debug:
         published["debug"] = str(bundle.debug_directory)
     _progress(f"saved    {destination} (paths: {paths})")
-    return destination, 1, paths
+    role = artifacts.layer_id(settings)
+    return destination, _complexity_counts({role: normalized}, files, bundle.relative(destination),
+                                           {role: bundle.relative(destination)})
 
 
 def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, published):
@@ -280,7 +282,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
         published["debug"] = str(bundle.debug_directory)
     paths = sum(layer.metrics.paths for layer in normalized.values())
     _progress(f"saved    {bundle.svg} (layers: {', '.join(normalized)}; paths: {paths})")
-    return bundle.svg, len(normalized), paths
+    return bundle.svg, _complexity_counts(normalized, files, bundle.relative(bundle.svg), layer_files)
 
 
 def _report(new, diagnostics):
@@ -452,12 +454,34 @@ def _role_layer(args, role):
     return fields or None
 
 
-def _result(status, *, svg=None, layers=0, paths=0, diagnostics=(), published=None):
+def _complexity_counts(normalized, files, combined, layer_files):
+    by_layer = {
+        role: {
+            "paths": layer.metrics.paths,
+            "commands": layer.metrics.commands,
+            "vertices": layer.metrics.vertices,
+            "svg_bytes": len(files[layer_files[role]]),
+        }
+        for role, layer in normalized.items()
+    }
+    return {
+        "layers": len(by_layer),
+        "paths": sum(item["paths"] for item in by_layer.values()),
+        "commands": sum(item["commands"] for item in by_layer.values()),
+        "vertices": sum(item["vertices"] for item in by_layer.values()),
+        "svg_bytes": len(files[combined]),
+        "by_layer": by_layer,
+    }
+
+
+def _result(status, *, svg=None, counts=None, diagnostics=(), published=None):
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
         "status": status,
         "artifacts": {"svg": svg, **(published or {})},
-        "counts": {"layers": layers, "paths": paths},
+        "counts": counts if counts is not None else {
+            "layers": 0, "paths": 0, "commands": 0, "vertices": 0, "svg_bytes": 0, "by_layer": {},
+        },
         "diagnostics": list(diagnostics),
     }
 
