@@ -1,0 +1,456 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/badge/source.png",
+    "<work>/badge/raised/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/badge/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-silhouette.scad": {
+      "bytes": 727,
+      "path": "<work>/badge/raised/area-silhouette.scad",
+      "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+      "bytes": 3139,
+      "path": "<work>/badge/raised/area-silhouette.svg",
+      "sha256": "f33299e410e74e1cddb403efd188de8b707fe337754b7de10576d5ce6929fd6d"
+    },
+    "area-structure.scad": {
+      "bytes": 726,
+      "path": "<work>/badge/raised/area-structure.scad",
+      "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+      "bytes": 6039,
+      "path": "<work>/badge/raised/area-structure.svg",
+      "sha256": "fbc155682e6bcc511384b9b5789b8e01e0cf04369c3f1749364538361bb5e389"
+    },
+    "fidelity.png": {
+      "bytes": 7338,
+      "path": "<work>/badge/raised/fidelity.png",
+      "sha256": "575ecef55e5927572d8f9d9283bd18270fa65279bf993c3ca4b43fbb02e094bd"
+    },
+    "mesh.png": {
+      "bytes": 8687,
+      "path": "<work>/badge/raised/mesh.png",
+      "sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd"
+    },
+    "out.debug/detail.png": {
+      "bytes": 143,
+      "path": "<work>/badge/raised/out.debug/detail.png",
+      "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 812,
+      "path": "<work>/badge/raised/out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 1817,
+      "path": "<work>/badge/raised/out.debug/silhouette.png",
+      "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+    },
+    "out.debug/structure.png": {
+      "bytes": 2460,
+      "path": "<work>/badge/raised/out.debug/structure.png",
+      "sha256": "8010e7fdc6a886a99cc9577a30a4c5ec3667106ace6f2a8b6894fee639348fd3"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 1590,
+      "path": "<work>/badge/raised/out.layers/silhouette.svg",
+      "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 2809,
+      "path": "<work>/badge/raised/out.layers/structure.svg",
+      "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
+    },
+    "out.preview.png": {
+      "bytes": 45804,
+      "path": "<work>/badge/raised/out.preview.png",
+      "sha256": "364017fb453921486b52345a0768d6a1aabb254be925e47c45c46879d6092773"
+    },
+    "out.scad": {
+      "bytes": 1032,
+      "path": "<work>/badge/raised/out.scad",
+      "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+      "bytes": 193156,
+      "path": "<work>/badge/raised/out.stl",
+      "sha256": "cd310568f4b501893ba9b4739c24ed6dc587563200f16862cb55e5f67f604d10"
+    },
+    "out.svg": {
+      "bytes": 4291,
+      "path": "<work>/badge/raised/out.svg",
+      "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
+    },
+    "out.vector.json": {
+      "bytes": 7623,
+      "path": "<work>/badge/raised/out.vector.json",
+      "sha256": "494a47fffe5d56c6fca6c17f83e14b31651800d96a83b34f18495dffad40e86e"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 3456.4981005910486,
+        "structure": 531.3920458822502
+      },
+      "bounds_xy": [
+        [
+          3.90625,
+          3.90625
+        ],
+        [
+          96.09375,
+          96.09375
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 2,
+      "mask_solids": 6,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 3456.4971923828125,
+        "structure": 531.3873291015625
+      },
+      "published_volume_excess": -8.776002731983289e-07,
+      "published_volume_mm3": 4466.6290283203125,
+      "solids": 6,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 4466.632948238608,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          3.90625,
+          3.90625,
+          0.0
+        ],
+        [
+          96.0938,
+          96.0938,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0
+      ],
+      "genus_sum": 2,
+      "solids": 6,
+      "volume_mm3": 4466.632948238609,
+      "z_planes": [
+        0.0,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/badge/raised/out.stl",
+        "<work>/badge/raised/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 3.2395179579034448,
+      "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:03.084\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "badge",
+  "complexity": {
+    "combined": {
+      "commands": 474,
+      "paths": 14,
+      "subpaths": 24,
+      "svg_bytes": 4291
+    },
+    "silhouette": {
+      "commands": 156,
+      "paths": 6,
+      "subpaths": 8,
+      "svg_bytes": 1590
+    },
+    "structure": {
+      "commands": 318,
+      "paths": 8,
+      "subpaths": 16,
+      "svg_bytes": 2809
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+    "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+      10,
+      10,
+      246,
+      246
+    ],
+    "bounds_render": [
+      10,
+      10,
+      246,
+      246
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.06813915348063704,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": true,
+      "orientation": true,
+      "scale": true,
+      "topology": true,
+      "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 22368,
+    "orientation_xor_px": {
+      "antitranspose": 3441,
+      "fliplr": 539,
+      "flipud": 4191,
+      "rot180": 4215,
+      "rot270": 3389,
+      "rot90": 3399,
+      "transpose": 3347
+    },
+    "passed": true,
+    "perimeter_px": 2352,
+    "polygon_area_px": 22652.5,
+    "topology_mask": [
+      6,
+      2
+    ],
+    "topology_render": [
+      6,
+      2
+    ],
+    "xor_pct_of_canvas": 0.77667236328125,
+    "xor_pct_of_material": 2.275572246065808,
+    "xor_per_perimeter_px": 0.21641156462585034,
+    "xor_px": 509
+  },
+  "fidelity_passed": true,
+  "manifest_sha256": "494a47fffe5d56c6fca6c17f83e14b31651800d96a83b34f18495dffad40e86e",
+  "mask_sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716",
+  "mode": "raised",
+  "override": {
+    "baseline_checks": [],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "raised",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "badge",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/badge/raised/out.debug",
+      "layers": {
+        "silhouette": "<work>/badge/raised/out.layers/silhouette.svg",
+        "structure": "<work>/badge/raised/out.layers/structure.svg"
+      },
+      "manifest": "<work>/badge/raised/out.vector.json",
+      "preview": "<work>/badge/raised/out.preview.png",
+      "scad": "<work>/badge/raised/out.scad",
+      "svg": "<work>/badge/raised/out.svg"
+    },
+    "counts": {
+      "layers": 2,
+      "paths": 14
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 38
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 5
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "role_empty",
+        "level": "warning",
+        "message": "detail: selected role has no material after constraints and clipping.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 6,
+        "level": "warning",
+        "message": "The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     <work>/badge/raised/out.scad\npreview  <work>/badge/raised/out.preview.png\nsaved    <work>/badge/raised/out.svg (layers: silhouette, structure; paths: 14)\n",
+  "timings": {
+    "conversion_s": 0.12435904191806912,
+    "effective_area_export_s": 0.22549487510696054,
+    "fidelity_median_s": 0.011745499912649393,
+    "fidelity_preview_s": 0.009060416370630264,
+    "mesh_preview_s": 0.03907504165545106,
+    "openscad_render_s": 3.2395179579034448,
+    "trace_median_s": 0.00308254174888134
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/badge/raised"
+}

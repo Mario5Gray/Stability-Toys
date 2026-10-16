@@ -1,0 +1,460 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/bracket/source.png",
+    "<work>/bracket/raised/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/bracket/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-silhouette.scad": {
+      "bytes": 727,
+      "path": "<work>/bracket/raised/area-silhouette.scad",
+      "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+      "bytes": 2903,
+      "path": "<work>/bracket/raised/area-silhouette.svg",
+      "sha256": "2c649945ff48c00dcad546782490e4a5d6da3aa239b9914eef14d28cab7526d7"
+    },
+    "area-structure.scad": {
+      "bytes": 726,
+      "path": "<work>/bracket/raised/area-structure.scad",
+      "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+      "bytes": 3078,
+      "path": "<work>/bracket/raised/area-structure.svg",
+      "sha256": "0dab9edf3b66379039f77b2449e2150e99aadd21ee6563c2a9f5d34dee7c360b"
+    },
+    "fidelity.png": {
+      "bytes": 3601,
+      "path": "<work>/bracket/raised/fidelity.png",
+      "sha256": "e18abf48c74cd8e818671d439bd3f681dbcc09f084aa6c198a67202806de5ed1"
+    },
+    "mesh.png": {
+      "bytes": 5785,
+      "path": "<work>/bracket/raised/mesh.png",
+      "sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d"
+    },
+    "out.debug/detail.png": {
+      "bytes": 143,
+      "path": "<work>/bracket/raised/out.debug/detail.png",
+      "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 812,
+      "path": "<work>/bracket/raised/out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 968,
+      "path": "<work>/bracket/raised/out.debug/silhouette.png",
+      "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+    },
+    "out.debug/structure.png": {
+      "bytes": 995,
+      "path": "<work>/bracket/raised/out.debug/structure.png",
+      "sha256": "2a67cac4201478e8c4e90de6b1e83ffcd3bbc8328b6587ced831a9950af6aef6"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 1467,
+      "path": "<work>/bracket/raised/out.layers/silhouette.svg",
+      "sha256": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 1534,
+      "path": "<work>/bracket/raised/out.layers/structure.svg",
+      "sha256": "31fae193dc2105d5be4cd350fb8e7ec2e757ee6574aee01421d7a2d3dc33fd99"
+    },
+    "out.preview.png": {
+      "bytes": 20778,
+      "path": "<work>/bracket/raised/out.preview.png",
+      "sha256": "9e15eea2c5a851493a9ff8d984152c893f6c54e1c06ed2d39cafb4f852c5c8fa"
+    },
+    "out.scad": {
+      "bytes": 1032,
+      "path": "<work>/bracket/raised/out.scad",
+      "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+      "bytes": 90892,
+      "path": "<work>/bracket/raised/out.stl",
+      "sha256": "f0dfd912cbaac082e2ba7edc26f90c50dc56bee6e885c0cecb9867dcf4c9aed4"
+    },
+    "out.svg": {
+      "bytes": 2893,
+      "path": "<work>/bracket/raised/out.svg",
+      "sha256": "a9f7da4e395ffd005af8f526c190d7d76db43147db4a82879eb54d28d4675ac9"
+    },
+    "out.vector.json": {
+      "bytes": 7632,
+      "path": "<work>/bracket/raised/out.vector.json",
+      "sha256": "66556c2e5891011d7018cf5aa46ffda6d1f40b56e61393862ec7fb8c7e7a13e0"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 549.1463769450003,
+        "structure": 543.1952148350002
+      },
+      "bounds_xy": [
+        [
+          11.71875,
+          17.96875
+        ],
+        [
+          88.28125,
+          90.234375
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 3,
+      "mask_solids": 6,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 549.163818359375,
+        "structure": 543.212890625
+      },
+      "published_volume_excess": 3.201888758893372e-05,
+      "published_volume_mm3": 984.92431640625,
+      "solids": 6,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 984.8927812350005,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          11.7188,
+          17.9688,
+          0.0
+        ],
+        [
+          88.2812,
+          90.2344,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0,
+        1,
+        1,
+        0,
+        1,
+        0
+      ],
+      "genus_sum": 3,
+      "solids": 6,
+      "volume_mm3": 984.8927812349983,
+      "z_planes": [
+        0.0,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/bracket/raised/out.stl",
+        "<work>/bracket/raised/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 2.633883458096534,
+      "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.494\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "bracket",
+  "complexity": {
+    "combined": {
+      "commands": 305,
+      "paths": 12,
+      "subpaths": 20,
+      "svg_bytes": 2893
+    },
+    "silhouette": {
+      "commands": 147,
+      "paths": 6,
+      "subpaths": 9,
+      "svg_bytes": 1467
+    },
+    "structure": {
+      "commands": 158,
+      "paths": 6,
+      "subpaths": 11,
+      "svg_bytes": 1534
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+    "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+      30,
+      25,
+      226,
+      210
+    ],
+    "bounds_render": [
+      30,
+      25,
+      226,
+      210
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.4641898121774974,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": false,
+      "orientation": true,
+      "scale": true,
+      "topology": true,
+      "xor": true
+    },
+    "failures": [
+      "centroid"
+    ],
+    "mask_area_px": 3462,
+    "orientation_xor_px": {
+      "antitranspose": 6862,
+      "fliplr": 294,
+      "flipud": 5294,
+      "rot180": 5294,
+      "rot270": 6870,
+      "rot90": 6866,
+      "transpose": 6874
+    },
+    "passed": false,
+    "perimeter_px": 2708,
+    "polygon_area_px": 3599.0,
+    "topology_mask": [
+      6,
+      3
+    ],
+    "topology_render": [
+      6,
+      3
+    ],
+    "xor_pct_of_canvas": 0.3662109375,
+    "xor_pct_of_material": 6.932409012131716,
+    "xor_per_perimeter_px": 0.08862629246676514,
+    "xor_px": 240
+  },
+  "fidelity_passed": false,
+  "manifest_sha256": "66556c2e5891011d7018cf5aa46ffda6d1f40b56e61393862ec7fb8c7e7a13e0",
+  "mask_sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3",
+  "mode": "raised",
+  "override": {
+    "baseline_checks": [
+      "centroid"
+    ],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "raised",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "bracket",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/bracket/raised/out.debug",
+      "layers": {
+        "silhouette": "<work>/bracket/raised/out.layers/silhouette.svg",
+        "structure": "<work>/bracket/raised/out.layers/structure.svg"
+      },
+      "manifest": "<work>/bracket/raised/out.vector.json",
+      "preview": "<work>/bracket/raised/out.preview.png",
+      "scad": "<work>/bracket/raised/out.scad",
+      "svg": "<work>/bracket/raised/out.svg"
+    },
+    "counts": {
+      "layers": 2,
+      "paths": 12
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 3367
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 11
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "role_empty",
+        "level": "warning",
+        "message": "detail: selected role has no material after constraints and clipping.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 6,
+        "level": "warning",
+        "message": "The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/bracket/source.png\nwarning: Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     <work>/bracket/raised/out.scad\npreview  <work>/bracket/raised/out.preview.png\nsaved    <work>/bracket/raised/out.svg (layers: silhouette, structure; paths: 12)\n",
+  "timings": {
+    "conversion_s": 0.0663352501578629,
+    "effective_area_export_s": 0.22117525013163686,
+    "fidelity_median_s": 0.009626375045627356,
+    "fidelity_preview_s": 0.005183083936572075,
+    "mesh_preview_s": 0.017726833000779152,
+    "openscad_render_s": 2.633883458096534,
+    "trace_median_s": 0.0030449172481894493
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/bracket/raised"
+}

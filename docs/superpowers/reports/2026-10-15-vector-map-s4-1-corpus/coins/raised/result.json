@@ -1,0 +1,521 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/coins/source.png",
+    "<work>/coins/raised/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/coins/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-detail.scad": {
+      "bytes": 1086,
+      "path": "<work>/coins/raised/area-detail.scad",
+      "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+      "bytes": 14608,
+      "path": "<work>/coins/raised/area-detail.svg",
+      "sha256": "1b2514a0d68f3b057de605ed5c8ea3889f16469e2141fd63110b6f16a3728686"
+    },
+    "area-silhouette.scad": {
+      "bytes": 1090,
+      "path": "<work>/coins/raised/area-silhouette.scad",
+      "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+      "bytes": 6310,
+      "path": "<work>/coins/raised/area-silhouette.svg",
+      "sha256": "fc8fc4bd6c22fac3d7795d17a1bc91f9b700fbf755a7e16edc3cb3b0f18cb7e6"
+    },
+    "area-structure.scad": {
+      "bytes": 1089,
+      "path": "<work>/coins/raised/area-structure.scad",
+      "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+      "bytes": 16773,
+      "path": "<work>/coins/raised/area-structure.svg",
+      "sha256": "662e233b6e5295c2cfb61f169df5a7f08a099cae49e1c81e7dde15db87c7811f"
+    },
+    "fidelity.png": {
+      "bytes": 7173,
+      "path": "<work>/coins/raised/fidelity.png",
+      "sha256": "5486fd6c8c506b0fe7870c34b3e2505386a8aa3bb106df6429f22e9cf95a0820"
+    },
+    "mesh.png": {
+      "bytes": 15763,
+      "path": "<work>/coins/raised/mesh.png",
+      "sha256": "80dc09b63f686166bd26d93c433e5e84d4a406c93acdef58a7512fea712bdcc1"
+    },
+    "out.debug/detail.png": {
+      "bytes": 2366,
+      "path": "<work>/coins/raised/out.debug/detail.png",
+      "sha256": "cc808c53906da381b579583839362eb37503d347e34326611c5cf23a43ef080e"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 812,
+      "path": "<work>/coins/raised/out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 1713,
+      "path": "<work>/coins/raised/out.debug/silhouette.png",
+      "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+    },
+    "out.debug/structure.png": {
+      "bytes": 3211,
+      "path": "<work>/coins/raised/out.debug/structure.png",
+      "sha256": "ee786281d1b868fbe589f81acd3b3bf085e77d2fc50abf0c1204c5bb11793870"
+    },
+    "out.layers/detail.svg": {
+      "bytes": 7067,
+      "path": "<work>/coins/raised/out.layers/detail.svg",
+      "sha256": "9e2ec35223ae4b4757468e4a718258859e3d0d7407c8072c3295418f794f9ca1"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 3702,
+      "path": "<work>/coins/raised/out.layers/silhouette.svg",
+      "sha256": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 7995,
+      "path": "<work>/coins/raised/out.layers/structure.svg",
+      "sha256": "1a88740aaa39934b393c17dc065fcdd86dc4c32b8822d2ba3df54a2e0c21da9c"
+    },
+    "out.preview.png": {
+      "bytes": 99392,
+      "path": "<work>/coins/raised/out.preview.png",
+      "sha256": "eaa7ca76184197b6e590150d48084645760837c5180de60667c9b7594f6b83b6"
+    },
+    "out.scad": {
+      "bytes": 1511,
+      "path": "<work>/coins/raised/out.scad",
+      "sha256": "c474dde659efe9f9e6a2d662c26ace8a2b88a7ffdc49f3804bae830a639f46a7"
+    },
+    "out.stl": {
+      "bytes": 999800,
+      "path": "<work>/coins/raised/out.stl",
+      "sha256": "2cadb861a77df941d0e566d9af55c27da1f282b8921cc639133a2b856332c222"
+    },
+    "out.svg": {
+      "bytes": 18513,
+      "path": "<work>/coins/raised/out.svg",
+      "sha256": "ebe710885a3b8fa705d81d9a4ed200aad31c1d854cc46d5c32a54d22e85c4443"
+    },
+    "out.vector.json": {
+      "bytes": 9462,
+      "path": "<work>/coins/raised/out.vector.json",
+      "sha256": "977122f1f52fae84f369b4753b30c36f48f7fddf9bac19eac4ba941b165936c8"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 7890.625,
+        "detail": 927.6840218023989,
+        "silhouette": 2804.4956552823023,
+        "structure": 1364.1035110053058
+      },
+      "bounds_xy": [
+        [
+          4.6875,
+          3.515625
+        ],
+        [
+          99.609375,
+          75.0
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 0,
+      "mask_solids": 24,
+      "published_areas_mm2": {
+        "canvas": 7890.625,
+        "detail": 957.6723947906495,
+        "silhouette": 2804.4891357421875,
+        "structure": 1364.096130065918
+      },
+      "published_volume_excess": 0.0013698519750177554,
+      "published_volume_mm3": 4375.3791198883055,
+      "solids": 24,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 4369.393697302426,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          4.6875,
+          3.51562,
+          0.0
+        ],
+        [
+          99.6094,
+          75.0,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "genus_sum": 0,
+      "solids": 24,
+      "volume_mm3": 4369.690693448704,
+      "z_planes": [
+        0.0,
+        1.2,
+        1.4,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/coins/raised/out.stl",
+        "<work>/coins/raised/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 10.82360320771113,
+      "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 1267488\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 4219072\nTotal rendering time: 0:00:10.533\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3118\n   Halfedges:    9358\n   Edges:        4679\n   Halffacets:   3334\n   Facets:       1667\n   Volumes:        25\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 78.90625,
+    "height_px": 202,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "coins",
+  "complexity": {
+    "combined": {
+      "commands": 2079,
+      "paths": 101,
+      "subpaths": 197,
+      "svg_bytes": 18513
+    },
+    "detail": {
+      "commands": 724,
+      "paths": 48,
+      "subpaths": 70,
+      "svg_bytes": 7067
+    },
+    "silhouette": {
+      "commands": 341,
+      "paths": 24,
+      "subpaths": 24,
+      "svg_bytes": 3702
+    },
+    "structure": {
+      "commands": 1014,
+      "paths": 29,
+      "subpaths": 103,
+      "svg_bytes": 7995
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+    "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+      12,
+      10,
+      255,
+      193
+    ],
+    "bounds_render": [
+      12,
+      10,
+      255,
+      193
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.13470711976021887,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": true,
+      "orientation": true,
+      "scale": true,
+      "topology": true,
+      "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 18068,
+    "orientation_xor_px": {
+      "fliplr": 13636,
+      "flipud": 18432,
+      "rot180": 17716
+    },
+    "passed": true,
+    "perimeter_px": 2942,
+    "polygon_area_px": 18379.5,
+    "topology_mask": [
+      24,
+      0
+    ],
+    "topology_render": [
+      24,
+      0
+    ],
+    "xor_pct_of_canvas": 0.7232363861386139,
+    "xor_pct_of_material": 2.0699579366836396,
+    "xor_per_perimeter_px": 0.12712440516655338,
+    "xor_px": 374
+  },
+  "fidelity_passed": true,
+  "manifest_sha256": "977122f1f52fae84f369b4753b30c36f48f7fddf9bac19eac4ba941b165936c8",
+  "mask_sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d",
+  "mode": "raised",
+  "override": {
+    "baseline_checks": [],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "raised",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "coins",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/coins/raised/out.debug",
+      "layers": {
+        "detail": "<work>/coins/raised/out.layers/detail.svg",
+        "silhouette": "<work>/coins/raised/out.layers/silhouette.svg",
+        "structure": "<work>/coins/raised/out.layers/structure.svg"
+      },
+      "manifest": "<work>/coins/raised/out.vector.json",
+      "preview": "<work>/coins/raised/out.preview.png",
+      "scad": "<work>/coins/raised/out.scad",
+      "svg": "<work>/coins/raised/out.svg"
+    },
+    "counts": {
+      "layers": 3,
+      "paths": 101
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 18
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 15
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 24,
+        "level": "warning",
+        "message": "The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      },
+      {
+        "code": "degenerate_subpaths",
+        "level": "warning",
+        "message": "structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+        "role": "structure",
+        "subpaths": 27
+      },
+      {
+        "code": "cad_pinch_closed",
+        "level": "warning",
+        "message": "structure: 5 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+        "pinches": 5,
+        "role": "structure"
+      },
+      {
+        "code": "degenerate_subpaths",
+        "level": "warning",
+        "message": "detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+        "role": "detail",
+        "subpaths": 12
+      },
+      {
+        "code": "cad_pinch_closed",
+        "level": "warning",
+        "message": "detail: 2 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+        "pinches": 2,
+        "role": "detail"
+      },
+      {
+        "code": "cad_detail_growth",
+        "growth_mm": 0.002,
+        "level": "warning",
+        "message": "Detail touches structure at a point. The two tops differ, so OpenSCAD cannot join them in a manifold mesh. The SCAD source grows detail by 0.002 mm and subtracts structure shrunk by the same amount. Structure hides the overlap."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/coins/source.png\nwarning: Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x202, oriented 256x202, processed 256x202 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x202 px as 100x78.9062 mm\ntracing  structure 256x202 px as 100x78.9062 mm\nwarning: structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x202 px as 100x78.9062 mm\nwarning: detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     <work>/coins/raised/out.scad\npreview  <work>/coins/raised/out.preview.png\nsaved    <work>/coins/raised/out.svg (layers: silhouette, structure, detail; paths: 101)\n",
+  "timings": {
+    "conversion_s": 0.1230878746137023,
+    "effective_area_export_s": 0.3239289578050375,
+    "fidelity_median_s": 0.009315792005509138,
+    "fidelity_preview_s": 0.006923041772097349,
+    "mesh_preview_s": 0.12042829161509871,
+    "openscad_render_s": 10.82360320771113,
+    "trace_median_s": 0.002608959097415209
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/coins/raised"
+}

@@ -1,0 +1,485 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/brick/source.png",
+    "<work>/brick/engraved/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/brick/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--detail-mode",
+    "engraved",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-detail.scad": {
+      "bytes": 1359,
+      "path": "<work>/brick/engraved/area-detail.scad",
+      "sha256": "741e215b9c601a866c517e053a2b3701719333f6dedf399609b9ccbaef37ca4e"
+    },
+    "area-detail.svg": {
+      "bytes": 411,
+      "path": "<work>/brick/engraved/area-detail.svg",
+      "sha256": "1d2354a750fb71dcd24a50aac58b110782b8b440d3e937651ba6e7ab31f435a9"
+    },
+    "area-silhouette.scad": {
+      "bytes": 1363,
+      "path": "<work>/brick/engraved/area-silhouette.scad",
+      "sha256": "1dc4f63cfdeb1f234d17f2bfd6e3fbaf38d9dddc1b6fefcdde84af999d3b04bc"
+    },
+    "area-silhouette.svg": {
+      "bytes": 12165,
+      "path": "<work>/brick/engraved/area-silhouette.svg",
+      "sha256": "87bdb8da6964560dfc14403065214e5c6ecc8d1fceebf22649d50d00b6adc9d5"
+    },
+    "area-structure.scad": {
+      "bytes": 1362,
+      "path": "<work>/brick/engraved/area-structure.scad",
+      "sha256": "65641f9f548c3d1c719b3cd442f99d11d3abb2c7ca5c4cc11285ec130d15169b"
+    },
+    "area-structure.svg": {
+      "bytes": 13323,
+      "path": "<work>/brick/engraved/area-structure.svg",
+      "sha256": "9dd2254067ab0767039537a17ee5e1c17e238a477b17d0d090d70739e3745a90"
+    },
+    "fidelity.png": {
+      "bytes": 12140,
+      "path": "<work>/brick/engraved/fidelity.png",
+      "sha256": "2d1f697be74240a84f0743cc1fda439395484cdaa08da0c3e074c1838f199b2d"
+    },
+    "mesh.png": {
+      "bytes": 8415,
+      "path": "<work>/brick/engraved/mesh.png",
+      "sha256": "957f180eefd21106dccead0821ca3c5085602c9446a8a7b83acde4458a7e40d9"
+    },
+    "out.debug/detail.png": {
+      "bytes": 257,
+      "path": "<work>/brick/engraved/out.debug/detail.png",
+      "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 814,
+      "path": "<work>/brick/engraved/out.debug/recipe.json",
+      "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 2705,
+      "path": "<work>/brick/engraved/out.debug/silhouette.png",
+      "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+    },
+    "out.debug/structure.png": {
+      "bytes": 2861,
+      "path": "<work>/brick/engraved/out.debug/structure.png",
+      "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
+    },
+    "out.layers/detail.svg": {
+      "bytes": 234,
+      "path": "<work>/brick/engraved/out.layers/detail.svg",
+      "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 5497,
+      "path": "<work>/brick/engraved/out.layers/silhouette.svg",
+      "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 6242,
+      "path": "<work>/brick/engraved/out.layers/structure.svg",
+      "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
+    },
+    "out.preview.png": {
+      "bytes": 83267,
+      "path": "<work>/brick/engraved/out.preview.png",
+      "sha256": "1ba1dbc1bed64c4c6c600fc38e8d4c952cf2586bfb468eececf2d3c00c31abea"
+    },
+    "out.scad": {
+      "bytes": 1783,
+      "path": "<work>/brick/engraved/out.scad",
+      "sha256": "a98c4f9bf037958aa4e6a3a6288236a1bb6771ed4cae54e8b37924a944ae8910"
+    },
+    "out.stl": {
+      "bytes": 495754,
+      "path": "<work>/brick/engraved/out.stl",
+      "sha256": "04db04251e0d42272534c6d1ffa1376dd0ca13d4a66dc50f448bdf5303fde3e2"
+    },
+    "out.svg": {
+      "bytes": 11732,
+      "path": "<work>/brick/engraved/out.svg",
+      "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
+    },
+    "out.vector.json": {
+      "bytes": 8172,
+      "path": "<work>/brick/engraved/out.vector.json",
+      "sha256": "2d8bb99d55ad5a25a58c44463018a64970f12bee386fbcb5353abb79b4495c76"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 3.8146972649992676,
+        "silhouette": 1955.7244179543031,
+        "structure": 1921.2277890867997
+      },
+      "bounds_xy": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 53,
+      "mask_solids": 1,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 3.814697265625,
+        "silhouette": 1955.718994140625,
+        "structure": 1933.2122802734375
+      },
+      "published_volume_excess": 0.0020533033526971816,
+      "published_volume_mm3": 3506.0272216796875,
+      "solids": 1,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 3498.8430355442433,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        53
+      ],
+      "genus_sum": 53,
+      "solids": 1,
+      "volume_mm3": 3498.8429620702377,
+      "z_planes": [
+        0.0,
+        1.0,
+        1.19,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/brick/engraved/out.stl",
+        "<work>/brick/engraved/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 14.118676375132054,
+      "stderr": "Geometries in cache: 13\nGeometry cache size in bytes: 893120\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 3763360\nTotal rendering time: 0:00:13.919\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1472\n   Halfedges:    4432\n   Edges:        2216\n   Halffacets:   1516\n   Facets:        758\n   Volumes:         2\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "brick",
+  "complexity": {
+    "combined": {
+      "commands": 1525,
+      "paths": 3,
+      "subpaths": 143,
+      "svg_bytes": 11732
+    },
+    "detail": {
+      "commands": 5,
+      "paths": 1,
+      "subpaths": 1,
+      "svg_bytes": 234
+    },
+    "silhouette": {
+      "commands": 703,
+      "paths": 1,
+      "subpaths": 54,
+      "svg_bytes": 5497
+    },
+    "structure": {
+      "commands": 817,
+      "paths": 1,
+      "subpaths": 88,
+      "svg_bytes": 6242
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+    "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_render": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.262400349052011,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": false,
+      "orientation": true,
+      "scale": true,
+      "topology": false,
+      "xor": true
+    },
+    "failures": [
+      "centroid",
+      "topology"
+    ],
+    "mask_area_px": 13770,
+    "orientation_xor_px": {
+      "antitranspose": 21335,
+      "fliplr": 20227,
+      "flipud": 20525,
+      "rot180": 20357,
+      "rot270": 20781,
+      "rot90": 20789,
+      "transpose": 21245
+    },
+    "passed": false,
+    "perimeter_px": 9913,
+    "polygon_area_px": 12817.0,
+    "topology_mask": [
+      1,
+      53
+    ],
+    "topology_render": [
+      5,
+      53
+    ],
+    "xor_pct_of_canvas": 4.28314208984375,
+    "xor_pct_of_material": 20.38489469862019,
+    "xor_per_perimeter_px": 0.28316352264702915,
+    "xor_px": 2807
+  },
+  "fidelity_passed": false,
+  "manifest_sha256": "2d8bb99d55ad5a25a58c44463018a64970f12bee386fbcb5353abb79b4495c76",
+  "mask_sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa",
+  "mode": "engraved",
+  "override": {
+    "baseline_checks": [
+      "centroid",
+      "topology"
+    ],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "engraved",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "brick",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/brick/engraved/out.debug",
+      "layers": {
+        "detail": "<work>/brick/engraved/out.layers/detail.svg",
+        "silhouette": "<work>/brick/engraved/out.layers/silhouette.svg",
+        "structure": "<work>/brick/engraved/out.layers/structure.svg"
+      },
+      "manifest": "<work>/brick/engraved/out.vector.json",
+      "preview": "<work>/brick/engraved/out.preview.png",
+      "scad": "<work>/brick/engraved/out.scad",
+      "svg": "<work>/brick/engraved/out.svg"
+    },
+    "counts": {
+      "layers": 3,
+      "paths": 3
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 10378
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 181
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "degenerate_subpaths",
+        "level": "warning",
+        "message": "structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+        "role": "structure",
+        "subpaths": 22
+      },
+      {
+        "bridge_mm": 0.002,
+        "code": "cad_recess_bridge",
+        "contacts": 1,
+        "level": "warning",
+        "message": "The engraved recess meets the silhouette outline at 1 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/brick/source.png\nwarning: Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     <work>/brick/engraved/out.scad\npreview  <work>/brick/engraved/out.preview.png\nsaved    <work>/brick/engraved/out.svg (layers: silhouette, structure, detail; paths: 3)\n",
+  "timings": {
+    "conversion_s": 0.34459137497469783,
+    "effective_area_export_s": 0.3162514171563089,
+    "fidelity_median_s": 0.012928291223943233,
+    "fidelity_preview_s": 0.008980707731097937,
+    "mesh_preview_s": 0.06864170776680112,
+    "openscad_render_s": 14.118676375132054,
+    "trace_median_s": 0.0046186246909201145
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/brick/engraved"
+}

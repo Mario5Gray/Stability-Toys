@@ -1,0 +1,703 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/gravel/source.png",
+    "<work>/gravel/raised/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/gravel/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-detail.scad": {
+      "bytes": 1086,
+      "path": "<work>/gravel/raised/area-detail.scad",
+      "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+      "bytes": 5815,
+      "path": "<work>/gravel/raised/area-detail.svg",
+      "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
+    },
+    "area-silhouette.scad": {
+      "bytes": 1090,
+      "path": "<work>/gravel/raised/area-silhouette.scad",
+      "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+      "bytes": 48183,
+      "path": "<work>/gravel/raised/area-silhouette.svg",
+      "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
+    },
+    "area-structure.scad": {
+      "bytes": 1089,
+      "path": "<work>/gravel/raised/area-structure.scad",
+      "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+      "bytes": 68418,
+      "path": "<work>/gravel/raised/area-structure.svg",
+      "sha256": "dcfc2b203f93d7895c062337c3bc428df733a757c1f4de1e8693216d53be17e9"
+    },
+    "fidelity.png": {
+      "bytes": 34224,
+      "path": "<work>/gravel/raised/fidelity.png",
+      "sha256": "bb62804beb754d684c264f11442a5d389e7b49a7000e8443f310bee17ac5fd5b"
+    },
+    "mesh.png": {
+      "bytes": 26360,
+      "path": "<work>/gravel/raised/mesh.png",
+      "sha256": "8190a4d0e52a90d41af702c7633e26d5cee7c5b50fa0b2753936a344066137e5"
+    },
+    "out.debug/detail.png": {
+      "bytes": 2598,
+      "path": "<work>/gravel/raised/out.debug/detail.png",
+      "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 812,
+      "path": "<work>/gravel/raised/out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 7971,
+      "path": "<work>/gravel/raised/out.debug/silhouette.png",
+      "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+    },
+    "out.debug/structure.png": {
+      "bytes": 9534,
+      "path": "<work>/gravel/raised/out.debug/structure.png",
+      "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
+    },
+    "out.layers/detail.svg": {
+      "bytes": 3945,
+      "path": "<work>/gravel/raised/out.layers/detail.svg",
+      "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 28836,
+      "path": "<work>/gravel/raised/out.layers/silhouette.svg",
+      "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 36131,
+      "path": "<work>/gravel/raised/out.layers/structure.svg",
+      "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
+    },
+    "out.preview.png": {
+      "bytes": 203673,
+      "path": "<work>/gravel/raised/out.preview.png",
+      "sha256": "45f7d4cb71b932e06927bfb71585026c7e17d660c548704fd997877d5c01af16"
+    },
+    "out.scad": {
+      "bytes": 1506,
+      "path": "<work>/gravel/raised/out.scad",
+      "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
+    },
+    "out.stl": {
+      "bytes": 2936516,
+      "path": "<work>/gravel/raised/out.stl",
+      "sha256": "a9cffea7e7aed809bc726f6a5cfcef562f9752e4aafcc329f1dfec8e15a07acb"
+    },
+    "out.svg": {
+      "bytes": 68671,
+      "path": "<work>/gravel/raised/out.svg",
+      "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
+    },
+    "out.vector.json": {
+      "bytes": 8840,
+      "path": "<work>/gravel/raised/out.vector.json",
+      "sha256": "fcfd120d40b54a0ec04d75aad1fd182db164973b2a3e4095786d12abb224f1af"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 141.6802690101533,
+        "silhouette": 4284.974690468046,
+        "structure": 3122.474561648045
+      },
+      "bounds_xy": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 13,
+      "mask_solids": 225,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 160.369873046875,
+        "silhouette": 4284.97314453125,
+        "structure": 3169.650972366333
+      },
+      "published_volume_excess": 0.004548958757507793,
+      "published_volume_mm3": 7075.832331466675,
+      "solids": 209,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 7043.790419352512,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "genus_sum": 13,
+      "solids": 209,
+      "volume_mm3": 7043.874851818953,
+      "z_planes": [
+        0.0,
+        1.19,
+        1.2,
+        1.4,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/gravel/raised/out.stl",
+        "<work>/gravel/raised/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 55.70319208316505,
+      "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 3900000\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 13149088\nTotal rendering time: 0:00:55.031\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9520\n   Halfedges:   29070\n   Edges:       14535\n   Halffacets:  11184\n   Facets:       5592\n   Volumes:       210\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "gravel",
+  "complexity": {
+    "combined": {
+      "commands": 7229,
+      "paths": 474,
+      "subpaths": 797,
+      "svg_bytes": 68671
+    },
+    "detail": {
+      "commands": 275,
+      "paths": 42,
+      "subpaths": 42,
+      "svg_bytes": 3945
+    },
+    "silhouette": {
+      "commands": 2808,
+      "paths": 209,
+      "subpaths": 222,
+      "svg_bytes": 28836
+    },
+    "structure": {
+      "commands": 4146,
+      "paths": 223,
+      "subpaths": 533,
+      "svg_bytes": 36131
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+    "area_dev_signed_per_perimeter_px": 0.08745670460168234,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.7360679774997898,
+    "bounds_mask": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_render": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.46412606773205256,
+    "checks": {
+      "area": true,
+      "boundary": false,
+      "bounds": true,
+      "centroid": true,
+      "orientation": true,
+      "scale": true,
+      "topology": false,
+      "xor": true
+    },
+    "failures": [
+      "boundary",
+      "topology"
+    ],
+    "mask_area_px": 26668,
+    "orientation_xor_px": {
+      "antitranspose": 31774,
+      "fliplr": 32084,
+      "flipud": 31246,
+      "rot180": 31790,
+      "rot270": 32012,
+      "rot90": 32136,
+      "transpose": 30990
+    },
+    "passed": false,
+    "perimeter_px": 16168,
+    "polygon_area_px": 28082.0,
+    "topology_mask": [
+      225,
+      13
+    ],
+    "topology_render": [
+      208,
+      27
+    ],
+    "xor_pct_of_canvas": 6.01806640625,
+    "xor_pct_of_material": 14.789260536973151,
+    "xor_per_perimeter_px": 0.24393864423552697,
+    "xor_px": 3944
+  },
+  "fidelity_passed": false,
+  "manifest_sha256": "fcfd120d40b54a0ec04d75aad1fd182db164973b2a3e4095786d12abb224f1af",
+  "mask_sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3",
+  "mode": "raised",
+  "override": {
+    "baseline_checks": [
+      "boundary",
+      "topology"
+    ],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "raised",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "gravel",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/gravel/raised/out.debug",
+      "layers": {
+        "detail": "<work>/gravel/raised/out.layers/detail.svg",
+        "silhouette": "<work>/gravel/raised/out.layers/silhouette.svg",
+        "structure": "<work>/gravel/raised/out.layers/structure.svg"
+      },
+      "manifest": "<work>/gravel/raised/out.vector.json",
+      "preview": "<work>/gravel/raised/out.preview.png",
+      "scad": "<work>/gravel/raised/out.scad",
+      "svg": "<work>/gravel/raised/out.svg"
+    },
+    "counts": {
+      "layers": 3,
+      "paths": 474
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 6310
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 5856
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 225,
+        "level": "warning",
+        "message": "The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      },
+      {
+        "code": "degenerate_subpaths",
+        "level": "warning",
+        "message": "structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+        "role": "structure",
+        "subpaths": 141
+      },
+      {
+        "code": "cad_pinch_closed",
+        "level": "warning",
+        "message": "structure: 12 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+        "pinches": 12,
+        "role": "structure"
+      },
+      {
+        "code": "cad_detail_growth",
+        "growth_mm": 0.002,
+        "level": "warning",
+        "message": "Detail touches structure at a point. The two tops differ, so OpenSCAD cannot join them in a manifold mesh. The SCAD source grows detail by 0.002 mm and subtracts structure shrunk by the same amount. Structure hides the overlap."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     <work>/gravel/raised/out.scad\npreview  <work>/gravel/raised/out.preview.png\nsaved    <work>/gravel/raised/out.svg (layers: silhouette, structure, detail; paths: 474)\n",
+  "timings": {
+    "conversion_s": 0.67959641572088,
+    "effective_area_export_s": 0.3711339170113206,
+    "fidelity_median_s": 0.02172349998727441,
+    "fidelity_preview_s": 0.017637041863054037,
+    "mesh_preview_s": 0.2924669999629259,
+    "openscad_render_s": 55.70319208316505,
+    "trace_median_s": 0.010296042077243328
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/gravel/raised"
+}

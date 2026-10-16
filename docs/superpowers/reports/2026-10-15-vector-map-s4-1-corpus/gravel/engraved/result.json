@@ -1,0 +1,706 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/gravel/source.png",
+    "<work>/gravel/engraved/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/gravel/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--detail-mode",
+    "engraved",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-detail.scad": {
+      "bytes": 1479,
+      "path": "<work>/gravel/engraved/area-detail.scad",
+      "sha256": "deb31b23eabba3bc29e570d6a0232975dffe9f1b0d60afac77ddcc96cbb4d719"
+    },
+    "area-detail.svg": {
+      "bytes": 5815,
+      "path": "<work>/gravel/engraved/area-detail.svg",
+      "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
+    },
+    "area-silhouette.scad": {
+      "bytes": 1483,
+      "path": "<work>/gravel/engraved/area-silhouette.scad",
+      "sha256": "cb03c11e3f11b5da8a9730f30b34e91a0e217764de0962c0cea25697d7cf3fab"
+    },
+    "area-silhouette.svg": {
+      "bytes": 48183,
+      "path": "<work>/gravel/engraved/area-silhouette.svg",
+      "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
+    },
+    "area-structure.scad": {
+      "bytes": 1482,
+      "path": "<work>/gravel/engraved/area-structure.scad",
+      "sha256": "8940905001c1fe58cf092e310fdd90977b515b14ba324a102d1b860706d45648"
+    },
+    "area-structure.svg": {
+      "bytes": 68418,
+      "path": "<work>/gravel/engraved/area-structure.svg",
+      "sha256": "dcfc2b203f93d7895c062337c3bc428df733a757c1f4de1e8693216d53be17e9"
+    },
+    "fidelity.png": {
+      "bytes": 34224,
+      "path": "<work>/gravel/engraved/fidelity.png",
+      "sha256": "bb62804beb754d684c264f11442a5d389e7b49a7000e8443f310bee17ac5fd5b"
+    },
+    "mesh.png": {
+      "bytes": 26298,
+      "path": "<work>/gravel/engraved/mesh.png",
+      "sha256": "64a03bc2d3c09c462acc9d9a5032ca092cab2091f5d1cd54106df28c3d51aa4d"
+    },
+    "out.debug/detail.png": {
+      "bytes": 2598,
+      "path": "<work>/gravel/engraved/out.debug/detail.png",
+      "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 814,
+      "path": "<work>/gravel/engraved/out.debug/recipe.json",
+      "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 7971,
+      "path": "<work>/gravel/engraved/out.debug/silhouette.png",
+      "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+    },
+    "out.debug/structure.png": {
+      "bytes": 9534,
+      "path": "<work>/gravel/engraved/out.debug/structure.png",
+      "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
+    },
+    "out.layers/detail.svg": {
+      "bytes": 3945,
+      "path": "<work>/gravel/engraved/out.layers/detail.svg",
+      "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 28836,
+      "path": "<work>/gravel/engraved/out.layers/silhouette.svg",
+      "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 36131,
+      "path": "<work>/gravel/engraved/out.layers/structure.svg",
+      "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
+    },
+    "out.preview.png": {
+      "bytes": 203673,
+      "path": "<work>/gravel/engraved/out.preview.png",
+      "sha256": "45f7d4cb71b932e06927bfb71585026c7e17d660c548704fd997877d5c01af16"
+    },
+    "out.scad": {
+      "bytes": 1903,
+      "path": "<work>/gravel/engraved/out.scad",
+      "sha256": "899a84b67d1ac00851d4592392c6bc6c4151e8cb6c6cdfe14feeef1330559f2e"
+    },
+    "out.stl": {
+      "bytes": 2954011,
+      "path": "<work>/gravel/engraved/out.stl",
+      "sha256": "b3c49a3028673e6d10c31b94992d2dbeee2cd70f77d55c9e7783f1c2f274a172"
+    },
+    "out.svg": {
+      "bytes": 68671,
+      "path": "<work>/gravel/engraved/out.svg",
+      "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
+    },
+    "out.vector.json": {
+      "bytes": 8902,
+      "path": "<work>/gravel/engraved/out.vector.json",
+      "sha256": "bfc90936a6943bb4078d327989cc415491555490230b3fada135f82c03cebdc9"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 141.6802690101533,
+        "silhouette": 4284.974690468046,
+        "structure": 3122.474561648045
+      },
+      "bounds_xy": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 13,
+      "mask_solids": 225,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 160.369873046875,
+        "silhouette": 4284.97314453125,
+        "structure": 3169.650972366333
+      },
+      "published_volume_excess": 0.0035159087628683565,
+      "published_volume_mm3": 7011.684382247925,
+      "solids": 209,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 6987.118311748451,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "genus_sum": 13,
+      "solids": 209,
+      "volume_mm3": 6987.117981544827,
+      "z_planes": [
+        0.0,
+        1.0,
+        1.19,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/gravel/engraved/out.stl",
+        "<work>/gravel/engraved/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 59.85222700005397,
+      "stderr": "Geometries in cache: 20\nGeometry cache size in bytes: 3769200\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 21072920\nTotal rendering time: 0:00:59.150\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9588\n   Halfedges:   29376\n   Edges:       14688\n   Halffacets:  11354\n   Facets:       5677\n   Volumes:       210\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "gravel",
+  "complexity": {
+    "combined": {
+      "commands": 7229,
+      "paths": 474,
+      "subpaths": 797,
+      "svg_bytes": 68671
+    },
+    "detail": {
+      "commands": 275,
+      "paths": 42,
+      "subpaths": 42,
+      "svg_bytes": 3945
+    },
+    "silhouette": {
+      "commands": 2808,
+      "paths": 209,
+      "subpaths": 222,
+      "svg_bytes": 28836
+    },
+    "structure": {
+      "commands": 4146,
+      "paths": 223,
+      "subpaths": 533,
+      "svg_bytes": 36131
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+    "area_dev_signed_per_perimeter_px": 0.08745670460168234,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.7360679774997898,
+    "bounds_mask": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_render": [
+      0,
+      0,
+      256,
+      256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.46412606773205256,
+    "checks": {
+      "area": true,
+      "boundary": false,
+      "bounds": true,
+      "centroid": true,
+      "orientation": true,
+      "scale": true,
+      "topology": false,
+      "xor": true
+    },
+    "failures": [
+      "boundary",
+      "topology"
+    ],
+    "mask_area_px": 26668,
+    "orientation_xor_px": {
+      "antitranspose": 31774,
+      "fliplr": 32084,
+      "flipud": 31246,
+      "rot180": 31790,
+      "rot270": 32012,
+      "rot90": 32136,
+      "transpose": 30990
+    },
+    "passed": false,
+    "perimeter_px": 16168,
+    "polygon_area_px": 28082.0,
+    "topology_mask": [
+      225,
+      13
+    ],
+    "topology_render": [
+      208,
+      27
+    ],
+    "xor_pct_of_canvas": 6.01806640625,
+    "xor_pct_of_material": 14.789260536973151,
+    "xor_per_perimeter_px": 0.24393864423552697,
+    "xor_px": 3944
+  },
+  "fidelity_passed": false,
+  "manifest_sha256": "bfc90936a6943bb4078d327989cc415491555490230b3fada135f82c03cebdc9",
+  "mask_sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3",
+  "mode": "engraved",
+  "override": {
+    "baseline_checks": [
+      "boundary",
+      "topology"
+    ],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "engraved",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "gravel",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/gravel/engraved/out.debug",
+      "layers": {
+        "detail": "<work>/gravel/engraved/out.layers/detail.svg",
+        "silhouette": "<work>/gravel/engraved/out.layers/silhouette.svg",
+        "structure": "<work>/gravel/engraved/out.layers/structure.svg"
+      },
+      "manifest": "<work>/gravel/engraved/out.vector.json",
+      "preview": "<work>/gravel/engraved/out.preview.png",
+      "scad": "<work>/gravel/engraved/out.scad",
+      "svg": "<work>/gravel/engraved/out.svg"
+    },
+    "counts": {
+      "layers": 3,
+      "paths": 474
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 6310
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 5856
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 225,
+        "level": "warning",
+        "message": "The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      },
+      {
+        "code": "degenerate_subpaths",
+        "level": "warning",
+        "message": "structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+        "role": "structure",
+        "subpaths": 141
+      },
+      {
+        "code": "cad_pinch_closed",
+        "level": "warning",
+        "message": "structure: 12 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+        "pinches": 12,
+        "role": "structure"
+      },
+      {
+        "bridge_mm": 0.002,
+        "code": "cad_recess_bridge",
+        "contacts": 7,
+        "level": "warning",
+        "message": "The engraved recess meets the silhouette outline at 7 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     <work>/gravel/engraved/out.scad\npreview  <work>/gravel/engraved/out.preview.png\nsaved    <work>/gravel/engraved/out.svg (layers: silhouette, structure, detail; paths: 474)\n",
+  "timings": {
+    "conversion_s": 0.9599380418658257,
+    "effective_area_export_s": 0.3757470827549696,
+    "fidelity_median_s": 0.021502249874174595,
+    "fidelity_preview_s": 0.017338832840323448,
+    "mesh_preview_s": 0.2996959169395268,
+    "openscad_render_s": 59.85222700005397,
+    "trace_median_s": 0.010181209072470665
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/gravel/engraved"
+}

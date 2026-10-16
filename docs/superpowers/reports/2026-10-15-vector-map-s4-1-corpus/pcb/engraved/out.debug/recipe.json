@@ -1,0 +1,41 @@
+{
+  "alpha": false,
+  "backing_mm": 0.0,
+  "center": false,
+  "detail": {
+    "path": "detail.png",
+    "prepared": true,
+    "source": "map",
+    "width_mm": 0.5
+  },
+  "detail_height_mm": 0.2,
+  "detail_mode": "engraved",
+  "export_scad": true,
+  "input": "silhouette.png",
+  "input_kind": "image",
+  "invert": false,
+  "layers": [
+    "silhouette",
+    "structure",
+    "detail"
+  ],
+  "mask": "silhouette.png",
+  "max_path_commands": 1000000,
+  "max_paths": 10000,
+  "max_svg_bytes": 20971520,
+  "preset": "relief-0.4",
+  "schema_version": 1,
+  "silhouette_thickness_mm": 1.2,
+  "structure": {
+    "path": "structure.png",
+    "prepared": true,
+    "source": "map",
+    "width_mm": 0.8
+  },
+  "structure_height_mm": 0.6,
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "width_mm": 100.0
+}

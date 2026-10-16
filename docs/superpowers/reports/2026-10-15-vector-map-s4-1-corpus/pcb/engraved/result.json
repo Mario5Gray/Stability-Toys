@@ -1,0 +1,482 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/pcb/source.png",
+    "<work>/pcb/engraved/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/pcb/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--detail-mode",
+    "engraved",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-silhouette.scad": {
+      "bytes": 727,
+      "path": "<work>/pcb/engraved/area-silhouette.scad",
+      "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+      "bytes": 19199,
+      "path": "<work>/pcb/engraved/area-silhouette.svg",
+      "sha256": "5c1fad1f5f424fe00b6401ecd640d209761a88a2c061c46dec0d4196ae781d83"
+    },
+    "area-structure.scad": {
+      "bytes": 726,
+      "path": "<work>/pcb/engraved/area-structure.scad",
+      "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+      "bytes": 40193,
+      "path": "<work>/pcb/engraved/area-structure.svg",
+      "sha256": "c5d7d0b82068a1c57b2a75327d31c12ad7d2c591f34cd304a0e4fb894d55aad8"
+    },
+    "fidelity.png": {
+      "bytes": 7241,
+      "path": "<work>/pcb/engraved/fidelity.png",
+      "sha256": "ad9f73295fd54f4cf80a5536e48619562ff09d4cab5b98435b5e765681c2cd3d"
+    },
+    "mesh.png": {
+      "bytes": 12890,
+      "path": "<work>/pcb/engraved/mesh.png",
+      "sha256": "27aa84382fbf58c307e80645570b3e8422df0c34780434e8afe6a7b4a10e87a1"
+    },
+    "out.debug/detail.png": {
+      "bytes": 143,
+      "path": "<work>/pcb/engraved/out.debug/detail.png",
+      "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 814,
+      "path": "<work>/pcb/engraved/out.debug/recipe.json",
+      "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 898,
+      "path": "<work>/pcb/engraved/out.debug/silhouette.png",
+      "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+    },
+    "out.debug/structure.png": {
+      "bytes": 1322,
+      "path": "<work>/pcb/engraved/out.debug/structure.png",
+      "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 8350,
+      "path": "<work>/pcb/engraved/out.layers/silhouette.svg",
+      "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 19388,
+      "path": "<work>/pcb/engraved/out.layers/structure.svg",
+      "sha256": "617e81d5c89977b68fea79088835b45134bcfb80b971f01783fd989f57c3f992"
+    },
+    "out.preview.png": {
+      "bytes": 41157,
+      "path": "<work>/pcb/engraved/out.preview.png",
+      "sha256": "1e64f30f36271660e86dff512ee7fa166f305988671b07689184c34461916cc0"
+    },
+    "out.scad": {
+      "bytes": 1032,
+      "path": "<work>/pcb/engraved/out.scad",
+      "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+      "bytes": 1380647,
+      "path": "<work>/pcb/engraved/out.stl",
+      "sha256": "9392fca506bf6ae6e980e7c6aaa1a73704239430cec0d3327a686ef31f930704"
+    },
+    "out.svg": {
+      "bytes": 27630,
+      "path": "<work>/pcb/engraved/out.svg",
+      "sha256": "1b6388b710fa39a0c1cea986855179a0a7eea6500ad7cc85cafd80a9c166b14a"
+    },
+    "out.vector.json": {
+      "bytes": 7718,
+      "path": "<work>/pcb/engraved/out.vector.json",
+      "sha256": "d400d5d8c2ea1a946a0c37e1ce63bb4e7a3f32657d8aed975e603cde35f0e2b3"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 2207.4907090049996,
+        "structure": 1585.2894975080446
+      },
+      "bounds_xy": [
+        [
+          5.859375,
+          5.46875
+        ],
+        [
+          94.53125,
+          94.140625
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 64,
+      "mask_solids": 30,
+      "published_areas_mm2": {
+        "canvas": 10000.0,
+        "detail": 0.0,
+        "silhouette": 2207.489013671875,
+        "structure": 1585.2883096313474
+      },
+      "published_volume_excess": -7.630560369354337e-07,
+      "published_volume_mm3": 3600.1598021850587,
+      "solids": 30,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 3600.162549310826,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          5.85938,
+          5.46875,
+          0.0
+        ],
+        [
+          94.5312,
+          94.1406,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        2,
+        5,
+        2,
+        1,
+        2,
+        6,
+        2,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        1,
+        2,
+        5,
+        1,
+        4,
+        1,
+        1,
+        1,
+        2,
+        3,
+        6,
+        1,
+        3,
+        1,
+        1,
+        2,
+        1
+      ],
+      "genus_sum": 64,
+      "solids": 30,
+      "volume_mm3": 3600.162549310821,
+      "z_planes": [
+        0.0,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/pcb/engraved/out.stl",
+        "<work>/pcb/engraved/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 23.153051916044205,
+      "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 1920048\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 5706112\nTotal rendering time: 0:00:22.779\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     4204\n   Halfedges:   12612\n   Edges:        6306\n   Halffacets:   4580\n   Facets:       2290\n   Volumes:        31\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "pcb",
+  "complexity": {
+    "combined": {
+      "commands": 3406,
+      "paths": 124,
+      "subpaths": 316,
+      "svg_bytes": 27630
+    },
+    "silhouette": {
+      "commands": 1082,
+      "paths": 30,
+      "subpaths": 94,
+      "svg_bytes": 8350
+    },
+    "structure": {
+      "commands": 2324,
+      "paths": 94,
+      "subpaths": 222,
+      "svg_bytes": 19388
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+    "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+      15,
+      15,
+      242,
+      242
+    ],
+    "bounds_render": [
+      15,
+      15,
+      242,
+      242
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.08305428584884239,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": true,
+      "orientation": true,
+      "scale": true,
+      "topology": true,
+      "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 14312,
+    "orientation_xor_px": {
+      "antitranspose": 3708,
+      "fliplr": 3248,
+      "flipud": 3628,
+      "rot180": 4100,
+      "rot270": 3890,
+      "rot90": 3586,
+      "transpose": 3584
+    },
+    "passed": true,
+    "perimeter_px": 6756,
+    "polygon_area_px": 14467.0,
+    "topology_mask": [
+      30,
+      64
+    ],
+    "topology_render": [
+      30,
+      64
+    ],
+    "xor_pct_of_canvas": 1.025390625,
+    "xor_pct_of_material": 4.6953605366126325,
+    "xor_per_perimeter_px": 0.0994671403197158,
+    "xor_px": 672
+  },
+  "fidelity_passed": true,
+  "manifest_sha256": "d400d5d8c2ea1a946a0c37e1ce63bb4e7a3f32657d8aed975e603cde35f0e2b3",
+  "mask_sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222",
+  "mode": "engraved",
+  "override": {
+    "baseline_checks": [],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "engraved",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "pcb",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/pcb/engraved/out.debug",
+      "layers": {
+        "silhouette": "<work>/pcb/engraved/out.layers/silhouette.svg",
+        "structure": "<work>/pcb/engraved/out.layers/structure.svg"
+      },
+      "manifest": "<work>/pcb/engraved/out.vector.json",
+      "preview": "<work>/pcb/engraved/out.preview.png",
+      "scad": "<work>/pcb/engraved/out.scad",
+      "svg": "<work>/pcb/engraved/out.svg"
+    },
+    "counts": {
+      "layers": 2,
+      "paths": 124
+    },
+    "diagnostics": [
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 128
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "role_empty",
+        "level": "warning",
+        "message": "detail: selected role has no material after constraints and clipping.",
+        "role": "detail"
+      },
+      {
+        "code": "multiple_solids",
+        "components": 30,
+        "level": "warning",
+        "message": "The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+      },
+      {
+        "code": "cad_pinch_closed",
+        "level": "warning",
+        "message": "structure: 28 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+        "pinches": 28,
+        "role": "structure"
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/pcb/source.png\nwarning: Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     <work>/pcb/engraved/out.scad\npreview  <work>/pcb/engraved/out.preview.png\nsaved    <work>/pcb/engraved/out.svg (layers: silhouette, structure; paths: 124)\n",
+  "timings": {
+    "conversion_s": 0.3165047080256045,
+    "effective_area_export_s": 0.22333333315327764,
+    "fidelity_median_s": 0.013099624775350094,
+    "fidelity_preview_s": 0.0076888748444616795,
+    "mesh_preview_s": 0.15928458329290152,
+    "openscad_render_s": 23.153051916044205,
+    "trace_median_s": 0.004553958773612976
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/pcb/engraved"
+}
