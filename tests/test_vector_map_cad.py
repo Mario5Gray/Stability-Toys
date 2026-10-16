@@ -135,6 +135,13 @@ def test_close_pinches_leaves_no_contact(data):
     assert cad.find_pinches(result.layer.svg) == []
 
 
+def test_close_pinches_survives_a_duplicate_vertex_at_the_contact():
+    # normalize_svg accepts consecutive equal points. One adjacent edge of the contact vertex is zero long.
+    result = cad.close_pinches(normalized(layer((f"{OUTER} M2,2 L2,9 L9,9 L9,9 L9,2 Z {HOLE_B_TOUCHING} ", None))), canvas())
+    assert result.closed == 1 and result.unrepaired == 0
+    assert cad.find_pinches(result.layer.svg) == []
+
+
 @pytest.mark.parametrize("data", [f"{OUTER} {HOLE_A} {HOLE_B_TOUCHING} ", f"{NOTCHED_OUTER} {HOLE_ON_TIP} "])
 def test_close_pinches_adds_material_and_only_a_little(data):
     before = normalized(layer((data, None)))
@@ -284,6 +291,22 @@ def test_detail_outside_the_silhouette_is_not_recess():
 def test_recess_contacts_apply_translate():
     shifted = cad.recess_outline_contacts(layer((SILHOUETTE, None)), layer(("M0,0 L-4,6 L4,6 Z ", (10, 0))), None)
     assert shifted == [(10.0, 0.0)]
+
+
+def test_recess_contacts_index_a_long_diagonal_in_linear_memory():
+    # An index of every cell in an edge's bounding box grows with the square of the edge length.
+    import tracemalloc
+
+    size = 1024
+    silhouette = layer((f"M0,0 L{size},{size} L0,{size} Z ", None), size=size)
+    detail = layer((f"M1,{size // 2 + 2} L{size // 2 - 2},{size - 1} L1,{size - 1} Z ", None), size=size)
+    tracemalloc.start()
+    try:
+        cad.recess_outline_contacts(silhouette, detail)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert peak < 20_000_000
 
 
 def test_recess_bridge_is_at_most_two_micrometres_and_a_quarter_pixel():

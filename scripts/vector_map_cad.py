@@ -166,21 +166,21 @@ class _Ring:
 
 
 class _Region:
-    """The filled area of one layer: nonzero winding over its solid rings, with edge lookup by pixel."""
+    """The filled area of one layer: nonzero winding over its solid rings, with edges indexed by pixel row.
+
+    Each edge is stored once per row it spans, padded by the contact tolerance. Memory grows with edge
+    length, not with the area of its bounding box. Winding and boundary queries both read one row.
+    """
 
     def __init__(self, svg):
         rings = [ring.absolute for ring in _rings(_parse(svg))[1] if ring.solid]
         self.vertices = {point for ring in rings for point in ring}
-        self.rows, self.cells = {}, {}
+        self.rows = {}
         for ring in rings:
             for start, end in _edges(ring):
                 low, high = sorted((start[1], end[1]))
-                for row in range(math.floor(low), math.floor(high) + 1):
+                for row in range(math.floor(low - CONTACT_TOLERANCE_PX), math.floor(high + CONTACT_TOLERANCE_PX) + 1):
                     self.rows.setdefault(row, []).append((start, end))
-                left, right = sorted((start[0], end[0]))
-                for x in range(math.floor(left) - 1, math.floor(right) + 2):
-                    for y in range(math.floor(low) - 1, math.floor(high) + 2):
-                        self.cells.setdefault((x, y), []).append((start, end))
 
     def inside(self, point):
         winding = 0
@@ -190,7 +190,7 @@ class _Region:
         return winding != 0
 
     def edges_through(self, point):
-        return [edge for edge in self.cells.get((math.floor(point[0]), math.floor(point[1])), ())
+        return [edge for edge in self.rows.get(math.floor(point[1]), ())
                 if _distance(point, *edge) <= CONTACT_TOLERANCE_PX]
 
     def on_boundary(self, point):
@@ -333,10 +333,17 @@ def _moved(ring, others, width):
 
 
 def _inward(points, i, ccw, width):
-    """Move vertex i by width along the sum of the two inward edge normals."""
+    """Move vertex i by width along the sum of the two inward edge normals.
+
+    Each normal uses the nearest neighbour that differs from vertex i. Consecutive equal points are
+    valid input, and a zero-long edge has no normal.
+    """
     here = points[i]
+    count = len(points)
+    before = next(points[(i - k) % count] for k in range(1, count) if points[(i - k) % count] != here)
+    after = next(points[(i + k) % count] for k in range(1, count) if points[(i + k) % count] != here)
     normals = []
-    for start, end in ((points[i - 1], here), (here, points[(i + 1) % len(points)])):
+    for start, end in ((before, here), (here, after)):
         dx, dy = end[0] - start[0], end[1] - start[1]
         length = math.hypot(dx, dy)
         normals.append((-dy / length, dx / length) if ccw else (dy / length, -dx / length))
