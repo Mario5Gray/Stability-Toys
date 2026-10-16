@@ -418,3 +418,82 @@ def test_scrub_names_the_earlier_index_and_the_interpreter(tmp_path):
     record = {"invocation": [sys.executable, "-m", "x", "--compare-index", str(earlier)], "against": str(earlier)}
     assert probe.scrub(record, tmp_path / "work", {earlier: "<earlier-index>"}) == {
         "invocation": ["python", "-m", "x", "--compare-index", "<earlier-index>"], "against": "<earlier-index>"}
+
+
+# --- PR #107 review: coverage gate, output paths, preset description -----------------
+
+
+def test_output_paths_outside_the_repository_get_their_own_placeholders(tmp_path):
+    import argparse
+
+    work = tmp_path / "run"
+    options = argparse.Namespace(index_json=tmp_path / "run.json", compare_index=tmp_path / "a.json",
+                                 bundle_dir=probe.ROOT / "docs/bundle", report=tmp_path / "r.md")
+    extra = probe.output_placeholders(options)
+    invocation = ["--work-dir", str(work), "--index-json", str(tmp_path / "run.json"), "--compare-index",
+                  str(tmp_path / "a.json"), "--bundle-dir", str(probe.ROOT / "docs/bundle"), "--report", str(tmp_path / "r.md")]
+    scrubbed = probe.scrub(invocation, work, extra)
+    assert scrubbed == ["--work-dir", "<work>", "--index-json", "<index-json>", "--compare-index", "<earlier-index>",
+                        "--bundle-dir", "docs/bundle", "--report", "<report>"]
+    probe.host_path_check(json.dumps(scrubbed), work, "index.json")
+
+
+def minimal_index(rows):
+    index = probe.build_index(rows, probe.pinned_signature(), CLEAN_HASHES)
+    index.update(host={"os": "os", "machine": "m", "processor": "", "python": "3", "vtracer": "v", "resvg-py": "r",
+                       "openscad": "OpenSCAD version 2021.01"}, openscad_command=["openscad"],
+                 invocation=["python", "-m", "tests.vector_map_s4_1_corpus_probe"], work_dir="<work>")
+    return index
+
+
+def test_a_partial_run_reports_its_coverage_and_no_release_decision():
+    rows = [row("badge", mode, []) for mode in probe.MODES]
+    index = minimal_index(rows)
+    assert len(index["rows"]) == 16 and not index["evidence_complete"] and index["exit_code"] == 1
+    text = probe.report(index)
+    assert "| Evidence complete | False (2/16 mode rows) |" in text
+    assert "`release_accepted`: true" not in text
+    assert "Not recorded. Release acceptance needs a complete run of all 16 mode rows." in text
+
+
+def test_a_complete_run_reports_sixteen_rows_and_the_release_decision():
+    pin = probe.pinned_signature()
+    index = minimal_index([row(case, mode, names) for case, names in pin.items() for mode in probe.MODES])
+    text = probe.report(index)
+    assert "| Evidence complete | True (16/16 mode rows) |" in text
+    assert "`release_accepted`: true for the corpus-fidelity limitation only." in text
+
+
+def test_the_defaults_assessment_lists_every_relief_preset_value():
+    pin = probe.pinned_signature()
+    text = probe.report(minimal_index([row(case, mode, names) for case, names in pin.items() for mode in probe.MODES]))
+    assert ("`relief-0.4` sets silhouette thickness 1.2 mm, structure height 0.6 mm, detail height 0.2 mm, "
+            "backing 0 mm, structure width 0.8 mm and detail width 0.5 mm.") in text
+    assert "heights only" not in text
+
+
+@needs_openscad
+@needs_vtracer
+@needs_resvg
+def test_a_one_case_probe_run_cannot_exit_zero(work):
+    index_path = work / "index.json"
+    assert probe.main(["--work-dir", str(work / "run"), "--case", "badge", "--index-json", str(index_path)]) == 1
+    index = json.loads(index_path.read_text())
+    assert len(index["rows"]) == 16 and not index["evidence_complete"]
+    assert sum(r["evidence_missing"] == ["row"] for r in index["rows"]) == 14
+    assert index["invocation"][index["invocation"].index("--index-json") + 1] == "<index-json>"
+
+
+def test_placeholders_cover_the_typed_and_the_resolved_form_of_a_symlinked_path(tmp_path):
+    """macOS /tmp is a symlink to /private/tmp. The invocation keeps the typed form."""
+    import argparse
+
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    options = argparse.Namespace(work_dir=link / "run", index_json=link / "run.json", compare_index=None,
+                                 bundle_dir=None, report=None)
+    extra = probe.output_placeholders(options)
+    record = [str(link / "run"), str(link / "run.json"), str(real / "run"), str(real / "run.json")]
+    assert probe.scrub(record, (link / "run").resolve(), extra) == ["<work>", "<index-json>", "<work>", "<index-json>"]

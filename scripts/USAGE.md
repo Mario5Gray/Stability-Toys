@@ -435,6 +435,8 @@ python -m tests.vector_map_s4_1_corpus_probe --work-dir /tmp/s41-run --index-jso
 ```
 
 The work directory must be empty. Without OpenSCAD the probe exits 2. Set `OPENSCAD` to choose the executable.
+`--case` and `--mode` run a subset. The index still lists all 16 mode rows, so a subset never exits 0.
+Committed records name the work directory `<work>`. An output path outside the repository becomes `<index-json>`, `<earlier-index>`, `<bundle-dir>` or `<report>`.
 Exit 0 means that the evidence is complete, every CAD row passes, and every manifest hash matches.
 It also means that the fidelity failure names equal the S1.4 pins in `sweep-results.json`.
 Exit 0 does not mean that every case passes fidelity. A new failure or an unexpected pass exits 1.

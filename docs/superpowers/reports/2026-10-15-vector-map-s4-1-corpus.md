@@ -27,7 +27,7 @@ The STL files are not committed. Rebuild one from its committed mode bundle:
 
 | Check | Result |
 |---|---|
-| Evidence complete (16 mode rows) | True |
+| Evidence complete | True (16/16 mode rows) |
 | Fidelity failure names equal the S1.4 pin | True |
 | Raised and engraved fidelity agree | True |
 | CAD rows passed | 16/16 |
@@ -79,7 +79,8 @@ The CLI warns about possible features below four pixels. Later research: `STABL-
 ## Defaults assessment
 
 The shipped fitting default is VTracer polygon mode with `filter_speckle` 4, selected by the S1.4 sweep.
-`relief-0.4` is an opt-in fabrication preset. It sets relief heights only.
+`relief-0.4` sets silhouette thickness 1.2 mm, structure height 0.6 mm, detail height 0.2 mm, backing 0 mm, structure width 0.8 mm and detail width 0.5 mm. It is an opt-in fabrication preset.
+It leaves every VTracer and Canny value untouched.
 Resolved VTracer settings in every bundle: `{"filter_speckle": 4, "mode": "polygon"}`.
 The published silhouette reproduces the S1.4 raw-trace XOR and command count in 8/8 cases.
 

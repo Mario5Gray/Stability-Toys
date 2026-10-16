@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT))
 
 import vector_map  # noqa: E402
 import vector_map_vtracer as adapter  # noqa: E402
+from vector_map_config import RELIEF_PRESETS  # noqa: E402
 from tests.fixtures.vector_map.corpus import metrics  # noqa: E402
 from tests import test_vector_map_openscad as open_scad  # noqa: E402
 # Harness helpers from the S3.6 probe. _run_case is tied to S3.6 scenes and is not reused.
@@ -358,6 +359,25 @@ def _host_forms(work_root: Path, extra: dict | None = None) -> list[tuple[str, s
     return [*forms, (sys.executable, "python"), (f"{ROOT}/", ""), (str(ROOT), "."), (str(Path.home()), "~")]
 
 
+OUTPUT_PLACEHOLDERS = {"work_dir": "<work>", "compare_index": "<earlier-index>", "index_json": "<index-json>",
+                       "bundle_dir": "<bundle-dir>", "report": "<report>"}
+
+
+def output_placeholders(options) -> dict[Path, str]:
+    """Map each probe path argument outside the repository to its own placeholder.
+
+    A path inside the repository stays repo-relative. Keys keep the path as typed, and
+    _host_forms adds its resolved form, because macOS /tmp is a symlink to /private/tmp.
+    Longer paths are replaced first, so a sibling such as <work-dir>.json is never <work>.json.
+    """
+    extra = {}
+    for name, placeholder in OUTPUT_PLACEHOLDERS.items():
+        path = getattr(options, name, None)
+        if path and not Path(path).resolve().is_relative_to(ROOT):
+            extra[Path(os.path.abspath(path))] = placeholder
+    return extra
+
+
 def scrub(value: Any, work_root: Path, extra: dict | None = None) -> Any:
     """Return a copy of a JSON value with host paths replaced.
 
@@ -499,6 +519,15 @@ def _table(header: list[str], rows: list[list]) -> list[str]:
             *("| " + " | ".join(_cell(v) for v in r) + " |" for r in rows), ""]
 
 
+def _preset_sentence(name: str) -> str:
+    preset = RELIEF_PRESETS[name]
+    values = [("silhouette thickness", preset["silhouette_thickness_mm"]), ("structure height", preset["structure_height_mm"]),
+              ("detail height", preset["detail_height_mm"]), ("backing", preset["backing_mm"]),
+              ("structure width", preset["structure"]["width_mm"]), ("detail width", preset["detail"]["width_mm"])]
+    parts = [f"{label} {value:g} mm" for label, value in values]
+    return f"`{name}` sets {', '.join(parts[:-1])} and {parts[-1]}."
+
+
 def report(index: dict, links: Path | None = None) -> str:
     """Write the S4.1 report from the index. Links point into the committed bundle directory."""
     rows = {(r["case"], r["mode"]): r for r in index["rows"]}
@@ -532,8 +561,9 @@ def report(index: dict, links: Path | None = None) -> str:
               "## Verdict", ""]
     replay = index.get("replay", [])
     regeneration = index.get("regeneration")
+    complete = sum(not r["evidence_missing"] for r in index["rows"])
     lines += _table(["Check", "Result"], [
-        ["Evidence complete (16 mode rows)", index["evidence_complete"]],
+        ["Evidence complete", f"{index['evidence_complete']} ({complete}/{len(index['rows'])} mode rows)"],
         ["Fidelity failure names equal the S1.4 pin", index["fidelity_matches_pin"]],
         ["Raised and engraved fidelity agree", index["fidelity_modes_agree"]],
         ["CAD rows passed", f"{sum(r['cad_passed'] for r in index['rows'])}/{len(index['rows'])}"],
@@ -545,13 +575,17 @@ def report(index: dict, links: Path | None = None) -> str:
     passing = [c for c in cases if index["fidelity_summary"][c]["passed"]]
     lines += [f"Fidelity: {len(passing)}/{len(cases)} cases pass the locked S1.4 checks. "
               "Probe exit 0 means the expected evidence was collected. It does not mean that every case passes.", "",
-              "## Release decision", "",
-              "`release_accepted`: true for the corpus-fidelity limitation only.",
-              LIMIT_RULING,
-              "The ruling takes effect when this report and `scripts/USAGE.md` disclose the four cases and the minimum-feature risk.",
-              "Review confirms that disclosure. The probe does not compute this value.",
-              "The four cases stay FAIL. The other Sprint 4 gates still apply.", "",
-              "## Case results", ""]
+              "## Release decision", ""]
+    if index["evidence_complete"] and complete == len(CASE_NAMES) * len(MODES):
+        lines += ["`release_accepted`: true for the corpus-fidelity limitation only.",
+                  LIMIT_RULING,
+                  "The ruling takes effect when this report and `scripts/USAGE.md` disclose the four cases and the minimum-feature risk.",
+                  "Review confirms that disclosure. The probe does not compute this value.",
+                  "The four cases stay FAIL. The other Sprint 4 gates still apply.", ""]
+    else:
+        lines += [f"Not recorded. Release acceptance needs a complete run of all {len(CASE_NAMES) * len(MODES)} mode rows.",
+                  f"This run has complete evidence for {complete}/{len(index['rows'])} mode rows.", ""]
+    lines += ["## Case results", ""]
     lines += _table(["Case", "Class", "Fidelity", "Failed checks", "S1.4 pin", "CAD raised", "CAD engraved"], [
         [c, CORPUS_INDEX["cases"][c]["class"], "PASS" if index["fidelity_summary"][c]["passed"] else "FAIL",
          index["fidelity_summary"][c]["failures"], index["pinned_signature"][c] or ["none"],
@@ -577,7 +611,8 @@ def report(index: dict, links: Path | None = None) -> str:
     overrides = [r["override"] for r in index["rows"] if r.get("override", {}).get("override_recipe") is not None]
     lines += ["## Defaults assessment", "",
               "The shipped fitting default is VTracer polygon mode with `filter_speckle` 4, selected by the S1.4 sweep.",
-              "`relief-0.4` is an opt-in fabrication preset. It sets relief heights only.",
+              f"{_preset_sentence('relief-0.4')} It is an opt-in fabrication preset.",
+              "It leaves every VTracer and Canny value untouched.",
               f"Resolved VTracer settings in every bundle: {', '.join(f'`{v}`' for v in vtracer)}.",
               f"The published silhouette reproduces the S1.4 raw-trace XOR and command count in {len(published_matches)}/{len(cases)} cases.", ""]
     lines += _table(["Case", "S1.4 XOR/perimeter px", "Published XOR/perimeter px", "S1.4 commands", "Published commands"], [
@@ -714,8 +749,12 @@ def main(argv: list[str] | None = None) -> int:
         check = verify_manifest_hashes(root / case)
         checked += check["checked"]
         mismatches += check["mismatches"]
-    pinned = {case: names for case, names in pinned_signature().items() if case in cases}
+    # Always the whole corpus in both modes. A --case or --mode subset leaves rows missing,
+    # so it can never report complete evidence or exit 0.
+    pinned = pinned_signature()
     index = build_index(rows, pinned, {"checked": checked, "mismatches": mismatches})
+    index["selection"] = {"cases": cases, "modes": modes,
+                          "full": sorted(cases) == sorted(CASE_NAMES) and sorted(modes) == sorted(MODES)}
     index["replay"] = [replay_case(case, mode, root) for case in options.replay or [] for mode in modes]
     if options.compare_index:
         index["regeneration"] = dict(compare_runs(json.loads(options.compare_index.read_text()), index),
@@ -725,7 +764,7 @@ def main(argv: list[str] | None = None) -> int:
     index.update(schema_version=1, host=_host(openscad_version), openscad_command=command,
                  invocation=[sys.executable, "-m", "tests.vector_map_s4_1_corpus_probe",
                              *(argv if argv is not None else sys.argv[1:])], work_dir=str(root))
-    extra = {options.compare_index.resolve(): "<earlier-index>"} if options.compare_index else None
+    extra = output_placeholders(options)
     index = scrub(index, root, extra)
     try:
         if options.bundle_dir:
