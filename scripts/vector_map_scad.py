@@ -27,13 +27,15 @@ HEIGHT_FIELDS = {
 
 def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm=0.0,
                silhouette_thickness_mm=None, structure_height_mm=None, detail_height_mm=None,
-               detail_growth_mm=0.0):
+               detail_growth_mm=0.0, recess_shrink_mm=0.0):
     """Return deterministic OpenSCAD source for the relief assembly.
 
     canvas gives width_mm and height_mm. layers maps every published role to its SVG path relative
     to the source file. An unpublished role gets no import and no solid. center applies one outer
     translate to the whole assembly. detail_growth_mm above zero grows raised detail by that much
     (CAD compatibility, STABL-ygtexxzr). It applies only with raised detail and a structure layer.
+    recess_shrink_mm above zero shrinks the final engraved recess by that much. It applies only with
+    engraved detail.
     """
     unknown = sorted(set(layers) - set(ROLE_ORDER))
     if unknown:
@@ -56,7 +58,8 @@ def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm
                 f"thickness {_number(thickness)} mm. Reduce detail_height_mm."
             )
     growth = detail_growth_mm if detail_mode == "raised" and {"structure", "detail"} <= set(layers) else 0.0
-    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights, growth)) + "\n"
+    shrink = recess_shrink_mm if detail_mode == "engraved" and "detail" in layers else 0.0
+    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights, growth, shrink)) + "\n"
 
 
 def _published_height(layers, role, value):
@@ -69,7 +72,7 @@ def _published_height(layers, role, value):
     return check_relief_length(name, value)
 
 
-def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
+def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0, recess_shrink=0.0):
     width, height = _number(canvas.width_mm), _number(canvas.height_mm)
     lines = [
         "// st-vector-map S3.4 relief source (STABL-gorlibrt). Generated file.",
@@ -91,6 +94,8 @@ def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
     ]
     if growth > 0:
         lines.append(f"DETAIL_GROW = {_number(growth)}; // detail grows by this much so it never meets structure at a point.")
+    if recess_shrink > 0:
+        lines.append(f"RECESS_SHRINK = {_number(recess_shrink)}; // the recess shrinks by this much so it never meets the outline at a point.")
     lines += [
         "",
         "module silhouette_2d() {",
@@ -109,12 +114,13 @@ def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
             "",
         ]
     if "detail" in layers:
+        recess = "offset(delta = -RECESS_SHRINK) " if recess_shrink > 0 else ""
         if "structure" in layers:
             grow = "offset(delta = DETAIL_GROW) " if growth > 0 else ""
             shrink = "offset(delta = -DETAIL_GROW) " if growth > 0 else ""
             lines += [
                 "module detail_2d() {",
-                "  difference() {",
+                f"  {recess}difference() {{",
                 "    intersection() {",
                 f"      {grow}import({_literal(layers['detail'])}, center=false);",
                 "      silhouette_2d();",
@@ -127,7 +133,7 @@ def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0):
         else:
             lines += [
                 "module detail_2d() {",
-                "  intersection() {",
+                f"  {recess}intersection() {{",
                 f"    import({_literal(layers['detail'])}, center=false);",
                 "    silhouette_2d();",
                 "  }",

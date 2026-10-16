@@ -56,7 +56,8 @@ def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str,
 
     The source clips structure and detail to the silhouette and removes structure from detail, so
     the published polygon area overcounts any clipped material. OpenSCAD exports each module as SVG
-    with DETAIL_GROW forced to zero, so a growth shows up in the measured mesh, not the expectation.
+    with DETAIL_GROW and RECESS_SHRINK forced to zero, so a CAD compatibility change shows up in the
+    measured mesh, not the expectation.
     """
     text = (directory / "out.scad").read_text()
     head = text[:text.index("module relief")]
@@ -64,7 +65,7 @@ def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str,
     for role in roles:
         source, svg = directory / f"area-{role}.scad", directory / f"area-{role}.svg"
         source.write_text(f"{head}{MODULES[role]}();\n")
-        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-o", str(svg), str(source)],
+        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-D", "RECESS_SHRINK=0", "-o", str(svg), str(source)],
                              capture_output=True, text=True, timeout=300, cwd=directory)
         if run.returncode:
             raise RuntimeError(f"OpenSCAD 2D export of {role} failed: {run.stderr}")
@@ -135,7 +136,7 @@ def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: in
             "filter_speckle_px": speckle, "genus_sum": int(holes)}
 
 
-def _save_scene(directory: Path, name: str) -> tuple[dict, list[str]]:
+def _save_scene(directory: Path, name: str, detail_mode: str = "raised") -> tuple[dict, list[str]]:
     directory.mkdir(parents=True)
     if name.startswith("corpus_"):
         source_dir = CORPUS / name.removeprefix("corpus_")
@@ -143,7 +144,7 @@ def _save_scene(directory: Path, name: str) -> tuple[dict, list[str]]:
             shutil.copyfile(source_dir / file, directory / file)
         return {"source": directory / "source.png", "mask": directory / "mask.png"}, [
             "--width-mm", "100", "--layers", "silhouette,structure,detail",
-            "--preset", "relief-0.4",
+            "--preset", "relief-0.4", *(["--detail-mode", "engraved"] if detail_mode == "engraved" else []),
         ]
     scene = scene_files(directory)
     if name.startswith("islands_"):
@@ -266,9 +267,10 @@ def verify_manifest_hashes(root: Path) -> dict:
     return {"checked": checked, "mismatches": mismatches}
 
 
-def _run_case(name: str, root: Path, previews: Path, command: list[str], version: str) -> dict:
+def _run_case(name: str, root: Path, previews: Path, command: list[str], version: str,
+              detail_mode: str = "raised") -> dict:
     directory = root / name
-    scene, extra = _save_scene(directory, name)
+    scene, extra = _save_scene(directory, name, detail_mode)
     argv = [str(scene["source"]), str(directory / "out.svg"), "--input-kind", "image",
             "--mask", str(scene["mask"]), *extra, "--export-scad", "--debug-bundle", "--json"]
     stdout, stderr = io.StringIO(), io.StringIO()
@@ -362,7 +364,7 @@ def _report(evidence: dict) -> str:
              f"Result: {sum(row['passed'] for row in evidence['cases'])}/{len(evidence['cases'])} cases passed.",
              f"Manifest artifact hashes: {evidence['manifest_hash_check']['checked']} checked, {len(evidence['manifest_hash_check']['mismatches'])} mismatches.",
              "OpenSCAD may return exit 0 while reporting a non-closed or non-manifold mesh; those diagnostics fail a CAD row.",
-             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW forced to zero. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
+             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW and RECESS_SHRINK forced to zero. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
              "Each row also records the published-area figure (the sum of the published SVG areas times the heights) and its excess over the effective figure. The published figure overcounts material that structure or detail loses to clipping, so it is evidence and not a blocking check.", ""]
     lines += ["| Case | CAD result |", "|---|---|"]
     lines += [f"| {row['case']} | {'PASS' if row['passed'] else 'FAIL'} |"
@@ -396,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--preview-dir", type=Path)
     parser.add_argument("--case", choices=CASES, action="append")
+    parser.add_argument("--detail-mode", choices=("raised", "engraved"), default="raised",
+                        help="Detail mode for the corpus rows. The synthetic rows keep their own.")
     options = parser.parse_args(argv)
     command = open_scad._openscad()
     if not command:
@@ -417,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = []
     for name in selected:
         try:
-            row = _run_case(name, root, previews, command, version)
+            row = _run_case(name, root, previews, command, version, options.detail_mode)
         except Exception as exc:
             row = {"case": name, "passed": False, "errors": [f"{type(exc).__name__}: {exc}"]}
         rows.append(row)

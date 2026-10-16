@@ -24,6 +24,13 @@ edges that follow structure edges inside the taller structure. Rounding noise ot
 hairline gap that closes to a point. The growth cap is 0.002 mm. At 0.01 mm the coins corpus
 volume rose 1.48 mm3, above the 1e-4 tolerance. These are SCAD operations. Python holds no polygon
 clipper.
+
+Engraved detail needs a third rule. The final recess is detail inside the silhouette and outside
+structure. Where it meets the silhouette outline at one isolated point, the cut leaves two material
+wedges that touch at that point. recess_outline_contacts() finds this contact. It rebuilds the final
+recess only in the sectors around each candidate point, so it needs no clipper. A recess that shares
+a boundary run with the outline is no contact. The SCAD source then shrinks the final recess by
+recess_shrink_mm(). That leaves a narrow material bridge at the point. The cap is the growth cap.
 """
 
 import math
@@ -36,6 +43,7 @@ PINCH_CAP_MM = 0.01
 PINCH_CAP_PX = 0.25
 GROWTH_CAP_MM = 0.002
 CONTACT_TOLERANCE_PX = 1e-9
+SECTOR_RADIUS_PX = 1e-6
 
 
 @dataclass(frozen=True)
@@ -61,6 +69,42 @@ def pinch_width_px(canvas):
 def detail_growth_mm(canvas):
     """The detail growth in millimetres: at most 0.002 mm and at most a quarter pixel."""
     return min(GROWTH_CAP_MM / canvas.mm_per_px, PINCH_CAP_PX) * canvas.mm_per_px
+
+
+def recess_shrink_mm(canvas):
+    """The engraved recess shrink in millimetres: at most 0.002 mm and at most a quarter pixel."""
+    return detail_growth_mm(canvas)
+
+
+def recess_outline_contacts(silhouette_svg, detail_svg, structure_svg=None):
+    """Return the points, in pixels, where the final recess meets the silhouette outline at an isolated point.
+
+    A candidate is a silhouette vertex, or a detail or structure vertex on the outline. The rays of all
+    edges through the candidate split the plane around it into sectors. Each sector is outside the
+    silhouette, recess, or other material. The contact is isolated when recess and outside sectors
+    both occur and no ray has recess on one side and outside on the other.
+    """
+    silhouette, detail = _Region(silhouette_svg), _Region(detail_svg)
+    structure = _Region(structure_svg) if structure_svg else None
+    regions = [region for region in (silhouette, detail, structure) if region]
+    candidates = set(silhouette.vertices)
+    for region in regions[1:]:
+        candidates |= {point for point in region.vertices if silhouette.on_boundary(point)}
+    found = []
+    for point in sorted(candidates):
+        labels = []
+        for direction in _sector_directions(point, regions):
+            sample = (point[0] + SECTOR_RADIUS_PX * direction[0], point[1] + SECTOR_RADIUS_PX * direction[1])
+            if not silhouette.inside(sample):
+                labels.append("outside")
+            elif detail.inside(sample) and not (structure and structure.inside(sample)):
+                labels.append("recess")
+            else:
+                labels.append("material")
+        pairs = {frozenset((labels[i], labels[i - 1])) for i in range(len(labels))}
+        if {"recess", "outside"} <= set(labels) and frozenset(("recess", "outside")) not in pairs:
+            found.append(point)
+    return found
 
 
 def find_pinches(svg):
@@ -115,6 +159,51 @@ class _Ring:
         points = self.local
         return sum(points[i][0] * points[(i + 1) % len(points)][1]
                    - points[(i + 1) % len(points)][0] * points[i][1] for i in range(len(points))) / 2
+
+
+class _Region:
+    """The filled area of one layer: nonzero winding over its solid rings, with edge lookup by pixel."""
+
+    def __init__(self, svg):
+        rings = [ring.absolute for ring in _rings(_parse(svg))[1] if ring.solid]
+        self.vertices = {point for ring in rings for point in ring}
+        self.rows, self.cells = {}, {}
+        for ring in rings:
+            for start, end in _edges(ring):
+                low, high = sorted((start[1], end[1]))
+                for row in range(math.floor(low), math.floor(high) + 1):
+                    self.rows.setdefault(row, []).append((start, end))
+                left, right = sorted((start[0], end[0]))
+                for x in range(math.floor(left) - 1, math.floor(right) + 2):
+                    for y in range(math.floor(low) - 1, math.floor(high) + 2):
+                        self.cells.setdefault((x, y), []).append((start, end))
+
+    def inside(self, point):
+        winding = 0
+        for (x1, y1), (x2, y2) in self.rows.get(math.floor(point[1]), ()):
+            if (y1 <= point[1] < y2 or y2 <= point[1] < y1) and x1 + (point[1] - y1) * (x2 - x1) / (y2 - y1) > point[0]:
+                winding += 1 if y2 > y1 else -1
+        return winding != 0
+
+    def edges_through(self, point):
+        return [edge for edge in self.cells.get((math.floor(point[0]), math.floor(point[1])), ())
+                if _distance(point, *edge) <= CONTACT_TOLERANCE_PX]
+
+    def on_boundary(self, point):
+        return bool(self.edges_through(point))
+
+
+def _sector_directions(point, regions):
+    """Unit vectors that bisect the sectors between the rays of every edge through point."""
+    angles = sorted({round(math.atan2(end[1] - point[1], end[0] - point[0]), 12)
+                     for region in regions for edge in region.edges_through(point)
+                     for end in edge if math.dist(point, end) > CONTACT_TOLERANCE_PX})
+    directions = []
+    for i, angle in enumerate(angles):
+        following = angles[(i + 1) % len(angles)] + (2 * math.pi if i + 1 == len(angles) else 0)
+        middle = (angle + following) / 2
+        directions.append((math.cos(middle), math.sin(middle)))
+    return directions
 
 
 def _rings(root):

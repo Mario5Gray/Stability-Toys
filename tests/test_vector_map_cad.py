@@ -232,6 +232,93 @@ def test_detail_growth_is_at_most_two_micrometres_and_a_quarter_pixel():
     assert cad.detail_growth_mm(canvas(mm_per_px=0.001)) == pytest.approx(0.25 * 0.001)
 
 
+# --- Engraved recess and silhouette outline ------------------------------------
+#
+# The final recess is detail inside the silhouette and outside structure. Where it meets the
+# outline at one isolated point, cutting it leaves two material wedges that touch at that point.
+
+SILHOUETTE = "M0,0 L20,0 L20,20 L0,20 Z "
+RECESS_TIP_ON_OUTLINE = "M10,0 L6,6 L14,6 Z "  # vertex 10,0 lies inside the outline edge
+RECESS_SHARED_RUN = "M4,0 L16,0 L16,6 L4,6 Z "  # runs along the outline from 4,0 to 16,0
+RECESS_APART = "M6,4 L14,4 L14,10 L6,10 Z "
+STRUCTURE_LEAVING_A_TIP = "M4,0 L10,0 L4,6 Z M10,0 L16,0 L16,6 Z "  # final recess: 10,0 16,6 4,6
+STRUCTURE_OVER_THE_TIP = "M5,0 L15,0 L15,7 L5,7 Z "
+
+
+def recess_contacts(detail, structure=None, silhouette=SILHOUETTE):
+    return cad.recess_outline_contacts(layer((silhouette, None)), layer((detail, None)),
+                                       layer((structure, None)) if structure else None)
+
+
+def test_recess_tip_on_the_outline_is_an_isolated_contact():
+    assert recess_contacts(RECESS_TIP_ON_OUTLINE) == [(10.0, 0.0)]
+
+
+def test_recess_vertex_on_an_outline_vertex_is_an_isolated_contact():
+    notched = "M0,0 L20,0 L20,20 L12,20 L10,10 L8,20 L0,20 Z "  # notch tip at 10,10
+    assert recess_contacts("M10,10 L6,4 L14,4 Z ", silhouette=notched) == [(10.0, 10.0)]
+
+
+def test_recess_sharing_a_boundary_run_with_the_outline_is_no_contact():
+    assert recess_contacts(RECESS_SHARED_RUN) == []
+
+
+def test_recess_apart_from_the_outline_is_no_contact():
+    assert recess_contacts(RECESS_APART) == []
+
+
+def test_structure_that_cuts_the_recess_to_a_tip_makes_a_contact():
+    assert recess_contacts(RECESS_SHARED_RUN, STRUCTURE_LEAVING_A_TIP) == [(10.0, 0.0)]
+
+
+def test_structure_that_covers_the_tip_removes_the_contact():
+    assert recess_contacts(RECESS_TIP_ON_OUTLINE, STRUCTURE_OVER_THE_TIP) == []
+
+
+def test_detail_outside_the_silhouette_is_not_recess():
+    # The detail tip lies outside, so the final recess follows the outline: a shared run.
+    assert recess_contacts("M10,-2 L4,6 L16,6 Z ") == []
+
+
+def test_recess_contacts_apply_translate():
+    shifted = cad.recess_outline_contacts(layer((SILHOUETTE, None)), layer(("M0,0 L-4,6 L4,6 Z ", (10, 0))), None)
+    assert shifted == [(10.0, 0.0)]
+
+
+def test_recess_shrink_is_at_most_two_micrometres_and_a_quarter_pixel():
+    assert cad.recess_shrink_mm(canvas(mm_per_px=0.4)) == pytest.approx(0.002)
+    assert cad.recess_shrink_mm(canvas(mm_per_px=0.001)) == pytest.approx(0.25 * 0.001)
+
+
+class _Settings:
+    export_scad, detail_mode = True, "engraved"
+
+
+def test_engraved_contact_reports_cad_recess_shrink():
+    import vector_map
+    from types import SimpleNamespace
+    layers = {"silhouette": SimpleNamespace(svg=layer((SILHOUETTE, None))),
+              "detail": SimpleNamespace(svg=layer((RECESS_TIP_ON_OUTLINE, None)))}
+    diagnostics = []
+    shrink = vector_map._recess_shrink(_Settings(), layers, canvas(), diagnostics)
+    assert shrink == pytest.approx(0.002)
+    assert [d["code"] for d in diagnostics] == ["cad_recess_shrink"]
+    assert diagnostics[0]["contacts"] == 1
+
+
+@pytest.mark.parametrize("mode, detail", (("engraved", RECESS_SHARED_RUN), ("raised", RECESS_TIP_ON_OUTLINE)))
+def test_no_recess_shrink_without_an_engraved_isolated_contact(mode, detail):
+    import vector_map
+    from types import SimpleNamespace
+    settings = _Settings()
+    settings.detail_mode = mode
+    layers = {"silhouette": SimpleNamespace(svg=layer((SILHOUETTE, None))),
+              "detail": SimpleNamespace(svg=layer((detail, None)))}
+    diagnostics = []
+    assert vector_map._recess_shrink(settings, layers, canvas(), diagnostics) == 0.0
+    assert diagnostics == []
+
+
 # --- SCAD source ---------------------------------------------------------------
 
 import vector_map_scad as scad  # noqa: E402
@@ -260,6 +347,26 @@ def test_scad_with_growth_offsets_the_detail_import_and_subtracts_a_shrunk_struc
 def test_scad_growth_is_ignored_for_engraved_detail():
     source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved", detail_growth_mm=0.01)
     assert "DETAIL_GROW" not in source
+
+
+def test_scad_engraved_recess_shrink_offsets_the_final_recess_inward():
+    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved", recess_shrink_mm=0.002)
+    assert "RECESS_SHRINK = 0.002;" in source
+    assert "module detail_2d() {\n  offset(delta = -RECESS_SHRINK) difference() {" in source
+    assert source.count("offset(") == 1 and "DETAIL_GROW" not in source
+    assert "H = 0.6;" in source and "D = 0.2;" in source  # heights untouched
+
+
+def test_scad_engraved_recess_shrink_without_structure_offsets_the_clip():
+    layers = {k: v for k, v in SCAD_LAYERS.items() if k != "structure"}
+    source = scad.build_scad(canvas(), layers, silhouette_thickness_mm=1.2, detail_height_mm=0.2,
+                             detail_mode="engraved", recess_shrink_mm=0.002)
+    assert "module detail_2d() {\n  offset(delta = -RECESS_SHRINK) intersection() {" in source
+
+
+def test_scad_recess_shrink_is_ignored_for_raised_detail():
+    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, recess_shrink_mm=0.002)
+    assert "RECESS_SHRINK" not in source and "offset(" not in source
 
 
 def test_scad_growth_is_ignored_without_a_detail_layer():
@@ -353,15 +460,16 @@ import subprocess  # noqa: E402
 from tests import test_vector_map_openscad as open_scad  # noqa: E402
 
 AFFECTED_ROWS = ("corpus_coins", "corpus_gravel", "corpus_pcb", "corpus_brick", "corpus_truchet")
+ENGRAVED_ROWS = ("corpus_brick", "corpus_gravel", "corpus_truchet")  # recess met the outline at a point
 CAD_WARNINGS = ("not closed", "2-manifold")
 
 
-def _probe_row(case, tmp_path):
+def _probe_row(case, tmp_path, *extra):
     from tests import vector_map_s3_6_cad_probe as probe
 
     work, _ = open_scad.choose_work_dir(tmp_path, open_scad.OPENSCAD)
     evidence = work / "evidence.json"
-    probe.main(["--work-dir", str(work / "rows"), "--case", case, "--evidence-json", str(evidence)])
+    probe.main(["--work-dir", str(work / "rows"), "--case", case, "--evidence-json", str(evidence), *extra])
     row = json.loads(evidence.read_text())["cases"][0]
     return row, work / "rows" / case
 
@@ -387,3 +495,12 @@ def test_native_each_published_layer_extrudes_to_a_closed_mesh(case, tmp_path):
                              capture_output=True, text=True, timeout=300, cwd=directory)
         assert run.returncode == 0, run.stderr
         assert not [line for line in run.stderr.splitlines() if any(w in line for w in CAD_WARNINGS)], svg.name
+
+
+@open_scad.needs_openscad
+@pytest.mark.parametrize("case", ENGRAVED_ROWS)
+def test_native_engraved_corpus_mesh_is_closed_with_the_recess_shrink(case, tmp_path):
+    row, directory = _probe_row(case, tmp_path, "--detail-mode", "engraved")
+    assert row["passed"], row["errors"]
+    assert row["relief"]["detail_mode"] == "engraved"
+    assert "RECESS_SHRINK = 0.002;" in (directory / "out.scad").read_text()
