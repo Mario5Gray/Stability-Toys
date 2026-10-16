@@ -67,10 +67,16 @@ class SvgLimits:
 
 @dataclass(frozen=True)
 class SvgMetrics:
-    raw_bytes: int
+    """raw_bytes is the upstream trace size, None for a published layer read alone.
+
+    vertices counts M and L coordinate points, also in degenerate subpaths. Z adds none (S4.2).
+    """
+
+    raw_bytes: int | None
     normalized_bytes: int | None
     paths: int
     commands: int
+    vertices: int
     subpaths: int
     degenerate_subpaths: int
 
@@ -90,6 +96,24 @@ def inspect_svg(svg, *, width_px, height_px, limits=None, allow_empty=False):
     raw_bytes = _check_bytes(svg, limits, "SVG")
     root = _parse(svg)
     _check_root(root, width_px, height_px)
+    return _document(root, limits, raw_bytes=raw_bytes, normalized_bytes=None, allow_empty=allow_empty)
+
+
+def inspect_published_svg(svg, canvas, limits=None):
+    """Check one published layer against the dialect and the limits. Change nothing. S4.2, STABL-xesykctr.
+
+    The root must be what normalize_svg writes: mm width and height, pixel viewBox. CAD pinch repair
+    rewrites path data after normalization, so its final text needs this check. Metrics have no raw_bytes.
+    """
+    limits = limits or SvgLimits()
+    _check_canvas(canvas)
+    size = _check_bytes(svg, limits, "Published SVG")
+    root = _parse(svg)
+    _check_published_root(root, canvas)
+    return _document(root, limits, raw_bytes=None, normalized_bytes=size)
+
+
+def _document(root, limits, *, raw_bytes, normalized_bytes, allow_empty=False):
     state = _Walk(limits)
     for child in root:
         state.visit(child, (0.0, 0.0), None)
@@ -99,9 +123,10 @@ def inspect_svg(svg, *, width_px, height_px, limits=None, allow_empty=False):
         raise SvgInspectionError("The traced SVG is empty: it contains no paths.")
     metrics = SvgMetrics(
         raw_bytes=raw_bytes,
-        normalized_bytes=None,
+        normalized_bytes=normalized_bytes,
         paths=state.paths,
         commands=state.commands,
+        vertices=state.vertices,
         subpaths=len(state.subpaths),
         degenerate_subpaths=state.degenerate,
     )
@@ -160,6 +185,18 @@ def _check_root(root, width_px, height_px):
             raise SvgInspectionError(f"viewBox {view_box!r} must be '0 0 {width_px} {height_px}'.")
 
 
+def _check_published_root(root, canvas):
+    if root.tag != _SVG:
+        raise SvgInspectionError(f"The SVG root must be svg in namespace {SVG_NS}. Got {root.tag!r}.")
+    _check_element(root)
+    if root.get("version") not in (None, "1.1"):
+        raise SvgInspectionError(f"SVG version {root.get('version')!r} is not supported. Use 1.1.")
+    for name, expected in (("width", _mm(canvas.width_mm)), ("height", _mm(canvas.height_mm)),
+                           ("viewBox", f"0 0 {canvas.width_px} {canvas.height_px}")):
+        if root.get(name) != expected:
+            raise SvgInspectionError(f"The published SVG {name} is {root.get(name)!r}. The canvas needs {expected!r}.")
+
+
 def _check_element(element):
     allowed = _ATTRIBUTES[element.tag]
     for name in element.attrib:
@@ -181,6 +218,7 @@ class _Walk:
         self.limits = limits
         self.paths = 0
         self.commands = 0
+        self.vertices = 0
         self.degenerate = 0
         self.degenerate_only = 0
         self.subpaths = []
@@ -209,6 +247,7 @@ class _Walk:
     def path(self, d, offset):
         polygons = 0
         for points in self._subpaths(d):
+            self.vertices += len(points)
             translated = tuple(_add(offset, point) for point in points)
             if not all(math.isfinite(value) for point in translated for value in point):
                 raise SvgInspectionError("A translated path point is not finite.")
