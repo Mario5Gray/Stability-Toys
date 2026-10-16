@@ -5,7 +5,9 @@ The blocking corpus run is tests/vector_map_s4_1_corpus_probe.py, run explicitly
 These collected tests use hand-built fixtures. Native OpenSCAD tests skip when it is absent.
 """
 
+import hashlib
 import importlib.util
+import json
 
 import numpy as np
 import pytest
@@ -283,3 +285,107 @@ def test_one_corpus_row_runs_the_complete_workflow(work):
     assert set(row["complexity"]) == {"silhouette", "structure", "combined"}  # Badge has no detail.
     assert set(row["timings"]) >= {"conversion_s", "trace_median_s", "fidelity_median_s", "openscad_render_s"}
     assert row["override"]["override_recipe"] is None
+    manifest = json.loads((work / "badge/raised/out.vector.json").read_text())
+    assert [entry["path"] for entry in manifest["inputs"]] == [
+        "tests/fixtures/vector_map/corpus/badge/source.png", "tests/fixtures/vector_map/corpus/badge/mask.png"]
+
+
+# --- Replay, regeneration and committed bundles (plan steps 5-6) ---------------------
+
+
+def bundle(directory, scad=b"scad", preview=b"preview", relief=None):
+    files = {"out.svg": b"svg", "out.layers/silhouette.svg": b"sil", "out.debug/silhouette.png": b"mask",
+             "out.scad": scad, "out.preview.png": preview}
+    for name, data in files.items():
+        (directory / name).parent.mkdir(parents=True, exist_ok=True)
+        (directory / name).write_bytes(data)
+    (directory / "out.vector.json").write_text(json.dumps({"relief": relief or {"backing_mm": 0.0}}))
+    return directory
+
+
+def test_replay_compare_accepts_identical_outputs_and_names_the_preview_exclusion(tmp_path):
+    result = probe.compare_replay(bundle(tmp_path / "a"), bundle(tmp_path / "b", preview=b"other"))
+    assert result["passed"]
+    assert "out.preview.png" in result["excluded"]
+    assert set(result["compared"]) == {"out.svg", "out.layers/silhouette.svg", "out.debug/silhouette.png", "out.scad"}
+
+
+def test_replay_compare_fails_on_a_changed_scad_or_relief(tmp_path):
+    original = bundle(tmp_path / "a")
+    assert probe.compare_replay(original, bundle(tmp_path / "b", scad=b"new"))["differs"] == ["out.scad"]
+    changed = probe.compare_replay(original, bundle(tmp_path / "c", relief={"backing_mm": 1.0}))
+    assert not changed["passed"] and changed["differs"] == ["relief"]
+
+
+def regen_row(svg="h1", verdict=("centroid",), cad=True, recipe=None):
+    return {"case": "beta", "mode": "raised", "fidelity": {"failures": list(verdict)}, "cad_passed": cad,
+            "resolved_recipe": recipe or {"preset": "relief-0.4"},
+            "artifact_hashes": {"out.svg": {"sha256": svg}, "out.stl": {"sha256": "stl-a"},
+                                "out.debug/silhouette.png": {"sha256": "m1"}}}
+
+
+def test_regeneration_compare_ignores_the_stl_and_names_each_difference():
+    same = probe.compare_runs({"rows": [regen_row()]}, {"rows": [dict(regen_row(), artifact_hashes={
+        **regen_row()["artifact_hashes"], "out.stl": {"sha256": "stl-b"}})]})
+    assert same["passed"], same
+    differs = probe.compare_runs({"rows": [regen_row()]},
+                                 {"rows": [regen_row(svg="h2", verdict=(), recipe={"preset": None})]})
+    assert not differs["passed"]
+    assert differs["rows"]["beta/raised"] == ["out.svg", "resolved_recipe", "fidelity"]
+
+
+def test_regeneration_compare_fails_when_a_row_is_missing():
+    result = probe.compare_runs({"rows": [regen_row()]}, {"rows": []})
+    assert result["rows"]["beta/raised"] == ["row"] and not result["passed"]
+
+
+def test_an_exported_bundle_has_no_stl_and_still_matches_its_manifest(tmp_path):
+    work = tmp_path / "work" / "beta" / "raised"
+    work.mkdir(parents=True)
+    artifacts = []
+    for name, data in (("out.svg", b"svg"), ("out.scad", b"scad")):
+        (work / name).write_bytes(data)
+        artifacts.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    (work / "out.vector.json").write_text(json.dumps({"artifacts": artifacts}))
+    for name in ("out.stl", "area-silhouette.scad", "area-silhouette.svg"):
+        (work / name).write_bytes(b"x")
+    exported = probe.export_bundles(tmp_path / "work", tmp_path / "bundle", {"rows": [regen_row()]})
+    target = tmp_path / "bundle" / "beta" / "raised"
+    assert sorted(p.name for p in target.iterdir()) == ["out.scad", "out.svg", "out.vector.json", "result.json"]
+    assert probe.verify_manifest_hashes(tmp_path / "bundle" / "beta") == {"checked": 2, "mismatches": []}
+    assert json.loads((target / "result.json").read_text())["case"] == "beta"
+    assert exported["excluded"] == ["beta/raised/area-silhouette.scad", "beta/raised/area-silhouette.svg",
+                                    "beta/raised/out.stl"]
+
+
+# --- Host paths stay out of committed evidence --------------------------------------
+
+
+def test_scrub_replaces_the_work_directory_repository_and_home(tmp_path):
+    from pathlib import Path
+
+    work = tmp_path / "work"
+    record = {"argv": [str(probe.ROOT / "tests/fixtures/a.png"), str(work / "beta/raised/out.svg")],
+              "nested": {"stderr": f"scad {work}/beta/raised/out.scad\nsaved {Path.home()}/x.svg"},
+              "count": 3, "root": str(probe.ROOT)}
+    assert probe.scrub(record, work) == {
+        "argv": ["tests/fixtures/a.png", "<work>/beta/raised/out.svg"],
+        "nested": {"stderr": "scad <work>/beta/raised/out.scad\nsaved ~/x.svg"},
+        "count": 3, "root": ".",
+    }
+
+
+def test_export_refuses_a_committed_file_that_holds_a_host_path(tmp_path):
+    work = tmp_path / "work" / "beta" / "raised"
+    work.mkdir(parents=True)
+    leaked = json.dumps({"artifacts": [], "inputs": [{"path": str(probe.ROOT / "tests/fixtures/a.png")}]})
+    (work / "out.vector.json").write_text(leaked)
+    with pytest.raises(ValueError, match="beta/raised/out.vector.json"):
+        probe.export_bundles(tmp_path / "work", tmp_path / "bundle", {"rows": [regen_row()]})
+
+
+def test_export_refuses_a_result_row_that_was_not_scrubbed(tmp_path):
+    (tmp_path / "work" / "beta" / "raised").mkdir(parents=True)
+    row = dict(regen_row(), work_dir=str(tmp_path / "work" / "beta" / "raised"))
+    with pytest.raises(ValueError, match="result.json"):
+        probe.export_bundles(tmp_path / "work", tmp_path / "bundle", {"rows": [row]})

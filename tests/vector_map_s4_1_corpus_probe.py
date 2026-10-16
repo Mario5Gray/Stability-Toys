@@ -10,6 +10,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import platform
 import shutil
 import statistics
@@ -236,7 +237,8 @@ def _fidelity_preview(mask: np.ndarray, rendered: np.ndarray, path: Path) -> Non
 
 
 def _argv(case: str, mode: str, directory: Path) -> list[str]:
-    source = CORPUS / case
+    """Inputs are repo-relative, so the manifest records no host path. _convert runs from ROOT."""
+    source = CORPUS.relative_to(ROOT) / case
     return [str(source / "source.png"), str(directory / "out.svg"), "--input-kind", "image",
             "--mask", str(source / "mask.png"), "--width-mm", "100",
             "--layers", "silhouette,structure,detail", "--preset", "relief-0.4",
@@ -247,7 +249,7 @@ def _argv(case: str, mode: str, directory: Path) -> list[str]:
 def _convert(argv: list[str]) -> tuple[int, str, str, float]:
     stdout, stderr = io.StringIO(), io.StringIO()
     started = time.perf_counter()
-    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+    with contextlib.chdir(ROOT), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
         code = vector_map.main(argv)
     return code, stdout.getvalue(), stderr.getvalue(), time.perf_counter() - started
 
@@ -337,6 +339,310 @@ def run_case(case: str, mode: str, root: Path, command: list[str]) -> dict:
     return row
 
 
+# --- Host paths ---------------------------------------------------------------------------
+# Committed evidence must not hold local paths. Records name the work directory as <work>,
+# repository files by repo-relative path, and the home directory as ~.
+
+
+def _host_forms(work_root: Path) -> list[tuple[str, str]]:
+    work = sorted({str(work_root), os.path.realpath(work_root)}, key=len, reverse=True)
+    return [*((form, "<work>") for form in work), (f"{ROOT}/", ""), (str(ROOT), "."), (str(Path.home()), "~")]
+
+
+def scrub(value, work_root: Path):
+    """Return a copy of a JSON value with host paths replaced."""
+    if isinstance(value, dict):
+        return {key: scrub(item, work_root) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [scrub(item, work_root) for item in value]
+    if isinstance(value, str):
+        for form, replacement in _host_forms(work_root):
+            value = value.replace(form, replacement)
+    return value
+
+
+def host_path_check(text: str, work_root: Path, name: str) -> None:
+    """Raise when committed text still holds the work directory, repository or home path."""
+    found = [form for form, _ in _host_forms(work_root) if form.rstrip("/") in text]
+    if found:
+        raise ValueError(f"Host path in committed file {name}: {found[0].rstrip('/')}")
+
+
+# --- Replay, regeneration and committed bundles ---------------------------------------
+
+REPLAY_EXCLUDED = {"out.preview.png": "The preview overlays the source. A recipe replay reads the prepared mask as its source."}
+# OpenSCAD outputs. The STL is not committed and need not be byte-identical across hosts.
+# mesh.png is drawn from the STL.
+NOT_COMMITTED = ("out.stl", "area-*")
+NOT_REPRODUCED = ("out.stl", "area-*", "mesh.png")
+TEXT_SUFFIXES = {".json", ".svg", ".scad", ".md", ".txt"}
+
+
+def _replay_files(directory: Path) -> list[str]:
+    names = ["out.svg", *sorted(f"out.layers/{p.name}" for p in (directory / "out.layers").glob("*.svg")),
+             *sorted(f"out.debug/{p.name}" for p in (directory / "out.debug").glob("*.png")), "out.scad"]
+    return [name for name in names if (directory / name).is_file()]
+
+
+def compare_replay(original: Path, replay: Path) -> dict:
+    """Compare a debug-recipe replay with its original bundle.
+
+    The recipe reads prepared masks (source "map", prepared true), so this proves replay from
+    prepared masks only. A fresh run from the source PNG proves preparation repeatability.
+    """
+    compared = _replay_files(original)
+    differs = [name for name in compared
+               if not (replay / name).is_file() or _sha256(original / name) != _sha256(replay / name)]
+    relief = [json.loads((d / "out.vector.json").read_text())["relief"] for d in (original, replay)]
+    if relief[0] != relief[1]:
+        differs.append("relief")
+    return {"compared": compared, "excluded": REPLAY_EXCLUDED, "differs": differs, "passed": not differs}
+
+
+def replay_case(case: str, mode: str, root: Path) -> dict:
+    original = root / case / mode
+    target = root / "_replay" / case / mode
+    target.mkdir(parents=True)
+    argv = ["--recipe", str(original / "out.debug/recipe.json"), str(target / "out.svg"), "--debug-bundle", "--json"]
+    code, _, stderr, seconds = _convert(argv)
+    result = {"case": case, "mode": mode, "argv": ["python", "scripts/vector_map.py", *argv],
+              "exit_code": code, "seconds": seconds}
+    if code != 0:
+        return dict(result, stderr=stderr, differs=["conversion"], passed=False)
+    return dict(result, **compare_replay(original, target))
+
+
+def _matches(name: str, patterns) -> bool:
+    return any(Path(name).match(pattern) for pattern in patterns)
+
+
+def compare_runs(first: dict, second: dict) -> dict:
+    """Compare two independent runs from the source PNGs: artifact hashes, settings and verdicts."""
+    rows_a = {f"{r['case']}/{r['mode']}": r for r in first["rows"]}
+    rows_b = {f"{r['case']}/{r['mode']}": r for r in second["rows"]}
+    report = {}
+    for key in sorted(set(rows_a) | set(rows_b)):
+        a, b = rows_a.get(key), rows_b.get(key)
+        if a is None or b is None:
+            report[key] = ["row"]
+            continue
+        hashes_a, hashes_b = a.get("artifact_hashes", {}), b.get("artifact_hashes", {})
+        names = sorted(name for name in set(hashes_a) | set(hashes_b) if not _matches(name, NOT_REPRODUCED))
+        differs = [name for name in names
+                   if (hashes_a.get(name) or {}).get("sha256") != (hashes_b.get(name) or {}).get("sha256")]
+        if a.get("resolved_recipe") != b.get("resolved_recipe"):
+            differs.append("resolved_recipe")
+        if sorted(a["fidelity"]["failures"]) != sorted(b["fidelity"]["failures"]):
+            differs.append("fidelity")
+        if a["cad_passed"] != b["cad_passed"]:
+            differs.append("cad_passed")
+        report[key] = differs
+    return {"rows": report, "excluded": list(NOT_REPRODUCED), "passed": not any(report.values())}
+
+
+def export_bundles(root: Path, destination: Path, index: dict) -> dict:
+    """Copy each intact mode bundle without OpenSCAD outputs, plus its result JSON."""
+    excluded = []
+    for row in index["rows"]:
+        source = root / row["case"] / row["mode"]
+        target = destination / row["case"] / row["mode"]
+        if not source.is_dir():
+            continue
+        for path in sorted(p for p in source.rglob("*") if p.is_file()):
+            name = path.relative_to(source).as_posix()
+            if _matches(name, NOT_COMMITTED):
+                excluded.append(f"{row['case']}/{row['mode']}/{name}")
+                continue
+            if path.suffix in TEXT_SUFFIXES:
+                host_path_check(path.read_text(), root, f"{row['case']}/{row['mode']}/{name}")
+            (target / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target / name)
+        text = json.dumps(row, indent=2, sort_keys=True) + "\n"
+        host_path_check(text, root, f"{row['case']}/{row['mode']}/result.json")
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "result.json").write_text(text)
+    return {"destination": str(destination), "excluded": sorted(excluded)}
+
+
+# --- Report -----------------------------------------------------------------------------
+
+LIMIT_RULING = ("Mario accepted bracket, brick, gravel and horse as documented minimum-feature limitations "
+                "on 2026-10-15 (`STABL-etpzsxvn`).")
+
+
+def _cell(value) -> str:
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    if isinstance(value, list):
+        return ", ".join(map(str, value)) or "none"
+    return str(value)
+
+
+def _table(header: list[str], rows: list[list]) -> list[str]:
+    return ["| " + " | ".join(header) + " |", "|" + "---|" * len(header),
+            *("| " + " | ".join(_cell(v) for v in r) + " |" for r in rows), ""]
+
+
+def report(index: dict, links: Path | None = None) -> str:
+    """Write the S4.1 report from the index. Links point into the committed bundle directory."""
+    rows = {(r["case"], r["mode"]): r for r in index["rows"]}
+    cases = list(index["pinned_signature"])
+    sweep = json.loads(SWEEP.read_text())["results"][str(PINNED_SPECKLE)]
+    scale = {r["canvas"]["mm_per_px"] for r in index["rows"] if "canvas" in r}
+
+    def link(case, mode, name):
+        return f"{links.as_posix()}/{case}/{mode}/{name}" if links else f"{case}/{mode}/{name}"
+
+    def cad(case, mode):
+        r = rows[(case, mode)]
+        return "PASS" if r["cad_passed"] else "FAIL"
+
+    host = index["host"]
+    lines = ["# S4.1 reviewed corpus bundles", "",
+             "Issue: `STABL-etpzsxvn`. Plan: [S4.1 plan](../plans/2026-10-15-vector-map-s4-1.md). "
+             "Spec: [design section 10](../specs/2026-09-06-vector-map-relief-design.md).",
+             "This report is generated by `tests/vector_map_s4_1_corpus_probe.py`. Do not edit it by hand.", "",
+             "## Run", ""]
+    lines += _table(["Item", "Value"], [
+        ["OS", host["os"]], ["Machine", f"{host['machine']} {host['processor']}".strip()],
+        ["Python", host["python"]], ["VTracer", host["vtracer"]], ["resvg-py", host["resvg-py"]],
+        ["OpenSCAD", host["openscad"]], ["OpenSCAD command", " ".join(index["openscad_command"])],
+        ["Work directory", index["work_dir"]]])
+    lines += [f"Invocation: `{' '.join(index['invocation'])}`.", "",
+              "Regenerate the evidence with the same invocation and an empty work directory.",
+              "Each case JSON holds the exact conversion argv and OpenSCAD argv.",
+              "The STL files are not committed. Rebuild one from its committed mode bundle:",
+              "`cd <case>/<mode> && openscad -o out.stl out.scad`. The SCAD imports `out.layers/*.svg` relative to itself.", "",
+              "## Verdict", ""]
+    replay = index.get("replay", [])
+    regeneration = index.get("regeneration")
+    lines += _table(["Check", "Result"], [
+        ["Evidence complete (16 mode rows)", index["evidence_complete"]],
+        ["Fidelity failure names equal the S1.4 pin", index["fidelity_matches_pin"]],
+        ["Raised and engraved fidelity agree", index["fidelity_modes_agree"]],
+        ["CAD rows passed", f"{sum(r['cad_passed'] for r in index['rows'])}/{len(index['rows'])}"],
+        ["Manifest artifact hashes", f"{index['manifest_hash_check']['checked']} checked, "
+                                     f"{len(index['manifest_hash_check']['mismatches'])} mismatches"],
+        ["Recipe replay", ", ".join(f"{r['case']} {r['mode']} {'PASS' if r['passed'] else 'FAIL'}" for r in replay) or "not run"],
+        ["Independent regeneration", ("PASS" if regeneration["passed"] else "FAIL") if regeneration else "not run"],
+        ["Probe exit", index["exit_code"]]])
+    passing = [c for c in cases if index["fidelity_summary"][c]["passed"]]
+    lines += [f"Fidelity: {len(passing)}/{len(cases)} cases pass the locked S1.4 checks. "
+              "Probe exit 0 means the expected evidence was collected. It does not mean that every case passes.", "",
+              "## Release decision", "",
+              "`release_accepted`: true for the corpus-fidelity limitation only.",
+              LIMIT_RULING,
+              "The ruling takes effect when this report and `scripts/USAGE.md` disclose the four cases and the minimum-feature risk.",
+              "Review confirms that disclosure. The probe does not compute this value.",
+              "The four cases stay FAIL. The other Sprint 4 gates still apply.", "",
+              "## Case results", ""]
+    lines += _table(["Case", "Class", "Fidelity", "Failed checks", "S1.4 pin", "CAD raised", "CAD engraved"], [
+        [c, CORPUS_INDEX["cases"][c]["class"], "PASS" if index["fidelity_summary"][c]["passed"] else "FAIL",
+         index["fidelity_summary"][c]["failures"], index["pinned_signature"][c] or ["none"],
+         cad(c, "raised"), cad(c, "engraved")] for c in cases])
+    millimetres = ", ".join(f"{1 * mm:g}–{2 * mm:g} mm at {mm:g} mm/px" for mm in sorted(scale))
+    lines += ["## Known minimum-feature limitations", "",
+              "These four cases fail the locked S1.4 fidelity checks. They are documented limitations, not passes.",
+              "Their reviewed masks hold foreground strokes, isthmuses, gaps or channels 1–2 processing pixels wide.",
+              f"In these bundles 1–2 processing pixels are {millimetres}.",
+              "VTracer can lose or change features near this size. It changes topology in brick, gravel and horse.",
+              "It moves the centroid in bracket, brick and horse. It moves the gravel boundary beyond 1.5 px.",
+              "No `filter_speckle` value in the S1.4 grid fixes these cases (`tests/test_vector_map_corpus.py`).",
+              "The CLI warns about possible features below four pixels. Later research: `STABL-wuzmvgxm`.", ""]
+    limited = [c for c in cases if not index["fidelity_summary"][c]["passed"]]
+    lines += _table(["Case", "Failed checks", "Topology mask", "Topology render", "Centroid shift px", "Boundary max px"], [
+        [c, rows[(c, "raised")]["fidelity"]["failures"], rows[(c, "raised")]["fidelity"].get("topology_mask"),
+         rows[(c, "raised")]["fidelity"].get("topology_render"), rows[(c, "raised")]["fidelity"].get("centroid_shift_px"),
+         rows[(c, "raised")]["fidelity"].get("boundary_max_distance_px")] for c in limited])
+    vtracer = sorted({json.dumps(r.get("vtracer"), sort_keys=True) for r in index["rows"] if "vtracer" in r})
+    published_matches = [c for c in cases if "fidelity" in rows[(c, "raised")]
+                         and rows[(c, "raised")]["fidelity"].get("xor_per_perimeter_px") == sweep[c]["xor_per_perimeter_px"]
+                         and rows[(c, "raised")].get("complexity", {}).get("silhouette", {}).get("commands") == sweep[c]["commands"]]
+    overrides = [r["override"] for r in index["rows"] if r.get("override", {}).get("override_recipe") is not None]
+    lines += ["## Defaults assessment", "",
+              "The shipped fitting default is VTracer polygon mode with `filter_speckle` 4, selected by the S1.4 sweep.",
+              "`relief-0.4` is an opt-in fabrication preset. It sets relief heights only.",
+              f"Resolved VTracer settings in every bundle: {', '.join(f'`{v}`' for v in vtracer)}.",
+              f"The published silhouette reproduces the S1.4 raw-trace XOR and command count in {len(published_matches)}/{len(cases)} cases.", ""]
+    lines += _table(["Case", "S1.4 XOR/perimeter px", "Published XOR/perimeter px", "S1.4 commands", "Published commands"], [
+        [c, sweep[c]["xor_per_perimeter_px"], rows[(c, "raised")].get("fidelity", {}).get("xor_per_perimeter_px"),
+         sweep[c]["commands"], rows[(c, "raised")].get("complexity", {}).get("silhouette", {}).get("commands")] for c in cases])
+    lines += [f"Recipe overrides: {len(overrides)}. Every row records `override_recipe: null`.",
+              "No override can repair the four limitations under the locked tolerances, because no tested speckle value passes them.",
+              "The defaults stay unchanged. No tolerance is relaxed.", "",
+              "## Complexity and timings", "",
+              "Complexity counts are paths, subpaths, commands and UTF-8 bytes. Timings are diagnostic and host-specific.",
+              "Trace and fidelity times are the median of five calls after one warm-up. Conversion and render are one call.", ""]
+    table = []
+    for c in cases:
+        for mode in MODES:
+            r = rows[(c, mode)]
+            cx, t = r.get("complexity", {}), r.get("timings", {})
+            table.append([c, mode, *(f"{cx[k]['commands']} / {cx[k]['svg_bytes']}" if k in cx else "no layer"
+                                     for k in ("silhouette", "structure", "detail", "combined")),
+                          t.get("conversion_s"), t.get("trace_median_s"), t.get("fidelity_median_s"), t.get("openscad_render_s")])
+    lines += _table(["Case", "Mode", "Silhouette cmd / B", "Structure cmd / B", "Detail cmd / B", "Combined cmd / B",
+                     "Convert s", "Trace s", "Fidelity s", "OpenSCAD s"], table)
+    lines += ["## Replay and regeneration", "",
+              "Recipe replay reads the prepared masks (`source: map`, `prepared: true`).",
+              "It proves replay from prepared masks only. It does not prove source-image preparation.", ""]
+    lines += _table(["Case", "Mode", "Compared", "Excluded", "Differs", "Result"], [
+        [r["case"], r["mode"], r.get("compared", []), list(r.get("excluded", {})), r["differs"] or ["none"],
+         "PASS" if r["passed"] else "FAIL"] for r in replay])
+    if regeneration:
+        changed = {k: v for k, v in regeneration["rows"].items() if v}
+        lines += ["An independent run from the source PNGs and reviewed masks proves preparation repeatability.",
+                  f"Compared against `{regeneration['against']}`. Rows compared: {len(regeneration['rows'])}. "
+                  f"Rows that differ: {len(changed)}.",
+                  f"Excluded from the hash comparison: {', '.join(f'`{p}`' for p in regeneration['excluded'])}.", ""]
+        for key, value in changed.items():
+            lines.append(f"- {key}: {', '.join(value)}")
+        lines.append("")
+    lines += ["## Per-case evidence", ""]
+    for c in cases:
+        meta = CORPUS_INDEX["cases"][c]
+        raised = rows[(c, "raised")]
+        lines += [f"### {c}", "", f"Class: {meta['class']}. Properties: {', '.join(meta['properties'])}.",
+                  f"Reviewed source: `tests/fixtures/vector_map/corpus/{c}/source.png`, sha256 `{meta['sha256']['source']}`.",
+                  f"Reviewed mask: `tests/fixtures/vector_map/corpus/{c}/mask.png`, sha256 `{meta['sha256']['mask']}`.",
+                  f"Fidelity: {'PASS' if index['fidelity_summary'][c]['passed'] else 'FAIL'} "
+                  f"({_cell(index['fidelity_summary'][c]['failures'])} failed).", ""]
+        fidelity = raised.get("fidelity", {})
+        lines += _table(["Metric", "Value", "Tolerance"], [
+            ["Topology mask / render", f"{fidelity.get('topology_mask')} / {fidelity.get('topology_render')}", "exact"],
+            ["Bounds shift px", fidelity.get("bounds_shift_px"), metrics.TOLERANCES["bounds_shift_px"]],
+            ["Box size delta px", fidelity.get("bbox_size_delta_px"), metrics.TOLERANCES["bbox_size_delta_px"]],
+            ["Centroid shift px", fidelity.get("centroid_shift_px"), metrics.TOLERANCES["centroid_shift_px"]],
+            ["XOR / perimeter px", fidelity.get("xor_per_perimeter_px"), metrics.TOLERANCES["xor_per_perimeter_px"]],
+            ["Boundary max px", fidelity.get("boundary_max_distance_px"), metrics.TOLERANCES["boundary_max_distance_px"]],
+            ["Area error / perimeter px", fidelity.get("area_dev_abs_per_perimeter_px"),
+             metrics.TOLERANCES["area_dev_abs_per_perimeter_px"]]])
+        for mode in MODES:
+            r = rows[(c, mode)]
+            lines += [f"**{mode}** — CAD {cad(c, mode)}. Bundle: [{c}/{mode}]({link(c, mode, 'result.json')}).", ""]
+            if r.get("argv"):
+                lines.append(f"Conversion: `{' '.join(r['argv'])}` (exit {r['exit_code']}).")
+            render = r.get("cad", {}).get("render", {})
+            if render:
+                lines.append(f"OpenSCAD: `{' '.join(render['argv'])}` (exit {render.get('exit_code')}).")
+            measured, expected = r.get("cad", {}).get("measured"), r.get("cad", {}).get("expected")
+            if measured and expected:
+                lines.append(f"Mesh: {measured['solids']} solids (expected {expected['solids']}), genus "
+                             f"{measured['genus_sum']} (expected {expected['genus_sum']}), volume "
+                             f"{measured['volume_mm3']:.4f} mm³ (expected {expected['volume_mm3']:.4f}), "
+                             f"Z planes {measured['z_planes']}.")
+            for error in r.get("errors", []) + r.get("cad", {}).get("errors", []):
+                lines.append(f"Finding: {error}")
+            images = ["out.preview.png", "fidelity.png", "mesh.png"] if mode == "raised" else ["mesh.png"]
+            lines += ["", *(f"![{c} {mode} {name}]({link(c, mode, name)})" for name in images), ""]
+    lines += ["## Not covered", "",
+              "Slicer observations and print review belong to S4.5. Print validation is pending.",
+              "The blocking CAD volume uses OpenSCAD effective 2D areas. It checks the 3D assembly, heights and closure.",
+              "It does not independently check the 2D clip. Each case JSON keeps the published-area figure beside it.",
+              "Baseline test failures `STABL-fjmjolci` and `STABL-bxqlmcmf` are not corpus results.", ""]
+    return "\n".join(lines)
+
+
 # --- CLI ------------------------------------------------------------------------------
 
 
@@ -352,6 +658,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", choices=CASE_NAMES, action="append")
     parser.add_argument("--mode", choices=MODES, action="append")
     parser.add_argument("--index-json", type=Path)
+    parser.add_argument("--replay", choices=CASE_NAMES, action="append",
+                        help="Replay this case from its debug recipe in each run mode.")
+    parser.add_argument("--compare-index", type=Path, help="An index JSON from an independent earlier run.")
+    parser.add_argument("--bundle-dir", type=Path, help="Write committed bundles here: no STL, no area exports.")
+    parser.add_argument("--report", type=Path)
     options = parser.parse_args(argv)
     command = open_scad._openscad()
     if not command:
@@ -386,12 +697,35 @@ def main(argv: list[str] | None = None) -> int:
         mismatches += check["mismatches"]
     pinned = {case: names for case, names in pinned_signature().items() if case in cases}
     index = build_index(rows, pinned, {"checked": checked, "mismatches": mismatches})
+    index["replay"] = [replay_case(case, mode, root) for case in options.replay or [] for mode in modes]
+    if options.compare_index:
+        index["regeneration"] = dict(compare_runs(json.loads(options.compare_index.read_text()), index),
+                                     against=str(options.compare_index))
+    if not all(r["passed"] for r in index["replay"]) or not index.get("regeneration", {"passed": True})["passed"]:
+        index["exit_code"] = 1
     index.update(schema_version=1, host=_host(openscad_version), openscad_command=command,
                  invocation=[sys.executable, "-m", "tests.vector_map_s4_1_corpus_probe",
                              *(argv if argv is not None else sys.argv[1:])], work_dir=str(root))
-    if options.index_json:
-        options.index_json.parent.mkdir(parents=True, exist_ok=True)
-        options.index_json.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n")
+    index = scrub(index, root)
+    try:
+        if options.bundle_dir:
+            index["bundle_export"] = scrub(export_bundles(root, options.bundle_dir.resolve(), index), root)
+        text = json.dumps(index, indent=2, sort_keys=True) + "\n"
+        host_path_check(text, root, "index.json")
+        for path in (options.index_json, options.bundle_dir and options.bundle_dir / "index.json"):
+            if path:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text)
+        if options.report:
+            links = Path(os.path.relpath(options.bundle_dir.resolve(), options.report.resolve().parent)) \
+                if options.bundle_dir else None
+            text = report(index, links)
+            host_path_check(text, root, options.report.name)
+            options.report.parent.mkdir(parents=True, exist_ok=True)
+            options.report.write_text(text)
+    except ValueError as exc:
+        print(f"Evidence not written: {exc}", file=sys.stderr)
+        return 1
     print(f"evidence_complete {index['evidence_complete']}, fidelity_matches_pin {index['fidelity_matches_pin']}, "
           f"CAD {index['cad_passed']}, exit {index['exit_code']}", file=sys.stderr)
     return index["exit_code"]
