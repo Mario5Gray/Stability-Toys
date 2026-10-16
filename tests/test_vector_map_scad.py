@@ -340,7 +340,7 @@ def test_engraving_removes_detail_from_the_silhouette_only():
     translate([0, 0, max(0, B - OVERLAP)])
       linear_extrude(height = S + min(B, OVERLAP)) silhouette_2d();
     translate([0, 0, B + S - D])
-      linear_extrude(height = D + OVERLAP) detail_2d();
+      linear_extrude(height = D + OVERLAP) engrave_2d();
   }
   translate([0, 0, max(0, B + S - OVERLAP)])
     linear_extrude(height = H + min(B + S, OVERLAP)) structure_2d();""" in text

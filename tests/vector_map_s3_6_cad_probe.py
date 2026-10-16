@@ -13,8 +13,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+from scipy import ndimage
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,8 +48,43 @@ def role_area_mm2(svg: str, canvas: dict) -> float:
     return metrics.polygon_area(svg) * canvas["mm_per_px"] ** 2
 
 
-def expected_volume(manifest: dict, directory: Path) -> tuple[float, dict]:
-    """Use published polygons, the manifest scale, and the requested relief heights."""
+MODULES = {"silhouette": "silhouette_2d", "structure": "structure_2d", "detail": "detail_2d"}
+
+
+def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str, float]:
+    """Areas of the 2D regions the SCAD extrudes, in mm².
+
+    The source clips structure and detail to the silhouette and removes structure from detail, so
+    the published polygon area overcounts any clipped material. OpenSCAD exports each module as SVG
+    with DETAIL_GROW forced to zero, so a growth shows up in the measured mesh, not the expectation.
+    The engraving cut and its bridges are not in detail_2d(), so they also show up in the mesh only.
+    """
+    text = (directory / "out.scad").read_text()
+    head = text[:text.index("module relief")]
+    areas = {}
+    for role in roles:
+        source, svg = directory / f"area-{role}.scad", directory / f"area-{role}.svg"
+        source.write_text(f"{head}{MODULES[role]}();\n")
+        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-o", str(svg), str(source)],
+                             capture_output=True, text=True, timeout=300, cwd=directory)
+        if run.returncode:
+            raise RuntimeError(f"OpenSCAD 2D export of {role} failed: {run.stderr}")
+        total = 0.0
+        for data in re.findall(r' d="([^"]*)"', svg.read_text()):
+            for ring in re.findall(r"M[^M]*", data):
+                points = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.e+-]+),(-?[\d.e+-]+)", ring)]
+                total += sum(points[i][0] * points[(i + 1) % len(points)][1]
+                             - points[(i + 1) % len(points)][0] * points[i][1] for i in range(len(points))) / 2
+        areas[role] = abs(total)
+    return areas
+
+
+def expected_volume(manifest: dict, directory: Path, command: list[str] | None = None) -> tuple[float, dict]:
+    """Use the manifest scale, the requested heights, and the regions the SCAD extrudes.
+
+    With a command the areas are effective, after clipping and removal (see effective_areas_mm2).
+    Without one they are the published polygon areas, which overcount clipped material.
+    """
     canvas = manifest["canvas"]
     relief = manifest["relief"]
     areas = {"canvas": canvas["width_mm"] * canvas["height_mm"]}
@@ -55,6 +92,9 @@ def expected_volume(manifest: dict, directory: Path) -> tuple[float, dict]:
         role = entry["id"]
         areas[role] = (role_area_mm2((directory / entry["svg"]).read_text(), canvas)
                        if entry["svg"] else 0.0)
+    if command:
+        published = [role for role in MODULES if areas.get(role)]
+        areas.update(effective_areas_mm2(directory, command, published))
     sign = -1 if relief["detail_mode"] == "engraved" else 1
     volume = relief["backing_mm"] * areas["canvas"]
     volume += (relief["silhouette_thickness_mm"] or 0) * areas.get("silhouette", 0)
@@ -63,7 +103,18 @@ def expected_volume(manifest: dict, directory: Path) -> tuple[float, dict]:
     return volume, areas
 
 
-def _mask_expectation(mask_path: Path, canvas: dict, backing: float) -> dict:
+MIN_SPECKLE = 3
+
+
+def _mask_expectation(mask_path: Path, canvas: dict, backing: float, speckle: int) -> dict:
+    """Expected bounds, solids and genus from the mask.
+
+    The tracer drops 4-connected components smaller than speckle**2 pixels (vtracer filter_speckle,
+    S1.4). The expected solid count skips them. The raw mask count stays in mask_solids.
+    tests/test_vector_map_cad.py holds this rule against the tracer at speckle**2 - 1, speckle**2
+    and speckle**2 + 1 for speckle 3 to 6. Below speckle 3, components of up to 4 px can trace to
+    degenerate rings, and pixel count cannot predict which. The rule is refused there.
+    """
     material = np.asarray(Image.open(mask_path).convert("L")) >= 128
     components, holes = metrics.topology(material)
     scale = canvas["mm_per_px"]
@@ -75,10 +126,17 @@ def _mask_expectation(mask_path: Path, canvas: dict, backing: float) -> dict:
         raise ValueError(f"Empty silhouette mask: {mask_path}")
     bounds = [[float(xs.min() * scale), float((material.shape[0] - 1 - ys.max()) * scale)],
               [float((xs.max() + 1) * scale), float((material.shape[0] - ys.min()) * scale)]]
-    return {"bounds_xy": bounds, "solids": int(components), "genus_sum": int(holes)}
+    if speckle < MIN_SPECKLE:
+        raise ValueError(f"The solid-count rule needs filter_speckle >= {MIN_SPECKLE}. Got {speckle}.")
+    labeled: Any = ndimage.label(material)
+    labels = labeled[0]
+    sizes = np.bincount(labels.ravel())[1:]
+    traced = int(np.count_nonzero(sizes >= speckle * speckle))
+    return {"bounds_xy": bounds, "solids": traced, "mask_solids": int(components),
+            "filter_speckle_px": speckle, "genus_sum": int(holes)}
 
 
-def _save_scene(directory: Path, name: str) -> tuple[dict, list[str]]:
+def _save_scene(directory: Path, name: str, detail_mode: str = "raised") -> tuple[dict, list[str]]:
     directory.mkdir(parents=True)
     if name.startswith("corpus_"):
         source_dir = CORPUS / name.removeprefix("corpus_")
@@ -86,7 +144,7 @@ def _save_scene(directory: Path, name: str) -> tuple[dict, list[str]]:
             shutil.copyfile(source_dir / file, directory / file)
         return {"source": directory / "source.png", "mask": directory / "mask.png"}, [
             "--width-mm", "100", "--layers", "silhouette,structure,detail",
-            "--preset", "relief-0.4",
+            "--preset", "relief-0.4", *(["--detail-mode", "engraved"] if detail_mode == "engraved" else []),
         ]
     scene = scene_files(directory)
     if name.startswith("islands_"):
@@ -209,9 +267,10 @@ def verify_manifest_hashes(root: Path) -> dict:
     return {"checked": checked, "mismatches": mismatches}
 
 
-def _run_case(name: str, root: Path, previews: Path, command: list[str], version: str) -> dict:
+def _run_case(name: str, root: Path, previews: Path, command: list[str], version: str,
+              detail_mode: str = "raised") -> dict:
     directory = root / name
-    scene, extra = _save_scene(directory, name)
+    scene, extra = _save_scene(directory, name, detail_mode)
     argv = [str(scene["source"]), str(directory / "out.svg"), "--input-kind", "image",
             "--mask", str(scene["mask"]), *extra, "--export-scad", "--debug-bundle", "--json"]
     stdout, stderr = io.StringIO(), io.StringIO()
@@ -233,12 +292,13 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
     row["relief"] = manifest["relief"]
     render_argv = [*command, "-o", str(directory / "out.stl"), str(directory / "out.scad")]
     row["render"] = {"argv": render_argv}
+    render_record: dict[str, Any] = row["render"]
     if issue := open_scad.sandbox_error(command, [directory / "out.scad", directory / "out.stl"]):
         row["passed"], row["errors"] = False, [issue]
         return row
     started = time.perf_counter()
     render = subprocess.run(render_argv, capture_output=True, text=True, timeout=300)
-    row["render"].update(exit_code=render.returncode, stdout=render.stdout, stderr=render.stderr,
+    render_record.update(exit_code=render.returncode, stdout=render.stdout, stderr=render.stderr,
                          seconds=time.perf_counter() - started)
     if render.returncode:
         row["passed"], row["errors"] = False, ["OpenSCAD render failed."]
@@ -251,14 +311,18 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
                 "genus_sum": int(sum(part[2] for part in parts)),
                 "z_planes": sorted({round(float(z), 6) for z in vertices[:, 2]}),
                 "volume_mm3": metrics.mesh_volume(vertices[triangles])}
-    volume, areas = expected_volume(manifest, directory)
+    volume, areas = expected_volume(manifest, directory, command)
+    raw_volume, raw_areas = expected_volume(manifest, directory)
     expectation = _mask_expectation(directory / "out.debug/silhouette.png", manifest["canvas"],
-                                    manifest["relief"]["backing_mm"])
+                                    manifest["relief"]["backing_mm"],
+                                    manifest["vtracer"]["filter_speckle"])
     relief = manifest["relief"]
     ztop = relief["backing_mm"] + (relief["silhouette_thickness_mm"] or 0)
     ztop += max(relief["structure_height_mm"] or 0,
                 0 if relief["detail_mode"] == "engraved" else relief["detail_height_mm"] or 0)
-    expectation.update(volume_mm3=volume, areas_mm2=areas, z_max=ztop)
+    expectation.update(volume_mm3=volume, areas_mm2=areas, z_max=ztop, volume_basis="effective_openscad_2d",
+                       published_areas_mm2=raw_areas, published_volume_mm3=raw_volume,
+                       published_volume_excess=(raw_volume - volume) / volume if volume else 0.0)
     errors = [line for line in render.stderr.splitlines()
               if line.startswith("ERROR:") or "not be a valid 2-manifold" in line]
     scale = manifest["canvas"]["mm_per_px"]
@@ -274,7 +338,8 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
     if measured["genus_sum"] != expectation["genus_sum"]:
         errors.append(f"Genus sum {measured['genus_sum']} versus {expectation['genus_sum']}.")
     if not metrics.mesh_volume_ok(measured["volume_mm3"], volume):
-        errors.append(f"Volume {measured['volume_mm3']} versus {volume} mm³ exceeds 1e-4 relative.")
+        errors.append(f"Volume {measured['volume_mm3']} versus {volume} mm³ exceeds 1e-4 relative "
+                      f"(published-area figure {raw_volume}).")
     if name in EXPECTED_PLANES and measured["z_planes"] != EXPECTED_PLANES[name]:
         errors.append(f"Z planes {measured['z_planes']} versus {EXPECTED_PLANES[name]}.")
     if name == "engraved":
@@ -299,7 +364,8 @@ def _report(evidence: dict) -> str:
              f"Result: {sum(row['passed'] for row in evidence['cases'])}/{len(evidence['cases'])} cases passed.",
              f"Manifest artifact hashes: {evidence['manifest_hash_check']['checked']} checked, {len(evidence['manifest_hash_check']['mismatches'])} mismatches.",
              "OpenSCAD may return exit 0 while reporting a non-closed or non-manifold mesh; those diagnostics fail a CAD row.",
-             "The volume formula uses full published SVG areas. CAD intersections can clip these areas, so a volume mismatch alone does not isolate a defect; inspect the render diagnostic and effective geometry.", ""]
+             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW forced to zero. Engraved volume uses detail_2d(), not the unclipped engraving cut. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
+             "Each row also records the published-area figure (the sum of the published SVG areas times the heights) and its excess over the effective figure. The published figure overcounts material that structure or detail loses to clipping, so it is evidence and not a blocking check.", ""]
     lines += ["| Case | CAD result |", "|---|---|"]
     lines += [f"| {row['case']} | {'PASS' if row['passed'] else 'FAIL'} |"
               for row in evidence["cases"]]
@@ -332,6 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--preview-dir", type=Path)
     parser.add_argument("--case", choices=CASES, action="append")
+    parser.add_argument("--detail-mode", choices=("raised", "engraved"), default="raised",
+                        help="Detail mode for the corpus rows. The synthetic rows keep their own.")
     options = parser.parse_args(argv)
     command = open_scad._openscad()
     if not command:
@@ -353,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = []
     for name in selected:
         try:
-            row = _run_case(name, root, previews, command, version)
+            row = _run_case(name, root, previews, command, version, options.detail_mode)
         except Exception as exc:
             row = {"case": name, "passed": False, "errors": [f"{type(exc).__name__}: {exc}"]}
         rows.append(row)

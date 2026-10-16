@@ -26,12 +26,17 @@ HEIGHT_FIELDS = {
 
 
 def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm=0.0,
-               silhouette_thickness_mm=None, structure_height_mm=None, detail_height_mm=None):
+               silhouette_thickness_mm=None, structure_height_mm=None, detail_height_mm=None,
+               detail_growth_mm=0.0, recess_bridge_mm=0.0, recess_bridges=()):
     """Return deterministic OpenSCAD source for the relief assembly.
 
     canvas gives width_mm and height_mm. layers maps every published role to its SVG path relative
     to the source file. An unpublished role gets no import and no solid. center applies one outer
-    translate to the whole assembly.
+    translate to the whole assembly. detail_growth_mm above zero grows raised detail by that much
+    (CAD compatibility, STABL-ygtexxzr). It applies only with raised detail and a structure layer.
+    Engraved detail is cut by engrave_2d(): raw detail minus raw structure, with no silhouette clip.
+    recess_bridges lists pixel points where the recess meets the outline at an isolated point. A
+    square of half side recess_bridge_mm stays uncut at each. They apply only with engraved detail.
     """
     unknown = sorted(set(layers) - set(ROLE_ORDER))
     if unknown:
@@ -53,7 +58,11 @@ def build_scad(canvas, layers, *, center=False, detail_mode="raised", backing_mm
                 f"Engraved detail_height_mm {_number(detail)} must be below the silhouette "
                 f"thickness {_number(thickness)} mm. Reduce detail_height_mm."
             )
-    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights)) + "\n"
+    growth = detail_growth_mm if detail_mode == "raised" and {"structure", "detail"} <= set(layers) else 0.0
+    engraved = detail_mode == "engraved" and "detail" in layers
+    bridges = list(recess_bridges) if engraved and recess_bridge_mm > 0 else []
+    return "\n".join(_source(canvas, layers, center, detail_mode, _number(backing), heights, growth,
+                             recess_bridge_mm if bridges else 0.0, bridges)) + "\n"
 
 
 def _published_height(layers, role, value):
@@ -66,7 +75,7 @@ def _published_height(layers, role, value):
     return check_relief_length(name, value)
 
 
-def _source(canvas, layers, center, detail_mode, backing, heights):
+def _source(canvas, layers, center, detail_mode, backing, heights, growth=0.0, bridge=0.0, bridges=()):
     width, height = _number(canvas.width_mm), _number(canvas.height_mm)
     lines = [
         "// st-vector-map S3.4 relief source (STABL-gorlibrt). Generated file.",
@@ -85,6 +94,15 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
         lines.append(f"D = {_number(heights['detail'])}; // {note}")
     lines += [
         f"OVERLAP = {_number(OVERLAP_MM)}; // bounded support overlap. Z never goes below 0.",
+    ]
+    if growth > 0:
+        lines.append(f"DETAIL_GROW = {_number(growth)}; // detail grows by this much so it never meets structure at a point.")
+    if bridges:
+        points = ", ".join(f"[{_number(x * canvas.mm_per_px)}, {_number(canvas.height_mm - y * canvas.mm_per_px)}]"
+                           for x, y in bridges)
+        lines.append(f"RECESS_BRIDGE = {_number(bridge)}; // half side of the uncut square where the recess meets the outline at a point.")
+        lines.append(f"RECESS_BRIDGES = [{points}]; // those points, in millimetres.")
+    lines += [
         "",
         "module silhouette_2d() {",
         f"  import({_literal(layers['silhouette'])}, center=false);",
@@ -103,14 +121,16 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
         ]
     if "detail" in layers:
         if "structure" in layers:
+            grow = "offset(delta = DETAIL_GROW) " if growth > 0 else ""
+            shrink = "offset(delta = -DETAIL_GROW) " if growth > 0 else ""
             lines += [
                 "module detail_2d() {",
                 "  difference() {",
                 "    intersection() {",
-                f"      import({_literal(layers['detail'])}, center=false);",
+                f"      {grow}import({_literal(layers['detail'])}, center=false);",
                 "      silhouette_2d();",
                 "    }",
-                "    structure_2d();",
+                f"    {shrink}structure_2d();",
                 "  }",
                 "}",
                 "",
@@ -125,6 +145,8 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
                 "}",
                 "",
             ]
+    if detail_mode == "engraved" and "detail" in layers:
+        lines += _engrave_module(layers, bridges)
     lines += ["module relief() {", "  if (B > 0) {",
               f"    linear_extrude(height = B) square([{width}, {height}]);", "  }"]
     engraving = detail_mode == "engraved" and "detail" in layers
@@ -138,7 +160,7 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
             "    translate([0, 0, max(0, B - OVERLAP)])",
             "      linear_extrude(height = S + min(B, OVERLAP)) silhouette_2d();",
             "    translate([0, 0, B + S - D])",
-            "      linear_extrude(height = D + OVERLAP) detail_2d();",
+            "      linear_extrude(height = D + OVERLAP) engrave_2d();",
             "  }",
         ]
     else:
@@ -160,6 +182,17 @@ def _source(canvas, layers, center, detail_mode, backing, heights):
     else:
         lines.append("relief();")
     return lines
+
+
+def _engrave_module(layers, bridges):
+    """The engraving cut: raw detail minus raw structure and the bridges. No silhouette clip."""
+    removed = [f"    import({_literal(layers['structure'])}, center=false);"] if "structure" in layers else []
+    if bridges:
+        removed.append("    for (p = RECESS_BRIDGES) translate(p) square(2 * RECESS_BRIDGE, center = true);")
+    detail = f"import({_literal(layers['detail'])}, center=false);"
+    if not removed:
+        return ["module engrave_2d() {", f"  {detail}", "}", ""]
+    return ["module engrave_2d() {", "  difference() {", f"    {detail}", *removed, "  }", "}", ""]
 
 
 def _number(value):
