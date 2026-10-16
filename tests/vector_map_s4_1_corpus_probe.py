@@ -358,7 +358,7 @@ def _host_forms(work_root: Path, extra: dict | None = None) -> list[tuple[str, s
     return [*forms, (sys.executable, "python"), (f"{ROOT}/", ""), (str(ROOT), "."), (str(Path.home()), "~")]
 
 
-def scrub(value, work_root: Path, extra: dict | None = None):
+def scrub(value: Any, work_root: Path, extra: dict | None = None) -> Any:
     """Return a copy of a JSON value with host paths replaced.
 
     extra maps other host paths, such as the earlier index, to placeholders.
@@ -614,7 +614,10 @@ def report(index: dict, links: Path | None = None) -> str:
         for key, value in changed.items():
             lines.append(f"- {key}: {', '.join(value)}")
         lines.append("")
-    lines += ["## Per-case evidence", ""]
+    lines += ["## Per-case evidence", "",
+              "`out.preview.png` is the CLI preview. `fidelity.png` shows the reviewed mask, the rendered published "
+              "silhouette, and their XOR: gray is in both, red is in the mask only, blue is in the trace only.",
+              "`mesh.png` is a top view of the OpenSCAD mesh. Color shows the top surface height.", ""]
     for c in cases:
         meta = CORPUS_INDEX["cases"][c]
         raised = rows[(c, "raised")]
