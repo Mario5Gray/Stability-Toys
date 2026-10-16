@@ -130,8 +130,6 @@ An empty silhouette exits 1.
 OpenSCAD cannot extrude two rings that touch at one point. It exits 0 and loses material. A CAD compatibility step repairs this before each layer is published.
 The step moves the contact points of one ring by at most 0.01 mm and a quarter pixel. A hole shrinks. An island grows. The step adds material and removes none.
 It reports `cad_pinch_closed`. It reports `cad_pinch_unrepaired` and keeps the layer unchanged when a contact remains.
-The step checks each repaired layer again against the SVG dialect and the limits.
-A repaired layer over a limit returns exit 1. The message names the layer. `--debug-bundle` files remain.
 A detail ring can also touch a structure ring at one point. The SCAD file then grows detail by at most 0.002 mm and a quarter pixel. It subtracts a structure shrunk by the same amount. The step reports `cad_detail_growth`. Raised mode only.
 Engraved detail is cut by `engrave_2d()`: raw detail minus raw structure, with no silhouette clip. Cutting outside the silhouette removes nothing. A groove that opens through the outline stays open.
 `detail_2d()` keeps its clipped form.
@@ -288,7 +286,6 @@ A layered manifest lists every selected role under `layers` with `id`, `svg`, `c
 Without an export the height and the mode are null. With an export they hold the resolved relief values.
 `roles` records each optional role request with resolved Canny values, widths, expansion, and gap closing.
 `counts` sums the layer counts and adds `layers` and `combined_bytes`. Standalone manifests keep the two-field layer entry.
-Manifest `counts` include `vertices`: the `M` and `L` points of the published layer. `Z` adds no vertex.
 
 `--debug-bundle` adds `<stem>.debug/mask.png` and `<stem>.debug/recipe.json`.
 Successful manifest lists both hashes. No other debug filenames belong to bundle.
@@ -387,7 +384,7 @@ Speckle 1 gave the same output as speckle 0.
 
 | Option / recipe field | Default | Measures |
 |---|---:|---|
-| `--max-svg-bytes` / `max_svg_bytes` | 20971520 | UTF-8 bytes. Checked on raw output before XML parsing, on normalized output, and on a layer after pinch repair |
+| `--max-svg-bytes` / `max_svg_bytes` | 20971520 | UTF-8 bytes. Checked on raw output before XML parsing, and again on normalized output |
 | `--max-paths` / `max_paths` | 10000 | `path` elements per layer |
 | `--max-path-commands` / `max_path_commands` | 1000000 | `M`, `L`, and `Z` commands per layer, including degenerate subpaths |
 

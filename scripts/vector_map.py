@@ -226,11 +226,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
         upstream_args = traced.upstream_args
         _report_degenerate(normalized[role].metrics.degenerate_subpaths, diagnostics, role)
-        try:
-            repaired = cad.close_pinches(normalized[role], canvas, settings.svg_limits)
-        except ValueError as exc:
-            message = f"CAD pinch repair, layer {role}: final SVG check failed: {exc}"
-            raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+        repaired = cad.close_pinches(normalized[role], canvas)
         normalized[role] = repaired.layer
         _report_pinches(repaired, diagnostics, role)
     growth = _detail_growth(settings, normalized, canvas, diagnostics)
