@@ -389,3 +389,32 @@ def test_export_refuses_a_result_row_that_was_not_scrubbed(tmp_path):
     row = dict(regen_row(), work_dir=str(tmp_path / "work" / "beta" / "raised"))
     with pytest.raises(ValueError, match="result.json"):
         probe.export_bundles(tmp_path / "work", tmp_path / "bundle", {"rows": [row]})
+
+
+@pytest.mark.parametrize("leak", ["/private/tmp/claude-501/run/s41-runA.json", "/var/folders/ab/T/x.json",
+                                  "/home/someone/x.json", "/Users/someone/x.json"])
+def test_the_guard_flags_an_absolute_host_path_it_was_not_told_about(tmp_path, leak):
+    with pytest.raises(ValueError, match="index.json"):
+        probe.host_path_check(json.dumps({"against": leak}), tmp_path / "work", "index.json")
+
+
+def test_the_guard_flags_the_login_name(tmp_path):
+    import getpass
+
+    with pytest.raises(ValueError, match="report.md"):
+        probe.host_path_check(f"slug -Users-{getpass.getuser()}-workspace", tmp_path / "work", "report.md")
+
+
+def test_the_guard_accepts_placeholders_and_repo_relative_paths(tmp_path):
+    text = "python -m tests.vector_map_s4_1_corpus_probe --work-dir <work> --compare-index <earlier-index> " \
+           "tests/fixtures/vector_map/corpus/badge/mask.png"
+    probe.host_path_check(text, tmp_path / "work", "index.json")
+
+
+def test_scrub_names_the_earlier_index_and_the_interpreter(tmp_path):
+    import sys
+
+    earlier = tmp_path / "elsewhere" / "s41-runA.json"
+    record = {"invocation": [sys.executable, "-m", "x", "--compare-index", str(earlier)], "against": str(earlier)}
+    assert probe.scrub(record, tmp_path / "work", {earlier: "<earlier-index>"}) == {
+        "invocation": ["python", "-m", "x", "--compare-index", "<earlier-index>"], "against": "<earlier-index>"}

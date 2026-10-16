@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import getpass
 import hashlib
 import io
 import json
 import os
 import platform
+import re
 import shutil
 import statistics
 import subprocess
@@ -344,28 +346,42 @@ def run_case(case: str, mode: str, root: Path, command: list[str]) -> dict:
 # repository files by repo-relative path, and the home directory as ~.
 
 
-def _host_forms(work_root: Path) -> list[tuple[str, str]]:
-    work = sorted({str(work_root), os.path.realpath(work_root)}, key=len, reverse=True)
-    return [*((form, "<work>") for form in work), (f"{ROOT}/", ""), (str(ROOT), "."), (str(Path.home()), "~")]
+# Absolute host locations that never belong in committed evidence, wherever they come from.
+HOST_PATH = re.compile(r"(?<![\w<>.~-])/(?:Users|home|private|var/folders|tmp)/")
 
 
-def scrub(value, work_root: Path):
-    """Return a copy of a JSON value with host paths replaced."""
+def _host_forms(work_root: Path, extra: dict | None = None) -> list[tuple[str, str]]:
+    forms = []
+    for path, placeholder in {**(extra or {}), work_root: "<work>"}.items():
+        forms += [(form, placeholder) for form in {str(path), os.path.realpath(path)}]
+    forms.sort(key=lambda item: len(item[0]), reverse=True)
+    return [*forms, (sys.executable, "python"), (f"{ROOT}/", ""), (str(ROOT), "."), (str(Path.home()), "~")]
+
+
+def scrub(value, work_root: Path, extra: dict | None = None):
+    """Return a copy of a JSON value with host paths replaced.
+
+    extra maps other host paths, such as the earlier index, to placeholders.
+    """
     if isinstance(value, dict):
-        return {key: scrub(item, work_root) for key, item in value.items()}
+        return {key: scrub(item, work_root, extra) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [scrub(item, work_root) for item in value]
+        return [scrub(item, work_root, extra) for item in value]
     if isinstance(value, str):
-        for form, replacement in _host_forms(work_root):
+        for form, replacement in _host_forms(work_root, extra):
             value = value.replace(form, replacement)
     return value
 
 
 def host_path_check(text: str, work_root: Path, name: str) -> None:
-    """Raise when committed text still holds the work directory, repository or home path."""
-    found = [form for form, _ in _host_forms(work_root) if form.rstrip("/") in text]
+    """Raise when committed text holds a known host path, any absolute host location, or the login name."""
+    found = [form.rstrip("/") for form, _ in _host_forms(work_root) if form.rstrip("/") in text]
+    found += HOST_PATH.findall(text)
+    user = getpass.getuser()
+    if len(user) >= 3 and user in text:
+        found.append(f"login name {user!r}")
     if found:
-        raise ValueError(f"Host path in committed file {name}: {found[0].rstrip('/')}")
+        raise ValueError(f"Host path in committed file {name}: {found[0]}")
 
 
 # --- Replay, regeneration and committed bundles ---------------------------------------
@@ -706,10 +722,11 @@ def main(argv: list[str] | None = None) -> int:
     index.update(schema_version=1, host=_host(openscad_version), openscad_command=command,
                  invocation=[sys.executable, "-m", "tests.vector_map_s4_1_corpus_probe",
                              *(argv if argv is not None else sys.argv[1:])], work_dir=str(root))
-    index = scrub(index, root)
+    extra = {options.compare_index.resolve(): "<earlier-index>"} if options.compare_index else None
+    index = scrub(index, root, extra)
     try:
         if options.bundle_dir:
-            index["bundle_export"] = scrub(export_bundles(root, options.bundle_dir.resolve(), index), root)
+            index["bundle_export"] = scrub(export_bundles(root, options.bundle_dir.resolve(), index), root, extra)
         text = json.dumps(index, indent=2, sort_keys=True) + "\n"
         host_path_check(text, root, "index.json")
         for path in (options.index_json, options.bundle_dir and options.bundle_dir / "index.json"):
