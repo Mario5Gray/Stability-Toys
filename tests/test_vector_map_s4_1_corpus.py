@@ -227,3 +227,59 @@ def test_an_override_needs_a_reason_and_a_real_change():
         probe.override_record("brick", BASE_RECIPE, ["topology"], changed, override_failures=[])
     with pytest.raises(ValueError, match="changes no field"):
         probe.override_record("brick", BASE_RECIPE, ["topology"], dict(BASE_RECIPE), reason="x", override_failures=[])
+
+
+# --- Workflow, native render and CLI (plan step 4) -------------------------------
+
+needs_openscad = pytest.mark.skipif(probe.open_scad.OPENSCAD is None, reason="OpenSCAD is not installed.")
+
+
+@pytest.fixture
+def work(tmp_path):
+    """A directory the OpenSCAD sandbox can read. A Flatpak directory under $HOME is removed after."""
+    import shutil
+
+    directory, created = probe.open_scad.choose_work_dir(tmp_path, probe.open_scad.OPENSCAD)
+    yield directory
+    if created:
+        shutil.rmtree(directory)
+
+
+@needs_openscad
+def test_a_non_manifold_mesh_that_exits_zero_is_a_cad_error(work):
+    """Two cubes that share one edge: OpenSCAD 2021.01 warns and still exits 0."""
+    (work / "out.scad").write_text("cube(1);\ntranslate([1,1,0]) cube(1);\n")
+    render = probe.render_scad(work, probe.open_scad.OPENSCAD)
+    assert render["exit_code"] == 0
+    assert any("2-manifold" in error for error in render["errors"])
+
+
+def test_the_probe_blocks_when_openscad_is_absent(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(probe.open_scad, "_openscad", lambda: None)
+    assert probe.main(["--work-dir", str(tmp_path / "work")]) == 2
+    assert "OpenSCAD is absent" in capsys.readouterr().err
+    assert not (tmp_path / "work").exists()
+
+
+def test_cad_gate_names_each_geometry_mismatch():
+    expected = {"bounds_xy": [[0.0, 0.0], [10.0, 8.0]], "solids": 2, "genus_sum": 1, "volume_mm3": 100.0}
+    measured = {"bounds": [[0.0, 0.0, 0.0], [10.0, 8.0, 1.8]], "solids": 2, "genus_sum": 1, "volume_mm3": 100.0}
+    assert probe.cad_gate(measured, expected, z_top=1.8, xy_tol=0.39) == []
+    wrong = dict(measured, solids=3, genus_sum=0, volume_mm3=100.02,
+                 bounds=[[0.0, 0.0, 0.0], [11.0, 8.0, 1.6]])
+    errors = probe.cad_gate(wrong, expected, z_top=1.8, xy_tol=0.39)
+    assert [e.split()[0] for e in errors] == ["XY", "Z", "Solid", "Genus", "Volume"]
+
+
+@needs_openscad
+@needs_vtracer
+@needs_resvg
+def test_one_corpus_row_runs_the_complete_workflow(work):
+    row = probe.run_case("badge", "raised", work, probe.open_scad.OPENSCAD)
+    assert row["evidence_missing"] == [], row.get("errors")
+    assert row["fidelity"]["failures"] == [] and row["cad_passed"], row.get("errors")
+    assert row["resolved_recipe"]["vtracer"] == {"filter_speckle": 4, "mode": "polygon"}
+    assert row["mask_sha256"] == probe.CORPUS_INDEX["cases"]["badge"]["sha256"]["mask"]
+    assert set(row["complexity"]) == {"silhouette", "structure", "combined"}  # Badge has no detail.
+    assert set(row["timings"]) >= {"conversion_s", "trace_median_s", "fidelity_median_s", "openscad_render_s"}
+    assert row["override"]["override_recipe"] is None
