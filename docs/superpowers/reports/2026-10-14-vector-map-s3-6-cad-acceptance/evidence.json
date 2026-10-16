@@ -4,107 +4,107 @@
       "artifacts": {
         "area-detail.scad": {
           "bytes": 935,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-detail.scad",
           "sha256": "489401aee538445b936226ec6eb78451344b9c8fb7d0f479ff845a2b30ebdea2"
         },
         "area-detail.svg": {
           "bytes": 375,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-detail.svg",
           "sha256": "ec529253c3fd362fff9a3d1316a5f23067dfe2783259f5a0f03dbd99f6d6bc36"
         },
         "area-silhouette.scad": {
           "bytes": 939,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-silhouette.scad",
           "sha256": "64c744caf283d6b523c827b608ee4820418c3208bf673e50e3ed789ccf613fe3"
         },
         "area-silhouette.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-silhouette.svg",
           "sha256": "dcb6853c090d6a4b139f95c28929516aef4c683e25e568b086a493da4be4a669"
         },
         "area-structure.scad": {
           "bytes": 938,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-structure.scad",
           "sha256": "2a8df5f2e804ce662e136cebb1a48867fcba7b816abbf4923764c9bf79b726eb"
         },
         "area-structure.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/area-structure.svg",
           "sha256": "03fd023ce2df03a139451f11f028b89386dcd1b724e619fb38da8c62d41b8010"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/detail.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/mask.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/mask.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.debug/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "out.debug/recipe.json": {
           "bytes": 743,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.debug/recipe.json",
           "sha256": "b370b9d71eef699e93d892a284c73d3ab6d7949de19916deb460ac2c5a8ae702"
         },
         "out.debug/silhouette.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.debug/silhouette.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.debug/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         },
         "out.layers/detail.svg": {
           "bytes": 229,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.layers/detail.svg",
           "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
         },
         "out.layers/silhouette.svg": {
           "bytes": 230,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.layers/silhouette.svg",
           "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
         },
         "out.layers/structure.svg": {
           "bytes": 228,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.layers/structure.svg",
           "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
         },
         "out.scad": {
           "bytes": 1353,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.scad",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.scad",
           "sha256": "b3d50c83f3fb1633778242196ab85ea3cf06e983f3e9378524fe1c04316a6273"
         },
         "out.stl": {
           "bytes": 7285,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.stl",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.stl",
           "sha256": "37bcee5a7b2ab9de9d9c9f763eeb71603047d699b0e3702b402b18779e531ff2"
         },
         "out.svg": {
           "bytes": 454,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.svg",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.svg",
           "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
         },
         "out.vector.json": {
           "bytes": 6330,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/out.vector.json",
-          "sha256": "779b4dbc06e0d74f5d7254a3f81a2a176cebb574709a51c11db2f2eff4cbedf0"
+          "path": "/private/tmp/s36-cad-final5/raised_backed/out.vector.json",
+          "sha256": "4ad46bb9d401ac6da0f7e467588dbf2063dd33045e6e17aa89227d6fc54c2273"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/source.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/raised_backed/structure.png",
+          "path": "/private/tmp/s36-cad-final5/raised_backed/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -113,20 +113,20 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/raised_backed/source.png",
-          "/private/tmp/s36-cad-final4/raised_backed/out.svg",
+          "/private/tmp/s36-cad-final5/raised_backed/source.png",
+          "/private/tmp/s36-cad-final5/raised_backed/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/raised_backed/mask.png",
+          "/private/tmp/s36-cad-final5/raised_backed/mask.png",
           "--width-mm",
           "32",
           "--layers",
           "silhouette,structure,detail",
           "--structure-map",
-          "/private/tmp/s36-cad-final4/raised_backed/structure.png",
+          "/private/tmp/s36-cad-final5/raised_backed/structure.png",
           "--detail-map",
-          "/private/tmp/s36-cad-final4/raised_backed/detail.png",
+          "/private/tmp/s36-cad-final5/raised_backed/detail.png",
           "--silhouette-thickness-mm",
           "2",
           "--structure-height-mm",
@@ -142,15 +142,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/raised_backed/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/raised_backed/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/raised_backed/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/raised_backed/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/raised_backed/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/raised_backed/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/raised_backed/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/raised_backed/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/raised_backed/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/raised_backed/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/raised_backed/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/raised_backed/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/raised_backed/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/raised_backed/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -160,8 +160,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.035673375241458416,
-        "stderr": "loading  /private/tmp/s36-cad-final4/raised_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/raised_backed/out.scad\nsaved    /private/tmp/s36-cad-final4/raised_backed/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+        "seconds": 0.03068958269432187,
+        "stderr": "loading  /private/tmp/s36-cad-final5/raised_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/raised_backed/out.scad\nsaved    /private/tmp/s36-cad-final5/raised_backed/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
       },
       "errors": [],
       "expected": {
@@ -224,7 +224,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/raised_backed.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/raised_backed.png",
       "preview_sha256": "dd1c5e172ed2a79204ce0694e72ecc2e1f1543940f9fd440c01e361a2da57e60",
       "relief": {
         "backing_mm": 1.0,
@@ -240,121 +240,121 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/raised_backed/out.stl",
-          "/private/tmp/s36-cad-final4/raised_backed/out.scad"
+          "/private/tmp/s36-cad-final5/raised_backed/out.stl",
+          "/private/tmp/s36-cad-final5/raised_backed/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.1765402089804411,
-        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 8120\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 44368\nTotal rendering time: 0:00:00.062\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       32\n   Halfedges:      96\n   Edges:          48\n   Halffacets:     42\n   Facets:         21\n   Volumes:         2\n",
+        "seconds": 0.15378658287227154,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 8120\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 44368\nTotal rendering time: 0:00:00.054\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       32\n   Halfedges:      96\n   Edges:          48\n   Halffacets:     42\n   Facets:         21\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/raised_backed"
+      "work_dir": "/private/tmp/s36-cad-final5/raised_backed"
     },
     {
       "artifacts": {
         "area-detail.scad": {
-          "bytes": 941,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-detail.scad",
-          "sha256": "2981bc886a158e1961652541656ad56cf1ec0ccac012dc6b513b071ad7375456"
+          "bytes": 1092,
+          "path": "/private/tmp/s36-cad-final5/engraved/area-detail.scad",
+          "sha256": "7aa8c9192ec368d19be8cad64f41833129c39dda55383f6453ad841a863c34ad"
         },
         "area-detail.svg": {
           "bytes": 375,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/area-detail.svg",
           "sha256": "ec529253c3fd362fff9a3d1316a5f23067dfe2783259f5a0f03dbd99f6d6bc36"
         },
         "area-silhouette.scad": {
-          "bytes": 945,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-silhouette.scad",
-          "sha256": "f4d80cc2c7c2fa87e781479d94b2d250a4be014c322f648257fd06fd2f615056"
+          "bytes": 1096,
+          "path": "/private/tmp/s36-cad-final5/engraved/area-silhouette.scad",
+          "sha256": "92205c599b503f621f0feae0f418b2f11c7aa9018ca9ffa13b4c4a2750d03db3"
         },
         "area-silhouette.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/area-silhouette.svg",
           "sha256": "dcb6853c090d6a4b139f95c28929516aef4c683e25e568b086a493da4be4a669"
         },
         "area-structure.scad": {
-          "bytes": 944,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-structure.scad",
-          "sha256": "f25458354947903ca2ddc8b3fefddb6948c6648c8f591726f6c05407f0869606"
+          "bytes": 1095,
+          "path": "/private/tmp/s36-cad-final5/engraved/area-structure.scad",
+          "sha256": "0feeeea78449a96728d6316792b1712dda5bd4b435e551762fc8f125c16cb7b0"
         },
         "area-structure.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/engraved/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/area-structure.svg",
           "sha256": "03fd023ce2df03a139451f11f028b89386dcd1b724e619fb38da8c62d41b8010"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/engraved/detail.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/engraved/mask.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/mask.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.debug/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "out.debug/recipe.json": {
           "bytes": 745,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.debug/recipe.json",
           "sha256": "486effa185237314cabc8ba6139a0276e2e6b0f1e52203baea17e2eab668b0a3"
         },
         "out.debug/silhouette.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.debug/silhouette.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.debug/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         },
         "out.layers/detail.svg": {
           "bytes": 229,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.layers/detail.svg",
           "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
         },
         "out.layers/silhouette.svg": {
           "bytes": 230,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.layers/silhouette.svg",
           "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
         },
         "out.layers/structure.svg": {
           "bytes": 228,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.layers/structure.svg",
           "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
         },
         "out.scad": {
-          "bytes": 1362,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.scad",
-          "sha256": "3edc48d47992d92cce71fba231ee78b2dc64a3edf18cf33187ecff3091e7af3b"
+          "bytes": 1514,
+          "path": "/private/tmp/s36-cad-final5/engraved/out.scad",
+          "sha256": "83fc68395155165462c69cf9ab3e436ae8d4f0ed8c4814e4ac3db54216d36f31"
         },
         "out.stl": {
           "bytes": 5370,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.stl",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.stl",
           "sha256": "ee3b1622fbe27c2d0daa95d8e5858425e1909c115331bc74d7cc22fa85fca123"
         },
         "out.svg": {
           "bytes": 454,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.svg",
+          "path": "/private/tmp/s36-cad-final5/engraved/out.svg",
           "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
         },
         "out.vector.json": {
           "bytes": 6299,
-          "path": "/private/tmp/s36-cad-final4/engraved/out.vector.json",
-          "sha256": "1280f88cf1fe0b99eafac27ec9c11b4185d7f4ec6e950586d933e6977a42f83a"
+          "path": "/private/tmp/s36-cad-final5/engraved/out.vector.json",
+          "sha256": "9e10f4052899ec27fc24cc8afc15cb8ef881a0679c58f404c1ded535fa5a091e"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/engraved/source.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/engraved/structure.png",
+          "path": "/private/tmp/s36-cad-final5/engraved/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -363,20 +363,20 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/engraved/source.png",
-          "/private/tmp/s36-cad-final4/engraved/out.svg",
+          "/private/tmp/s36-cad-final5/engraved/source.png",
+          "/private/tmp/s36-cad-final5/engraved/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/engraved/mask.png",
+          "/private/tmp/s36-cad-final5/engraved/mask.png",
           "--width-mm",
           "32",
           "--layers",
           "silhouette,structure,detail",
           "--structure-map",
-          "/private/tmp/s36-cad-final4/engraved/structure.png",
+          "/private/tmp/s36-cad-final5/engraved/structure.png",
           "--detail-map",
-          "/private/tmp/s36-cad-final4/engraved/detail.png",
+          "/private/tmp/s36-cad-final5/engraved/detail.png",
           "--silhouette-thickness-mm",
           "2",
           "--structure-height-mm",
@@ -392,15 +392,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/engraved/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/engraved/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/engraved/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/engraved/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/engraved/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/engraved/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/engraved/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/engraved/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/engraved/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/engraved/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/engraved/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/engraved/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/engraved/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/engraved/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -410,8 +410,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.035574291832745075,
-        "stderr": "loading  /private/tmp/s36-cad-final4/engraved/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/engraved/out.scad\nsaved    /private/tmp/s36-cad-final4/engraved/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+        "seconds": 0.03358250018209219,
+        "stderr": "loading  /private/tmp/s36-cad-final5/engraved/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/engraved/out.scad\nsaved    /private/tmp/s36-cad-final5/engraved/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
       },
       "errors": [],
       "expected": {
@@ -479,7 +479,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/engraved.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/engraved.png",
       "preview_sha256": "1b6d7f0768ea16d14acfcb163f904087cf9b17b895b0ffb45db1e448d13acff8",
       "relief": {
         "backing_mm": 0.0,
@@ -495,81 +495,81 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/engraved/out.stl",
-          "/private/tmp/s36-cad-final4/engraved/out.scad"
+          "/private/tmp/s36-cad-final5/engraved/out.stl",
+          "/private/tmp/s36-cad-final5/engraved/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.15395070938393474,
-        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 6960\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 55712\nTotal rendering time: 0:00:00.041\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "seconds": 0.14229866629466414,
+        "stderr": "Geometries in cache: 11\nGeometry cache size in bytes: 6816\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 55712\nTotal rendering time: 0:00:00.040\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/engraved"
+      "work_dir": "/private/tmp/s36-cad-final5/engraved"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 549,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/area-silhouette.scad",
           "sha256": "575b0b3e175420241b52beac67d458838c0d6996a543cddd03feb05840d0e5d0"
         },
         "area-silhouette.svg": {
           "bytes": 415,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/area-silhouette.svg",
           "sha256": "8637f6966c47f60ff2e2a90d7cac5228c53ead018e91739f5f961621244d0638"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/detail.png",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 100,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/mask.png",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/mask.png",
           "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
         },
         "out.debug/recipe.json": {
           "bytes": 475,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.debug/recipe.json",
           "sha256": "7f22a30bad213e97d2664dfa3e2993e5278629e774e806bdd1b70f8371778f1c"
         },
         "out.debug/silhouette.png": {
           "bytes": 100,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.debug/silhouette.png",
           "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
         },
         "out.layers/silhouette.svg": {
           "bytes": 310,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.layers/silhouette.svg",
           "sha256": "08f30c8eba8ccbac6ce083e093f552939963b0556b25c00b07d7b9b895e6eb06"
         },
         "out.scad": {
           "bytes": 738,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.scad",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.scad",
           "sha256": "d13860d1c59fac030f83fc1efaaa3754b16bfe7a4e2aa13ab5a9513f9136e764"
         },
         "out.stl": {
           "bytes": 2952,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.stl",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.stl",
           "sha256": "cc4389e63cadd9bb194d9e305970d1bc73d3ffb6286df20d7c3c4cceae895e00"
         },
         "out.svg": {
           "bytes": 332,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.svg",
           "sha256": "ebb972d4f46d88b910ffc0e02ca5a790250ef430729a440b19c603137cbad7ae"
         },
         "out.vector.json": {
           "bytes": 3953,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/out.vector.json",
-          "sha256": "6801311539ff8905d44cb650451be89624224952cf41330c1589c1b82db2767b"
+          "path": "/private/tmp/s36-cad-final5/islands_loose/out.vector.json",
+          "sha256": "ad7d19808cc42a9b3ace9f28871b3db99f2b33da53f41ae2971d6edb91fc53dd"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/source.png",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/islands_loose/structure.png",
+          "path": "/private/tmp/s36-cad-final5/islands_loose/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -578,12 +578,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/islands_loose/source.png",
-          "/private/tmp/s36-cad-final4/islands_loose/out.svg",
+          "/private/tmp/s36-cad-final5/islands_loose/source.png",
+          "/private/tmp/s36-cad-final5/islands_loose/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/islands_loose/mask.png",
+          "/private/tmp/s36-cad-final5/islands_loose/mask.png",
           "--width-mm",
           "32",
           "--layers",
@@ -597,13 +597,13 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/islands_loose/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/islands_loose/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/islands_loose/out.layers/silhouette.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/islands_loose/out.layers/silhouette.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/islands_loose/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/islands_loose/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/islands_loose/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/islands_loose/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/islands_loose/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/islands_loose/out.svg"
           },
           "counts": {
             "layers": 1,
@@ -620,8 +620,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.01904791733250022,
-        "stderr": "loading  /private/tmp/s36-cad-final4/islands_loose/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: The prepared silhouette has 2 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/islands_loose/out.scad\nsaved    /private/tmp/s36-cad-final4/islands_loose/out.svg (layers: silhouette; paths: 2)\n"
+        "seconds": 0.017887957859784365,
+        "stderr": "loading  /private/tmp/s36-cad-final5/islands_loose/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: The prepared silhouette has 2 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/islands_loose/out.scad\nsaved    /private/tmp/s36-cad-final5/islands_loose/out.svg (layers: silhouette; paths: 2)\n"
       },
       "errors": [],
       "expected": {
@@ -680,7 +680,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/islands_loose.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/islands_loose.png",
       "preview_sha256": "299f633f607837e1c10824338d8c92a475d4f7edc8d45a223b0028e69907db6f",
       "relief": {
         "backing_mm": 0.0,
@@ -696,81 +696,81 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/islands_loose/out.stl",
-          "/private/tmp/s36-cad-final4/islands_loose/out.scad"
+          "/private/tmp/s36-cad-final5/islands_loose/out.stl",
+          "/private/tmp/s36-cad-final5/islands_loose/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.1170553327538073,
+        "seconds": 0.09751029219478369,
         "stderr": "Geometries in cache: 3\nGeometry cache size in bytes: 4000\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.001\n   Top level object is a 3D object:\n   Facets:         24\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/islands_loose"
+      "work_dir": "/private/tmp/s36-cad-final5/islands_loose"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 549,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/area-silhouette.scad",
           "sha256": "7fc38c5c59877a4f5c7351426c799cd27078dbe2726ba940493578f7b1b9fead"
         },
         "area-silhouette.svg": {
           "bytes": 415,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/area-silhouette.svg",
           "sha256": "8637f6966c47f60ff2e2a90d7cac5228c53ead018e91739f5f961621244d0638"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/detail.png",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 100,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/mask.png",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/mask.png",
           "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
         },
         "out.debug/recipe.json": {
           "bytes": 475,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.debug/recipe.json",
           "sha256": "cdf36adf5bf05fdbba8982590403301049c45765479526f4e660500da0865c48"
         },
         "out.debug/silhouette.png": {
           "bytes": 100,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.debug/silhouette.png",
           "sha256": "840e6fd02b9f650c2984cff75289f268766760de1c2cf536d87d3c5717cfa4f2"
         },
         "out.layers/silhouette.svg": {
           "bytes": 310,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.layers/silhouette.svg",
           "sha256": "08f30c8eba8ccbac6ce083e093f552939963b0556b25c00b07d7b9b895e6eb06"
         },
         "out.scad": {
           "bytes": 738,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.scad",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.scad",
           "sha256": "eecf0e1eabd0e786c5d4aa01390721cc0c4f5457d16ad9973a9f5672412ff43f"
         },
         "out.stl": {
           "bytes": 5359,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.stl",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.stl",
           "sha256": "1682057e7f7c20534a29e37bb31b1b164c4f6e46337179e6a10cb23dc2fe196c"
         },
         "out.svg": {
           "bytes": 332,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.svg",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.svg",
           "sha256": "ebb972d4f46d88b910ffc0e02ca5a790250ef430729a440b19c603137cbad7ae"
         },
         "out.vector.json": {
           "bytes": 3648,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/out.vector.json",
-          "sha256": "3d8496c1684e3bafe0d3973e8347e875cb4c2164c40a2516a92c3f1990f52c98"
+          "path": "/private/tmp/s36-cad-final5/islands_backed/out.vector.json",
+          "sha256": "cf794c9a13d8f33e16519f18bc7452fada7461fdb383f6c669e95357fab72569"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/source.png",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/islands_backed/structure.png",
+          "path": "/private/tmp/s36-cad-final5/islands_backed/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -779,12 +779,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/islands_backed/source.png",
-          "/private/tmp/s36-cad-final4/islands_backed/out.svg",
+          "/private/tmp/s36-cad-final5/islands_backed/source.png",
+          "/private/tmp/s36-cad-final5/islands_backed/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/islands_backed/mask.png",
+          "/private/tmp/s36-cad-final5/islands_backed/mask.png",
           "--width-mm",
           "32",
           "--layers",
@@ -800,13 +800,13 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/islands_backed/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/islands_backed/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/islands_backed/out.layers/silhouette.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/islands_backed/out.layers/silhouette.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/islands_backed/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/islands_backed/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/islands_backed/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/islands_backed/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/islands_backed/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/islands_backed/out.svg"
           },
           "counts": {
             "layers": 1,
@@ -816,8 +816,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.019973834045231342,
-        "stderr": "loading  /private/tmp/s36-cad-final4/islands_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/islands_backed/out.scad\nsaved    /private/tmp/s36-cad-final4/islands_backed/out.svg (layers: silhouette; paths: 2)\n"
+        "seconds": 0.017985041718930006,
+        "stderr": "loading  /private/tmp/s36-cad-final5/islands_backed/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/islands_backed/out.scad\nsaved    /private/tmp/s36-cad-final5/islands_backed/out.svg (layers: silhouette; paths: 2)\n"
       },
       "errors": [],
       "expected": {
@@ -874,7 +874,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/islands_backed.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/islands_backed.png",
       "preview_sha256": "8c0abb38b4386aa4f870116043fc2f8694e27c7c282502a4b127fcdca5ffd73f",
       "relief": {
         "backing_mm": 1.0,
@@ -890,81 +890,81 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/islands_backed/out.stl",
-          "/private/tmp/s36-cad-final4/islands_backed/out.scad"
+          "/private/tmp/s36-cad-final5/islands_backed/out.stl",
+          "/private/tmp/s36-cad-final5/islands_backed/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.137749666813761,
-        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 5160\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.028\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "seconds": 0.12760579213500023,
+        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 5160\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.027\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/islands_backed"
+      "work_dir": "/private/tmp/s36-cad-final5/islands_backed"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 549,
-          "path": "/private/tmp/s36-cad-final4/donut_open/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/donut_open/area-silhouette.scad",
           "sha256": "575b0b3e175420241b52beac67d458838c0d6996a543cddd03feb05840d0e5d0"
         },
         "area-silhouette.svg": {
           "bytes": 413,
-          "path": "/private/tmp/s36-cad-final4/donut_open/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_open/area-silhouette.svg",
           "sha256": "431ab5f1edae3db5823b9ddcba61850e8b0113d109b473e15d6492e92ed7f441"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/donut_open/detail.png",
+          "path": "/private/tmp/s36-cad-final5/donut_open/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 104,
-          "path": "/private/tmp/s36-cad-final4/donut_open/mask.png",
+          "path": "/private/tmp/s36-cad-final5/donut_open/mask.png",
           "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
         },
         "out.debug/recipe.json": {
           "bytes": 475,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.debug/recipe.json",
           "sha256": "7f22a30bad213e97d2664dfa3e2993e5278629e774e806bdd1b70f8371778f1c"
         },
         "out.debug/silhouette.png": {
           "bytes": 104,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.debug/silhouette.png",
           "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
         },
         "out.layers/silhouette.svg": {
           "bytes": 256,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.layers/silhouette.svg",
           "sha256": "1e46b2c44b0cf3a8d57716b85e0d880fa572f20f30b74ef016a892af8af69c80"
         },
         "out.scad": {
           "bytes": 738,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.scad",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.scad",
           "sha256": "d13860d1c59fac030f83fc1efaaa3754b16bfe7a4e2aa13ab5a9513f9136e764"
         },
         "out.stl": {
           "bytes": 3904,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.stl",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.stl",
           "sha256": "b5e40377511592078ffb6b4058d8eab072f5ddb758376eafffd1f5584dcc21d0"
         },
         "out.svg": {
           "bytes": 278,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.svg",
           "sha256": "3ec25998264aa33ec24b9e39fa0e9bbe46b8343071ba0fc0b917689f6c06beb4"
         },
         "out.vector.json": {
           "bytes": 3636,
-          "path": "/private/tmp/s36-cad-final4/donut_open/out.vector.json",
-          "sha256": "05e4f150a9ca1c5e08197b8d86490a76b3fee6ea1f199831016e098a96f200ab"
+          "path": "/private/tmp/s36-cad-final5/donut_open/out.vector.json",
+          "sha256": "e5c0ae6dad305a8c3976ee74cedfa61d78240d18437dd7e15781ae06b50b379f"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/donut_open/source.png",
+          "path": "/private/tmp/s36-cad-final5/donut_open/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/donut_open/structure.png",
+          "path": "/private/tmp/s36-cad-final5/donut_open/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -973,12 +973,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/donut_open/source.png",
-          "/private/tmp/s36-cad-final4/donut_open/out.svg",
+          "/private/tmp/s36-cad-final5/donut_open/source.png",
+          "/private/tmp/s36-cad-final5/donut_open/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/donut_open/mask.png",
+          "/private/tmp/s36-cad-final5/donut_open/mask.png",
           "--width-mm",
           "32",
           "--layers",
@@ -992,13 +992,13 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/donut_open/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/donut_open/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/donut_open/out.layers/silhouette.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/donut_open/out.layers/silhouette.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/donut_open/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/donut_open/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/donut_open/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/donut_open/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/donut_open/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/donut_open/out.svg"
           },
           "counts": {
             "layers": 1,
@@ -1008,8 +1008,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.019672167021781206,
-        "stderr": "loading  /private/tmp/s36-cad-final4/donut_open/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/donut_open/out.scad\nsaved    /private/tmp/s36-cad-final4/donut_open/out.svg (layers: silhouette; paths: 1)\n"
+        "seconds": 0.018098375294357538,
+        "stderr": "loading  /private/tmp/s36-cad-final5/donut_open/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/donut_open/out.scad\nsaved    /private/tmp/s36-cad-final5/donut_open/out.svg (layers: silhouette; paths: 1)\n"
       },
       "errors": [],
       "expected": {
@@ -1067,7 +1067,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/donut_open.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/donut_open.png",
       "preview_sha256": "816061ddd0f189166232776a0d91791d203f653c88a2a4daab65f4f7ac148be9",
       "relief": {
         "backing_mm": 0.0,
@@ -1083,81 +1083,81 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/donut_open/out.stl",
-          "/private/tmp/s36-cad-final4/donut_open/out.scad"
+          "/private/tmp/s36-cad-final5/donut_open/out.stl",
+          "/private/tmp/s36-cad-final5/donut_open/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.11531258281320333,
+        "seconds": 0.09981699986383319,
         "stderr": "Geometries in cache: 3\nGeometry cache size in bytes: 5152\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.001\n   Top level object is a 3D object:\n   Facets:         32\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/donut_open"
+      "work_dir": "/private/tmp/s36-cad-final5/donut_open"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 549,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/area-silhouette.scad",
           "sha256": "7fc38c5c59877a4f5c7351426c799cd27078dbe2726ba940493578f7b1b9fead"
         },
         "area-silhouette.svg": {
           "bytes": 413,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/area-silhouette.svg",
           "sha256": "431ab5f1edae3db5823b9ddcba61850e8b0113d109b473e15d6492e92ed7f441"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/detail.png",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 104,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/mask.png",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/mask.png",
           "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
         },
         "out.debug/recipe.json": {
           "bytes": 475,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.debug/recipe.json",
           "sha256": "cdf36adf5bf05fdbba8982590403301049c45765479526f4e660500da0865c48"
         },
         "out.debug/silhouette.png": {
           "bytes": 104,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.debug/silhouette.png",
           "sha256": "2eec065e8c396f4e5e1b2d08a916f06b18753263c1cb01915f511161cba834ab"
         },
         "out.layers/silhouette.svg": {
           "bytes": 256,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.layers/silhouette.svg",
           "sha256": "1e46b2c44b0cf3a8d57716b85e0d880fa572f20f30b74ef016a892af8af69c80"
         },
         "out.scad": {
           "bytes": 738,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.scad",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.scad",
           "sha256": "eecf0e1eabd0e786c5d4aa01390721cc0c4f5457d16ad9973a9f5672412ff43f"
         },
         "out.stl": {
           "bytes": 5337,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.stl",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.stl",
           "sha256": "4d81b6e8ae77340efff420387d229aaddbb326d8cffe990ef92c2f5d73e02d0b"
         },
         "out.svg": {
           "bytes": 278,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.svg",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.svg",
           "sha256": "3ec25998264aa33ec24b9e39fa0e9bbe46b8343071ba0fc0b917689f6c06beb4"
         },
         "out.vector.json": {
           "bytes": 3642,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/out.vector.json",
-          "sha256": "cc5c76eb54a2077be8f5ea715fa2c8ee646eadede7c235b4a62bc8145f9021ea"
+          "path": "/private/tmp/s36-cad-final5/donut_filled/out.vector.json",
+          "sha256": "318fdd0b4f17c39b70ef15d0bf46ffe12612ee419593ceafb3d6a1ed249cfd01"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/source.png",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/donut_filled/structure.png",
+          "path": "/private/tmp/s36-cad-final5/donut_filled/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -1166,12 +1166,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/donut_filled/source.png",
-          "/private/tmp/s36-cad-final4/donut_filled/out.svg",
+          "/private/tmp/s36-cad-final5/donut_filled/source.png",
+          "/private/tmp/s36-cad-final5/donut_filled/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/donut_filled/mask.png",
+          "/private/tmp/s36-cad-final5/donut_filled/mask.png",
           "--width-mm",
           "32",
           "--layers",
@@ -1187,13 +1187,13 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/donut_filled/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/donut_filled/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/donut_filled/out.layers/silhouette.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/donut_filled/out.layers/silhouette.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/donut_filled/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/donut_filled/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/donut_filled/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/donut_filled/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/donut_filled/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/donut_filled/out.svg"
           },
           "counts": {
             "layers": 1,
@@ -1203,8 +1203,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.02012816583737731,
-        "stderr": "loading  /private/tmp/s36-cad-final4/donut_filled/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/donut_filled/out.scad\nsaved    /private/tmp/s36-cad-final4/donut_filled/out.svg (layers: silhouette; paths: 1)\n"
+        "seconds": 0.018027832731604576,
+        "stderr": "loading  /private/tmp/s36-cad-final5/donut_filled/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\ntracing  silhouette 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/donut_filled/out.scad\nsaved    /private/tmp/s36-cad-final5/donut_filled/out.svg (layers: silhouette; paths: 1)\n"
       },
       "errors": [],
       "expected": {
@@ -1261,7 +1261,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/donut_filled.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/donut_filled.png",
       "preview_sha256": "0f0754a118b3208c518826d848a6aa912b8260bea7a840d07a4d0a4eec02006f",
       "relief": {
         "backing_mm": 1.0,
@@ -1277,121 +1277,121 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/donut_filled/out.stl",
-          "/private/tmp/s36-cad-final4/donut_filled/out.scad"
+          "/private/tmp/s36-cad-final5/donut_filled/out.stl",
+          "/private/tmp/s36-cad-final5/donut_filled/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.14294175012037158,
-        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 6312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.029\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "seconds": 0.12721316702663898,
+        "stderr": "Geometries in cache: 5\nGeometry cache size in bytes: 6312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.028\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/donut_filled"
+      "work_dir": "/private/tmp/s36-cad-final5/donut_filled"
     },
     {
       "artifacts": {
         "area-detail.scad": {
           "bytes": 939,
-          "path": "/private/tmp/s36-cad-final4/preset/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/preset/area-detail.scad",
           "sha256": "73e054114f6a6efdb4b3e410f5ccf396c47ac89bf418166690c07e7a1a3c9959"
         },
         "area-detail.svg": {
           "bytes": 375,
-          "path": "/private/tmp/s36-cad-final4/preset/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/area-detail.svg",
           "sha256": "ec529253c3fd362fff9a3d1316a5f23067dfe2783259f5a0f03dbd99f6d6bc36"
         },
         "area-silhouette.scad": {
           "bytes": 943,
-          "path": "/private/tmp/s36-cad-final4/preset/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/preset/area-silhouette.scad",
           "sha256": "9479c824614b6805f93f2ad7479ac6054704f2a84637865560c973ba29ad6b9b"
         },
         "area-silhouette.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/preset/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/area-silhouette.svg",
           "sha256": "dcb6853c090d6a4b139f95c28929516aef4c683e25e568b086a493da4be4a669"
         },
         "area-structure.scad": {
           "bytes": 942,
-          "path": "/private/tmp/s36-cad-final4/preset/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/preset/area-structure.scad",
           "sha256": "3ec6fd8a6e1959f6593a4a0c7576a60552774ec92ea5acf06aa187862863149e"
         },
         "area-structure.svg": {
           "bytes": 377,
-          "path": "/private/tmp/s36-cad-final4/preset/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/area-structure.svg",
           "sha256": "03fd023ce2df03a139451f11f028b89386dcd1b724e619fb38da8c62d41b8010"
         },
         "detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/preset/detail.png",
+          "path": "/private/tmp/s36-cad-final5/preset/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "mask.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/preset/mask.png",
+          "path": "/private/tmp/s36-cad-final5/preset/mask.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/detail.png": {
           "bytes": 88,
-          "path": "/private/tmp/s36-cad-final4/preset/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/preset/out.debug/detail.png",
           "sha256": "1596ef180b5c67868560bbf5b78401f26d583fd8731d96b736481c529adfe1c1"
         },
         "out.debug/recipe.json": {
           "bytes": 811,
-          "path": "/private/tmp/s36-cad-final4/preset/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/preset/out.debug/recipe.json",
           "sha256": "8bc06d7436e2888d92f72cf269fcff74af316d9c23642a22fb250a45b7fb4f49"
         },
         "out.debug/silhouette.png": {
           "bytes": 91,
-          "path": "/private/tmp/s36-cad-final4/preset/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/preset/out.debug/silhouette.png",
           "sha256": "235f892e3da135d4ceb2dabc18e0b9e4f777d424e6cc93f912d0f4bf740ba7e6"
         },
         "out.debug/structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/preset/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/preset/out.debug/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         },
         "out.layers/detail.svg": {
           "bytes": 229,
-          "path": "/private/tmp/s36-cad-final4/preset/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/out.layers/detail.svg",
           "sha256": "eb791faadbb92300932892e9c6c3073ec5e1faf451133165c323ac211ba02f80"
         },
         "out.layers/silhouette.svg": {
           "bytes": 230,
-          "path": "/private/tmp/s36-cad-final4/preset/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/out.layers/silhouette.svg",
           "sha256": "f8bb6780e3a32fbd31cff6e01dfd3c59a7bfe117ce07109e569331cba8fe787b"
         },
         "out.layers/structure.svg": {
           "bytes": 228,
-          "path": "/private/tmp/s36-cad-final4/preset/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/out.layers/structure.svg",
           "sha256": "a1a66d7721f168824e329309ce92a6a5e2fe3dbb9cd4a08091aafb3490ea03d1"
         },
         "out.scad": {
           "bytes": 1357,
-          "path": "/private/tmp/s36-cad-final4/preset/out.scad",
+          "path": "/private/tmp/s36-cad-final5/preset/out.scad",
           "sha256": "02d5b882f249e3a57ccbbe9b1687344303f9ad6f4d76ce896a94371fba44d012"
         },
         "out.stl": {
           "bytes": 5562,
-          "path": "/private/tmp/s36-cad-final4/preset/out.stl",
+          "path": "/private/tmp/s36-cad-final5/preset/out.stl",
           "sha256": "17f1876ef99c17c1e0319f38ba41328a1bccc11541b555422f560b915440ff36"
         },
         "out.svg": {
           "bytes": 454,
-          "path": "/private/tmp/s36-cad-final4/preset/out.svg",
+          "path": "/private/tmp/s36-cad-final5/preset/out.svg",
           "sha256": "ddb8fe6c077ed69f919db57204f3afcc41cd3f2acbf4c96c77d0a9a307e9ab7a"
         },
         "out.vector.json": {
           "bytes": 7013,
-          "path": "/private/tmp/s36-cad-final4/preset/out.vector.json",
-          "sha256": "90f492fbdf93921c856abdf193082c326fa0930582c163fe1f60f22b3f35e93e"
+          "path": "/private/tmp/s36-cad-final5/preset/out.vector.json",
+          "sha256": "67fd19b63f0efe75c7c25e5458d320c80a70076909c98a7f190d6484351ad41b"
         },
         "source.png": {
           "bytes": 109,
-          "path": "/private/tmp/s36-cad-final4/preset/source.png",
+          "path": "/private/tmp/s36-cad-final5/preset/source.png",
           "sha256": "86b3dde8b4c4f1d060bb5ca6fbec28177d25dd2047c1a5ce1e0c055934968d97"
         },
         "structure.png": {
           "bytes": 86,
-          "path": "/private/tmp/s36-cad-final4/preset/structure.png",
+          "path": "/private/tmp/s36-cad-final5/preset/structure.png",
           "sha256": "b70f220b344f580ac5378985235c56d7b1e50c62d8939e23f2ffd40741dd49d0"
         }
       },
@@ -1400,20 +1400,20 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/preset/source.png",
-          "/private/tmp/s36-cad-final4/preset/out.svg",
+          "/private/tmp/s36-cad-final5/preset/source.png",
+          "/private/tmp/s36-cad-final5/preset/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/preset/mask.png",
+          "/private/tmp/s36-cad-final5/preset/mask.png",
           "--width-mm",
           "32",
           "--layers",
           "silhouette,structure,detail",
           "--structure-map",
-          "/private/tmp/s36-cad-final4/preset/structure.png",
+          "/private/tmp/s36-cad-final5/preset/structure.png",
           "--detail-map",
-          "/private/tmp/s36-cad-final4/preset/detail.png",
+          "/private/tmp/s36-cad-final5/preset/detail.png",
           "--preset",
           "relief-0.4",
           "--export-scad",
@@ -1423,15 +1423,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/preset/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/preset/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/preset/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/preset/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/preset/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/preset/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/preset/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/preset/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/preset/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/preset/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/preset/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/preset/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/preset/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/preset/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -1454,8 +1454,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.026595875155180693,
-        "stderr": "loading  /private/tmp/s36-cad-final4/preset/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final4/preset/out.scad\nsaved    /private/tmp/s36-cad-final4/preset/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+        "seconds": 0.024984208401292562,
+        "stderr": "loading  /private/tmp/s36-cad-final5/preset/source.png\nraster   original 32x24, oriented 32x24, processed 32x24 px, scale 1 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1 mm, kernel 1 px, radius 0 px, expansion 0 mm per side\ntracing  silhouette 32x24 px as 32x24 mm\ntracing  structure 32x24 px as 32x24 mm\ntracing  detail 32x24 px as 32x24 mm\nscad     /private/tmp/s36-cad-final5/preset/out.scad\nsaved    /private/tmp/s36-cad-final5/preset/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
       },
       "errors": [],
       "expected": {
@@ -1519,7 +1519,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/preset.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/preset.png",
       "preview_sha256": "2a5c462003cd8fc04293d53129cd8896a6c2afd552cee4850883903d40448752",
       "relief": {
         "backing_mm": 0.0,
@@ -1535,96 +1535,96 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/preset/out.stl",
-          "/private/tmp/s36-cad-final4/preset/out.scad"
+          "/private/tmp/s36-cad-final5/preset/out.stl",
+          "/private/tmp/s36-cad-final5/preset/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 0.14760308293625712,
-        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 6960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.039\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
+        "seconds": 0.13731379201635718,
+        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 6960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 33360\nTotal rendering time: 0:00:00.037\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:       24\n   Halfedges:      72\n   Edges:          36\n   Halffacets:     32\n   Facets:         16\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/preset"
+      "work_dir": "/private/tmp/s36-cad-final5/preset"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 727,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/area-silhouette.scad",
           "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
         },
         "area-silhouette.svg": {
           "bytes": 3139,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/area-silhouette.svg",
           "sha256": "f33299e410e74e1cddb403efd188de8b707fe337754b7de10576d5ce6929fd6d"
         },
         "area-structure.scad": {
           "bytes": 726,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/area-structure.scad",
           "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
         },
         "area-structure.svg": {
           "bytes": 6039,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/area-structure.svg",
           "sha256": "fbc155682e6bcc511384b9b5789b8e01e0cf04369c3f1749364538361bb5e389"
         },
         "mask.png": {
           "bytes": 1817,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/mask.png",
           "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
         },
         "out.debug/detail.png": {
           "bytes": 143,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.debug/detail.png",
           "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 1817,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.debug/silhouette.png",
           "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
         },
         "out.debug/structure.png": {
           "bytes": 2460,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.debug/structure.png",
           "sha256": "8010e7fdc6a886a99cc9577a30a4c5ec3667106ace6f2a8b6894fee639348fd3"
         },
         "out.layers/silhouette.svg": {
           "bytes": 1590,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.layers/silhouette.svg",
           "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
         },
         "out.layers/structure.svg": {
           "bytes": 2809,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.layers/structure.svg",
           "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
         },
         "out.scad": {
           "bytes": 1032,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.scad",
           "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
         },
         "out.stl": {
           "bytes": 193156,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.stl",
           "sha256": "cd310568f4b501893ba9b4739c24ed6dc587563200f16862cb55e5f67f604d10"
         },
         "out.svg": {
           "bytes": 4291,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.svg",
           "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
         },
         "out.vector.json": {
           "bytes": 7139,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/out.vector.json",
-          "sha256": "e12bf7317f052b0eb58cc96f77e2cb823a91089ef424ebecce474be10bb42710"
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/out.vector.json",
+          "sha256": "b18e793017daefc97cc4e602314fde40016015f78ef0a9fdca88587abd19202d"
         },
         "source.png": {
           "bytes": 4038,
-          "path": "/private/tmp/s36-cad-final4/corpus_badge/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_badge/source.png",
           "sha256": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f"
         }
       },
@@ -1633,12 +1633,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_badge/source.png",
-          "/private/tmp/s36-cad-final4/corpus_badge/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_badge/source.png",
+          "/private/tmp/s36-cad-final5/corpus_badge/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_badge/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_badge/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -1652,14 +1652,14 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_badge/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_badge/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_badge/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_badge/out.layers/structure.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_badge/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_badge/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_badge/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_badge/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_badge/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_badge/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_badge/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_badge/out.svg"
           },
           "counts": {
             "layers": 2,
@@ -1708,8 +1708,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.06651916727423668,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final4/corpus_badge/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_badge/out.svg (layers: silhouette, structure; paths: 14)\n"
+        "seconds": 0.06307699996978045,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final5/corpus_badge/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_badge/out.svg (layers: silhouette, structure; paths: 14)\n"
       },
       "errors": [],
       "expected": {
@@ -1777,7 +1777,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_badge.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_badge.png",
       "preview_sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd",
       "relief": {
         "backing_mm": 0.0,
@@ -1793,96 +1793,96 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_badge/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_badge/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_badge/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_badge/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 3.1158790839836,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:02.969\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
+        "seconds": 3.055386000312865,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:02.915\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_badge"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_badge"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 727,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/area-silhouette.scad",
           "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
         },
         "area-silhouette.svg": {
           "bytes": 2903,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/area-silhouette.svg",
           "sha256": "2c649945ff48c00dcad546782490e4a5d6da3aa239b9914eef14d28cab7526d7"
         },
         "area-structure.scad": {
           "bytes": 726,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/area-structure.scad",
           "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
         },
         "area-structure.svg": {
           "bytes": 3078,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/area-structure.svg",
           "sha256": "0dab9edf3b66379039f77b2449e2150e99aadd21ee6563c2a9f5d34dee7c360b"
         },
         "mask.png": {
           "bytes": 968,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/mask.png",
           "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
         },
         "out.debug/detail.png": {
           "bytes": 143,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.debug/detail.png",
           "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 968,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.debug/silhouette.png",
           "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
         },
         "out.debug/structure.png": {
           "bytes": 995,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.debug/structure.png",
           "sha256": "2a67cac4201478e8c4e90de6b1e83ffcd3bbc8328b6587ced831a9950af6aef6"
         },
         "out.layers/silhouette.svg": {
           "bytes": 1467,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.layers/silhouette.svg",
           "sha256": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196"
         },
         "out.layers/structure.svg": {
           "bytes": 1534,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.layers/structure.svg",
           "sha256": "31fae193dc2105d5be4cd350fb8e7ec2e757ee6574aee01421d7a2d3dc33fd99"
         },
         "out.scad": {
           "bytes": 1032,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.scad",
           "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
         },
         "out.stl": {
           "bytes": 90892,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.stl",
           "sha256": "f0dfd912cbaac082e2ba7edc26f90c50dc56bee6e885c0cecb9867dcf4c9aed4"
         },
         "out.svg": {
           "bytes": 2893,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.svg",
           "sha256": "a9f7da4e395ffd005af8f526c190d7d76db43147db4a82879eb54d28d4675ac9"
         },
         "out.vector.json": {
           "bytes": 7148,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/out.vector.json",
-          "sha256": "314b644969691c83bc6b7a32952eadd09b90b36b0255046f1ffe01e8172f6117"
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/out.vector.json",
+          "sha256": "e0fcc4303193fc5db133b5491d25dc188941d13da1d80b7c78e1262c50a9c624"
         },
         "source.png": {
           "bytes": 1847,
-          "path": "/private/tmp/s36-cad-final4/corpus_bracket/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_bracket/source.png",
           "sha256": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3"
         }
       },
@@ -1891,12 +1891,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_bracket/source.png",
-          "/private/tmp/s36-cad-final4/corpus_bracket/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_bracket/source.png",
+          "/private/tmp/s36-cad-final5/corpus_bracket/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_bracket/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_bracket/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -1910,14 +1910,14 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_bracket/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_bracket/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_bracket/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_bracket/out.layers/structure.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_bracket/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_bracket/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_bracket/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_bracket/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_bracket/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_bracket/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_bracket/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_bracket/out.svg"
           },
           "counts": {
             "layers": 2,
@@ -1966,8 +1966,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.039211292285472155,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_bracket/source.png\nwarning: Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final4/corpus_bracket/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_bracket/out.svg (layers: silhouette, structure; paths: 12)\n"
+        "seconds": 0.036257542204111814,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_bracket/source.png\nwarning: Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final5/corpus_bracket/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_bracket/out.svg (layers: silhouette, structure; paths: 12)\n"
       },
       "errors": [],
       "expected": {
@@ -2035,7 +2035,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_bracket.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_bracket.png",
       "preview_sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d",
       "relief": {
         "backing_mm": 0.0,
@@ -2051,111 +2051,111 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_bracket/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_bracket/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_bracket/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_bracket/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 2.6415441245771945,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.515\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
+        "seconds": 2.52850658306852,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.412\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_bracket"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_bracket"
     },
     {
       "artifacts": {
         "area-detail.scad": {
           "bytes": 1086,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-detail.scad",
           "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
         },
         "area-detail.svg": {
           "bytes": 411,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-detail.svg",
           "sha256": "1d2354a750fb71dcd24a50aac58b110782b8b440d3e937651ba6e7ab31f435a9"
         },
         "area-silhouette.scad": {
           "bytes": 1090,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-silhouette.scad",
           "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
         },
         "area-silhouette.svg": {
           "bytes": 12165,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-silhouette.svg",
           "sha256": "87bdb8da6964560dfc14403065214e5c6ecc8d1fceebf22649d50d00b6adc9d5"
         },
         "area-structure.scad": {
           "bytes": 1089,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-structure.scad",
           "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
         },
         "area-structure.svg": {
           "bytes": 13323,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/area-structure.svg",
           "sha256": "9dd2254067ab0767039537a17ee5e1c17e238a477b17d0d090d70739e3745a90"
         },
         "mask.png": {
           "bytes": 2705,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/mask.png",
           "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
         },
         "out.debug/detail.png": {
           "bytes": 257,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.debug/detail.png",
           "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 2705,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.debug/silhouette.png",
           "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
         },
         "out.debug/structure.png": {
           "bytes": 2861,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.debug/structure.png",
           "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
         },
         "out.layers/detail.svg": {
           "bytes": 234,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/detail.svg",
           "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
         },
         "out.layers/silhouette.svg": {
           "bytes": 5497,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/silhouette.svg",
           "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
         },
         "out.layers/structure.svg": {
           "bytes": 6242,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/structure.svg",
           "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
         },
         "out.scad": {
           "bytes": 1506,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.scad",
           "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
         },
         "out.stl": {
           "bytes": 496349,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.stl",
           "sha256": "23683ac48439e807ad3801307ae5419457f26d6d5fc0e375c3a18b750876f081"
         },
         "out.svg": {
           "bytes": 11732,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.svg",
           "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
         },
         "out.vector.json": {
           "bytes": 7633,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/out.vector.json",
-          "sha256": "5f0b1e86554304d980f4c25c96eec3b160e4978825ebbca4c341b0382dd69379"
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/out.vector.json",
+          "sha256": "a894c2b7813ecdce3011456a6cf8e105fc1b6e35d5c95a6cfb9236966af3cdf8"
         },
         "source.png": {
           "bytes": 32373,
-          "path": "/private/tmp/s36-cad-final4/corpus_brick/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_brick/source.png",
           "sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435"
         }
       },
@@ -2164,12 +2164,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_brick/source.png",
-          "/private/tmp/s36-cad-final4/corpus_brick/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_brick/source.png",
+          "/private/tmp/s36-cad-final5/corpus_brick/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_brick/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_brick/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -2183,15 +2183,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_brick/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_brick/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_brick/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_brick/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_brick/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_brick/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_brick/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_brick/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_brick/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_brick/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -2241,8 +2241,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.25957000022754073,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_brick/source.png\nwarning: Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final4/corpus_brick/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_brick/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
+        "seconds": 0.24798733415082097,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_brick/source.png\nwarning: Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final5/corpus_brick/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_brick/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
       },
       "errors": [],
       "expected": {
@@ -2307,7 +2307,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_brick.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_brick.png",
       "preview_sha256": "1840a8ae46df33e0331037c8c8b5392cdcf4b5510bbda1fb94c817ec34857547",
       "relief": {
         "backing_mm": 0.0,
@@ -2323,111 +2323,111 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_brick/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_brick/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_brick/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_brick/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 14.718993291258812,
-        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 906672\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 1997096\nTotal rendering time: 0:00:14.508\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1473\n   Halfedges:    4436\n   Edges:        2218\n   Halffacets:   1518\n   Facets:        759\n   Volumes:         2\n",
+        "seconds": 14.483532750047743,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 906672\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 1997096\nTotal rendering time: 0:00:14.270\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1473\n   Halfedges:    4436\n   Edges:        2218\n   Halffacets:   1518\n   Facets:        759\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_brick"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_brick"
     },
     {
       "artifacts": {
         "area-detail.scad": {
           "bytes": 1086,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-detail.scad",
           "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
         },
         "area-detail.svg": {
           "bytes": 14608,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-detail.svg",
           "sha256": "1b2514a0d68f3b057de605ed5c8ea3889f16469e2141fd63110b6f16a3728686"
         },
         "area-silhouette.scad": {
           "bytes": 1090,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-silhouette.scad",
           "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
         },
         "area-silhouette.svg": {
           "bytes": 6310,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-silhouette.svg",
           "sha256": "fc8fc4bd6c22fac3d7795d17a1bc91f9b700fbf755a7e16edc3cb3b0f18cb7e6"
         },
         "area-structure.scad": {
           "bytes": 1089,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-structure.scad",
           "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
         },
         "area-structure.svg": {
           "bytes": 16773,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/area-structure.svg",
           "sha256": "662e233b6e5295c2cfb61f169df5a7f08a099cae49e1c81e7dde15db87c7811f"
         },
         "mask.png": {
           "bytes": 1713,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/mask.png",
           "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
         },
         "out.debug/detail.png": {
           "bytes": 2366,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.debug/detail.png",
           "sha256": "cc808c53906da381b579583839362eb37503d347e34326611c5cf23a43ef080e"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 1713,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.debug/silhouette.png",
           "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
         },
         "out.debug/structure.png": {
           "bytes": 3211,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.debug/structure.png",
           "sha256": "ee786281d1b868fbe589f81acd3b3bf085e77d2fc50abf0c1204c5bb11793870"
         },
         "out.layers/detail.svg": {
           "bytes": 7067,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/detail.svg",
           "sha256": "9e2ec35223ae4b4757468e4a718258859e3d0d7407c8072c3295418f794f9ca1"
         },
         "out.layers/silhouette.svg": {
           "bytes": 3702,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/silhouette.svg",
           "sha256": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707"
         },
         "out.layers/structure.svg": {
           "bytes": 7995,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/structure.svg",
           "sha256": "1a88740aaa39934b393c17dc065fcdd86dc4c32b8822d2ba3df54a2e0c21da9c"
         },
         "out.scad": {
           "bytes": 1511,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.scad",
           "sha256": "c474dde659efe9f9e6a2d662c26ace8a2b88a7ffdc49f3804bae830a639f46a7"
         },
         "out.stl": {
           "bytes": 999800,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.stl",
           "sha256": "2cadb861a77df941d0e566d9af55c27da1f282b8921cc639133a2b856332c222"
         },
         "out.svg": {
           "bytes": 18513,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.svg",
           "sha256": "ebe710885a3b8fa705d81d9a4ed200aad31c1d854cc46d5c32a54d22e85c4443"
         },
         "out.vector.json": {
           "bytes": 8985,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/out.vector.json",
-          "sha256": "dfbe6a95b0a6dedfef2f363f0d58d267569e11e827de531f0b0096ec85eb3292"
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/out.vector.json",
+          "sha256": "1d7c431329ec7e5e979f0067014e3d245affe4e17511534b6f50def68cd5c192"
         },
         "source.png": {
           "bytes": 35775,
-          "path": "/private/tmp/s36-cad-final4/corpus_coins/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_coins/source.png",
           "sha256": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5"
         }
       },
@@ -2436,12 +2436,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_coins/source.png",
-          "/private/tmp/s36-cad-final4/corpus_coins/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_coins/source.png",
+          "/private/tmp/s36-cad-final5/corpus_coins/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_coins/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_coins/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -2455,15 +2455,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_coins/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_coins/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_coins/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_coins/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_coins/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_coins/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_coins/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_coins/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_coins/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_coins/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -2540,8 +2540,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.08308500004932284,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_coins/source.png\nwarning: Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x202, oriented 256x202, processed 256x202 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x202 px as 100x78.9062 mm\ntracing  structure 256x202 px as 100x78.9062 mm\nwarning: structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x202 px as 100x78.9062 mm\nwarning: detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final4/corpus_coins/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_coins/out.svg (layers: silhouette, structure, detail; paths: 101)\n"
+        "seconds": 0.07835491606965661,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_coins/source.png\nwarning: Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x202, oriented 256x202, processed 256x202 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x202 px as 100x78.9062 mm\ntracing  structure 256x202 px as 100x78.9062 mm\nwarning: structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x202 px as 100x78.9062 mm\nwarning: detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final5/corpus_coins/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_coins/out.svg (layers: silhouette, structure, detail; paths: 101)\n"
       },
       "errors": [],
       "expected": {
@@ -2628,7 +2628,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_coins.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_coins.png",
       "preview_sha256": "80dc09b63f686166bd26d93c433e5e84d4a406c93acdef58a7512fea712bdcc1",
       "relief": {
         "backing_mm": 0.0,
@@ -2644,111 +2644,111 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_coins/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_coins/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_coins/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_coins/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 10.989452291745692,
-        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 1267488\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 4219072\nTotal rendering time: 0:00:10.682\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3118\n   Halfedges:    9358\n   Edges:        4679\n   Halffacets:   3334\n   Facets:       1667\n   Volumes:        25\n",
+        "seconds": 10.761137875262648,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 1267488\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 4219072\nTotal rendering time: 0:00:10.467\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3118\n   Halfedges:    9358\n   Edges:        4679\n   Halffacets:   3334\n   Facets:       1667\n   Volumes:        25\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_coins"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_coins"
     },
     {
       "artifacts": {
         "area-detail.scad": {
           "bytes": 1086,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-detail.scad",
           "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
         },
         "area-detail.svg": {
           "bytes": 5815,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-detail.svg",
           "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
         },
         "area-silhouette.scad": {
           "bytes": 1090,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-silhouette.scad",
           "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
         },
         "area-silhouette.svg": {
           "bytes": 48183,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-silhouette.svg",
           "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
         },
         "area-structure.scad": {
           "bytes": 1089,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-structure.scad",
           "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
         },
         "area-structure.svg": {
           "bytes": 68418,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/area-structure.svg",
           "sha256": "dcfc2b203f93d7895c062337c3bc428df733a757c1f4de1e8693216d53be17e9"
         },
         "mask.png": {
           "bytes": 7971,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/mask.png",
           "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
         },
         "out.debug/detail.png": {
           "bytes": 2598,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.debug/detail.png",
           "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 7971,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.debug/silhouette.png",
           "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
         },
         "out.debug/structure.png": {
           "bytes": 9534,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.debug/structure.png",
           "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
         },
         "out.layers/detail.svg": {
           "bytes": 3945,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/detail.svg",
           "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
         },
         "out.layers/silhouette.svg": {
           "bytes": 28836,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/silhouette.svg",
           "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
         },
         "out.layers/structure.svg": {
           "bytes": 36131,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/structure.svg",
           "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
         },
         "out.scad": {
           "bytes": 1506,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.scad",
           "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
         },
         "out.stl": {
           "bytes": 2936516,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.stl",
-          "sha256": "a9cffea7e7aed809bc726f6a5cfcef562f9752e4aafcc329f1dfec8e15a07acb"
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.stl",
+          "sha256": "1f3dc0339d5cd0c314eef1c8b70c7abf348037ed3081a72e480963f8733b2a2b"
         },
         "out.svg": {
           "bytes": 68671,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.svg",
           "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
         },
         "out.vector.json": {
           "bytes": 8362,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/out.vector.json",
-          "sha256": "2fbe087f8cc185b2509260412dd56cc725a5729513e3d5239dfb4d920bc1fd4f"
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/out.vector.json",
+          "sha256": "b008abd8257113a323f654ff6a7328e3e76bfabdec876add4d18c403dfb4ac7b"
         },
         "source.png": {
           "bytes": 54353,
-          "path": "/private/tmp/s36-cad-final4/corpus_gravel/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_gravel/source.png",
           "sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543"
         }
       },
@@ -2757,12 +2757,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_gravel/source.png",
-          "/private/tmp/s36-cad-final4/corpus_gravel/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_gravel/source.png",
+          "/private/tmp/s36-cad-final5/corpus_gravel/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_gravel/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_gravel/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -2776,15 +2776,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_gravel/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_gravel/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_gravel/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_gravel/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_gravel/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_gravel/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_gravel/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_gravel/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_gravel/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_gravel/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -2847,8 +2847,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.6295742918737233,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final4/corpus_gravel/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_gravel/out.svg (layers: silhouette, structure, detail; paths: 474)\n"
+        "seconds": 0.6252579586580396,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final5/corpus_gravel/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_gravel/out.svg (layers: silhouette, structure, detail; paths: 474)\n"
       },
       "errors": [],
       "expected": {
@@ -3121,7 +3121,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_gravel.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_gravel.png",
       "preview_sha256": "8190a4d0e52a90d41af702c7633e26d5cee7c5b50fa0b2753936a344066137e5",
       "relief": {
         "backing_mm": 0.0,
@@ -3137,96 +3137,96 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_gravel/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_gravel/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_gravel/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_gravel/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 60.13878941722214,
-        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 3900000\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 13149088\nTotal rendering time: 0:00:59.445\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9520\n   Halfedges:   29070\n   Edges:       14535\n   Halffacets:  11184\n   Facets:       5592\n   Volumes:       210\n",
+        "seconds": 56.415431750006974,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 3900000\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 13149088\nTotal rendering time: 0:00:55.729\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9520\n   Halfedges:   29070\n   Edges:       14535\n   Halffacets:  11184\n   Facets:       5592\n   Volumes:       210\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_gravel"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_gravel"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 727,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/area-silhouette.scad",
           "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
         },
         "area-silhouette.svg": {
           "bytes": 2803,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/area-silhouette.svg",
           "sha256": "d1287dcc3ee1973eac52667e73f4ae911ccc772d6ad7f5de6e49549293945c6d"
         },
         "area-structure.scad": {
           "bytes": 726,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/area-structure.scad",
           "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
         },
         "area-structure.svg": {
           "bytes": 4930,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/area-structure.svg",
           "sha256": "44075861016a9be12639a2a718f7c2aa8799b899fe508e333e923eaf93b01247"
         },
         "mask.png": {
           "bytes": 1236,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/mask.png",
           "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
         },
         "out.debug/detail.png": {
           "bytes": 132,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.debug/detail.png",
           "sha256": "ecfeb413d83685b9485b07939ba8606b999a333d65ae6a8f75f92a1e69e0650b"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 1236,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.debug/silhouette.png",
           "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
         },
         "out.debug/structure.png": {
           "bytes": 1753,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.debug/structure.png",
           "sha256": "52d62e1f487173738d75034defa9f40be6076a81866815badfe3f1ea33dd39aa"
         },
         "out.layers/silhouette.svg": {
           "bytes": 1390,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.layers/silhouette.svg",
           "sha256": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb"
         },
         "out.layers/structure.svg": {
           "bytes": 2425,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.layers/structure.svg",
           "sha256": "402f12c823d3ad271bc756701c6260f28e96cbf0587f544d27d943d97256105c"
         },
         "out.scad": {
           "bytes": 1037,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.scad",
           "sha256": "c5adf7a4013cd8c2f1d3b616828bc8d416906659d26151505abb6a8d891c606a"
         },
         "out.stl": {
           "bytes": 158072,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.stl",
           "sha256": "102e7cf0c2aea6b32f9cc53543bb5439fe1a99bc6be8fbf7ba87864ca17e70d3"
         },
         "out.svg": {
           "bytes": 3702,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.svg",
           "sha256": "7cd01393a4ad97ddc28e6cce718248f642b2fb3f4cc7bb86ad464c5d4ca01aaf"
         },
         "out.vector.json": {
           "bytes": 6837,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/out.vector.json",
-          "sha256": "66cec4886abca86a0e11654e6aaf8dc86b0ab5f046fd9af5b88896ea86f93c6f"
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/out.vector.json",
+          "sha256": "a51f1fb59577883835e0941b84df58312e960cd2b9f843387244582de903b720"
         },
         "source.png": {
           "bytes": 5858,
-          "path": "/private/tmp/s36-cad-final4/corpus_horse/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_horse/source.png",
           "sha256": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d"
         }
       },
@@ -3235,12 +3235,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_horse/source.png",
-          "/private/tmp/s36-cad-final4/corpus_horse/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_horse/source.png",
+          "/private/tmp/s36-cad-final5/corpus_horse/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_horse/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_horse/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -3254,14 +3254,14 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_horse/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_horse/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_horse/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_horse/out.layers/structure.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_horse/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_horse/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_horse/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_horse/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_horse/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_horse/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_horse/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_horse/out.svg"
           },
           "counts": {
             "layers": 2,
@@ -3304,8 +3304,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.04378841631114483,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_horse/source.png\nwarning: Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x210, oriented 256x210, processed 256x210 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x210 px as 100x82.0312 mm\ntracing  structure 256x210 px as 100x82.0312 mm\nscad     /private/tmp/s36-cad-final4/corpus_horse/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_horse/out.svg (layers: silhouette, structure; paths: 2)\n"
+        "seconds": 0.0438078329898417,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_horse/source.png\nwarning: Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x210, oriented 256x210, processed 256x210 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x210 px as 100x82.0312 mm\ntracing  structure 256x210 px as 100x82.0312 mm\nscad     /private/tmp/s36-cad-final5/corpus_horse/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_horse/out.svg (layers: silhouette, structure; paths: 2)\n"
       },
       "errors": [],
       "expected": {
@@ -3368,7 +3368,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_horse.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_horse.png",
       "preview_sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b",
       "relief": {
         "backing_mm": 0.0,
@@ -3384,96 +3384,96 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_horse/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_horse/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_horse/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_horse/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 2.681987708900124,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.547\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
+        "seconds": 2.7174130002968013,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.588\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_horse"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_horse"
     },
     {
       "artifacts": {
         "area-silhouette.scad": {
           "bytes": 727,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/area-silhouette.scad",
           "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
         },
         "area-silhouette.svg": {
           "bytes": 19199,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/area-silhouette.svg",
           "sha256": "5c1fad1f5f424fe00b6401ecd640d209761a88a2c061c46dec0d4196ae781d83"
         },
         "area-structure.scad": {
           "bytes": 726,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/area-structure.scad",
           "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
         },
         "area-structure.svg": {
           "bytes": 40193,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/area-structure.svg",
           "sha256": "c5d7d0b82068a1c57b2a75327d31c12ad7d2c591f34cd304a0e4fb894d55aad8"
         },
         "mask.png": {
           "bytes": 898,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/mask.png",
           "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
         },
         "out.debug/detail.png": {
           "bytes": 143,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.debug/detail.png",
           "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 898,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.debug/silhouette.png",
           "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
         },
         "out.debug/structure.png": {
           "bytes": 1322,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.debug/structure.png",
           "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
         },
         "out.layers/silhouette.svg": {
           "bytes": 8350,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.layers/silhouette.svg",
           "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
         },
         "out.layers/structure.svg": {
           "bytes": 19388,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.layers/structure.svg",
           "sha256": "617e81d5c89977b68fea79088835b45134bcfb80b971f01783fd989f57c3f992"
         },
         "out.scad": {
           "bytes": 1032,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.scad",
           "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
         },
         "out.stl": {
           "bytes": 1380647,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.stl",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.stl",
           "sha256": "9392fca506bf6ae6e980e7c6aaa1a73704239430cec0d3327a686ef31f930704"
         },
         "out.svg": {
           "bytes": 27630,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.svg",
           "sha256": "1b6388b710fa39a0c1cea986855179a0a7eea6500ad7cc85cafd80a9c166b14a"
         },
         "out.vector.json": {
           "bytes": 7232,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/out.vector.json",
-          "sha256": "3bcdd62a050fb4a7131e0b7fe9a29a73fd50b9e6eb4f592b8d88222bcd76a355"
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/out.vector.json",
+          "sha256": "53958d42f9836a57e7055d374f2cc4a4de7887a48826f421d5ad4c92cb592271"
         },
         "source.png": {
           "bytes": 1373,
-          "path": "/private/tmp/s36-cad-final4/corpus_pcb/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_pcb/source.png",
           "sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c"
         }
       },
@@ -3482,12 +3482,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_pcb/source.png",
-          "/private/tmp/s36-cad-final4/corpus_pcb/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_pcb/source.png",
+          "/private/tmp/s36-cad-final5/corpus_pcb/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_pcb/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_pcb/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -3501,14 +3501,14 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_pcb/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_pcb/out.debug",
             "layers": {
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_pcb/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_pcb/out.layers/structure.svg"
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_pcb/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_pcb/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_pcb/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_pcb/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_pcb/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_pcb/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_pcb/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_pcb/out.svg"
           },
           "counts": {
             "layers": 2,
@@ -3557,8 +3557,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.2809850829653442,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_pcb/source.png\nwarning: Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final4/corpus_pcb/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_pcb/out.svg (layers: silhouette, structure; paths: 124)\n"
+        "seconds": 0.27616575034335256,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_pcb/source.png\nwarning: Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-final5/corpus_pcb/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_pcb/out.svg (layers: silhouette, structure; paths: 124)\n"
       },
       "errors": [],
       "expected": {
@@ -3650,7 +3650,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_pcb.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_pcb.png",
       "preview_sha256": "27aa84382fbf58c307e80645570b3e8422df0c34780434e8afe6a7b4a10e87a1",
       "relief": {
         "backing_mm": 0.0,
@@ -3666,111 +3666,111 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_pcb/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_pcb/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_pcb/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_pcb/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 23.522085041739047,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 1920048\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 5706112\nTotal rendering time: 0:00:23.147\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     4204\n   Halfedges:   12612\n   Edges:        6306\n   Halffacets:   4580\n   Facets:       2290\n   Volumes:        31\n",
+        "seconds": 22.413245958741754,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 1920048\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 5706112\nTotal rendering time: 0:00:22.049\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     4204\n   Halfedges:   12612\n   Edges:        6306\n   Halffacets:   4580\n   Facets:       2290\n   Volumes:        31\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_pcb"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_pcb"
     },
     {
       "artifacts": {
         "area-detail.scad": {
           "bytes": 1086,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-detail.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-detail.scad",
           "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
         },
         "area-detail.svg": {
           "bytes": 2525,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-detail.svg",
           "sha256": "db1a9e5fd8f6fb3ae745c65339d72086e8b3474643c5e55a0f63103549608af8"
         },
         "area-silhouette.scad": {
           "bytes": 1090,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-silhouette.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-silhouette.scad",
           "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
         },
         "area-silhouette.svg": {
           "bytes": 40490,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-silhouette.svg",
           "sha256": "71d8ed0cb9bcf69f870c0267b1b4bf639eabd915e137c5e980e9bfaf934a2e92"
         },
         "area-structure.scad": {
           "bytes": 1089,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-structure.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-structure.scad",
           "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
         },
         "area-structure.svg": {
           "bytes": 44596,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/area-structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/area-structure.svg",
           "sha256": "ffdd5e2d559bf29ef479da5b869528b664a95227fc640a3ccb54bbe71c651303"
         },
         "mask.png": {
           "bytes": 4855,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/mask.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/mask.png",
           "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
         },
         "out.debug/detail.png": {
           "bytes": 641,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.debug/detail.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.debug/detail.png",
           "sha256": "1c3ed33d1b6ba03bde4bde0d49fa413f53eeaa984675e75a82f999c41da61b5f"
         },
         "out.debug/recipe.json": {
           "bytes": 812,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.debug/recipe.json",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.debug/recipe.json",
           "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
         },
         "out.debug/silhouette.png": {
           "bytes": 4855,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.debug/silhouette.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.debug/silhouette.png",
           "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
         },
         "out.debug/structure.png": {
           "bytes": 5842,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.debug/structure.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.debug/structure.png",
           "sha256": "91995e87e0af7023b1831dae1749e65f08f2cfa3b86206f2e46fc97056dee3e3"
         },
         "out.layers/detail.svg": {
           "bytes": 1482,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/detail.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/detail.svg",
           "sha256": "fcffbb2b358bf43a9ebf9f063ca19d7ef91c1bd5d6ef75f4d064f3cead77eba1"
         },
         "out.layers/silhouette.svg": {
           "bytes": 19400,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/silhouette.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/silhouette.svg",
           "sha256": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933"
         },
         "out.layers/structure.svg": {
           "bytes": 24622,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/structure.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/structure.svg",
           "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
         },
         "out.scad": {
           "bytes": 1506,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.scad",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.scad",
           "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
         },
         "out.stl": {
           "bytes": 1634375,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.stl",
-          "sha256": "730a899e7e3198e7b46d104890dceace5d341d0a1f51b7f12950e19809400dc6"
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.stl",
+          "sha256": "1fa12eb7a6cb2865a6e91025849492f4920a566de372498fedcfc4fc46e2e173"
         },
         "out.svg": {
           "bytes": 45263,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.svg",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.svg",
           "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
         },
         "out.vector.json": {
           "bytes": 8237,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/out.vector.json",
-          "sha256": "8dba995353e803e7f14cefcac39abcbe8b883411b99595dd9baf4e1ca04d2c4c"
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/out.vector.json",
+          "sha256": "cbead06d327249530e987eb703d872729b4aafe19a9735b369abc9c3ec95d99c"
         },
         "source.png": {
           "bytes": 47939,
-          "path": "/private/tmp/s36-cad-final4/corpus_truchet/source.png",
+          "path": "/private/tmp/s36-cad-final5/corpus_truchet/source.png",
           "sha256": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51"
         }
       },
@@ -3779,12 +3779,12 @@
         "argv": [
           "python",
           "scripts/vector_map.py",
-          "/private/tmp/s36-cad-final4/corpus_truchet/source.png",
-          "/private/tmp/s36-cad-final4/corpus_truchet/out.svg",
+          "/private/tmp/s36-cad-final5/corpus_truchet/source.png",
+          "/private/tmp/s36-cad-final5/corpus_truchet/out.svg",
           "--input-kind",
           "image",
           "--mask",
-          "/private/tmp/s36-cad-final4/corpus_truchet/mask.png",
+          "/private/tmp/s36-cad-final5/corpus_truchet/mask.png",
           "--width-mm",
           "100",
           "--layers",
@@ -3798,15 +3798,15 @@
         "exit_code": 0,
         "result": {
           "artifacts": {
-            "debug": "/private/tmp/s36-cad-final4/corpus_truchet/out.debug",
+            "debug": "/private/tmp/s36-cad-final5/corpus_truchet/out.debug",
             "layers": {
-              "detail": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/detail.svg",
-              "silhouette": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/silhouette.svg",
-              "structure": "/private/tmp/s36-cad-final4/corpus_truchet/out.layers/structure.svg"
+              "detail": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/detail.svg",
+              "silhouette": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/silhouette.svg",
+              "structure": "/private/tmp/s36-cad-final5/corpus_truchet/out.layers/structure.svg"
             },
-            "manifest": "/private/tmp/s36-cad-final4/corpus_truchet/out.vector.json",
-            "scad": "/private/tmp/s36-cad-final4/corpus_truchet/out.scad",
-            "svg": "/private/tmp/s36-cad-final4/corpus_truchet/out.svg"
+            "manifest": "/private/tmp/s36-cad-final5/corpus_truchet/out.vector.json",
+            "scad": "/private/tmp/s36-cad-final5/corpus_truchet/out.scad",
+            "svg": "/private/tmp/s36-cad-final5/corpus_truchet/out.svg"
           },
           "counts": {
             "layers": 3,
@@ -3869,8 +3869,8 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 1.704089832957834,
-        "stderr": "loading  /private/tmp/s36-cad-final4/corpus_truchet/source.png\nwarning: Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nwarning: detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final4/corpus_truchet/out.scad\nsaved    /private/tmp/s36-cad-final4/corpus_truchet/out.svg (layers: silhouette, structure, detail; paths: 120)\n"
+        "seconds": 1.6825472912751138,
+        "stderr": "loading  /private/tmp/s36-cad-final5/corpus_truchet/source.png\nwarning: Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nwarning: detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-final5/corpus_truchet/out.scad\nsaved    /private/tmp/s36-cad-final5/corpus_truchet/out.svg (layers: silhouette, structure, detail; paths: 120)\n"
       },
       "errors": [],
       "expected": {
@@ -3989,7 +3989,7 @@
       },
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
-      "preview": "/private/tmp/s36-cad-final4-previews/corpus_truchet.png",
+      "preview": "/private/tmp/s36-cad-final5-previews/corpus_truchet.png",
       "preview_sha256": "7056acdf5e010a2751802b0040f5e8bcd1eb9b4d511444257da74e560c79df60",
       "relief": {
         "backing_mm": 0.0,
@@ -4005,15 +4005,15 @@
         "argv": [
           "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
           "-o",
-          "/private/tmp/s36-cad-final4/corpus_truchet/out.stl",
-          "/private/tmp/s36-cad-final4/corpus_truchet/out.scad"
+          "/private/tmp/s36-cad-final5/corpus_truchet/out.stl",
+          "/private/tmp/s36-cad-final5/corpus_truchet/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 54.757861624937505,
-        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 2964224\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 7118488\nTotal rendering time: 0:00:54.301\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     5253\n   Halfedges:   15790\n   Edges:        7895\n   Halffacets:   5628\n   Facets:       2814\n   Volumes:        56\n",
+        "seconds": 50.07844745833427,
+        "stderr": "Geometries in cache: 14\nGeometry cache size in bytes: 2964224\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 7118488\nTotal rendering time: 0:00:49.658\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     5253\n   Halfedges:   15790\n   Edges:        7895\n   Halffacets:   5628\n   Facets:       2814\n   Volumes:        56\n",
         "stdout": ""
       },
-      "work_dir": "/private/tmp/s36-cad-final4/corpus_truchet"
+      "work_dir": "/private/tmp/s36-cad-final5/corpus_truchet"
     }
   ],
   "invocation": [
@@ -4021,13 +4021,13 @@
     "-m",
     "tests.vector_map_s3_6_cad_probe",
     "--work-dir",
-    "/private/tmp/s36-cad-final4",
+    "/private/tmp/s36-cad-final5",
     "--evidence-json",
-    "/private/tmp/s36-cad-final4.json",
+    "/private/tmp/s36-cad-final5.json",
     "--report",
-    "/private/tmp/s36-cad-final4.md",
+    "/private/tmp/s36-cad-final5.md",
     "--preview-dir",
-    "/private/tmp/s36-cad-final4-previews"
+    "/private/tmp/s36-cad-final5-previews"
   ],
   "manifest_hash_check": {
     "checked": 115,
@@ -4038,5 +4038,5 @@
   ],
   "openscad_version": "OpenSCAD version 2021.01",
   "schema_version": 1,
-  "work_dir": "/private/tmp/s36-cad-final4"
+  "work_dir": "/private/tmp/s36-cad-final5"
 }

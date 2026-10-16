@@ -29,8 +29,12 @@ Engraved detail needs a third rule. The final recess is detail inside the silhou
 structure. Where it meets the silhouette outline at one isolated point, the cut leaves two material
 wedges that touch at that point. recess_outline_contacts() finds this contact. It rebuilds the final
 recess only in the sectors around each candidate point, so it needs no clipper. A recess that shares
-a boundary run with the outline is no contact. The SCAD source then shrinks the final recess by
-recess_shrink_mm(). That leaves a narrow material bridge at the point. The cap is the growth cap.
+a boundary run with the outline is no contact. The SCAD source leaves a square of side twice
+recess_bridge_mm() uncut at each contact. That is a narrow material bridge at the point. The cap is
+the growth cap. The engraving cut itself is raw detail minus raw structure, with no silhouette
+clip. A clip rounds recess vertices off the outline and can leave a hairline sliver that closes to
+a point. A shared boundary run therefore needs no repair, and an opening through the wall stays
+open.
 """
 
 import math
@@ -71,8 +75,8 @@ def detail_growth_mm(canvas):
     return min(GROWTH_CAP_MM / canvas.mm_per_px, PINCH_CAP_PX) * canvas.mm_per_px
 
 
-def recess_shrink_mm(canvas):
-    """The engraved recess shrink in millimetres: at most 0.002 mm and at most a quarter pixel."""
+def recess_bridge_mm(canvas):
+    """The half side of an engraved recess bridge in millimetres: at most 0.002 mm and a quarter pixel."""
     return detail_growth_mm(canvas)
 
 

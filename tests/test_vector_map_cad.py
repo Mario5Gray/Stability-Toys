@@ -236,6 +236,7 @@ def test_detail_growth_is_at_most_two_micrometres_and_a_quarter_pixel():
 #
 # The final recess is detail inside the silhouette and outside structure. Where it meets the
 # outline at one isolated point, cutting it leaves two material wedges that touch at that point.
+# A small square stays uncut there: a local material bridge.
 
 SILHOUETTE = "M0,0 L20,0 L20,20 L0,20 Z "
 RECESS_TIP_ON_OUTLINE = "M10,0 L6,6 L14,6 Z "  # vertex 10,0 lies inside the outline edge
@@ -285,29 +286,29 @@ def test_recess_contacts_apply_translate():
     assert shifted == [(10.0, 0.0)]
 
 
-def test_recess_shrink_is_at_most_two_micrometres_and_a_quarter_pixel():
-    assert cad.recess_shrink_mm(canvas(mm_per_px=0.4)) == pytest.approx(0.002)
-    assert cad.recess_shrink_mm(canvas(mm_per_px=0.001)) == pytest.approx(0.25 * 0.001)
+def test_recess_bridge_is_at_most_two_micrometres_and_a_quarter_pixel():
+    assert cad.recess_bridge_mm(canvas(mm_per_px=0.4)) == pytest.approx(0.002)
+    assert cad.recess_bridge_mm(canvas(mm_per_px=0.001)) == pytest.approx(0.25 * 0.001)
 
 
 class _Settings:
     export_scad, detail_mode = True, "engraved"
 
 
-def test_engraved_contact_reports_cad_recess_shrink():
+def test_engraved_contact_reports_cad_recess_bridge():
     import vector_map
     from types import SimpleNamespace
     layers = {"silhouette": SimpleNamespace(svg=layer((SILHOUETTE, None))),
               "detail": SimpleNamespace(svg=layer((RECESS_TIP_ON_OUTLINE, None)))}
     diagnostics = []
-    shrink = vector_map._recess_shrink(_Settings(), layers, canvas(), diagnostics)
-    assert shrink == pytest.approx(0.002)
-    assert [d["code"] for d in diagnostics] == ["cad_recess_shrink"]
+    bridge, points = vector_map._recess_bridges(_Settings(), layers, canvas(), diagnostics)
+    assert bridge == pytest.approx(0.002) and points == [(10.0, 0.0)]
+    assert [d["code"] for d in diagnostics] == ["cad_recess_bridge"]
     assert diagnostics[0]["contacts"] == 1
 
 
 @pytest.mark.parametrize("mode, detail", (("engraved", RECESS_SHARED_RUN), ("raised", RECESS_TIP_ON_OUTLINE)))
-def test_no_recess_shrink_without_an_engraved_isolated_contact(mode, detail):
+def test_no_recess_bridge_without_an_engraved_isolated_contact(mode, detail):
     import vector_map
     from types import SimpleNamespace
     settings = _Settings()
@@ -315,7 +316,7 @@ def test_no_recess_shrink_without_an_engraved_isolated_contact(mode, detail):
     layers = {"silhouette": SimpleNamespace(svg=layer((SILHOUETTE, None))),
               "detail": SimpleNamespace(svg=layer((detail, None)))}
     diagnostics = []
-    assert vector_map._recess_shrink(settings, layers, canvas(), diagnostics) == 0.0
+    assert vector_map._recess_bridges(settings, layers, canvas(), diagnostics) == (0.0, [])
     assert diagnostics == []
 
 
@@ -349,24 +350,49 @@ def test_scad_growth_is_ignored_for_engraved_detail():
     assert "DETAIL_GROW" not in source
 
 
-def test_scad_engraved_recess_shrink_offsets_the_final_recess_inward():
-    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved", recess_shrink_mm=0.002)
-    assert "RECESS_SHRINK = 0.002;" in source
-    assert "module detail_2d() {\n  offset(delta = -RECESS_SHRINK) difference() {" in source
-    assert source.count("offset(") == 1 and "DETAIL_GROW" not in source
+ENGRAVE_RAW = """module engrave_2d() {
+  difference() {
+    import("out.layers/detail.svg", center=false);
+    import("out.layers/structure.svg", center=false);
+  }
+}"""
+
+
+def test_scad_engraved_cut_is_raw_detail_minus_raw_structure():
+    # No silhouette clip: the cut never shares a rounded boundary with the outline. Cutting air removes nothing.
+    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved")
+    assert ENGRAVE_RAW in source
+    assert "linear_extrude(height = D + OVERLAP) engrave_2d();" in source
+    assert "RECESS_BRIDGE" not in source and "offset(" not in source
+
+
+def test_scad_engraved_keeps_the_published_detail_2d_contract():
+    engraved = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved")
+    raised = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS)
+    module = lambda text: text[text.index("module detail_2d()"):text.index("module", text.index("module detail_2d()") + 1)]
+    assert module(engraved) == module(raised)
+
+
+def test_scad_engraved_cut_without_structure_is_the_raw_detail():
+    layers = {k: v for k, v in SCAD_LAYERS.items() if k != "structure"}
+    source = scad.build_scad(canvas(), layers, silhouette_thickness_mm=1.2, detail_height_mm=0.2, detail_mode="engraved")
+    assert 'module engrave_2d() {\n  import("out.layers/detail.svg", center=false);\n}' in source
+
+
+def test_scad_engraved_bridges_stay_uncut_at_isolated_contacts():
+    # canvas(): 32 px at 0.4 mm, 12.8 mm high. Pixel (30, 2) is x 12 mm, y 12.8 - 0.8 = 12 mm.
+    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, detail_mode="engraved",
+                             recess_bridge_mm=0.002, recess_bridges=[(30.0, 2.0)])
+    assert "RECESS_BRIDGE = 0.002;" in source
+    assert "RECESS_BRIDGES = [[12, 12]];" in source
+    assert ("    import(\"out.layers/structure.svg\", center=false);\n"
+            "    for (p = RECESS_BRIDGES) translate(p) square(2 * RECESS_BRIDGE, center = true);\n  }") in source
     assert "H = 0.6;" in source and "D = 0.2;" in source  # heights untouched
 
 
-def test_scad_engraved_recess_shrink_without_structure_offsets_the_clip():
-    layers = {k: v for k, v in SCAD_LAYERS.items() if k != "structure"}
-    source = scad.build_scad(canvas(), layers, silhouette_thickness_mm=1.2, detail_height_mm=0.2,
-                             detail_mode="engraved", recess_shrink_mm=0.002)
-    assert "module detail_2d() {\n  offset(delta = -RECESS_SHRINK) intersection() {" in source
-
-
-def test_scad_recess_shrink_is_ignored_for_raised_detail():
-    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, recess_shrink_mm=0.002)
-    assert "RECESS_SHRINK" not in source and "offset(" not in source
+def test_scad_recess_bridges_are_ignored_for_raised_detail():
+    source = scad.build_scad(canvas(), SCAD_LAYERS, **SCAD_HEIGHTS, recess_bridge_mm=0.002, recess_bridges=[(30.0, 2.0)])
+    assert "RECESS_BRIDGE" not in source and "engrave_2d" not in source
 
 
 def test_scad_growth_is_ignored_without_a_detail_layer():
@@ -499,17 +525,15 @@ def test_native_each_published_layer_extrudes_to_a_closed_mesh(case, tmp_path):
 
 @open_scad.needs_openscad
 @pytest.mark.parametrize("case", ENGRAVED_ROWS)
-def test_native_engraved_corpus_mesh_is_closed_with_the_recess_shrink(case, tmp_path):
+def test_native_engraved_corpus_mesh_is_closed_with_recess_bridges(case, tmp_path):
     row, directory = _probe_row(case, tmp_path, "--detail-mode", "engraved")
     assert row["passed"], row["errors"]
     assert row["relief"]["detail_mode"] == "engraved"
-    assert "RECESS_SHRINK = 0.002;" in (directory / "out.scad").read_text()
+    source = (directory / "out.scad").read_text()
+    assert "RECESS_BRIDGE = 0.002;" in source and "for (p = RECESS_BRIDGES)" in source
 
 
-# --- Engraved recess: known open cases (STABL-ygtexxzr) ------------------------
-#
-# Both tests are strict xfail. They record defects of the current engraved rule and will fail
-# loudly when a repair makes them pass. The repair choice is open.
+# --- Engraved recess: shared runs and edge openings -----------------------------
 
 SLIVER = ROOT / "tests/fixtures/vector_map/cad/shared_run_sliver"
 
@@ -526,9 +550,10 @@ def _render_engraved(tmp_path, layers, canvas_):
         (work / "out.layers" / f"{role}.svg").write_text(text)
     settings = SimpleNamespace(export_scad=True, detail_mode="engraved")
     normalized = {role: SimpleNamespace(svg=text) for role, text in layers.items()}
-    shrink = vector_map._recess_shrink(settings, normalized, canvas_, [])
+    bridge, points = vector_map._recess_bridges(settings, normalized, canvas_, [])
     source = scad.build_scad(canvas_, {role: f"out.layers/{role}.svg" for role in layers}, detail_mode="engraved",
-                             silhouette_thickness_mm=1.2, detail_height_mm=0.2, recess_shrink_mm=shrink)
+                             silhouette_thickness_mm=1.2, detail_height_mm=0.2,
+                             recess_bridge_mm=bridge, recess_bridges=points)
     (work / "out.scad").write_text(source)
     run = subprocess.run([*open_scad.OPENSCAD, "-o", str(work / "out.stl"), str(work / "out.scad")],
                          capture_output=True, text=True, timeout=300)
@@ -541,11 +566,10 @@ def _cad_warnings(stderr):
 
 
 @open_scad.needs_openscad
-@pytest.mark.xfail(strict=True, reason="Shared-run sliver: the isolated-point trigger does not fire. Repair open.")
 def test_native_engraved_shared_run_sliver_renders_closed(tmp_path):
     # Two rings cropped from corpus gravel at px (180, 51). The recess shares a boundary run with the
-    # outline, so the exact geometry has no isolated contact. The OpenSCAD intersection rounds the next
-    # recess vertex off the outline and leaves a hairline sliver that closes to a point.
+    # outline, so the exact geometry has no isolated contact. A cut clipped to the silhouette rounds the
+    # next recess vertex off the outline and leaves a hairline sliver that closes to a point.
     layers = {role: (SLIVER / f"{role}.svg").read_text() for role in ("silhouette", "detail")}
     assert cad.recess_outline_contacts(layers["silhouette"], layers["detail"]) == []
     stderr, _ = _render_engraved(tmp_path, layers, Canvas(256, 256, 100.0, 100.0, 0.390625))
@@ -558,13 +582,14 @@ TIP_ON_TOP_EDGE = "M30,2 L26,8 L34,8 Z "  # isolated contact at px (30, 2)
 
 
 @open_scad.needs_openscad
-@pytest.mark.xfail(strict=True, reason="The whole-recess shrink seals edge openings with a skin. Repair open.")
 def test_native_engraved_edge_opening_survives_a_recess_repair(tmp_path):
     from tests import vector_map_s3_6_cad_probe as probe
 
     canvas_ = Canvas(40, 30, 16.0, 12.0, 0.4)
-    layers = {"silhouette": layer((OPENING_SILHOUETTE, None), size=40),
-              "detail": layer((GROOVE_TO_EDGE + TIP_ON_TOP_EDGE, None), size=40)}
+    # Millimetre size and pixel viewBox, as published layers state them. A unitless size reads at 96 dpi.
+    mm_svg = lambda data: (f'<svg xmlns="{SVG_NS}" width="16mm" height="12mm" viewBox="0 0 40 30">'
+                           f'<path d="{data}" fill="#000000"/></svg>')
+    layers = {"silhouette": mm_svg(OPENING_SILHOUETTE), "detail": mm_svg(GROOVE_TO_EDGE + TIP_ON_TOP_EDGE)}
     stderr, stl = _render_engraved(tmp_path, layers, canvas_)
     assert not _cad_warnings(stderr)
     vertices, _ = probe._vertices(stl)

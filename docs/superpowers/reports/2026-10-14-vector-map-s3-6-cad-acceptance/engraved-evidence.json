@@ -75,7 +75,7 @@
         "out.vector.json": {
           "bytes": 7132,
           "path": "/private/tmp/s36-cad-engraved/corpus_badge/out.vector.json",
-          "sha256": "2a9390b5e80bf66523ea2aeac3bae8bf7a317c23abda43c2e7a95dedee2defc7"
+          "sha256": "e559c606d185d23d2c766e9a22be36bb906388292ec71949d22a5a69a4b60d30"
         },
         "source.png": {
           "bytes": 4038,
@@ -165,7 +165,7 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.08166033402085304,
+        "seconds": 0.0829958338290453,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_badge/source.png\nwarning: Possible material features below four pixels: 38 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-engraved/corpus_badge/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_badge/out.svg (layers: silhouette, structure; paths: 14)\n"
       },
       "errors": [],
@@ -254,8 +254,8 @@
           "/private/tmp/s36-cad-engraved/corpus_badge/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 3.170977875124663,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:03.027\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
+        "seconds": 3.001683791168034,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 270960\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 817152\nTotal rendering time: 0:00:02.865\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      604\n   Halfedges:    1812\n   Edges:         906\n   Halffacets:    644\n   Facets:        322\n   Volumes:         7\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_badge"
@@ -335,7 +335,7 @@
         "out.vector.json": {
           "bytes": 7141,
           "path": "/private/tmp/s36-cad-engraved/corpus_bracket/out.vector.json",
-          "sha256": "8eeaa6278bf1b2a4f3f10ea887b47260b53c81395bfe6cd7d9df2c8a341562fe"
+          "sha256": "a6c85aa8c25a46e67d5b9f2f0a41f5d24689b36cb2221b13e3fdf4030c0d2f3e"
         },
         "source.png": {
           "bytes": 1847,
@@ -425,7 +425,7 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.03691062517464161,
+        "seconds": 0.036919958889484406,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_bracket/source.png\nwarning: Possible material features below four pixels: 3367 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 11 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 6 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-engraved/corpus_bracket/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_bracket/out.svg (layers: silhouette, structure; paths: 12)\n"
       },
       "errors": [],
@@ -514,8 +514,8 @@
           "/private/tmp/s36-cad-engraved/corpus_bracket/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 2.535312458872795,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.410\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
+        "seconds": 2.5357932499609888,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 169312\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 396416\nTotal rendering time: 0:00:02.418\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      292\n   Halfedges:     876\n   Edges:         438\n   Halffacets:    320\n   Facets:        160\n   Volumes:         7\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_bracket"
@@ -523,9 +523,9 @@
     {
       "artifacts": {
         "area-detail.scad": {
-          "bytes": 1076,
+          "bytes": 1359,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/area-detail.scad",
-          "sha256": "d97689b604bce496d042adca71e8029113cd8afffaa207b2cee87d85d3f70195"
+          "sha256": "741e215b9c601a866c517e053a2b3701719333f6dedf399609b9ccbaef37ca4e"
         },
         "area-detail.svg": {
           "bytes": 411,
@@ -533,9 +533,9 @@
           "sha256": "1d2354a750fb71dcd24a50aac58b110782b8b440d3e937651ba6e7ab31f435a9"
         },
         "area-silhouette.scad": {
-          "bytes": 1080,
+          "bytes": 1363,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/area-silhouette.scad",
-          "sha256": "1f9250505a58c87dc4cbc7df4d290b61871b629acb424990b4145e3cbeb53b65"
+          "sha256": "1dc4f63cfdeb1f234d17f2bfd6e3fbaf38d9dddc1b6fefcdde84af999d3b04bc"
         },
         "area-silhouette.svg": {
           "bytes": 12165,
@@ -543,9 +543,9 @@
           "sha256": "87bdb8da6964560dfc14403065214e5c6ecc8d1fceebf22649d50d00b6adc9d5"
         },
         "area-structure.scad": {
-          "bytes": 1079,
+          "bytes": 1362,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/area-structure.scad",
-          "sha256": "0a0e55f66e6a744eea122c4a7cad54bcbc39025e47eb035d2134661dc7705752"
+          "sha256": "65641f9f548c3d1c719b3cd442f99d11d3abb2c7ca5c4cc11285ec130d15169b"
         },
         "area-structure.svg": {
           "bytes": 13323,
@@ -593,14 +593,14 @@
           "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
         },
         "out.scad": {
-          "bytes": 1499,
+          "bytes": 1783,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/out.scad",
-          "sha256": "c80e4871415829e67c90f80c109c80873ced100547237b503c5b14d8d2f155b7"
+          "sha256": "a98c4f9bf037958aa4e6a3a6288236a1bb6771ed4cae54e8b37924a944ae8910"
         },
         "out.stl": {
-          "bytes": 494590,
+          "bytes": 495754,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/out.stl",
-          "sha256": "f97111911fc065ea1bf793a28ee96d3040e3ca1c325ad857fa7e7e66a2093d09"
+          "sha256": "04db04251e0d42272534c6d1ffa1376dd0ca13d4a66dc50f448bdf5303fde3e2"
         },
         "out.svg": {
           "bytes": 11732,
@@ -608,9 +608,9 @@
           "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
         },
         "out.vector.json": {
-          "bytes": 7682,
+          "bytes": 7686,
           "path": "/private/tmp/s36-cad-engraved/corpus_brick/out.vector.json",
-          "sha256": "32cafc06b817694d00eb315e98ef6b0e024f3cd837bb8ce3bd57cb1d8a890108"
+          "sha256": "809b6f0c120998e0778398ab2512c2a3cc2dc8e279fcb56c5b913118ade1b2d3"
         },
         "source.png": {
           "bytes": 32373,
@@ -693,17 +693,17 @@
               "subpaths": 22
             },
             {
-              "code": "cad_recess_shrink",
+              "bridge_mm": 0.002,
+              "code": "cad_recess_bridge",
               "contacts": 1,
               "level": "warning",
-              "message": "The engraved recess meets the silhouette outline at 1 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source shrinks the recess by 0.002 mm. This leaves a narrow material bridge at each point.",
-              "shrink_mm": 0.002
+              "message": "The engraved recess meets the silhouette outline at 1 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
             }
           ],
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.32353470800444484,
+        "seconds": 0.301917583681643,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_brick/source.png\nwarning: Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-engraved/corpus_brick/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_brick/out.svg (layers: silhouette, structure, detail; paths: 3)\n"
       },
       "errors": [],
@@ -758,10 +758,11 @@
         ],
         "genus_sum": 53,
         "solids": 1,
-        "volume_mm3": 3498.846864404237,
+        "volume_mm3": 3498.8429620702377,
         "z_planes": [
           0.0,
           1.0,
+          1.19,
           1.2,
           1.8
         ]
@@ -788,8 +789,8 @@
           "/private/tmp/s36-cad-engraved/corpus_brick/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 14.37171500036493,
-        "stderr": "Geometries in cache: 13\nGeometry cache size in bytes: 891936\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 3753120\nTotal rendering time: 0:00:14.157\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1468\n   Halfedges:    4420\n   Edges:        2210\n   Halffacets:   1514\n   Facets:        757\n   Volumes:         2\n",
+        "seconds": 14.849365124944597,
+        "stderr": "Geometries in cache: 13\nGeometry cache size in bytes: 893120\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 3763360\nTotal rendering time: 0:00:14.653\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     1472\n   Halfedges:    4432\n   Edges:        2216\n   Halffacets:   1516\n   Facets:        758\n   Volumes:         2\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_brick"
@@ -797,9 +798,9 @@
     {
       "artifacts": {
         "area-detail.scad": {
-          "bytes": 945,
+          "bytes": 1096,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/area-detail.scad",
-          "sha256": "d50a827c666b566b074e59cfa8a65e0d667fe6c1dc72792d1a90007beb750d6e"
+          "sha256": "f6bf30ff764683fe95c7d69d412e670677e790dfb27e31d2ace34e365dc772dd"
         },
         "area-detail.svg": {
           "bytes": 14608,
@@ -807,9 +808,9 @@
           "sha256": "5aaed9d55a2e0e07ae7687bff24d6f9c7df53ef202234fb9d48873a14591b181"
         },
         "area-silhouette.scad": {
-          "bytes": 949,
+          "bytes": 1100,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/area-silhouette.scad",
-          "sha256": "11fce4744d7b335f86e08e388eeda0e9fdd1ef945a18273d9292a1303c89c07e"
+          "sha256": "316a2f8e450791d6aa01a526b8e035ad796e389bbb58b621937c7b67d8c6f79f"
         },
         "area-silhouette.svg": {
           "bytes": 6310,
@@ -817,9 +818,9 @@
           "sha256": "fc8fc4bd6c22fac3d7795d17a1bc91f9b700fbf755a7e16edc3cb3b0f18cb7e6"
         },
         "area-structure.scad": {
-          "bytes": 948,
+          "bytes": 1099,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/area-structure.scad",
-          "sha256": "c24b7589ed2f497ad499e48570216c61ba99a7ffae55314dcda47a4c515cd081"
+          "sha256": "2ced2700b576634593789b04750f34b1b06a8e6b6e055ac598eb7ac095365322"
         },
         "area-structure.svg": {
           "bytes": 16773,
@@ -867,14 +868,14 @@
           "sha256": "1a88740aaa39934b393c17dc065fcdd86dc4c32b8822d2ba3df54a2e0c21da9c"
         },
         "out.scad": {
-          "bytes": 1373,
+          "bytes": 1525,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/out.scad",
-          "sha256": "f82a924530953f9d97135086b2e8650608cf37b06b4fae8950746e0abad1c69d"
+          "sha256": "8fc823dc1780d9f74ae16dc9962c2ca725652d3997d24cdbef876f6924c67e44"
         },
         "out.stl": {
           "bytes": 1088829,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/out.stl",
-          "sha256": "ce15c299eb9c06c8ebb471ee985fcce38ea4281d6744fd13667f606bce4e0191"
+          "sha256": "3d8409e95c9a85308b857c687c67f66c19fb3f43ce4e9c8bce6798053d7ef5bb"
         },
         "out.svg": {
           "bytes": 18513,
@@ -884,7 +885,7 @@
         "out.vector.json": {
           "bytes": 8633,
           "path": "/private/tmp/s36-cad-engraved/corpus_coins/out.vector.json",
-          "sha256": "b5813fc85f72730c52e9ac333b7c30830cfec001939ba4f1a121f15d40b035c2"
+          "sha256": "0e6f9ad20b41bfdaf267e636d27dd6fcbfb8aac8b87beaa65723dbff08fc9406"
         },
         "source.png": {
           "bytes": 35775,
@@ -997,7 +998,7 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.11412995774298906,
+        "seconds": 0.10741850035265088,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_coins/source.png\nwarning: Possible material features below four pixels: 18 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 15 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x202, oriented 256x202, processed 256x202 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 24 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x202 px as 100x78.9062 mm\ntracing  structure 256x202 px as 100x78.9062 mm\nwarning: structure: VTracer returned 27 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x202 px as 100x78.9062 mm\nwarning: detail: VTracer returned 12 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-engraved/corpus_coins/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_coins/out.svg (layers: silhouette, structure, detail; paths: 101)\n"
       },
       "errors": [],
@@ -1106,8 +1107,8 @@
           "/private/tmp/s36-cad-engraved/corpus_coins/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 16.47982274973765,
-        "stderr": "Geometries in cache: 12\nGeometry cache size in bytes: 1178016\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 7709528\nTotal rendering time: 0:00:16.154\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3457\n   Halfedges:   10652\n   Edges:        5326\n   Halffacets:   3950\n   Facets:       1975\n   Volumes:        25\n",
+        "seconds": 15.967207791749388,
+        "stderr": "Geometries in cache: 11\nGeometry cache size in bytes: 1165984\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 7709528\nTotal rendering time: 0:00:15.655\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3457\n   Halfedges:   10652\n   Edges:        5326\n   Halffacets:   3950\n   Facets:       1975\n   Volumes:        25\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_coins"
@@ -1115,19 +1116,19 @@
     {
       "artifacts": {
         "area-detail.scad": {
-          "bytes": 1076,
+          "bytes": 1479,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/area-detail.scad",
-          "sha256": "d97689b604bce496d042adca71e8029113cd8afffaa207b2cee87d85d3f70195"
+          "sha256": "deb31b23eabba3bc29e570d6a0232975dffe9f1b0d60afac77ddcc96cbb4d719"
         },
         "area-detail.svg": {
           "bytes": 5815,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/area-detail.svg",
-          "sha256": "392c9794fd684e164a32996b71eada275893c09bf329621c7b50577c8051d14f"
+          "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
         },
         "area-silhouette.scad": {
-          "bytes": 1080,
+          "bytes": 1483,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/area-silhouette.scad",
-          "sha256": "1f9250505a58c87dc4cbc7df4d290b61871b629acb424990b4145e3cbeb53b65"
+          "sha256": "cb03c11e3f11b5da8a9730f30b34e91a0e217764de0962c0cea25697d7cf3fab"
         },
         "area-silhouette.svg": {
           "bytes": 48183,
@@ -1135,9 +1136,9 @@
           "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
         },
         "area-structure.scad": {
-          "bytes": 1079,
+          "bytes": 1482,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/area-structure.scad",
-          "sha256": "0a0e55f66e6a744eea122c4a7cad54bcbc39025e47eb035d2134661dc7705752"
+          "sha256": "8940905001c1fe58cf092e310fdd90977b515b14ba324a102d1b860706d45648"
         },
         "area-structure.svg": {
           "bytes": 68418,
@@ -1185,14 +1186,14 @@
           "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
         },
         "out.scad": {
-          "bytes": 1499,
+          "bytes": 1903,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/out.scad",
-          "sha256": "c80e4871415829e67c90f80c109c80873ced100547237b503c5b14d8d2f155b7"
+          "sha256": "899a84b67d1ac00851d4592392c6bc6c4151e8cb6c6cdfe14feeef1330559f2e"
         },
         "out.stl": {
-          "bytes": 2941772,
+          "bytes": 2954011,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/out.stl",
-          "sha256": "d8fb49549101bf19d2d868fb10a3f414bb75ca86ffe15dcde54858cc78dcc6e1"
+          "sha256": "555b28da61e0ff488d07ca1246d039d02b21c46355eae49e1b0c6c6207baebdd"
         },
         "out.svg": {
           "bytes": 68671,
@@ -1200,9 +1201,9 @@
           "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
         },
         "out.vector.json": {
-          "bytes": 8411,
+          "bytes": 8415,
           "path": "/private/tmp/s36-cad-engraved/corpus_gravel/out.vector.json",
-          "sha256": "4d46bc0594d35a06f86d190f8c9ca28d0f141c853fd8c608f772cea0c0d47a80"
+          "sha256": "9fe35ab687c5e266d9246f1c970c433701bfca36173bf4afb172449ea8a08c6d"
         },
         "source.png": {
           "bytes": 54353,
@@ -1298,17 +1299,17 @@
               "role": "structure"
             },
             {
-              "code": "cad_recess_shrink",
+              "bridge_mm": 0.002,
+              "code": "cad_recess_bridge",
               "contacts": 7,
               "level": "warning",
-              "message": "The engraved recess meets the silhouette outline at 7 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source shrinks the recess by 0.002 mm. This leaves a narrow material bridge at each point.",
-              "shrink_mm": 0.002
+              "message": "The engraved recess meets the silhouette outline at 7 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
             }
           ],
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.7558408328332007,
+        "seconds": 0.7313492079265416,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_gravel/source.png\nwarning: Possible material features below four pixels: 6310 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 5856 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 225 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 141 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-engraved/corpus_gravel/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_gravel/out.svg (layers: silhouette, structure, detail; paths: 474)\n"
       },
       "errors": [],
@@ -1571,7 +1572,7 @@
         ],
         "genus_sum": 13,
         "solids": 209,
-        "volume_mm3": 6987.260341126862,
+        "volume_mm3": 6987.117981544827,
         "z_planes": [
           0.0,
           1.0,
@@ -1583,7 +1584,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/private/tmp/s36-cad-engraved/previews/corpus_gravel.png",
-      "preview_sha256": "8df85689e3d1105e85f232459eb80707501b753e7808e8bf835de6fbb4331517",
+      "preview_sha256": "64a03bc2d3c09c462acc9d9a5032ca092cab2091f5d1cd54106df28c3d51aa4d",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -1602,8 +1603,8 @@
           "/private/tmp/s36-cad-engraved/corpus_gravel/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 65.02063612500206,
-        "stderr": "Geometries in cache: 13\nGeometry cache size in bytes: 3778128\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 20973344\nTotal rendering time: 0:01:04.320\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9542\n   Halfedges:   29122\n   Edges:       14561\n   Halffacets:  11270\n   Facets:       5635\n   Volumes:       210\n",
+        "seconds": 57.89635375002399,
+        "stderr": "Geometries in cache: 20\nGeometry cache size in bytes: 3769200\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 21072920\nTotal rendering time: 0:00:57.219\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     9588\n   Halfedges:   29376\n   Edges:       14688\n   Halffacets:  11354\n   Facets:       5677\n   Volumes:       210\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_gravel"
@@ -1683,7 +1684,7 @@
         "out.vector.json": {
           "bytes": 6830,
           "path": "/private/tmp/s36-cad-engraved/corpus_horse/out.vector.json",
-          "sha256": "8c152359c1678c4a6500d0fe657f42e94969a6ccd262358ab86af2bf16c7d75d"
+          "sha256": "87d6eaaeec0817721208853fb21aa3dac4e59283e20dd6423c8a4b32f8200d5a"
         },
         "source.png": {
           "bytes": 5858,
@@ -1767,7 +1768,7 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.04378533409908414,
+        "seconds": 0.0424629170447588,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_horse/source.png\nwarning: Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x210, oriented 256x210, processed 256x210 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x210 px as 100x82.0312 mm\ntracing  structure 256x210 px as 100x82.0312 mm\nscad     /private/tmp/s36-cad-engraved/corpus_horse/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_horse/out.svg (layers: silhouette, structure; paths: 2)\n"
       },
       "errors": [],
@@ -1851,8 +1852,8 @@
           "/private/tmp/s36-cad-engraved/corpus_horse/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 2.740316292271018,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.603\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
+        "seconds": 2.6591635001823306,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.531\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_horse"
@@ -1932,7 +1933,7 @@
         "out.vector.json": {
           "bytes": 7225,
           "path": "/private/tmp/s36-cad-engraved/corpus_pcb/out.vector.json",
-          "sha256": "8b104fc10fd31c23901614e28ef5b251860f118c22cebcd4a13435cfc9f8ff7a"
+          "sha256": "45dd6c710518c40a20521c553bcf74f24ab9218c58c976f21909e08e88820fba"
         },
         "source.png": {
           "bytes": 1373,
@@ -2022,7 +2023,7 @@
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 0.2821861249394715,
+        "seconds": 0.2727833748795092,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_pcb/source.png\nwarning: Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nscad     /private/tmp/s36-cad-engraved/corpus_pcb/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_pcb/out.svg (layers: silhouette, structure; paths: 124)\n"
       },
       "errors": [],
@@ -2135,8 +2136,8 @@
           "/private/tmp/s36-cad-engraved/corpus_pcb/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 23.322898874990642,
-        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 1920048\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 5706112\nTotal rendering time: 0:00:22.946\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     4204\n   Halfedges:   12612\n   Edges:        6306\n   Halffacets:   4580\n   Facets:       2290\n   Volumes:        31\n",
+        "seconds": 22.651893250178546,
+        "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 1920048\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 5706112\nTotal rendering time: 0:00:22.294\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     4204\n   Halfedges:   12612\n   Edges:        6306\n   Halffacets:   4580\n   Facets:       2290\n   Volumes:        31\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_pcb"
@@ -2144,19 +2145,19 @@
     {
       "artifacts": {
         "area-detail.scad": {
-          "bytes": 1076,
+          "bytes": 1473,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/area-detail.scad",
-          "sha256": "d97689b604bce496d042adca71e8029113cd8afffaa207b2cee87d85d3f70195"
+          "sha256": "90e9619bbff714033934612b2feaff49449a7c158f0c0127c4c37faabe1c4a7b"
         },
         "area-detail.svg": {
           "bytes": 2525,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/area-detail.svg",
-          "sha256": "d7015bc06a975ed06a8d126d29c7d1d5e7cdda9d0d0804de8e7abbfefc48265a"
+          "sha256": "db1a9e5fd8f6fb3ae745c65339d72086e8b3474643c5e55a0f63103549608af8"
         },
         "area-silhouette.scad": {
-          "bytes": 1080,
+          "bytes": 1477,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/area-silhouette.scad",
-          "sha256": "1f9250505a58c87dc4cbc7df4d290b61871b629acb424990b4145e3cbeb53b65"
+          "sha256": "b01767bd61a0b24ab0e002db114cc98b06c18b73d6d6378d0d9095d86ed98e1b"
         },
         "area-silhouette.svg": {
           "bytes": 40490,
@@ -2164,9 +2165,9 @@
           "sha256": "71d8ed0cb9bcf69f870c0267b1b4bf639eabd915e137c5e980e9bfaf934a2e92"
         },
         "area-structure.scad": {
-          "bytes": 1079,
+          "bytes": 1476,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/area-structure.scad",
-          "sha256": "0a0e55f66e6a744eea122c4a7cad54bcbc39025e47eb035d2134661dc7705752"
+          "sha256": "04bc1bcd84bddd47e5aac41cd17fdd5dc9343f15cc0124acf2ea1ef2cbbeb048"
         },
         "area-structure.svg": {
           "bytes": 44596,
@@ -2214,14 +2215,14 @@
           "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
         },
         "out.scad": {
-          "bytes": 1499,
+          "bytes": 1897,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/out.scad",
-          "sha256": "c80e4871415829e67c90f80c109c80873ced100547237b503c5b14d8d2f155b7"
+          "sha256": "ff276750eae47503528e346335933b1136960d0008e92957e826a2ffa2ac62a8"
         },
         "out.stl": {
-          "bytes": 1662958,
+          "bytes": 1648497,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/out.stl",
-          "sha256": "eafd77afed78554df28567f0fde4d4c40e7c1080e2c106efae5e562c05184c5d"
+          "sha256": "bfc4887ba66d1566d7d3af42b8f68ccc5ad796716a0107647b5ff565d7213e1f"
         },
         "out.svg": {
           "bytes": 45263,
@@ -2229,9 +2230,9 @@
           "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
         },
         "out.vector.json": {
-          "bytes": 8286,
+          "bytes": 8290,
           "path": "/private/tmp/s36-cad-engraved/corpus_truchet/out.vector.json",
-          "sha256": "fea539886480230995f336008e1bb26521429a2234f1c1fab7b732f358ab3359"
+          "sha256": "27e98124685829792e9605e404137efe4358f3b4b90a60c4a1795131917accd0"
         },
         "source.png": {
           "bytes": 47939,
@@ -2327,17 +2328,17 @@
               "subpaths": 1
             },
             {
-              "code": "cad_recess_shrink",
+              "bridge_mm": 0.002,
+              "code": "cad_recess_bridge",
               "contacts": 8,
               "level": "warning",
-              "message": "The engraved recess meets the silhouette outline at 8 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source shrinks the recess by 0.002 mm. This leaves a narrow material bridge at each point.",
-              "shrink_mm": 0.002
+              "message": "The engraved recess meets the silhouette outline at 8 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
             }
           ],
           "schema_version": 1,
           "status": "converted"
         },
-        "seconds": 1.8349997499026358,
+        "seconds": 1.7832468338310719,
         "stderr": "loading  /private/tmp/s36-cad-engraved/corpus_truchet/source.png\nwarning: Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x256, oriented 256x256, processed 256x256 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them.\ntracing  silhouette 256x256 px as 100x100 mm\ntracing  structure 256x256 px as 100x100 mm\nwarning: structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\ntracing  detail 256x256 px as 100x100 mm\nwarning: detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.\nscad     /private/tmp/s36-cad-engraved/corpus_truchet/out.scad\nsaved    /private/tmp/s36-cad-engraved/corpus_truchet/out.svg (layers: silhouette, structure, detail; paths: 120)\n"
       },
       "errors": [],
@@ -2446,10 +2447,11 @@
         ],
         "genus_sum": 20,
         "solids": 55,
-        "volume_mm3": 5936.4474478286675,
+        "volume_mm3": 5936.377966904697,
         "z_planes": [
           0.0,
           1.0,
+          1.19,
           1.2,
           1.8
         ]
@@ -2457,7 +2459,7 @@
       "openscad_version": "OpenSCAD version 2021.01",
       "passed": true,
       "preview": "/private/tmp/s36-cad-engraved/previews/corpus_truchet.png",
-      "preview_sha256": "2a376dabbd94cbc0a5eacb73df14cab501bcd55ae73b68d5b57094debd709ee3",
+      "preview_sha256": "4ce93801f7833df07a72d4c80b98bd46dd17fe2821ea7d26103b4629e0885123",
       "relief": {
         "backing_mm": 0.0,
         "center": false,
@@ -2476,8 +2478,8 @@
           "/private/tmp/s36-cad-engraved/corpus_truchet/out.scad"
         ],
         "exit_code": 0,
-        "seconds": 52.350242415908724,
-        "stderr": "Geometries in cache: 13\nGeometry cache size in bytes: 2901072\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 13632856\nTotal rendering time: 0:00:51.897\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     5341\n   Halfedges:   16052\n   Edges:        8026\n   Halffacets:   5742\n   Facets:       2871\n   Volumes:        56\n",
+        "seconds": 46.88052829215303,
+        "stderr": "Geometries in cache: 21\nGeometry cache size in bytes: 2902656\nCGAL Polyhedrons in cache: 2\nCGAL cache size in bytes: 13497368\nTotal rendering time: 0:00:46.460\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     5303\n   Halfedges:   15970\n   Edges:        7985\n   Halffacets:   5708\n   Facets:       2854\n   Volumes:        56\n",
         "stdout": ""
       },
       "work_dir": "/private/tmp/s36-cad-engraved/corpus_truchet"

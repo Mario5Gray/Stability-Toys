@@ -131,7 +131,9 @@ OpenSCAD cannot extrude two rings that touch at one point. It exits 0 and loses 
 The step moves the contact points of one ring by at most 0.01 mm and a quarter pixel. A hole shrinks. An island grows. The step adds material and removes none.
 It reports `cad_pinch_closed`. It reports `cad_pinch_unrepaired` and keeps the layer unchanged when a contact remains.
 A detail ring can also touch a structure ring at one point. The SCAD file then grows detail by at most 0.002 mm and a quarter pixel. It subtracts a structure shrunk by the same amount. The step reports `cad_detail_growth`. Raised mode only.
-An engraved recess can meet the silhouette outline at one isolated point. The SCAD file then shrinks the recess by at most 0.002 mm and a quarter pixel. This leaves a narrow material bridge. A recess that shares a boundary run with the outline does not trigger it. The step reports `cad_recess_shrink`. Engraved mode only.
+Engraved detail is cut by `engrave_2d()`: raw detail minus raw structure, with no silhouette clip. Cutting outside the silhouette removes nothing. A groove that opens through the outline stays open.
+`detail_2d()` keeps its clipped form.
+An engraved recess can meet the silhouette outline at one isolated point. The SCAD file then leaves a small square uncut at that point. Its half side is at most 0.002 mm and a quarter pixel. This is a narrow material bridge. The step reports `cad_recess_bridge`.
 `--json` success adds `artifacts.layers`. It maps each role to the path of a file from this run only.
 `counts.layers` counts published layers. `counts.paths` sums their paths.
 

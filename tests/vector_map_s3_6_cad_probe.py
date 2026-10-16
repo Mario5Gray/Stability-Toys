@@ -56,8 +56,8 @@ def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str,
 
     The source clips structure and detail to the silhouette and removes structure from detail, so
     the published polygon area overcounts any clipped material. OpenSCAD exports each module as SVG
-    with DETAIL_GROW and RECESS_SHRINK forced to zero, so a CAD compatibility change shows up in the
-    measured mesh, not the expectation.
+    with DETAIL_GROW forced to zero, so a growth shows up in the measured mesh, not the expectation.
+    The engraving cut and its bridges are not in detail_2d(), so they also show up in the mesh only.
     """
     text = (directory / "out.scad").read_text()
     head = text[:text.index("module relief")]
@@ -65,7 +65,7 @@ def effective_areas_mm2(directory: Path, command: list[str], roles) -> dict[str,
     for role in roles:
         source, svg = directory / f"area-{role}.scad", directory / f"area-{role}.svg"
         source.write_text(f"{head}{MODULES[role]}();\n")
-        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-D", "RECESS_SHRINK=0", "-o", str(svg), str(source)],
+        run = subprocess.run([*command, "-D", "DETAIL_GROW=0", "-o", str(svg), str(source)],
                              capture_output=True, text=True, timeout=300, cwd=directory)
         if run.returncode:
             raise RuntimeError(f"OpenSCAD 2D export of {role} failed: {run.stderr}")
@@ -364,7 +364,7 @@ def _report(evidence: dict) -> str:
              f"Result: {sum(row['passed'] for row in evidence['cases'])}/{len(evidence['cases'])} cases passed.",
              f"Manifest artifact hashes: {evidence['manifest_hash_check']['checked']} checked, {len(evidence['manifest_hash_check']['mismatches'])} mismatches.",
              "OpenSCAD may return exit 0 while reporting a non-closed or non-manifold mesh; those diagnostics fail a CAD row.",
-             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW and RECESS_SHRINK forced to zero. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
+             "The blocking volume check uses effective areas: the regions the generated SCAD extrudes, exported by OpenSCAD as 2D with DETAIL_GROW forced to zero. Engraved volume uses detail_2d(), not the unclipped engraving cut. This derives the expectation from the SCAD and OpenSCAD, so it checks the 3D assembly, heights and closure but not the 2D clip itself. Bounds, solid count, genus and Z planes stay independent checks.",
              "Each row also records the published-area figure (the sum of the published SVG areas times the heights) and its excess over the effective figure. The published figure overcounts material that structure or detail loses to clipping, so it is evidence and not a blocking check.", ""]
     lines += ["| Case | CAD result |", "|---|---|"]
     lines += [f"| {row['case']} | {'PASS' if row['passed'] else 'FAIL'} |"

@@ -230,7 +230,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
         normalized[role] = repaired.layer
         _report_pinches(repaired, diagnostics, role)
     growth = _detail_growth(settings, normalized, canvas, diagnostics)
-    recess_shrink = _recess_shrink(settings, normalized, canvas, diagnostics)
+    bridge, bridges = _recess_bridges(settings, normalized, canvas, diagnostics)
     try:
         combined = svg_io.combine_layers([(role, layer.svg) for role, layer in normalized.items()],
                                          limits=settings.svg_limits)
@@ -249,7 +249,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             silhouette_thickness_mm=settings.silhouette_thickness_mm,
             structure_height_mm=settings.structure_height_mm,
             detail_height_mm=settings.detail_height_mm,
-            detail_growth_mm=growth, recess_shrink_mm=recess_shrink,
+            detail_growth_mm=growth, recess_bridge_mm=bridge, recess_bridges=bridges,
         ).encode("utf-8")
     rendered = None
     if args.preview:
@@ -343,25 +343,25 @@ def _detail_growth(settings, normalized, canvas, diagnostics):
     return growth
 
 
-def _recess_shrink(settings, normalized, canvas, diagnostics):
-    """Return the SCAD recess shrink in mm, or zero. Only an engraved recess that meets the outline at a point shrinks."""
+def _recess_bridges(settings, normalized, canvas, diagnostics):
+    """Return (bridge half side in mm, pixel points), or (0.0, []). Only an engraved recess that meets the outline at a point gets bridges."""
     if not (settings.export_scad and settings.detail_mode == "engraved" and {"silhouette", "detail"} <= set(normalized)):
-        return 0.0
+        return 0.0, []
     structure = normalized.get("structure")
     contacts = cad.recess_outline_contacts(normalized["silhouette"].svg, normalized["detail"].svg,
                                            structure.svg if structure else None)
     if not contacts:
-        return 0.0
-    shrink = cad.recess_shrink_mm(canvas)
+        return 0.0, []
+    bridge = cad.recess_bridge_mm(canvas)
     diagnostics.append({
-        "level": "warning", "code": "cad_recess_shrink", "shrink_mm": shrink, "contacts": len(contacts),
+        "level": "warning", "code": "cad_recess_bridge", "bridge_mm": bridge, "contacts": len(contacts),
         "message": (
             f"The engraved recess meets the silhouette outline at {len(contacts)} isolated points. The cut "
             "leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD "
-            f"source shrinks the recess by {shrink:g} mm. This leaves a narrow material bridge at each point."
+            f"source leaves a square of side {2 * bridge:g} mm uncut at each point. This is a narrow material bridge."
         ),
     })
-    return shrink
+    return bridge, contacts
 
 
 def _report_degenerate(degenerate, diagnostics, role=None):
