@@ -116,3 +116,114 @@ def test_an_svg_without_a_viewbox_is_a_failed_fidelity_row():
     assert result["passed"] is False
     assert result["failures"] == ["render"]
     assert "viewBox" in result["error"]
+
+
+# --- Evidence schema and the pinned failure signature (plan step 3) ---------------
+
+PIN = {"alpha": [], "beta": ["centroid"]}
+
+
+def row(case, mode, failures, cad=True, missing=()):
+    return {"case": case, "mode": mode, "fidelity": {"failures": list(failures)},
+            "cad_passed": cad, "evidence_missing": list(missing)}
+
+
+def full(changes=None, pin=PIN):
+    """One row per case and mode. changes maps (case, mode) to replacement rows."""
+    rows = [row(case, mode, failures) for case, failures in pin.items() for mode in probe.MODES]
+    return [(changes or {}).get((r["case"], r["mode"]), r) for r in rows]
+
+
+CLEAN_HASHES = {"checked": 10, "mismatches": []}
+
+
+def test_the_pinned_signature_comes_from_the_s1_4_sweep_at_speckle_4():
+    assert probe.pinned_signature() == {
+        "badge": [], "bracket": ["centroid"], "brick": ["centroid", "topology"], "coins": [],
+        "gravel": ["boundary", "topology"], "horse": ["centroid", "topology"], "pcb": [], "truchet": [],
+    }
+
+
+def test_the_exact_pinned_signature_exits_zero_and_keeps_the_failure_visible():
+    index = probe.build_index(full(), PIN, CLEAN_HASHES)
+    assert index["exit_code"] == 0
+    assert index["evidence_complete"] and index["fidelity_matches_pin"]
+    beta = [r for r in index["rows"] if r["case"] == "beta"]
+    assert [r["fidelity_passed"] for r in beta] == [False, False]
+    assert index["fidelity_summary"]["beta"] == {"failures": ["centroid"], "passed": False}
+    assert "release_accepted" not in index
+
+
+def test_every_case_has_one_row_per_mode_even_when_rows_are_absent():
+    index = probe.build_index([row("alpha", "raised", [])], PIN, CLEAN_HASHES)
+    assert [(r["case"], r["mode"]) for r in index["rows"]] == [
+        ("alpha", "raised"), ("alpha", "engraved"), ("beta", "raised"), ("beta", "engraved")]
+    assert [r["evidence_missing"] for r in index["rows"]] == [[], ["row"], ["row"], ["row"]]
+    assert not index["evidence_complete"] and index["exit_code"] == 1
+
+
+def test_a_new_failure_changes_the_signature_and_exits_nonzero():
+    index = probe.build_index(full({("alpha", "raised"): row("alpha", "raised", ["xor"])}), PIN, CLEAN_HASHES)
+    assert not index["fidelity_matches_pin"] and index["exit_code"] == 1
+
+
+def test_a_pinned_failure_that_passes_changes_the_signature_and_exits_nonzero():
+    rows = full({("beta", "raised"): row("beta", "raised", []), ("beta", "engraved"): row("beta", "engraved", [])})
+    index = probe.build_index(rows, PIN, CLEAN_HASHES)
+    assert index["fidelity_summary"]["beta"]["passed"]
+    assert not index["fidelity_matches_pin"] and index["exit_code"] == 1
+
+
+def test_modes_that_disagree_on_fidelity_exit_nonzero():
+    index = probe.build_index(full({("beta", "engraved"): row("beta", "engraved", [])}), PIN, CLEAN_HASHES)
+    assert not index["fidelity_matches_pin"] and index["exit_code"] == 1
+
+
+def test_a_cad_failure_exits_nonzero():
+    index = probe.build_index(full({("alpha", "engraved"): row("alpha", "engraved", [], cad=False)}), PIN, CLEAN_HASHES)
+    assert index["fidelity_matches_pin"] and index["exit_code"] == 1
+
+
+def test_a_manifest_hash_mismatch_exits_nonzero():
+    index = probe.build_index(full(), PIN, {"checked": 10, "mismatches": ["alpha/raised/out.svg"]})
+    assert index["exit_code"] == 1
+
+
+def test_a_missing_artifact_is_missing_evidence(tmp_path):
+    for name in probe.REQUIRED_EVIDENCE:
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_bytes(b"x")
+    assert probe.missing_evidence(tmp_path) == []
+    (tmp_path / "out.scad").unlink()
+    assert probe.missing_evidence(tmp_path) == ["out.scad"]
+    index = probe.build_index(full({("alpha", "raised"): row("alpha", "raised", [], missing=["out.scad"])}),
+                              PIN, CLEAN_HASHES)
+    assert not index["evidence_complete"] and index["exit_code"] == 1
+
+
+BASE_RECIPE = {"preset": "relief-0.4", "vtracer": {"filter_speckle": 4, "mode": "polygon"}}
+
+
+def test_an_override_records_the_fields_it_actually_changed():
+    changed = {"preset": "relief-0.4", "vtracer": {"filter_speckle": 8, "mode": "polygon"}}
+    record = probe.override_record("brick", BASE_RECIPE, ["centroid", "topology"], changed,
+                                   reason="Larger speckle", override_failures=["topology"])
+    assert record == {
+        "case": "brick", "baseline_recipe": BASE_RECIPE, "override_recipe": changed,
+        "changed_fields": ["vtracer.filter_speckle"], "reason": "Larger speckle",
+        "baseline_checks": ["centroid", "topology"], "override_checks": ["topology"],
+    }
+
+
+def test_a_failed_case_without_an_override_records_null_and_stays_failed():
+    record = probe.override_record("brick", BASE_RECIPE, ["centroid", "topology"])
+    assert record["override_recipe"] is None and record["changed_fields"] == []
+    assert record["baseline_checks"] == ["centroid", "topology"] and record["override_checks"] is None
+
+
+def test_an_override_needs_a_reason_and_a_real_change():
+    changed = {"preset": "relief-0.4", "vtracer": {"filter_speckle": 8, "mode": "polygon"}}
+    with pytest.raises(ValueError, match="reason"):
+        probe.override_record("brick", BASE_RECIPE, ["topology"], changed, override_failures=[])
+    with pytest.raises(ValueError, match="changes no field"):
+        probe.override_record("brick", BASE_RECIPE, ["topology"], dict(BASE_RECIPE), reason="x", override_failures=[])
