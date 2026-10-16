@@ -100,8 +100,7 @@ def layered_manifest_bytes(settings, prepared, normalized, inputs, files, diagno
         }
     metrics = [layer.metrics for layer in normalized.values()]
     counts = {name: sum(getattr(item, name) for item in metrics)
-              for name in ("raw_bytes", "normalized_bytes", "paths", "commands", "vertices", "subpaths",
-                           "degenerate_subpaths")}
+              for name in ("raw_bytes", "normalized_bytes", "paths", "commands", "subpaths", "degenerate_subpaths")}
     counts.update(layers=len(normalized), combined_bytes=len(files[combined]))
     common = _common(settings, prepared.silhouette, inputs, upstream_args)
     common["preparation"]["layers"] = list(settings.layers)

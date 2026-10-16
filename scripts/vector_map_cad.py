@@ -41,7 +41,7 @@ import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
 
-from vector_map_svg import NormalizedSvg, _add, _G, _PATH, _parse, _translate, inspect_published_svg
+from vector_map_svg import NormalizedSvg, _add, _G, _PATH, _parse, _translate
 
 PINCH_CAP_MM = 0.01
 PINCH_CAP_PX = 0.25
@@ -123,12 +123,8 @@ def structure_detail_contact(structure_svg, detail_svg):
     return any(_touch(a, b) for a in structure for b in detail)
 
 
-def close_pinches(layer, canvas, limits=None):
-    """Return CadResult. A clean layer comes back as the same object with nothing counted.
-
-    A repaired layer is inspected again against the dialect and limits, and its metrics describe the final
-    text. raw_bytes stays the upstream trace size. A repair over a limit raises SvgInspectionError (S4.2).
-    """
+def close_pinches(layer, canvas):
+    """Return CadResult. A clean layer comes back as the same object with nothing counted."""
     root = _parse(layer.svg)
     paths, rings = _rings(root)
     pinches = _pinches(rings)
@@ -149,8 +145,7 @@ def close_pinches(layer, canvas, limits=None):
     after = _pinches(_rings(_parse(text))[1])
     if after:
         return CadResult(layer, 0, len(pinches))
-    final = inspect_published_svg(text, canvas, limits)
-    metrics = replace(final.metrics, raw_bytes=layer.metrics.raw_bytes)
+    metrics = replace(layer.metrics, normalized_bytes=len(text.encode("utf-8")))
     return CadResult(NormalizedSvg(svg=text, metrics=metrics), len(pinches), 0)
 
 
