@@ -1,0 +1,305 @@
+{
+  "artifacts": [
+    {
+      "bytes": 143,
+      "path": "out.debug/detail.png",
+      "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    {
+      "bytes": 814,
+      "path": "out.debug/recipe.json",
+      "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    {
+      "bytes": 898,
+      "path": "out.debug/silhouette.png",
+      "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+    },
+    {
+      "bytes": 1322,
+      "path": "out.debug/structure.png",
+      "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
+    },
+    {
+      "bytes": 8350,
+      "path": "out.layers/silhouette.svg",
+      "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
+    },
+    {
+      "bytes": 19388,
+      "path": "out.layers/structure.svg",
+      "sha256": "617e81d5c89977b68fea79088835b45134bcfb80b971f01783fd989f57c3f992"
+    },
+    {
+      "bytes": 41157,
+      "path": "out.preview.png",
+      "sha256": "1e64f30f36271660e86dff512ee7fa166f305988671b07689184c34461916cc0"
+    },
+    {
+      "bytes": 1032,
+      "path": "out.scad",
+      "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    {
+      "bytes": 27630,
+      "path": "out.svg",
+      "sha256": "1b6388b710fa39a0c1cea986855179a0a7eea6500ad7cc85cafd80a9c166b14a"
+    }
+  ],
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "counts": {
+    "combined_bytes": 27630,
+    "commands": 3372,
+    "degenerate_subpaths": 0,
+    "layers": 2,
+    "normalized_bytes": 27738,
+    "paths": 124,
+    "raw_bytes": 26967,
+    "subpaths": 316
+  },
+  "inputs": [
+    {
+      "bytes": 1373,
+      "path": "tests/fixtures/vector_map/corpus/pcb/source.png",
+      "role": "source",
+      "sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c"
+    },
+    {
+      "bytes": 898,
+      "path": "tests/fixtures/vector_map/corpus/pcb/mask.png",
+      "role": "mask",
+      "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+    }
+  ],
+  "layers": [
+    {
+      "counts": {
+        "commands": 1082,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 8350,
+        "paths": 30,
+        "raw_bytes": 8342,
+        "subpaths": 94
+      },
+      "height_mm": 1.2,
+      "id": "silhouette",
+      "mode": "base",
+      "svg": "out.layers/silhouette.svg"
+    },
+    {
+      "counts": {
+        "commands": 2290,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 19388,
+        "paths": 94,
+        "raw_bytes": 18625,
+        "subpaths": 222
+      },
+      "height_mm": 0.6,
+      "id": "structure",
+      "mode": "raised",
+      "svg": "out.layers/structure.svg"
+    },
+    {
+      "counts": null,
+      "height_mm": null,
+      "id": "detail",
+      "mode": null,
+      "svg": null
+    }
+  ],
+  "preparation": {
+    "alpha": false,
+    "exclude_mask": null,
+    "expansion": null,
+    "height_mm": null,
+    "include_mask": null,
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "line_width_mm": null,
+    "max_res": null,
+    "oriented_size": [
+      256,
+      256
+    ],
+    "original_size": [
+      256,
+      256
+    ],
+    "processed_size": [
+      256,
+      256
+    ],
+    "silhouette": {
+      "mask": "tests/fixtures/vector_map/corpus/pcb/mask.png",
+      "method": "mask",
+      "threshold": null
+    },
+    "width_mm": 100.0
+  },
+  "preview": {
+    "font": "FreeTypeFont",
+    "freetype2": "2.14.3",
+    "label_size": 12,
+    "labels": [
+      "Silhouette mask",
+      "Structure mask",
+      "Detail mask (empty)",
+      "Silhouette vector",
+      "Structure vector",
+      "Detail vector: empty, no SVG",
+      "Vector layers on source"
+    ],
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "legend": [
+      "silhouette",
+      "structure"
+    ],
+    "pillow": "12.3.0",
+    "renderer": "resvg-py",
+    "renderer_version": "0.5.0",
+    "resolution": [
+      256,
+      256
+    ],
+    "root": "pixel",
+    "shape_rendering": "default"
+  },
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "roles": {
+    "detail": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 100,
+        "low_threshold": 50
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.5
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.5
+    },
+    "structure": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 200,
+        "low_threshold": 100
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.8
+    }
+  },
+  "schema_version": 1,
+  "svg_limits": {
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520
+  },
+  "upstream": {
+    "color_precision": 6,
+    "colormode": "binary",
+    "corner_threshold": 60,
+    "filter_speckle": 4,
+    "hierarchical": "stacked",
+    "img_format": "png",
+    "layer_difference": 16,
+    "length_threshold": 4.0,
+    "max_iterations": 10,
+    "mode": "polygon",
+    "path_precision": 8,
+    "splice_threshold": 45
+  },
+  "versions": {
+    "vtracer": "0.6.15",
+    "wrapper": "0.1.0"
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "warnings": [
+    {
+      "code": "thin_background",
+      "level": "warning",
+      "message": "Possible background features below four pixels: 128 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+      "method": "square_coverage_4px",
+      "pixels": 128
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "structure: Requested line width covers fewer than four processing pixels.",
+      "role": "structure"
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "detail: Requested line width covers fewer than four processing pixels.",
+      "role": "detail"
+    },
+    {
+      "code": "role_empty",
+      "level": "warning",
+      "message": "detail: selected role has no material after constraints and clipping.",
+      "role": "detail"
+    },
+    {
+      "code": "multiple_solids",
+      "components": 30,
+      "level": "warning",
+      "message": "The prepared silhouette has 30 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+    },
+    {
+      "code": "cad_pinch_closed",
+      "level": "warning",
+      "message": "structure: 28 places where two rings touched at a point. OpenSCAD cannot extrude them to a closed mesh. At each place the smaller hole shrank, or the smaller island grew, by at most 0.01 mm and a quarter pixel. This adds material and removes none.",
+      "pinches": 28,
+      "role": "structure"
+    }
+  ]
+}

@@ -1,0 +1,332 @@
+{
+  "artifacts": [
+    {
+      "bytes": 641,
+      "path": "out.debug/detail.png",
+      "sha256": "1c3ed33d1b6ba03bde4bde0d49fa413f53eeaa984675e75a82f999c41da61b5f"
+    },
+    {
+      "bytes": 812,
+      "path": "out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    {
+      "bytes": 4855,
+      "path": "out.debug/silhouette.png",
+      "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+    },
+    {
+      "bytes": 5842,
+      "path": "out.debug/structure.png",
+      "sha256": "91995e87e0af7023b1831dae1749e65f08f2cfa3b86206f2e46fc97056dee3e3"
+    },
+    {
+      "bytes": 1482,
+      "path": "out.layers/detail.svg",
+      "sha256": "fcffbb2b358bf43a9ebf9f063ca19d7ef91c1bd5d6ef75f4d064f3cead77eba1"
+    },
+    {
+      "bytes": 19400,
+      "path": "out.layers/silhouette.svg",
+      "sha256": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933"
+    },
+    {
+      "bytes": 24622,
+      "path": "out.layers/structure.svg",
+      "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
+    },
+    {
+      "bytes": 146332,
+      "path": "out.preview.png",
+      "sha256": "272c593c448670f6ff88827d54a476069d21b1a942ee07fde8512cec10dc6f20"
+    },
+    {
+      "bytes": 1506,
+      "path": "out.scad",
+      "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
+    },
+    {
+      "bytes": 45263,
+      "path": "out.svg",
+      "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
+    }
+  ],
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "counts": {
+    "combined_bytes": 45263,
+    "commands": 5892,
+    "degenerate_subpaths": 358,
+    "layers": 3,
+    "normalized_bytes": 45504,
+    "paths": 120,
+    "raw_bytes": 45450,
+    "subpaths": 580
+  },
+  "inputs": [
+    {
+      "bytes": 47939,
+      "path": "tests/fixtures/vector_map/corpus/truchet/source.png",
+      "role": "source",
+      "sha256": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51"
+    },
+    {
+      "bytes": 4855,
+      "path": "tests/fixtures/vector_map/corpus/truchet/mask.png",
+      "role": "mask",
+      "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+    }
+  ],
+  "layers": [
+    {
+      "counts": {
+        "commands": 2354,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 19400,
+        "paths": 55,
+        "raw_bytes": 19367,
+        "subpaths": 75
+      },
+      "height_mm": 1.2,
+      "id": "silhouette",
+      "mode": "base",
+      "svg": "out.layers/silhouette.svg"
+    },
+    {
+      "counts": {
+        "commands": 3414,
+        "degenerate_subpaths": 357,
+        "normalized_bytes": 24622,
+        "paths": 53,
+        "raw_bytes": 24591,
+        "subpaths": 490
+      },
+      "height_mm": 0.6,
+      "id": "structure",
+      "mode": "raised",
+      "svg": "out.layers/structure.svg"
+    },
+    {
+      "counts": {
+        "commands": 124,
+        "degenerate_subpaths": 1,
+        "normalized_bytes": 1482,
+        "paths": 12,
+        "raw_bytes": 1492,
+        "subpaths": 15
+      },
+      "height_mm": 0.2,
+      "id": "detail",
+      "mode": "raised",
+      "svg": "out.layers/detail.svg"
+    }
+  ],
+  "preparation": {
+    "alpha": false,
+    "exclude_mask": null,
+    "expansion": null,
+    "height_mm": null,
+    "include_mask": null,
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "line_width_mm": null,
+    "max_res": null,
+    "oriented_size": [
+      256,
+      256
+    ],
+    "original_size": [
+      256,
+      256
+    ],
+    "processed_size": [
+      256,
+      256
+    ],
+    "silhouette": {
+      "mask": "tests/fixtures/vector_map/corpus/truchet/mask.png",
+      "method": "mask",
+      "threshold": null
+    },
+    "width_mm": 100.0
+  },
+  "preview": {
+    "font": "FreeTypeFont",
+    "freetype2": "2.14.3",
+    "label_size": 12,
+    "labels": [
+      "Silhouette mask",
+      "Structure mask",
+      "Detail mask",
+      "Silhouette vector",
+      "Structure vector",
+      "Detail vector",
+      "Vector layers on source"
+    ],
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "legend": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "pillow": "12.3.0",
+    "renderer": "resvg-py",
+    "renderer_version": "0.5.0",
+    "resolution": [
+      256,
+      256
+    ],
+    "root": "pixel",
+    "shape_rendering": "default"
+  },
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "roles": {
+    "detail": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 100,
+        "low_threshold": 50
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.5
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.5
+    },
+    "structure": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 200,
+        "low_threshold": 100
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.8
+    }
+  },
+  "schema_version": 1,
+  "svg_limits": {
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520
+  },
+  "upstream": {
+    "color_precision": 6,
+    "colormode": "binary",
+    "corner_threshold": 60,
+    "filter_speckle": 4,
+    "hierarchical": "stacked",
+    "img_format": "png",
+    "layer_difference": 16,
+    "length_threshold": 4.0,
+    "max_iterations": 10,
+    "mode": "polygon",
+    "path_precision": 8,
+    "splice_threshold": 45
+  },
+  "versions": {
+    "vtracer": "0.6.15",
+    "wrapper": "0.1.0"
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "warnings": [
+    {
+      "code": "thin_material",
+      "level": "warning",
+      "message": "Possible material features below four pixels: 13197 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+      "method": "square_coverage_4px",
+      "pixels": 13197
+    },
+    {
+      "code": "thin_background",
+      "level": "warning",
+      "message": "Possible background features below four pixels: 121 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+      "method": "square_coverage_4px",
+      "pixels": 121
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "structure: Requested line width covers fewer than four processing pixels.",
+      "role": "structure"
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "detail: Requested line width covers fewer than four processing pixels.",
+      "role": "detail"
+    },
+    {
+      "code": "multiple_solids",
+      "components": 55,
+      "level": "warning",
+      "message": "The prepared silhouette has 55 disconnected components and no backing. The relief becomes that many separate solids, an approximation until S3.6 mesh validation. Add --backing-mm to join them."
+    },
+    {
+      "code": "degenerate_subpaths",
+      "level": "warning",
+      "message": "structure: VTracer returned 357 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+      "role": "structure",
+      "subpaths": 357
+    },
+    {
+      "code": "degenerate_subpaths",
+      "level": "warning",
+      "message": "detail: VTracer returned 1 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+      "role": "detail",
+      "subpaths": 1
+    },
+    {
+      "code": "cad_detail_growth",
+      "growth_mm": 0.002,
+      "level": "warning",
+      "message": "Detail touches structure at a point. The two tops differ, so OpenSCAD cannot join them in a manifold mesh. The SCAD source grows detail by 0.002 mm and subtracts structure shrunk by the same amount. Structure hides the overlap."
+    }
+  ]
+}

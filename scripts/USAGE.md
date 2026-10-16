@@ -400,6 +400,49 @@ Recipe fields match option names with underscores: `mask`, `threshold`, `include
 Layered image mode adds `layers`, `structure`, and `detail`. See layered image mode above.
 Recipes require `schema_version: 1`. Recipe paths resolve relative to recipe directory. Explicit CLI options override recipe values.
 
+**Minimum feature size**
+
+VTracer can lose or change mask features that are 1–2 processing pixels wide.
+These features include thin strokes, narrow isthmuses, and narrow gaps or channels.
+One processing pixel is `canvas.mm_per_px` millimetres. The manifest records this value.
+At the corpus scale of 0.390625 mm per pixel, 1–2 processing pixels are 0.390625–0.78125 mm.
+The prepared silhouette gets a `thin_material` or `thin_background` warning for possible features below four pixels.
+The warning uses 4x4 square coverage. Curved or diagonal boundaries can give false positives. Geometry does not change.
+To keep a feature, make it at least four processing pixels wide in the mask.
+A larger processing size helps only when the source has that resolution.
+
+Four reviewed corpus cases have such features. They fail the locked S1.4 fidelity checks:
+
+| Case | Failed checks |
+|---|---|
+| bracket | centroid |
+| brick | centroid, topology |
+| gravel | boundary, topology |
+| horse | centroid, topology |
+
+A topology failure means that the traced component or hole count differs from the mask.
+No `filter_speckle` value in the S1.4 grid fixes these cases.
+The release accepts them as documented limitations. They still fail, and the evidence keeps them visible.
+The [S4.1 corpus report](../docs/superpowers/reports/2026-10-15-vector-map-s4-1-corpus.md) holds the measured values.
+Later research on a repair: `STABL-wuzmvgxm`.
+
+**Corpus acceptance probe**
+
+The corpus probe runs all eight reviewed corpus cases in raised and engraved detail modes. It renders each case with OpenSCAD:
+
+```bash
+python -m tests.vector_map_s4_1_corpus_probe --work-dir /tmp/s41-run --index-json /tmp/s41-run.json
+```
+
+The work directory must be empty. Without OpenSCAD the probe exits 2. Set `OPENSCAD` to choose the executable.
+`--case` and `--mode` run a subset. The index still lists all 16 mode rows, so a subset never exits 0.
+Committed records name the work directory `<work>`. An output path outside the repository becomes `<index-json>`, `<earlier-index>`, `<bundle-dir>` or `<report>`.
+Exit 0 means that the evidence is complete, every CAD row passes, and every manifest hash matches.
+It also means that the fidelity failure names equal the S1.4 pins in `sweep-results.json`.
+Exit 0 does not mean that every case passes fidelity. A new failure or an unexpected pass exits 1.
+`--replay CASE` replays a case from its debug recipe. `--compare-index FILE` compares with an earlier independent run.
+`--bundle-dir DIR` writes bundles without STL files. `--report FILE` writes the Markdown report.
+
 ---
 
 ## st-resize-for-model / resize-for-model.sh

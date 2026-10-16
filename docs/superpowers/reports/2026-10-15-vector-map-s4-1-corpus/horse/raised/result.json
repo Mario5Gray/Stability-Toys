@@ -1,0 +1,447 @@
+{
+  "argv": [
+    "python",
+    "scripts/vector_map.py",
+    "tests/fixtures/vector_map/corpus/horse/source.png",
+    "<work>/horse/raised/out.svg",
+    "--input-kind",
+    "image",
+    "--mask",
+    "tests/fixtures/vector_map/corpus/horse/mask.png",
+    "--width-mm",
+    "100",
+    "--layers",
+    "silhouette,structure,detail",
+    "--preset",
+    "relief-0.4",
+    "--export-scad",
+    "--debug-bundle",
+    "--preview",
+    "--json"
+  ],
+  "artifact_hashes": {
+    "area-silhouette.scad": {
+      "bytes": 727,
+      "path": "<work>/horse/raised/area-silhouette.scad",
+      "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+      "bytes": 2803,
+      "path": "<work>/horse/raised/area-silhouette.svg",
+      "sha256": "d1287dcc3ee1973eac52667e73f4ae911ccc772d6ad7f5de6e49549293945c6d"
+    },
+    "area-structure.scad": {
+      "bytes": 726,
+      "path": "<work>/horse/raised/area-structure.scad",
+      "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+      "bytes": 4930,
+      "path": "<work>/horse/raised/area-structure.svg",
+      "sha256": "44075861016a9be12639a2a718f7c2aa8799b899fe508e333e923eaf93b01247"
+    },
+    "fidelity.png": {
+      "bytes": 5016,
+      "path": "<work>/horse/raised/fidelity.png",
+      "sha256": "c9f8fb74ca76fe487fa0792c150eb03ccbb986cf11afa879fe48a74b7cbbad63"
+    },
+    "mesh.png": {
+      "bytes": 7613,
+      "path": "<work>/horse/raised/mesh.png",
+      "sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b"
+    },
+    "out.debug/detail.png": {
+      "bytes": 132,
+      "path": "<work>/horse/raised/out.debug/detail.png",
+      "sha256": "ecfeb413d83685b9485b07939ba8606b999a333d65ae6a8f75f92a1e69e0650b"
+    },
+    "out.debug/recipe.json": {
+      "bytes": 812,
+      "path": "<work>/horse/raised/out.debug/recipe.json",
+      "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+      "bytes": 1236,
+      "path": "<work>/horse/raised/out.debug/silhouette.png",
+      "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+    },
+    "out.debug/structure.png": {
+      "bytes": 1753,
+      "path": "<work>/horse/raised/out.debug/structure.png",
+      "sha256": "52d62e1f487173738d75034defa9f40be6076a81866815badfe3f1ea33dd39aa"
+    },
+    "out.layers/silhouette.svg": {
+      "bytes": 1390,
+      "path": "<work>/horse/raised/out.layers/silhouette.svg",
+      "sha256": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb"
+    },
+    "out.layers/structure.svg": {
+      "bytes": 2425,
+      "path": "<work>/horse/raised/out.layers/structure.svg",
+      "sha256": "402f12c823d3ad271bc756701c6260f28e96cbf0587f544d27d943d97256105c"
+    },
+    "out.preview.png": {
+      "bytes": 37190,
+      "path": "<work>/horse/raised/out.preview.png",
+      "sha256": "6bcb2246ee29c3da07e7bb6d8c46b1ca0b01e221bc112ff262f862e2a6d10582"
+    },
+    "out.scad": {
+      "bytes": 1037,
+      "path": "<work>/horse/raised/out.scad",
+      "sha256": "c5adf7a4013cd8c2f1d3b616828bc8d416906659d26151505abb6a8d891c606a"
+    },
+    "out.stl": {
+      "bytes": 158072,
+      "path": "<work>/horse/raised/out.stl",
+      "sha256": "102e7cf0c2aea6b32f9cc53543bb5439fe1a99bc6be8fbf7ba87864ca17e70d3"
+    },
+    "out.svg": {
+      "bytes": 3702,
+      "path": "<work>/horse/raised/out.svg",
+      "sha256": "7cd01393a4ad97ddc28e6cce718248f642b2fb3f4cc7bb86ad464c5d4ca01aaf"
+    },
+    "out.vector.json": {
+      "bytes": 7321,
+      "path": "<work>/horse/raised/out.vector.json",
+      "sha256": "3c13dd96ba325c65f1509169e47827161c00b92ae0ce3846ea6f66ddff4669a9"
+    }
+  },
+  "cad": {
+    "errors": [],
+    "expected": {
+      "areas_mm2": {
+        "canvas": 8203.125,
+        "detail": 0.0,
+        "silhouette": 2803.726415039499,
+        "structure": 370.78709765349777
+      },
+      "bounds_xy": [
+        [
+          4.296875,
+          3.90625
+        ],
+        [
+          97.265625,
+          79.6875
+        ]
+      ],
+      "filter_speckle_px": 4,
+      "genus_sum": 0,
+      "mask_solids": 1,
+      "published_areas_mm2": {
+        "canvas": 8203.125,
+        "detail": 0.0,
+        "silhouette": 2803.7261962890625,
+        "structure": 370.78857421875
+      },
+      "published_volume_excess": 1.738077414542674e-07,
+      "published_volume_mm3": 3586.944580078125,
+      "solids": 1,
+      "volume_basis": "effective_openscad_2d",
+      "volume_mm3": 3586.943956639497,
+      "z_max": 1.7999999999999998
+    },
+    "measured": {
+      "bounds": [
+        [
+          4.29688,
+          3.90625,
+          0.0
+        ],
+        [
+          97.2656,
+          79.6875,
+          1.8
+        ]
+      ],
+      "genus_per_solid": [
+        0
+      ],
+      "genus_sum": 0,
+      "solids": 1,
+      "volume_mm3": 3586.9439566395,
+      "z_planes": [
+        0.0,
+        1.2,
+        1.8
+      ]
+    },
+    "render": {
+      "argv": [
+        "/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD",
+        "-o",
+        "<work>/horse/raised/out.stl",
+        "<work>/horse/raised/out.scad"
+      ],
+      "errors": [],
+      "exit_code": 0,
+      "seconds": 2.696857166942209,
+      "stderr": "Geometries in cache: 7\nGeometry cache size in bytes: 227456\nCGAL Polyhedrons in cache: 1\nCGAL cache size in bytes: 662096\nTotal rendering time: 0:00:02.561\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:      492\n   Halfedges:    1476\n   Edges:         738\n   Halffacets:    498\n   Facets:        249\n   Volumes:         2\n",
+      "stdout": ""
+    }
+  },
+  "cad_passed": true,
+  "canvas": {
+    "height_mm": 82.03125,
+    "height_px": 210,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "case": "horse",
+  "complexity": {
+    "combined": {
+      "commands": 380,
+      "paths": 2,
+      "subpaths": 3,
+      "svg_bytes": 3702
+    },
+    "silhouette": {
+      "commands": 132,
+      "paths": 1,
+      "subpaths": 1,
+      "svg_bytes": 1390
+    },
+    "structure": {
+      "commands": 248,
+      "paths": 1,
+      "subpaths": 2,
+      "svg_bytes": 2425
+    }
+  },
+  "errors": [],
+  "evidence_missing": [],
+  "exit_code": 0,
+  "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+    "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+      11,
+      6,
+      249,
+      200
+    ],
+    "bounds_render": [
+      11,
+      6,
+      249,
+      200
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.8509753644078816,
+    "checks": {
+      "area": true,
+      "boundary": true,
+      "bounds": true,
+      "centroid": false,
+      "orientation": true,
+      "scale": true,
+      "topology": false,
+      "xor": true
+    },
+    "failures": [
+      "centroid",
+      "topology"
+    ],
+    "mask_area_px": 17779,
+    "orientation_xor_px": {
+      "fliplr": 18473,
+      "flipud": 16815,
+      "rot180": 20751
+    },
+    "passed": false,
+    "perimeter_px": 1694,
+    "polygon_area_px": 18374.5,
+    "topology_mask": [
+      1,
+      0
+    ],
+    "topology_render": [
+      1,
+      2
+    ],
+    "xor_pct_of_canvas": 1.1216517857142858,
+    "xor_pct_of_material": 3.391641824624557,
+    "xor_per_perimeter_px": 0.35596221959858326,
+    "xor_px": 603
+  },
+  "fidelity_passed": false,
+  "manifest_sha256": "3c13dd96ba325c65f1509169e47827161c00b92ae0ce3846ea6f66ddff4669a9",
+  "mask_sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f",
+  "mode": "raised",
+  "override": {
+    "baseline_checks": [
+      "centroid",
+      "topology"
+    ],
+    "baseline_recipe": {
+      "alpha": false,
+      "backing_mm": 0.0,
+      "center": false,
+      "detail": {
+        "path": "detail.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.5
+      },
+      "detail_height_mm": 0.2,
+      "detail_mode": "raised",
+      "export_scad": true,
+      "input": "silhouette.png",
+      "input_kind": "image",
+      "invert": false,
+      "layers": [
+        "silhouette",
+        "structure",
+        "detail"
+      ],
+      "mask": "silhouette.png",
+      "max_path_commands": 1000000,
+      "max_paths": 10000,
+      "max_svg_bytes": 20971520,
+      "preset": "relief-0.4",
+      "schema_version": 1,
+      "silhouette_thickness_mm": 1.2,
+      "structure": {
+        "path": "structure.png",
+        "prepared": true,
+        "source": "map",
+        "width_mm": 0.8
+      },
+      "structure_height_mm": 0.6,
+      "vtracer": {
+        "filter_speckle": 4,
+        "mode": "polygon"
+      },
+      "width_mm": 100.0
+    },
+    "case": "horse",
+    "changed_fields": [],
+    "override_checks": null,
+    "override_recipe": null,
+    "reason": null
+  },
+  "prepared_mask_matches_review": true,
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+      "path": "detail.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+      "path": "structure.png",
+      "prepared": true,
+      "source": "map",
+      "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+      "filter_speckle": 4,
+      "mode": "polygon"
+    },
+    "width_mm": 100.0
+  },
+  "result": {
+    "artifacts": {
+      "debug": "<work>/horse/raised/out.debug",
+      "layers": {
+        "silhouette": "<work>/horse/raised/out.layers/silhouette.svg",
+        "structure": "<work>/horse/raised/out.layers/structure.svg"
+      },
+      "manifest": "<work>/horse/raised/out.vector.json",
+      "preview": "<work>/horse/raised/out.preview.png",
+      "scad": "<work>/horse/raised/out.scad",
+      "svg": "<work>/horse/raised/out.svg"
+    },
+    "counts": {
+      "layers": 2,
+      "paths": 2
+    },
+    "diagnostics": [
+      {
+        "code": "thin_material",
+        "level": "warning",
+        "message": "Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 64
+      },
+      {
+        "code": "thin_background",
+        "level": "warning",
+        "message": "Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+        "method": "square_coverage_4px",
+        "pixels": 178
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "structure: Requested line width covers fewer than four processing pixels.",
+        "role": "structure"
+      },
+      {
+        "code": "requested_width_below_four_pixels",
+        "level": "warning",
+        "message": "detail: Requested line width covers fewer than four processing pixels.",
+        "role": "detail"
+      },
+      {
+        "code": "role_empty",
+        "level": "warning",
+        "message": "detail: selected role has no material after constraints and clipping.",
+        "role": "detail"
+      }
+    ],
+    "schema_version": 1,
+    "status": "converted"
+  },
+  "source_sha256": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d",
+  "stderr": "loading  tests/fixtures/vector_map/corpus/horse/source.png\nwarning: Possible material features below four pixels: 64 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nwarning: Possible background features below four pixels: 178 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.\nraster   original 256x210, oriented 256x210, processed 256x210 px, scale 0.390625 mm/px\nwarning: structure: Requested line width covers fewer than four processing pixels.\nband     structure requested 0.8 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\nwarning: detail: Requested line width covers fewer than four processing pixels.\nwarning: detail: selected role has no material after constraints and clipping.\nband     detail requested 0.5 mm, nominal achieved 1.17188 mm, kernel 3 px, radius 1 px, expansion 0.390625 mm per side\ntracing  silhouette 256x210 px as 100x82.0312 mm\ntracing  structure 256x210 px as 100x82.0312 mm\nscad     <work>/horse/raised/out.scad\npreview  <work>/horse/raised/out.preview.png\nsaved    <work>/horse/raised/out.svg (layers: silhouette, structure; paths: 2)\n",
+  "timings": {
+    "conversion_s": 0.07325058290734887,
+    "effective_area_export_s": 0.20842041727155447,
+    "fidelity_median_s": 0.00882808305323124,
+    "fidelity_preview_s": 0.0065717087127268314,
+    "mesh_preview_s": 0.03107408434152603,
+    "openscad_render_s": 2.696857166942209,
+    "trace_median_s": 0.0021642078645527363
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "work_dir": "<work>/horse/raised"
+}

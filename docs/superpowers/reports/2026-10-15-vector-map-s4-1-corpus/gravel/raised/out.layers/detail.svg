@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="100mm" height="100mm" viewBox="0 0 256 256">
+<path d="M0,0 L14,0 L14,2 L7,3 L3,2 L2,6 L0,3 Z " fill="#000000" transform="translate(222,0)" />
+<path d="M0,0 L4,1 L-1,3 L-2,7 L-2,1 Z " fill="#000000" transform="translate(249,0)" />
+<path d="M0,0 L6,3 L6,5 L8,6 L4,7 L3,4 L-2,2 Z " fill="#000000" transform="translate(228,6)" />
+<path d="M0,0 L4,2 L3,5 L-2,5 L-1,1 Z " fill="#000000" transform="translate(173,22)" />
+<path d="M0,0 L3,1 L5,6 L1,4 Z " fill="#000000" transform="translate(92,24)" />
+<path d="M0,0 L3,0 L5,5 L1,4 L-1,3 Z " fill="#000000" transform="translate(46,27)" />
+<path d="M0,0 L2,0 L3,2 L7,3 L6,6 L1,6 Z " fill="#000000" transform="translate(36,34)" />
+<path d="M0,0 L5,1 L7,3 L6,5 L0,5 Z " fill="#000000" transform="translate(155,40)" />
+<path d="M0,0 L3,1 L1,5 L1,3 L-4,4 L-3,1 Z " fill="#000000" transform="translate(77,40)" />
+<path d="M0,0 L3,1 L2,7 L-1,8 L-1,1 Z " fill="#000000" transform="translate(177,50)" />
+<path d="M0,0 L3,1 L3,11 L0,10 L-1,1 Z " fill="#000000" transform="translate(217,51)" />
+<path d="M0,0 L7,0 L8,3 L0,3 Z " fill="#000000" transform="translate(117,59)" />
+<path d="M0,0 L5,1 L4,5 L-1,7 L-4,4 L-3,2 L-1,3 Z " fill="#000000" transform="translate(134,69)" />
+<path d="M0,0 L2,0 L1,5 L-2,5 L-1,1 Z " fill="#000000" transform="translate(111,72)" />
+<path d="M0,0 L8,0 L9,4 L6,5 L5,9 L3,5 L5,2 L0,1 Z " fill="#000000" transform="translate(58,88)" />
+<path d="M0,0 L2,0 L2,2 L7,3 L10,8 L6,6 L0,3 Z " fill="#000000" transform="translate(0,114)" />
+<path d="M0,0 L6,4 L2,6 L2,4 L-1,4 Z " fill="#000000" transform="translate(240,125)" />
+<path d="M0,0 L7,0 L7,3 L2,3 Z " fill="#000000" transform="translate(221,131)" />
+<path d="M0,0 L5,0 L5,2 L9,3 L9,5 L11,5 L9,9 L5,9 L4,6 L1,5 Z " fill="#000000" transform="translate(153,132)" />
+<path d="M0,0 L4,1 L11,0 L11,3 L6,3 L6,6 L1,5 Z " fill="#000000" transform="translate(237,136)" />
+<path d="M0,0 L7,2 L12,4 L12,5 L5,6 L-1,2 Z " fill="#000000" transform="translate(83,138)" />
+<path d="M0,0 L4,0 L3,3 L-3,4 L-6,1 Z " fill="#000000" transform="translate(66,143)" />
+<path d="M0,0 L1,3 L-8,8 L-12,7 L-14,5 L-11,2 L-5,2 Z " fill="#000000" transform="translate(110,147)" />
+<path d="M0,0 L6,2 L7,4 L2,5 L0,4 Z " fill="#000000" transform="translate(223,149)" />
+<path d="M0,0 L4,5 L0,5 L-1,1 Z " fill="#000000" transform="translate(63,160)" />
+<path d="M0,0 L5,1 L6,4 L1,6 Z " fill="#000000" transform="translate(95,171)" />
+<path d="M0,0 L2,0 L1,7 L-2,6 Z " fill="#000000" transform="translate(41,174)" />
+<path d="M0,0 L4,1 L4,5 L-1,5 Z " fill="#000000" transform="translate(167,178)" />
+<path d="M0,0 L1,4 L-2,8 L-5,7 L-2,6 L-2,2 L0,2 Z " fill="#000000" transform="translate(255,179)" />
+<path d="M0,0 L4,1 L5,5 L0,3 Z " fill="#000000" transform="translate(81,187)" />
+<path d="M0,0 L2,0 L2,2 L5,3 L5,5 L0,4 Z " fill="#000000" transform="translate(71,192)" />
+<path d="M0,0 L5,1 L5,4 L1,5 Z " fill="#000000" transform="translate(251,192)" />
+<path d="M0,0 L5,0 L7,4 L3,5 L2,2 L0,2 Z " fill="#000000" transform="translate(0,195)" />
+<path d="M0,0 L5,4 L2,6 L-1,5 L-4,5 L-5,7 L-6,2 Z " fill="#000000" transform="translate(151,196)" />
+<path d="M0,0 L2,0 L2,2 L6,4 L5,7 L3,6 L4,4 L-1,3 Z " fill="#000000" transform="translate(43,202)" />
+<path d="M0,0 L11,0 L12,3 L4,4 L2,5 Z " fill="#000000" transform="translate(141,209)" />
+<path d="M0,0 L3,0 L3,2 L6,3 L4,3 L4,6 L2,6 L0,3 Z " fill="#000000" transform="translate(47,214)" />
+<path d="M0,0 L6,1 L6,4 L0,4 Z " fill="#000000" transform="translate(101,226)" />
+<path d="M0,0 L3,0 L3,4 L-3,3 Z " fill="#000000" transform="translate(188,238)" />
+<path d="M0,0 L3,1 L2,4 L-2,4 L-2,1 Z " fill="#000000" transform="translate(143,252)" />
+<path d="M0,0 L5,0 L6,4 L-1,3 Z " fill="#000000" transform="translate(199,252)" />
+<path d="M0,0 L5,1 L5,3 L-4,3 L-4,1 Z " fill="#000000" transform="translate(183,253)" />
+</svg>

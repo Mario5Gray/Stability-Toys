@@ -1,0 +1,320 @@
+{
+  "artifacts": [
+    {
+      "bytes": 257,
+      "path": "out.debug/detail.png",
+      "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
+    },
+    {
+      "bytes": 814,
+      "path": "out.debug/recipe.json",
+      "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    {
+      "bytes": 2705,
+      "path": "out.debug/silhouette.png",
+      "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+    },
+    {
+      "bytes": 2861,
+      "path": "out.debug/structure.png",
+      "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
+    },
+    {
+      "bytes": 234,
+      "path": "out.layers/detail.svg",
+      "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
+    },
+    {
+      "bytes": 5497,
+      "path": "out.layers/silhouette.svg",
+      "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
+    },
+    {
+      "bytes": 6242,
+      "path": "out.layers/structure.svg",
+      "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
+    },
+    {
+      "bytes": 83267,
+      "path": "out.preview.png",
+      "sha256": "1ba1dbc1bed64c4c6c600fc38e8d4c952cf2586bfb468eececf2d3c00c31abea"
+    },
+    {
+      "bytes": 1783,
+      "path": "out.scad",
+      "sha256": "a98c4f9bf037958aa4e6a3a6288236a1bb6771ed4cae54e8b37924a944ae8910"
+    },
+    {
+      "bytes": 11732,
+      "path": "out.svg",
+      "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
+    }
+  ],
+  "canvas": {
+    "height_mm": 100.0,
+    "height_px": 256,
+    "mm_per_px": 0.390625,
+    "width_mm": 100.0,
+    "width_px": 256
+  },
+  "counts": {
+    "combined_bytes": 11732,
+    "commands": 1525,
+    "degenerate_subpaths": 22,
+    "layers": 3,
+    "normalized_bytes": 11973,
+    "paths": 3,
+    "raw_bytes": 12036,
+    "subpaths": 143
+  },
+  "inputs": [
+    {
+      "bytes": 32373,
+      "path": "tests/fixtures/vector_map/corpus/brick/source.png",
+      "role": "source",
+      "sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435"
+    },
+    {
+      "bytes": 2705,
+      "path": "tests/fixtures/vector_map/corpus/brick/mask.png",
+      "role": "mask",
+      "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+    }
+  ],
+  "layers": [
+    {
+      "counts": {
+        "commands": 703,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 5497,
+        "paths": 1,
+        "raw_bytes": 5518,
+        "subpaths": 54
+      },
+      "height_mm": 1.2,
+      "id": "silhouette",
+      "mode": "base",
+      "svg": "out.layers/silhouette.svg"
+    },
+    {
+      "counts": {
+        "commands": 817,
+        "degenerate_subpaths": 22,
+        "normalized_bytes": 6242,
+        "paths": 1,
+        "raw_bytes": 6263,
+        "subpaths": 88
+      },
+      "height_mm": 0.6,
+      "id": "structure",
+      "mode": "raised",
+      "svg": "out.layers/structure.svg"
+    },
+    {
+      "counts": {
+        "commands": 5,
+        "degenerate_subpaths": 0,
+        "normalized_bytes": 234,
+        "paths": 1,
+        "raw_bytes": 255,
+        "subpaths": 1
+      },
+      "height_mm": 0.2,
+      "id": "detail",
+      "mode": "engraved",
+      "svg": "out.layers/detail.svg"
+    }
+  ],
+  "preparation": {
+    "alpha": false,
+    "exclude_mask": null,
+    "expansion": null,
+    "height_mm": null,
+    "include_mask": null,
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "line_width_mm": null,
+    "max_res": null,
+    "oriented_size": [
+      256,
+      256
+    ],
+    "original_size": [
+      256,
+      256
+    ],
+    "processed_size": [
+      256,
+      256
+    ],
+    "silhouette": {
+      "mask": "tests/fixtures/vector_map/corpus/brick/mask.png",
+      "method": "mask",
+      "threshold": null
+    },
+    "width_mm": 100.0
+  },
+  "preview": {
+    "font": "FreeTypeFont",
+    "freetype2": "2.14.3",
+    "label_size": 12,
+    "labels": [
+      "Silhouette mask",
+      "Structure mask",
+      "Detail mask",
+      "Silhouette vector",
+      "Structure vector",
+      "Detail vector",
+      "Vector layers on source"
+    ],
+    "layers": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "legend": [
+      "silhouette",
+      "structure",
+      "detail"
+    ],
+    "pillow": "12.3.0",
+    "renderer": "resvg-py",
+    "renderer_version": "0.5.0",
+    "resolution": [
+      256,
+      256
+    ],
+    "root": "pixel",
+    "shape_rendering": "default"
+  },
+  "relief": {
+    "backing_mm": 0.0,
+    "center": false,
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "preset": "relief-0.4",
+    "silhouette_thickness_mm": 1.2,
+    "structure_height_mm": 0.6
+  },
+  "roles": {
+    "detail": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 100,
+        "low_threshold": 50
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.5
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.5
+    },
+    "structure": {
+      "canny": {
+        "blur": 3,
+        "high_threshold": 200,
+        "low_threshold": 100
+      },
+      "exclude_mask": null,
+      "expansion": {
+        "achieved_width_mm": 1.171875,
+        "expansion_mm": 0.390625,
+        "kernel_size_px": 3,
+        "radius_px": 1,
+        "requested_width_mm": 0.8
+      },
+      "gap_close_mm": null,
+      "gap_closing": null,
+      "include_mask": null,
+      "path": null,
+      "source": "canny",
+      "width_mm": 0.8
+    }
+  },
+  "schema_version": 1,
+  "svg_limits": {
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520
+  },
+  "upstream": {
+    "color_precision": 6,
+    "colormode": "binary",
+    "corner_threshold": 60,
+    "filter_speckle": 4,
+    "hierarchical": "stacked",
+    "img_format": "png",
+    "layer_difference": 16,
+    "length_threshold": 4.0,
+    "max_iterations": 10,
+    "mode": "polygon",
+    "path_precision": 8,
+    "splice_threshold": 45
+  },
+  "versions": {
+    "vtracer": "0.6.15",
+    "wrapper": "0.1.0"
+  },
+  "vtracer": {
+    "filter_speckle": 4,
+    "mode": "polygon"
+  },
+  "warnings": [
+    {
+      "code": "thin_material",
+      "level": "warning",
+      "message": "Possible material features below four pixels: 10378 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+      "method": "square_coverage_4px",
+      "pixels": 10378
+    },
+    {
+      "code": "thin_background",
+      "level": "warning",
+      "message": "Possible background features below four pixels: 181 pixels lack 4x4 square coverage. Curved or diagonal boundaries can produce false positives. Geometry unchanged.",
+      "method": "square_coverage_4px",
+      "pixels": 181
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "structure: Requested line width covers fewer than four processing pixels.",
+      "role": "structure"
+    },
+    {
+      "code": "requested_width_below_four_pixels",
+      "level": "warning",
+      "message": "detail: Requested line width covers fewer than four processing pixels.",
+      "role": "detail"
+    },
+    {
+      "code": "degenerate_subpaths",
+      "level": "warning",
+      "message": "structure: VTracer returned 22 degenerate subpaths (points or lines) inside valid paths. They are kept unchanged and add no area.",
+      "role": "structure",
+      "subpaths": 22
+    },
+    {
+      "bridge_mm": 0.002,
+      "code": "cad_recess_bridge",
+      "contacts": 1,
+      "level": "warning",
+      "message": "The engraved recess meets the silhouette outline at 1 isolated points. The cut leaves material that touches at a point, so OpenSCAD cannot make a manifold mesh. The SCAD source leaves a square of side 0.004 mm uncut at each point. This is a narrow material bridge."
+    }
+  ]
+}
