@@ -504,3 +504,70 @@ def test_native_engraved_corpus_mesh_is_closed_with_the_recess_shrink(case, tmp_
     assert row["passed"], row["errors"]
     assert row["relief"]["detail_mode"] == "engraved"
     assert "RECESS_SHRINK = 0.002;" in (directory / "out.scad").read_text()
+
+
+# --- Engraved recess: known open cases (STABL-ygtexxzr) ------------------------
+#
+# Both tests are strict xfail. They record defects of the current engraved rule and will fail
+# loudly when a repair makes them pass. The repair choice is open.
+
+SLIVER = ROOT / "tests/fixtures/vector_map/cad/shared_run_sliver"
+
+
+def _render_engraved(tmp_path, layers, canvas_):
+    """Write layers, build engraved SCAD with the production recess rule, render it. Return (stderr, stl)."""
+    from types import SimpleNamespace
+    import vector_map
+
+    work, _ = open_scad.choose_work_dir(tmp_path, open_scad.OPENSCAD)
+    assert open_scad.OPENSCAD
+    (work / "out.layers").mkdir(parents=True, exist_ok=True)
+    for role, text in layers.items():
+        (work / "out.layers" / f"{role}.svg").write_text(text)
+    settings = SimpleNamespace(export_scad=True, detail_mode="engraved")
+    normalized = {role: SimpleNamespace(svg=text) for role, text in layers.items()}
+    shrink = vector_map._recess_shrink(settings, normalized, canvas_, [])
+    source = scad.build_scad(canvas_, {role: f"out.layers/{role}.svg" for role in layers}, detail_mode="engraved",
+                             silhouette_thickness_mm=1.2, detail_height_mm=0.2, recess_shrink_mm=shrink)
+    (work / "out.scad").write_text(source)
+    run = subprocess.run([*open_scad.OPENSCAD, "-o", str(work / "out.stl"), str(work / "out.scad")],
+                         capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stderr
+    return run.stderr, work / "out.stl"
+
+
+def _cad_warnings(stderr):
+    return [line for line in stderr.splitlines() if any(w in line for w in CAD_WARNINGS)]
+
+
+@open_scad.needs_openscad
+@pytest.mark.xfail(strict=True, reason="Shared-run sliver: the isolated-point trigger does not fire. Repair open.")
+def test_native_engraved_shared_run_sliver_renders_closed(tmp_path):
+    # Two rings cropped from corpus gravel at px (180, 51). The recess shares a boundary run with the
+    # outline, so the exact geometry has no isolated contact. The OpenSCAD intersection rounds the next
+    # recess vertex off the outline and leaves a hairline sliver that closes to a point.
+    layers = {role: (SLIVER / f"{role}.svg").read_text() for role in ("silhouette", "detail")}
+    assert cad.recess_outline_contacts(layers["silhouette"], layers["detail"]) == []
+    stderr, _ = _render_engraved(tmp_path, layers, Canvas(256, 256, 100.0, 100.0, 0.390625))
+    assert not _cad_warnings(stderr)
+
+
+OPENING_SILHOUETTE = "M2,2 L38,2 L38,20 L2,20 Z "
+GROOVE_TO_EDGE = "M10,12 L14,12 L14,20 L10,20 Z "  # opens through the wall at px y = 20
+TIP_ON_TOP_EDGE = "M30,2 L26,8 L34,8 Z "  # isolated contact at px (30, 2)
+
+
+@open_scad.needs_openscad
+@pytest.mark.xfail(strict=True, reason="The whole-recess shrink seals edge openings with a skin. Repair open.")
+def test_native_engraved_edge_opening_survives_a_recess_repair(tmp_path):
+    from tests import vector_map_s3_6_cad_probe as probe
+
+    canvas_ = Canvas(40, 30, 16.0, 12.0, 0.4)
+    layers = {"silhouette": layer((OPENING_SILHOUETTE, None), size=40),
+              "detail": layer((GROOVE_TO_EDGE + TIP_ON_TOP_EDGE, None), size=40)}
+    stderr, stl = _render_engraved(tmp_path, layers, canvas_)
+    assert not _cad_warnings(stderr)
+    vertices, _ = probe._vertices(stl)
+    wall_y, floor_z = 12.0 - 20 * 0.4, 1.2 - 0.2  # mesh y of px row 20, engraving floor
+    groove = vertices[(vertices[:, 0] > 10 * 0.4) & (vertices[:, 0] < 14 * 0.4)]
+    assert any(abs(y - wall_y) < 1e-6 and abs(z - floor_z) < 1e-6 for _, y, z in groove), "groove floor stops short of the wall"

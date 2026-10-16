@@ -249,6 +249,13 @@ The cap cleared all three on the first value, so no smaller shrink was measured.
 
 Badge, bracket, horse and pcb publish no detail layer, so they have no recess. The contacts after the shrink were counted on OpenSCAD 2D exports of the final pieces. Native gates in `tests/test_vector_map_cad.py` render engraved brick, gravel and truchet.
 
+Two engraved defects stay open. Strict xfail tests in `tests/test_vector_map_cad.py` record both. This report is not a general guarantee of closed engraved meshes.
+
+1. Shared-run sliver. `tests/fixtures/vector_map/cad/shared_run_sliver` holds the two gravel rings at px (180, 51) alone. The fixture has no isolated contact, so the rule does not fire, and the mesh is non-manifold with one four-face edge. A 0.002 mm recess shrink closes it.
+2. Edge openings. The shrink applies to the whole final recess. Where a groove opens through the side wall along the outline, the shrink leaves a 0.002 mm skin that seals the opening. This holds both when the detail ends on the outline and when it runs past it. It already applies to the committed engraved output wherever the rule fires, for example at the gravel point above. A broader trigger that also fires on shared runs would seal more openings.
+
+An alternative was measured in a scratch build only. The engraving cut is raw detail minus raw structure, with no silhouette clip. A 0.004 mm square is removed from the cut at each isolated contact, which leaves a local material bridge there. `detail_2d()` stays clipped for the volume expectation. With this build, brick, gravel, truchet and coins engraved, the sliver fixture and both opening fixtures render closed. Both openings stay open. Volume relative to the effective figure is at most 4.73e-08, and the engraving-band cross-section has no ring-to-ring vertex contacts. It is not adopted. The repair choice is open.
+
 The records below come from the earlier acceptance run and were not repeated.
 
 The [installed-console evidence](2026-10-14-vector-map-s3-6-cad-acceptance/installed_console.json) records a fresh `./scripts[vector]` installation, dependency versions, exact argv, exit codes, and hashes for an explicit-relief corpus run, a `relief-0.4` run, and standalone mask conversion. All three conversions exited 0. The temporary venv was deleted after capture. Mask mode produced conversion artifacts only, as required by the layered-image admission rule.
