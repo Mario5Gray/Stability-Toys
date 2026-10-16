@@ -891,6 +891,18 @@ def test_limit_failure_suggests_upstream_settings(run_injected):
     assert "--max-res" in message and "filter_speckle" in message and "0..128" in message
 
 
+def test_standalone_near_limit_warning_reaches_json_manifest_and_stderr(run_injected):
+    code, payload, stderr, _, _ = run_injected(injected(TRIANGLE_PATH), "--max-paths", "1")
+    assert code == 0, stderr
+    warnings = [item for item in payload["diagnostics"] if item.get("code") == "limit_near_miss"]
+    assert [(item["role"], item["metric"], item["value"], item["limit"]) for item in warnings] == [
+        ("standalone", "paths", 1, 1)]
+    assert payload["counts"]["by_layer"]["standalone"]["paths"] == 1
+    manifest = json.loads(Path(payload["artifacts"]["manifest"]).read_text())
+    assert warnings == [item for item in manifest["warnings"] if item.get("code") == "limit_near_miss"]
+    assert f"warning: {warnings[0]['message']}" in stderr
+
+
 def degenerate_warnings(stderr):
     """Warning lines only. pytest tmp paths repeat the test name, which contains the word."""
     return [line for line in stderr.splitlines() if line.startswith("warning:") and "degenerate" in line]

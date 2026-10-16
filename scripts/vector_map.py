@@ -27,7 +27,7 @@ import vector_map_vtracer as adapter
 import vector_map_artifacts as artifacts
 import vector_map_cad as cad
 import vector_map_preview as preview
-from vector_map_diagnostics import separate_solids
+from vector_map_diagnostics import limit_near_miss, separate_solids
 
 RESULT_SCHEMA_VERSION = 1
 
@@ -169,6 +169,8 @@ def _convert(args, diagnostics, published):
     except (OSError, RuntimeError, ValueError) as exc:
         message = f"VTracer {_version('vtracer')} layer {artifacts.layer_id(settings)}: {exc}"
         raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
+    role = artifacts.layer_id(settings)
+    _report(limit_near_miss(role, normalized.metrics, settings.svg_limits), diagnostics)
     paths = normalized.metrics.paths
     _report_degenerate(normalized.metrics.degenerate_subpaths, diagnostics)
     files = {bundle.relative(destination): normalized.svg.encode("utf-8"), **debug}
@@ -191,7 +193,6 @@ def _convert(args, diagnostics, published):
     if debug:
         published["debug"] = str(bundle.debug_directory)
     _progress(f"saved    {destination} (paths: {paths})")
-    role = artifacts.layer_id(settings)
     return destination, _complexity_counts({role: normalized}, files, bundle.relative(destination),
                                            {role: bundle.relative(destination)})
 
@@ -235,6 +236,7 @@ def _convert_layered(args, settings, bundle, inputs, snapshots, diagnostics, pub
             raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
         normalized[role] = repaired.layer
         _report_pinches(repaired, diagnostics, role)
+        _report(limit_near_miss(role, normalized[role].metrics, settings.svg_limits), diagnostics)
     growth = _detail_growth(settings, normalized, canvas, diagnostics)
     bridge, bridges = _recess_bridges(settings, normalized, canvas, diagnostics)
     try:

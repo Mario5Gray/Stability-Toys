@@ -4,6 +4,22 @@ import cv2
 import numpy as np
 
 
+def limit_near_miss(role, metrics, limits):
+    """Return warnings for accepted per-layer SVG measurements near configured limits."""
+    largest_bytes = max(metrics.raw_bytes or 0, metrics.normalized_bytes or 0)
+    measurements = (
+        ("paths", metrics.paths, limits.max_paths, "--max-paths"),
+        ("commands", metrics.commands, limits.max_path_commands, "--max-path-commands"),
+        ("svg_bytes", largest_bytes, limits.max_svg_bytes, "--max-svg-bytes"),
+    )
+    return tuple({
+        "level": "warning", "code": "limit_near_miss", "role": role,
+        "metric": metric, "value": value, "limit": limit,
+        "message": (f"{role}: measured {metric} = {value}. This is near the per-layer limit {limit} ({flag}). "
+                    "Reduce layer complexity or raise the limit."),
+    } for metric, value, limit, flag in measurements if 9 * limit <= 10 * value <= 10 * limit)
+
+
 def separate_solids(material):
     """Warn about unbacked islands. S3.4, STABL-gorlibrt. Each island becomes one solid."""
     count = _component_count(material)
