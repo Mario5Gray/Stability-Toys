@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import vector_map_cad as cad  # noqa: E402
 from vector_map_config import Canvas  # noqa: E402
-from vector_map_svg import normalize_svg  # noqa: E402
+from vector_map_svg import SvgInspectionError, SvgLimits, inspect_published_svg, normalize_svg  # noqa: E402
 
 SVG_NS = "http://www.w3.org/2000/svg"
 
@@ -207,6 +207,26 @@ def test_two_islands_meeting_at_a_point_are_joined_by_growing_the_smaller():
 def test_normalized_bytes_metric_follows_the_repaired_text():
     result = cad.close_pinches(normalized(layer((f"{OUTER} {HOLE_A} {HOLE_B_TOUCHING} ", None))), canvas())
     assert result.layer.metrics.normalized_bytes == len(result.layer.svg.encode("utf-8"))
+
+
+def test_repair_metrics_describe_the_published_svg_and_keep_the_upstream_raw_bytes():
+    # S4.2, STABL-xesykctr. The edge contact inserts one hole vertex, so one more L command.
+    before = normalized(layer((f"{NOTCHED_OUTER} {HOLE_ON_TIP} ", None)))
+    result = cad.close_pinches(before, canvas(), limits=SvgLimits())
+    fresh = inspect_published_svg(result.layer.svg, canvas(), SvgLimits()).metrics
+    assert result.closed == 1
+    assert result.layer.metrics.commands == before.metrics.commands + 1 == fresh.commands
+    assert result.layer.metrics.vertices == before.metrics.vertices + 1 == fresh.vertices
+    assert result.layer.metrics.raw_bytes == before.metrics.raw_bytes
+
+
+def test_a_repair_that_crosses_a_configured_limit_is_refused():
+    # The traced layer is inside the limit. Only the repaired layer would exceed it.
+    tight = SvgLimits(max_path_commands=13)
+    before = normalize_svg(layer((f"{NOTCHED_OUTER} {HOLE_ON_TIP} ", None)), canvas(), limits=tight)
+    assert before.metrics.commands == 13
+    with pytest.raises(SvgInspectionError, match="path command count"):
+        cad.close_pinches(before, canvas(), limits=tight)
 
 
 # --- Structure and detail contact (defect B) ----------------------------------

@@ -19,6 +19,7 @@ from vector_map_config import Canvas  # noqa: E402
 from vector_map_svg import (  # noqa: E402
     SvgInspectionError,
     SvgLimits,
+    inspect_published_svg,
     inspect_svg,
     normalize_svg,
     size_svg,
@@ -133,6 +134,31 @@ def test_degenerate_only_path_fails_with_the_approved_diagnostic():
 def test_a_polygon_in_another_path_does_not_rescue_a_degenerate_only_path():
     with pytest.raises(SvgInspectionError, match="only points or lines"):
         inspect(doc(path() + path("M1,1 Z ")))
+
+
+# --- Vertices (S4.2, STABL-xesykctr) ------------------------------------------
+# A vertex is one coordinate point of an M or L command. Z closes a subpath and adds none.
+
+
+def test_vertices_count_m_and_l_points_and_never_z():
+    result = inspect(doc(path("M0,0 L4,0 L0,3 Z ")))
+    assert (result.metrics.vertices, result.metrics.commands) == (3, 4)
+
+
+def test_vertices_sum_over_subpaths_and_paths():
+    body = path("M0,0 L4,0 L0,3 Z M5,5 L9,5 L9,8 L5,8 Z ") + path()
+    assert inspect(doc(body)).metrics.vertices == 3 + 4 + 3
+
+
+def test_vertices_include_the_points_of_retained_degenerate_subpaths():
+    result = inspect(doc(path("M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z ")))
+    assert result.metrics.degenerate_subpaths == 2
+    assert result.metrics.vertices == 3 + 1 + 2
+
+
+def test_a_repeated_point_is_one_more_vertex():
+    result = inspect(doc(path("M0,0 L4,0 L0,3 Z M1,1 L1,1 L1,1 Z ")))
+    assert result.metrics.vertices == 3 + 3
 
 
 # --- Rejected documents -------------------------------------------------------
@@ -482,6 +508,7 @@ def test_normalized_metrics_report_both_sizes_and_counts():
     assert result.metrics.normalized_bytes == len(result.svg.encode("utf-8"))
     assert (result.metrics.paths, result.metrics.commands, result.metrics.subpaths) == (3, 14, 4)
     assert result.metrics.degenerate_subpaths == 1
+    assert result.metrics.vertices == 10
 
 
 def test_degenerate_subpaths_survive_normalization_unchanged():
@@ -502,3 +529,49 @@ def test_normalization_limits_apply_to_the_raw_inspection():
 
 def test_size_svg_is_the_normalizer():
     assert size_svg(doc(NESTED), CANVAS) == normalize_svg(doc(NESTED), CANVAS).svg
+
+
+# --- Published SVG inspection (S4.2, STABL-xesykctr) --------------------------
+# The published layer has the mm root and the pixel viewBox. It is not raw VTracer output.
+
+
+def published_counts(metrics):
+    return (metrics.paths, metrics.commands, metrics.vertices, metrics.subpaths, metrics.degenerate_subpaths)
+
+
+def test_published_inspection_reports_the_counts_of_the_published_text():
+    normalized = normalize_svg(doc(NESTED), CANVAS)
+    published = inspect_published_svg(normalized.svg, CANVAS, SvgLimits())
+    assert published_counts(published.metrics) == published_counts(normalized.metrics)
+    assert published.metrics.normalized_bytes == len(normalized.svg.encode("utf-8"))
+    assert published.metrics.raw_bytes is None  # a published layer has no upstream trace of its own
+
+
+def test_published_inspection_rejects_a_raw_pixel_header():
+    with pytest.raises(SvgInspectionError, match="width"):
+        inspect_published_svg(doc(), CANVAS, SvgLimits())
+
+
+def test_published_inspection_rejects_another_view_box():
+    svg = normalize_svg(doc(), CANVAS).svg.replace('viewBox="0 0 20 10"', 'viewBox="0 0 40 20"')
+    with pytest.raises(SvgInspectionError, match="viewBox"):
+        inspect_published_svg(svg, CANVAS, SvgLimits())
+
+
+def test_published_inspection_rejects_a_collinear_ring():
+    svg = normalize_svg(doc(), CANVAS).svg.replace("M0,0 L4,0 L0,3 Z", "M0,0 L2,0 L4,0 Z")
+    with pytest.raises(SvgInspectionError, match="collinear"):
+        inspect_published_svg(svg, CANVAS, SvgLimits())
+
+
+@pytest.mark.parametrize("field, match", [
+    ("max_paths", "path count"),
+    ("max_path_commands", "path command count"),
+    ("max_svg_bytes", "size"),
+])
+def test_published_inspection_enforces_each_configured_limit(field, match):
+    normalized = normalize_svg(doc(path() * 2), CANVAS)
+    allowed = {"max_paths": 2, "max_path_commands": 8, "max_svg_bytes": len(normalized.svg.encode("utf-8"))}
+    assert inspect_published_svg(normalized.svg, CANVAS, SvgLimits(**allowed)).metrics.paths == 2
+    with pytest.raises(SvgInspectionError, match=match):
+        inspect_published_svg(normalized.svg, CANVAS, SvgLimits(**{**allowed, field: allowed[field] - 1}))

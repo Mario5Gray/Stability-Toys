@@ -816,8 +816,24 @@ def test_layered_manifest_records_roles_inputs_and_counts(tmp_path, capsys):
     assert structure["expansion"]["kernel_size_px"] == 3
     assert manifest["counts"]["layers"] == 3
     assert manifest["counts"]["paths"] == sum(layer["counts"]["paths"] for layer in layers) == result["counts"]["paths"]
+    assert manifest["counts"]["vertices"] == sum(layer["counts"]["vertices"] for layer in layers) > 0
     assert manifest["counts"]["combined_bytes"] == len((tmp_path / "out.svg").read_bytes())
     assert "time" not in json.dumps(manifest).lower()
+
+
+def test_single_layer_image_manifest_names_the_silhouette_layer(tmp_path, capsys):
+    # S4.2, STABL-xesykctr. layer_id(settings) is the role key for every single-layer result.
+    import vector_map
+
+    scene = layered_scene(tmp_path)
+    code = vector_map.main([str(value) for value in (
+        scene["source"], tmp_path / "out.svg", "--input-kind", "image", "--mask", scene["mask"],
+        "--width-mm", "32", "--json")])
+    error = capsys.readouterr().err
+    assert code == 0, error
+    manifest = verify_manifest(tmp_path / "out.vector.json")
+    assert [layer["id"] for layer in manifest["layers"]] == ["silhouette"]
+    assert manifest["counts"]["vertices"] >= 3
 
 
 def test_layered_manifest_records_resolved_canny_with_shared_blur(tmp_path, capsys):
