@@ -675,3 +675,37 @@ def test_recipe_gap_close_mm_is_the_widest_gap_not_a_kernel_width(geometry_scene
     (closing,) = [item for item in result["diagnostics"] if item.get("code") == "gap_closing"]
     assert (closing["role"], closing["radius_px"]) == ("detail", radius)
     assert closing["radius_px"] == max(1, math.ceil(gap_mm / 2))
+
+
+# --- Final inspection after CAD pinch repair (S4.2, STABL-xesykctr) -----------
+
+
+def three_touching_holes():
+    """Silhouette with three holes that meet at corners. The pinch repair makes the layer text longer."""
+    material = np.zeros(SHAPE, bool)
+    material[2:22, 2:30] = True
+    material[6:12, 6:12] = material[12:18, 12:18] = material[6:12, 18:24] = False
+    return material
+
+
+def test_a_repaired_layer_over_the_byte_limit_is_refused_and_keeps_the_debug_input(scene, capsys):
+    scene["mask"] = write_mask(scene["dir"] / "holes.png", three_touching_holes())
+    code, free, error = run(capsys, *image_args(scene, "free.svg", "--layers", "silhouette"))
+    assert code == 0, error
+    assert "cad_pinch_closed" in [item.get("code") for item in free["diagnostics"]]
+    raw_bytes = json.loads((scene["dir"] / "free.vector.json").read_text())["layers"][0]["counts"]["raw_bytes"]
+    repaired = len((scene["dir"] / "free.layers/silhouette.svg").read_bytes())
+    assert repaired > raw_bytes, "fixture must make the repaired layer the largest text"
+
+    code, result, error = run(capsys, *image_args(scene, "out.svg", "--layers", "silhouette", "--debug-bundle",
+                                                  "--max-svg-bytes", raw_bytes))
+    assert code == 1, error
+    assert result["status"] == "failed"
+    message = result["diagnostics"][0]["message"]
+    assert "pinch repair" in message and "layer silhouette" in message
+    assert f"exceeds limit {raw_bytes} (--max-svg-bytes)" in message
+    assert "Debug files retained" in message
+    assert result["artifacts"] == {"svg": None, "debug": str(scene["dir"] / "out.debug")}
+    assert (scene["dir"] / "out.debug/silhouette.png").is_file()
+    assert not (scene["dir"] / "out.vector.json").exists()
+    assert not (scene["dir"] / "out.svg").exists()
