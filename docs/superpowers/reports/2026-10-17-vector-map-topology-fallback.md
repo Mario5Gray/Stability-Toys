@@ -48,11 +48,17 @@ including gravel at 225 components and 13 holes. The cost is 3.08x to 8.83x the 
 3.1x to 7.1x the bytes. The largest output is gravel: 11,526 commands and 92,815 bytes. That is far below the
 per-layer limits of 1,000,000 commands and 20,971,520 bytes.
 
-**2. Upscaling is the pixel staircase, at a higher cost.** Every passing upscale variant has XOR 0 and the same
+**2. Upscaling reproduces the pixel staircase.** Every passing upscale variant has XOR 0 and the same
 command count as `pixel_edge`. VTracer smooths in traced pixels, so at ×2 and ×4 it keeps every source step.
-It adds trace time (×4 at speckle 4: 22.7–65.4 ms against 2.6–81.2 ms for `pixel_edge`) and coordinate bytes. With speckle scaled to
-source pixels it breaks cases: `up2_s16` fails gravel and truchet. `up4_s64` fails bracket, gravel, pcb, and truchet.
-Reject: it gives no benefit over `pixel_edge`.
+Time and bytes are mixed against `pixel_edge`:
+
+- `up2_s4` is faster on four masks (brick, gravel, pcb, truchet) and smaller on five (bracket, coins, gravel, pcb, truchet).
+- `up4_s4` is faster only on gravel and smaller only on pcb.
+- `pixel_edge` is an unoptimized pure-Python loop. Its trace time does not rank the methods.
+
+With speckle scaled to source pixels it breaks cases: `up2_s16` fails gravel and truchet. `up4_s64` fails
+bracket, gravel, pcb, and truchet. Reject: equal command counts give no complexity benefit over `pixel_edge`,
+and only the unscaled speckle keeps fidelity on all eight.
 
 **3. Width detection cannot select the hard cases.** Every case, passing or hard, has pixels below 4 px.
 Truchet has 13,197 thin material pixels and passes. Horse has 64 and fails. The skeleton minimum is 2.0 px in
