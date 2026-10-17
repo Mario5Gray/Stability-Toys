@@ -23,12 +23,15 @@ Brick's S1.4 fidelity failure is a known limitation of the raster trace. It is n
 ## OpenSCAD STL export
 
 Mario exported the STL for each row with OpenSCAD 2021.01, then sliced it. Theta repeated the export on
-2026-10-17 from the committed files, in each row's directory:
+2026-10-17 from the committed files. Run these commands from the repository root. OpenSCAD resolves each
+`import()` relative to its SCAD file. Each STL goes outside the repository, so the S4.1 bundle stays unchanged:
 
 ```bash
 export OPENSCAD=/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 "$OPENSCAD" --version   # OpenSCAD version 2021.01
-"$OPENSCAD" -o <row>.stl out.scad
+R=docs/superpowers/reports/2026-10-15-vector-map-s4-1-corpus
+"$OPENSCAD" -o "$TMPDIR/badge-raised.stl" "$R/badge/raised/out.scad"
+"$OPENSCAD" -o "$TMPDIR/brick-engraved.stl" "$R/brick/engraved/out.scad"
 ```
 
 | Row | Imports (all committed) | Exit | OpenSCAD `Volumes` | STL bounds (mm) | Matches S4.1 CAD bounds |
