@@ -911,6 +911,15 @@ def degenerate_warnings(stderr):
 MIXED = injected('<path d="M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z"/>')
 
 
+def test_standalone_degenerate_warning_precedes_near_limit_warning(run_injected):
+    code, payload, stderr, _, _ = run_injected(MIXED, "--max-paths", "1")
+    assert code == 0, stderr
+    warnings = [item for item in payload["diagnostics"]
+                if item.get("code") in ("degenerate_subpaths", "limit_near_miss")]
+    assert [item["code"] for item in warnings] == ["degenerate_subpaths", "limit_near_miss"]
+    assert stderr.index(f"warning: {warnings[0]['message']}") < stderr.index(f"warning: {warnings[1]['message']}")
+
+
 def test_degenerate_subpaths_publish_with_one_counted_warning(run_injected):
     code, payload, stderr, out, _ = run_injected(MIXED)
     assert code == 0

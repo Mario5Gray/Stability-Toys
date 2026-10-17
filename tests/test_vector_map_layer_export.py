@@ -109,13 +109,14 @@ def test_layered_near_limit_warnings_follow_role_order_without_combined_svg(scen
     code, baseline, error = run(capsys, *image_args(scene, "layered-baseline.svg", *roles))
     assert code == 0, error
     by_layer = baseline["counts"]["by_layer"]
-    limit = max(item["paths"] for item in by_layer.values())
-    expected = [role for role, item in by_layer.items() if 10 * item["paths"] >= 9 * limit]
+    assert {role: item["paths"] for role, item in by_layer.items()} == {
+        "silhouette": 1, "structure": 1, "detail": 1}
     code, result, error = run(capsys, *image_args(scene, "layered-near.svg", *roles,
-                                                  "--max-paths", str(limit)))
+                                                  "--max-paths", "1"))
     assert code == 0, error
     warnings = [item for item in result["diagnostics"] if item.get("code") == "limit_near_miss"]
-    assert [(item["role"], item["metric"]) for item in warnings] == [(role, "paths") for role in expected]
+    assert [(item["role"], item["metric"]) for item in warnings] == [
+        ("silhouette", "paths"), ("structure", "paths"), ("detail", "paths")]
     assert "combined" not in {item["role"] for item in warnings}
     manifest = json.loads(Path(result["artifacts"]["manifest"]).read_text())
     assert warnings == [item for item in manifest["warnings"] if item.get("code") == "limit_near_miss"]

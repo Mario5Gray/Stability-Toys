@@ -18,7 +18,7 @@ def metrics(*, paths=1, commands=4, raw_bytes=100, normalized_bytes=100):
                       subpaths=1, degenerate_subpaths=0)
 
 
-@pytest.mark.parametrize("paths, warned", [(899, False), (900, True), (1000, True)])
+@pytest.mark.parametrize("paths, warned", [(899, False), (900, True), (1000, True), (1001, False)])
 def test_path_warning_starts_at_exactly_ninety_percent(paths, warned):
     warnings = diagnostics.limit_near_miss(
         "silhouette", metrics(paths=paths), SvgLimits(max_paths=1000))

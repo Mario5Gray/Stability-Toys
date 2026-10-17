@@ -170,9 +170,9 @@ def _convert(args, diagnostics, published):
         message = f"VTracer {_version('vtracer')} layer {artifacts.layer_id(settings)}: {exc}"
         raise RuntimeError(_retain_debug(bundle, debug, message, published)) from exc
     role = artifacts.layer_id(settings)
-    _report(limit_near_miss(role, normalized.metrics, settings.svg_limits), diagnostics)
     paths = normalized.metrics.paths
     _report_degenerate(normalized.metrics.degenerate_subpaths, diagnostics)
+    _report(limit_near_miss(role, normalized.metrics, settings.svg_limits), diagnostics)
     files = {bundle.relative(destination): normalized.svg.encode("utf-8"), **debug}
     rendered = None
     if args.preview:

@@ -17,7 +17,7 @@ def limit_near_miss(role, metrics, limits):
         "metric": metric, "value": value, "limit": limit,
         "message": (f"{role}: measured {metric} = {value}. This is near the per-layer limit {limit} ({flag}). "
                     "Reduce layer complexity or raise the limit."),
-    } for metric, value, limit, flag in measurements if 9 * limit <= 10 * value <= 10 * limit)
+    } for metric, value, limit, flag in measurements if 9 * limit <= 10 * value and value <= limit)
 
 
 def separate_solids(material):
