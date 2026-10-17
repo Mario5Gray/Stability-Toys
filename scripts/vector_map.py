@@ -483,6 +483,7 @@ def _result(status, *, svg=None, counts=None, diagnostics=(), published=None):
             "layers": 0, "paths": 0, "commands": 0, "vertices": 0, "svg_bytes": 0, "by_layer": {},
         },
         "diagnostics": list(diagnostics),
+        "evidence": {"conversion": status, "cad_render": "not_run", "physical_print": "pending"},
     }
 
 

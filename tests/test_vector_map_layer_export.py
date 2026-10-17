@@ -91,6 +91,7 @@ def write_recipe(path, **fields):
 def test_image_mode_without_layers_keeps_single_svg_output(scene, capsys):
     code, result, error = run(capsys, *image_args(scene))
     assert code == 0, error
+    assert result["evidence"] == {"conversion": "converted", "cad_render": "not_run", "physical_print": "pending"}
     assert "layers" not in result["artifacts"]
     assert not (scene["dir"] / "out.layers").exists()
     manifest = json.loads((scene["dir"] / "out.vector.json").read_bytes())
@@ -579,6 +580,7 @@ def keep_group(text, role):
 def test_layered_run_publishes_aligned_separate_and_combined_svgs(geometry_scene, capsys, mm_per_px):
     code, result, error = layered_run(capsys, geometry_scene, mm_per_px)
     assert code == 0, error
+    assert result["evidence"] == {"conversion": "converted", "cad_render": "not_run", "physical_print": "pending"}
     out = geometry_scene["dir"] / "out.svg"
     roles = ("silhouette", "structure", "detail")
     separate = {role: geometry_scene["dir"] / "out.layers" / f"{role}.svg" for role in roles}
@@ -718,6 +720,7 @@ def test_a_repaired_layer_over_the_byte_limit_is_refused_and_keeps_the_debug_inp
                                                   "--max-svg-bytes", raw_bytes))
     assert code == 1, error
     assert result["status"] == "failed"
+    assert result["evidence"] == {"conversion": "failed", "cad_render": "not_run", "physical_print": "pending"}
     message = result["diagnostics"][0]["message"]
     assert "pinch repair" in message and "layer silhouette" in message
     assert f"exceeds limit {raw_bytes} (--max-svg-bytes)" in message
