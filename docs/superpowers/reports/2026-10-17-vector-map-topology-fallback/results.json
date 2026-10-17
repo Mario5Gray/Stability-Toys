@@ -1,0 +1,1203 @@
+{
+  "cases": {
+    "badge": {
+      "hard": false,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1378,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 11397,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 4.43,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1378,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 11943,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 11.971,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1378,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 11943,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 11.57,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1378,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 12632,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 37.029,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1378,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 12632,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 38.292,
+          "xor_per_perimeter_px": 0.0
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+          "boundary_max_distance_px": 0.5,
+          "centroid_shift_px": 0.06813915348063704,
+          "commands": 156,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 1606,
+          "topology_mask": [
+            6,
+            2
+          ],
+          "topology_render": [
+            6,
+            2
+          ],
+          "trace_median_ms": 3.284,
+          "xor_per_perimeter_px": 0.21641156462585034
+        }
+      },
+      "router_verify": "vtracer",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 5,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 7.211102550927978,
+        "material_below_4_px": 38,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 2.0
+      }
+    },
+    "bracket": {
+      "hard": true,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 603,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 5079,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            6,
+            3
+          ],
+          "trace_median_ms": 3.835,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 603,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 4947,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            6,
+            3
+          ],
+          "trace_median_ms": 9.277,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 603,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 4947,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            6,
+            3
+          ],
+          "trace_median_ms": 9.13,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 603,
+          "failures": [],
+          "passed": true,
+          "paths": 6,
+          "svg_bytes": 5240,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            6,
+            3
+          ],
+          "trace_median_ms": 33.023,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.05096011816838995,
+          "boundary_max_distance_px": 1.7360679774997898,
+          "centroid_shift_px": 0.6557368847939041,
+          "commands": 573,
+          "failures": [
+            "boundary",
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 4,
+          "svg_bytes": 4938,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            4,
+            3
+          ],
+          "trace_median_ms": 31.359,
+          "xor_per_perimeter_px": 0.05096011816838995
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+          "boundary_max_distance_px": 0.5,
+          "centroid_shift_px": 2.4641898121774974,
+          "commands": 147,
+          "failures": [
+            "centroid"
+          ],
+          "passed": false,
+          "paths": 6,
+          "svg_bytes": 1483,
+          "topology_mask": [
+            6,
+            3
+          ],
+          "topology_render": [
+            6,
+            3
+          ],
+          "trace_median_ms": 2.587,
+          "xor_per_perimeter_px": 0.08862629246676514
+        }
+      },
+      "router_verify": "pixel_edge",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 11,
+        "background_min_px": 2,
+        "background_skeleton_min_px": 6.0,
+        "material_below_4_px": 3367,
+        "material_min_px": 2,
+        "material_skeleton_min_px": 2.0
+      }
+    },
+    "brick": {
+      "hard": true,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 2168,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 17231,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            1,
+            53
+          ],
+          "trace_median_ms": 18.931,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 2168,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 18213,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            1,
+            53
+          ],
+          "trace_median_ms": 15.512,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 2168,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 18213,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            1,
+            53
+          ],
+          "trace_median_ms": 15.012,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 2168,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 18826,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            1,
+            53
+          ],
+          "trace_median_ms": 43.54,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 2168,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 18826,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            1,
+            53
+          ],
+          "trace_median_ms": 44.06,
+          "xor_per_perimeter_px": 0.0
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+          "boundary_max_distance_px": 0.9142135623730951,
+          "centroid_shift_px": 2.262400349052011,
+          "commands": 703,
+          "failures": [
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 1,
+          "svg_bytes": 5518,
+          "topology_mask": [
+            1,
+            53
+          ],
+          "topology_render": [
+            5,
+            53
+          ],
+          "trace_median_ms": 5.151,
+          "xor_per_perimeter_px": 0.28316352264702915
+        }
+      },
+      "router_verify": "pixel_edge",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 181,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 2.0,
+        "material_below_4_px": 10378,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 2.0
+      }
+    },
+    "coins": {
+      "hard": false,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1736,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 14121,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 5.188,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1736,
+          "failures": [],
+          "passed": true,
+          "paths": 24,
+          "svg_bytes": 13780,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 9.134,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1736,
+          "failures": [],
+          "passed": true,
+          "paths": 24,
+          "svg_bytes": 13780,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 8.564,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1736,
+          "failures": [],
+          "passed": true,
+          "paths": 24,
+          "svg_bytes": 14518,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 22.703,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 1736,
+          "failures": [],
+          "passed": true,
+          "paths": 24,
+          "svg_bytes": 14518,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 22.664,
+          "xor_per_perimeter_px": 0.0
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+          "boundary_max_distance_px": 0.5,
+          "centroid_shift_px": 0.13470711976021887,
+          "commands": 341,
+          "failures": [],
+          "passed": true,
+          "paths": 24,
+          "svg_bytes": 3695,
+          "topology_mask": [
+            24,
+            0
+          ],
+          "topology_render": [
+            24,
+            0
+          ],
+          "trace_median_ms": 2.798,
+          "xor_per_perimeter_px": 0.12712440516655338
+        }
+      },
+      "router_verify": "vtracer",
+      "router_width": "pixel_edge",
+      "shape": [
+        202,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 15,
+        "background_min_px": 3,
+        "background_skeleton_min_px": 2.0,
+        "material_below_4_px": 18,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 18.439088914585774
+      }
+    },
+    "gravel": {
+      "hard": true,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 11526,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 92815,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            225,
+            13
+          ],
+          "trace_median_ms": 81.222,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.24795893122216725,
+          "boundary_max_distance_px": 3.7426406871192848,
+          "centroid_shift_px": 1.5496342886245582,
+          "commands": 8748,
+          "failures": [
+            "boundary",
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 93,
+          "svg_bytes": 65865,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            93,
+            13
+          ],
+          "trace_median_ms": 26.786,
+          "xor_per_perimeter_px": 0.24795893122216725
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 11526,
+          "failures": [],
+          "passed": true,
+          "paths": 225,
+          "svg_bytes": 89183,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            225,
+            13
+          ],
+          "trace_median_ms": 33.433,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 11526,
+          "failures": [],
+          "passed": true,
+          "paths": 225,
+          "svg_bytes": 95100,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            225,
+            13
+          ],
+          "trace_median_ms": 57.148,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.8247773379515092,
+          "boundary_max_distance_px": 5.5,
+          "centroid_shift_px": 10.895953254612596,
+          "commands": 4734,
+          "failures": [
+            "area",
+            "boundary",
+            "bounds",
+            "centroid",
+            "scale",
+            "topology",
+            "xor"
+          ],
+          "passed": false,
+          "paths": 21,
+          "svg_bytes": 38814,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            21,
+            13
+          ],
+          "trace_median_ms": 38.527,
+          "xor_per_perimeter_px": 0.8247773379515092
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+          "boundary_max_distance_px": 1.7360679774997898,
+          "centroid_shift_px": 0.46412606773205256,
+          "commands": 2808,
+          "failures": [
+            "boundary",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 209,
+          "svg_bytes": 28649,
+          "topology_mask": [
+            225,
+            13
+          ],
+          "topology_render": [
+            208,
+            27
+          ],
+          "trace_median_ms": 10.499,
+          "xor_per_perimeter_px": 0.24393864423552697
+        }
+      },
+      "router_verify": "pixel_edge",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 5856,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 2.0,
+        "material_below_4_px": 6310,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 2.0
+      }
+    },
+    "horse": {
+      "hard": true,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 781,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 6397,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            0
+          ],
+          "trace_median_ms": 2.573,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 781,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 7416,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            0
+          ],
+          "trace_median_ms": 7.905,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 781,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 7416,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            0
+          ],
+          "trace_median_ms": 7.805,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 781,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 7685,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            0
+          ],
+          "trace_median_ms": 26.385,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 781,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 7685,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            0
+          ],
+          "trace_median_ms": 25.798,
+          "xor_per_perimeter_px": 0.0
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+          "boundary_max_distance_px": 0.9142135623730951,
+          "centroid_shift_px": 0.8509753644078816,
+          "commands": 132,
+          "failures": [
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 1,
+          "svg_bytes": 1406,
+          "topology_mask": [
+            1,
+            0
+          ],
+          "topology_render": [
+            1,
+            2
+          ],
+          "trace_median_ms": 2.125,
+          "xor_per_perimeter_px": 0.35596221959858326
+        }
+      },
+      "router_verify": "pixel_edge",
+      "router_width": "pixel_edge",
+      "shape": [
+        210,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 178,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 2.0,
+        "material_below_4_px": 64,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 2.0
+      }
+    },
+    "pcb": {
+      "hard": false,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 3806,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 30935,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            30,
+            64
+          ],
+          "trace_median_ms": 16.759,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 3806,
+          "failures": [],
+          "passed": true,
+          "paths": 30,
+          "svg_bytes": 27614,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            30,
+            64
+          ],
+          "trace_median_ms": 13.573,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 3806,
+          "failures": [],
+          "passed": true,
+          "paths": 30,
+          "svg_bytes": 27614,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            30,
+            64
+          ],
+          "trace_median_ms": 13.94,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 3806,
+          "failures": [],
+          "passed": true,
+          "paths": 30,
+          "svg_bytes": 30032,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            30,
+            64
+          ],
+          "trace_median_ms": 31.817,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.4061574896388396,
+          "boundary_max_distance_px": 2.5,
+          "centroid_shift_px": 9.754837515296211,
+          "commands": 2966,
+          "failures": [
+            "boundary",
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 16,
+          "svg_bytes": 23692,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            16,
+            50
+          ],
+          "trace_median_ms": 32.616,
+          "xor_per_perimeter_px": 0.4061574896388396
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+          "boundary_max_distance_px": 0.5,
+          "centroid_shift_px": 0.08305428584884239,
+          "commands": 1082,
+          "failures": [],
+          "passed": true,
+          "paths": 30,
+          "svg_bytes": 8342,
+          "topology_mask": [
+            30,
+            64
+          ],
+          "topology_render": [
+            30,
+            64
+          ],
+          "trace_median_ms": 4.487,
+          "xor_per_perimeter_px": 0.0994671403197158
+        }
+      },
+      "router_verify": "vtracer",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 128,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 14.0,
+        "material_below_4_px": 0,
+        "material_min_px": 4,
+        "material_skeleton_min_px": 4.0
+      }
+    },
+    "truchet": {
+      "hard": false,
+      "methods": {
+        "pixel_edge": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 9245,
+          "failures": [],
+          "passed": true,
+          "paths": 1,
+          "svg_bytes": 75041,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            55,
+            20
+          ],
+          "trace_median_ms": 41.293,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up2_s16": {
+          "area_dev_abs_per_perimeter_px": 0.00780252518087672,
+          "boundary_max_distance_px": 1.7360679774997898,
+          "centroid_shift_px": 0.32964053736785576,
+          "commands": 9186,
+          "failures": [
+            "boundary",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 52,
+          "svg_bytes": 72935,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            52,
+            20
+          ],
+          "trace_median_ms": 30.418,
+          "xor_per_perimeter_px": 0.00780252518087672
+        },
+        "up2_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 9245,
+          "failures": [],
+          "passed": true,
+          "paths": 55,
+          "svg_bytes": 73448,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            55,
+            20
+          ],
+          "trace_median_ms": 30.312,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s4": {
+          "area_dev_abs_per_perimeter_px": 0.0,
+          "boundary_max_distance_px": 0.0,
+          "centroid_shift_px": 0.0,
+          "commands": 9245,
+          "failures": [],
+          "passed": true,
+          "paths": 55,
+          "svg_bytes": 78220,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            55,
+            20
+          ],
+          "trace_median_ms": 65.365,
+          "xor_per_perimeter_px": 0.0
+        },
+        "up4_s64": {
+          "area_dev_abs_per_perimeter_px": 0.3852319477940133,
+          "boundary_max_distance_px": 1.7360679774997898,
+          "centroid_shift_px": 5.7572215334575,
+          "commands": 6897,
+          "failures": [
+            "boundary",
+            "centroid",
+            "topology"
+          ],
+          "passed": false,
+          "paths": 13,
+          "svg_bytes": 59711,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            13,
+            2
+          ],
+          "trace_median_ms": 53.111,
+          "xor_per_perimeter_px": 0.3852319477940133
+        },
+        "vtracer": {
+          "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+          "boundary_max_distance_px": 1.5,
+          "centroid_shift_px": 0.07442435758417458,
+          "commands": 2354,
+          "failures": [],
+          "passed": true,
+          "paths": 55,
+          "svg_bytes": 19367,
+          "topology_mask": [
+            55,
+            20
+          ],
+          "topology_render": [
+            55,
+            20
+          ],
+          "trace_median_ms": 9.898,
+          "xor_per_perimeter_px": 0.25649028230954746
+        }
+      },
+      "router_verify": "vtracer",
+      "router_width": "pixel_edge",
+      "shape": [
+        256,
+        256
+      ],
+      "widths": {
+        "background_below_4_px": 121,
+        "background_min_px": 1,
+        "background_skeleton_min_px": 2.0,
+        "material_below_4_px": 13197,
+        "material_min_px": 1,
+        "material_skeleton_min_px": 2.0
+      }
+    }
+  },
+  "environment": {
+    "machine": "arm64",
+    "numpy": "2.5.1",
+    "pillow": "12.3.0",
+    "platform": "macOS-26.0.1-arm64-arm-64bit",
+    "python": "3.12.13",
+    "resvg-py": "0.5.0",
+    "scikit-image": "0.26.0",
+    "scipy": "1.17.1",
+    "vtracer": "0.6.15"
+  },
+  "issue": "STABL-wuzmvgxm",
+  "metrics_sha256": "7050d8cc4938a2fc75103c735c64430b275a32d79b74488861e4c8f1ac672898",
+  "speckle_default": 4,
+  "timing": {
+    "statistic": "median",
+    "timed_calls": 5,
+    "warmup_calls": 1
+  },
+  "tolerances": {
+    "area_dev_abs_per_perimeter_px": 0.5,
+    "bbox_size_delta_px": 1.0,
+    "boundary_max_distance_px": 1.5,
+    "bounds_shift_px": 1.0,
+    "centroid_shift_px": 0.5,
+    "mesh_volume_rel": 0.0001,
+    "mesh_z_abs_mm": 1e-06,
+    "orientation": "strictly_lowest_xor",
+    "topology": "exact",
+    "xor_per_perimeter_px": 0.5
+  },
+  "upscales": [
+    [
+      2,
+      4
+    ],
+    [
+      2,
+      16
+    ],
+    [
+      4,
+      4
+    ],
+    [
+      4,
+      64
+    ]
+  ]
+}
