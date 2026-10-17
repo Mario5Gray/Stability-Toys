@@ -109,11 +109,11 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> server/ws_routes.py sig:42a0bd30c897a98d
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/model_detector.py sig:3cd1411fddd0be3a
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_config.py sig:b13065a52825551f
-docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_diagnostics.py sig:519931031dd06f5b
+docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_diagnostics.py sig:7b5b0774cdfdda3d
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_raster.py sig:2ccd0ab051f109c7
-scripts/USAGE.md -> scripts/vector_map.py sig:0be5f6be0b79d2d6
+scripts/USAGE.md -> scripts/vector_map.py sig:8465244b0c72b659
 scripts/USAGE.md -> scripts/vector_map_artifacts.py sig:2b7ea47ec8b5387c
 scripts/USAGE.md -> scripts/vector_map_config.py sig:b13065a52825551f
-scripts/USAGE.md -> scripts/vector_map_diagnostics.py sig:519931031dd06f5b
+scripts/USAGE.md -> scripts/vector_map_diagnostics.py sig:7b5b0774cdfdda3d
 scripts/USAGE.md -> scripts/vector_map_preview.py sig:f3e09cdaa93313f8
 scripts/USAGE.md -> scripts/vector_map_svg.py sig:e0a3186b7d4872f9
