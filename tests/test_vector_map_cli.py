@@ -891,12 +891,33 @@ def test_limit_failure_suggests_upstream_settings(run_injected):
     assert "--max-res" in message and "filter_speckle" in message and "0..128" in message
 
 
+def test_standalone_near_limit_warning_reaches_json_manifest_and_stderr(run_injected):
+    code, payload, stderr, _, _ = run_injected(injected(TRIANGLE_PATH), "--max-paths", "1")
+    assert code == 0, stderr
+    warnings = [item for item in payload["diagnostics"] if item.get("code") == "limit_near_miss"]
+    assert [(item["role"], item["metric"], item["value"], item["limit"]) for item in warnings] == [
+        ("standalone", "paths", 1, 1)]
+    assert payload["counts"]["by_layer"]["standalone"]["paths"] == 1
+    manifest = json.loads(Path(payload["artifacts"]["manifest"]).read_text())
+    assert warnings == [item for item in manifest["warnings"] if item.get("code") == "limit_near_miss"]
+    assert f"warning: {warnings[0]['message']}" in stderr
+
+
 def degenerate_warnings(stderr):
     """Warning lines only. pytest tmp paths repeat the test name, which contains the word."""
     return [line for line in stderr.splitlines() if line.startswith("warning:") and "degenerate" in line]
 
 
 MIXED = injected('<path d="M0,0 L4,0 L0,3 Z M1,1 Z M2,2 L3,2 Z"/>')
+
+
+def test_standalone_degenerate_warning_precedes_near_limit_warning(run_injected):
+    code, payload, stderr, _, _ = run_injected(MIXED, "--max-paths", "1")
+    assert code == 0, stderr
+    warnings = [item for item in payload["diagnostics"]
+                if item.get("code") in ("degenerate_subpaths", "limit_near_miss")]
+    assert [item["code"] for item in warnings] == ["degenerate_subpaths", "limit_near_miss"]
+    assert stderr.index(f"warning: {warnings[0]['message']}") < stderr.index(f"warning: {warnings[1]['message']}")
 
 
 def test_degenerate_subpaths_publish_with_one_counted_warning(run_injected):

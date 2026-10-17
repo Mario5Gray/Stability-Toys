@@ -85,6 +85,45 @@ def write_recipe(path, **fields):
     return path
 
 
+# --- Near-limit diagnostics (S4.2, STABL-vpodjirg) ----------------------------
+
+
+def test_single_image_warning_uses_silhouette_in_result_and_manifest(scene, capsys):
+    code, baseline, error = run(capsys, *image_args(scene, "baseline.svg"))
+    assert code == 0, error
+    paths = baseline["counts"]["by_layer"]["silhouette"]["paths"]
+    code, result, error = run(capsys, *image_args(scene, "near.svg", "--max-paths", str(paths)))
+    assert code == 0, error
+    warnings = [item for item in result["diagnostics"] if item.get("code") == "limit_near_miss"]
+    assert [(item["role"], item["metric"], item["value"], item["limit"]) for item in warnings] == [
+        ("silhouette", "paths", paths, paths)]
+    assert result["counts"]["by_layer"]["silhouette"]["paths"] == paths
+    manifest = json.loads(Path(result["artifacts"]["manifest"]).read_text())
+    assert warnings == [item for item in manifest["warnings"] if item.get("code") == "limit_near_miss"]
+    assert f"warning: {warnings[0]['message']}" in error
+
+
+def test_layered_near_limit_warnings_follow_role_order_without_combined_svg(scene, capsys):
+    roles = ("--layers", "silhouette,structure,detail", "--structure-map", scene["structure"],
+             "--detail-map", scene["detail"])
+    code, baseline, error = run(capsys, *image_args(scene, "layered-baseline.svg", *roles))
+    assert code == 0, error
+    by_layer = baseline["counts"]["by_layer"]
+    assert {role: item["paths"] for role, item in by_layer.items()} == {
+        "silhouette": 1, "structure": 1, "detail": 1}
+    code, result, error = run(capsys, *image_args(scene, "layered-near.svg", *roles,
+                                                  "--max-paths", "1"))
+    assert code == 0, error
+    warnings = [item for item in result["diagnostics"] if item.get("code") == "limit_near_miss"]
+    assert [(item["role"], item["metric"]) for item in warnings] == [
+        ("silhouette", "paths"), ("structure", "paths"), ("detail", "paths")]
+    assert "combined" not in {item["role"] for item in warnings}
+    manifest = json.loads(Path(result["artifacts"]["manifest"]).read_text())
+    assert warnings == [item for item in manifest["warnings"] if item.get("code") == "limit_near_miss"]
+    for item in warnings:
+        assert f"warning: {item['message']}" in error
+
+
 # --- Selection ---------------------------------------------------------------
 
 
