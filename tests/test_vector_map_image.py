@@ -25,7 +25,7 @@ sys.path.insert(0, str(SCRIPTS))
 import vector_map_config as config  # noqa: E402
 import vector_map_raster as raster  # noqa: E402
 
-RESULT_KEYS = {"schema_version", "status", "artifacts", "counts", "diagnostics"}
+RESULT_KEYS = {"schema_version", "status", "artifacts", "counts", "diagnostics", "evidence"}
 
 
 def save(path, pixels, **kwargs):
