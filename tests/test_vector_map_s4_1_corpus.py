@@ -20,6 +20,7 @@ needs_resvg = pytest.mark.skipif(
 needs_vtracer = pytest.mark.skipif(
     importlib.util.find_spec("vtracer") is None, reason="vtracer==0.6.15 is not installed. Install the vector extra."
 )
+S4_1_REPORT = probe.ROOT / "docs/superpowers/reports/2026-10-15-vector-map-s4-1-corpus"
 
 
 def mm_svg(paths, width, height, mm_per_px=0.5, viewbox=True):
@@ -497,3 +498,96 @@ def test_placeholders_cover_the_typed_and_the_resolved_form_of_a_symlinked_path(
     extra = probe.output_placeholders(options)
     record = [str(link / "run"), str(link / "run.json"), str(real / "run"), str(real / "run.json")]
     assert probe.scrub(record, (link / "run").resolve(), extra) == ["<work>", "<index-json>", "<work>", "<index-json>"]
+
+
+# --- S4.2 Task 5: cross-check committed complexity against the published SVGs (STABL-zpbyzqpk) ---------
+
+
+def audit_corpus_row(directory):
+    """Recount one row's published SVGs with the S4.2 inspection. Return each mismatched field name.
+
+    complexity[role] came from the independent metrics.svg_complexity counter. Layer paths and commands
+    must sum to combined. Combined svg_bytes is the out.svg file size, not the sum of the layer sizes.
+    """
+    import vector_map_config as config
+    import vector_map_svg as svg_io
+
+    recorded = json.loads((directory / "result.json").read_text())["complexity"]
+    manifest = json.loads((directory / "out.vector.json").read_text())
+    canvas = config.Canvas(**manifest["canvas"])
+    limits = svg_io.SvgLimits(**manifest["svg_limits"])
+    layers = [entry for entry in manifest["layers"] if entry["svg"]]
+    if sorted(entry["id"] for entry in layers) != sorted(role for role in recorded if role != "combined"):
+        return ["roles"]
+    mismatches, totals = [], {"paths": 0, "commands": 0}
+    for entry in layers:
+        data = (directory / entry["svg"]).read_bytes()
+        found = svg_io.inspect_published_svg(data.decode("utf-8"), canvas, limits).metrics
+        measured = {"paths": found.paths, "commands": found.commands, "svg_bytes": len(data)}
+        mismatches += [f"{entry['id']}.{key}" for key, value in measured.items() if recorded[entry["id"]][key] != value]
+        totals["paths"] += found.paths
+        totals["commands"] += found.commands
+    combined = {**totals, "svg_bytes": len((directory / "out.svg").read_bytes())}
+    mismatches += [f"combined.{key}" for key, value in combined.items() if recorded["combined"][key] != value]
+    return mismatches
+
+
+def copied_row(tmp_path, case="badge", mode="raised"):
+    """Copy one committed row so a test can corrupt its record without touching the report."""
+    import shutil
+
+    target = tmp_path / case / mode
+    shutil.copytree(S4_1_REPORT / case / mode, target)
+    return target
+
+
+def corrupt(directory, edit):
+    path = directory / "result.json"
+    record = json.loads(path.read_text())
+    edit(record["complexity"])
+    path.write_text(json.dumps(record))
+
+
+def test_a_layer_count_that_disagrees_with_its_published_svg_is_named(tmp_path):
+    directory = copied_row(tmp_path)
+    corrupt(directory, lambda c: c["silhouette"].update(commands=c["silhouette"]["commands"] + 1))
+    assert audit_corpus_row(directory) == ["silhouette.commands"]
+
+
+def test_combined_paths_and_commands_are_the_sum_of_the_published_layers(tmp_path):
+    """badge/raised: silhouette 6 + structure 8 = 14 paths, 156 + 318 = 474 commands."""
+    directory = copied_row(tmp_path)
+    corrupt(directory, lambda c: c["combined"].update(paths=13, commands=475))
+    assert audit_corpus_row(directory) == ["combined.paths", "combined.commands"]
+
+
+def test_a_layer_byte_count_is_the_utf8_size_of_the_published_file(tmp_path):
+    directory = copied_row(tmp_path)
+    corrupt(directory, lambda c: c["structure"].update(svg_bytes=2808))  # badge/raised structure.svg is 2809 bytes
+    assert audit_corpus_row(directory) == ["structure.svg_bytes"]
+
+
+def test_combined_bytes_are_the_combined_file_not_the_layer_sum(tmp_path):
+    """badge/raised: silhouette 1590 + structure 2809 = 4399 bytes. out.svg is 4291 bytes."""
+    directory = copied_row(tmp_path)
+    corrupt(directory, lambda c: c["combined"].update(svg_bytes=4399))
+    assert audit_corpus_row(directory) == ["combined.svg_bytes"]
+
+
+def test_a_recorded_role_without_a_published_layer_is_named(tmp_path):
+    directory = copied_row(tmp_path)
+    corrupt(directory, lambda c: c.update(detail={"paths": 0, "subpaths": 0, "commands": 0, "svg_bytes": 0}))
+    assert audit_corpus_row(directory) == ["roles"]
+
+
+def test_the_committed_report_has_one_row_per_case_and_mode():
+    rows = sorted(str(p.parent.relative_to(S4_1_REPORT)) for p in S4_1_REPORT.glob("*/*/result.json"))
+    assert rows == [f"{case}/{mode}" for case in ("badge", "bracket", "brick", "coins", "gravel", "horse", "pcb",
+                                                    "truchet") for mode in ("engraved", "raised")]
+
+
+@pytest.mark.parametrize("row_dir", sorted(p.parent for p in S4_1_REPORT.glob("*/*/result.json")),
+                         ids=lambda p: f"{p.parent.name}-{p.name}")
+def test_every_committed_row_matches_its_published_svgs(row_dir):
+    """Historical evidence from PR #107. A mismatch is a finding. Do not re-baseline the row."""
+    assert audit_corpus_row(row_dir) == []

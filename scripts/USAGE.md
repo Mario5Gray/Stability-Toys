@@ -137,7 +137,7 @@ Engraved detail is cut by `engrave_2d()`: raw detail minus raw structure, with n
 `detail_2d()` keeps its clipped form.
 An engraved recess can meet the silhouette outline at one isolated point. The SCAD file then leaves a small square uncut at that point. Its half side is at most 0.002 mm and a quarter pixel. This is a narrow material bridge. The step reports `cad_recess_bridge`.
 `--json` success adds `artifacts.layers`. It maps each role to the path of a file from this run only.
-`counts.layers` counts published layers. `counts.paths` sums their paths.
+`counts.layers` counts published layers. `counts.paths` sums their paths. **JSON result** below defines every count.
 
 **SCAD source export**
 
@@ -260,6 +260,55 @@ Both width and feature warnings remain when both conditions apply.
 Successful conversion with warnings returns exit 0. Invalid settings return 2. Processing failures return 1.
 Processing failure publishes no successful bundle. Publication failure can leave files without a completion manifest.
 `--overwrite` never permits replacing source, recipe, or constraint inputs.
+
+**JSON result**
+
+This example is a measured layered run of the `badge` corpus case at 100 mm. Paths are shortened. The two `thin_*` warnings of the run are removed:
+
+```json
+{"schema_version": 1, "status": "converted",
+ "artifacts": {"svg": "badge.svg", "manifest": "badge.vector.json",
+               "layers": {"silhouette": "badge.layers/silhouette.svg", "structure": "badge.layers/structure.svg"}},
+ "counts": {"layers": 2, "paths": 8, "commands": 166, "vertices": 156, "svg_bytes": 1801,
+            "by_layer": {"silhouette": {"paths": 6, "commands": 156, "vertices": 148, "svg_bytes": 1590},
+                         "structure": {"paths": 2, "commands": 10, "vertices": 8, "svg_bytes": 319}}},
+ "diagnostics": [],
+ "evidence": {"conversion": "converted", "cad_render": "not_run", "physical_print": "pending"}}
+```
+
+`counts.by_layer` has one entry for each published layer, keyed by role.
+A single-layer run uses `silhouette` for `--input-kind image` and `standalone` for `mask` and `edges`.
+Each entry has `paths`, `commands`, `vertices`, and `svg_bytes`. `svg_bytes` is the UTF-8 size of the published layer file.
+`vertices` counts `M` and `L` points, also in degenerate subpaths. `Z` adds no vertex.
+Top-level `paths`, `commands`, and `vertices` are the sums of the `by_layer` entries.
+Top-level `svg_bytes` is the size of the combined `<stem>.svg` file. It does **not** equal the sum of the `by_layer` bytes.
+In the example, the layers have 1590 + 319 = 1909 bytes. The combined file has 1801 bytes.
+An empty optional role has no published SVG and no `by_layer` entry. Its `role_empty` warning stays in `diagnostics`.
+An `invalid` or `failed` result has zero counts and `by_layer: {}`. It never reports partial layers.
+
+A `limit_near_miss` warning identifies a published layer near a per-layer limit.
+The test uses integers: `10 * value >= 9 * limit` and `value <= limit`. This is at least 90% of the limit.
+It compares paths with `--max-paths` and commands with `--max-path-commands`.
+It compares the larger of raw and normalized bytes with `--max-svg-bytes`.
+The CLI gives one warning for each role and metric, in role order. Fields: `level`, `code`, `role`, `metric`, `value`, `limit`, `message`.
+The combined SVG has no enforced limit. Its counts never cause this warning.
+
+`evidence` has three independent states:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `conversion` | `converted`, `failed`, `invalid` | Equals `status`. `converted` means SVG publication. |
+| `cad_render` | `not_run` | Always. `--export-scad` writes SCAD source but does not render it. `--preview` renders the SVG with resvg-py. |
+| `physical_print` | `pending` | Always. Slicer and print evidence is outside the CLI. |
+
+The CLI never sets `cad_render` or `physical_print` to passed.
+Ordinary `--json` output therefore has no measured fidelity proof and no CAD proof.
+
+Measured fidelity and CAD results are in the [S4.1 corpus report](../docs/superpowers/reports/2026-10-15-vector-map-s4-1-corpus.md).
+Each `<case>/<mode>/result.json` row records `fidelity.failures`, `cad_passed`, `errors`, and `complexity`. `index.json` summarizes the 16 rows.
+Row `complexity` comes from an independent counter. It has `subpaths` and no `vertices`.
+`tests/test_vector_map_s4_1_corpus.py` recounts each committed SVG. It requires the recorded paths, commands, and bytes.
+The rows are historical records from PR #107. Do not regenerate them for a new manifest schema.
 
 **Artifact bundle**
 
