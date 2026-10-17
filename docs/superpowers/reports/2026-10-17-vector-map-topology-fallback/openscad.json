@@ -1,0 +1,58 @@
+{
+ "badge": {
+  "volume_rel_error": 2.5358081163099788e-08,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.17,
+  "triangles": 5464
+ },
+ "coins": {
+  "volume_rel_error": 2.3777341542624444e-06,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.18,
+  "triangles": 6752
+ },
+ "pcb": {
+  "volume_rel_error": 7.3592675484700385e-06,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.27,
+  "triangles": 14984
+ },
+ "truchet": {
+  "volume_rel_error": 4.6072869111197044e-07,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.47,
+  "triangles": 36540
+ },
+ "bracket": {
+  "volume_rel_error": 2.2871531730584105e-05,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.13,
+  "triangles": 2364
+ },
+ "brick": {
+  "volume_rel_error": 2.1062637237100676e-06,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.19,
+  "triangles": 8664
+ },
+ "gravel": {
+  "volume_rel_error": 1.0486449555157776e-06,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.55,
+  "triangles": 44304
+ },
+ "horse": {
+  "volume_rel_error": 7.256189849408049e-07,
+  "volume_ok": true,
+  "z_ok": true,
+  "seconds": 0.14,
+  "triangles": 3116
+ }
+}
