@@ -35,7 +35,7 @@ def line(tmp_path):
 def payload(result, expected=0):
     assert result.returncode == expected, result.stderr
     value = json.loads(result.stdout)
-    assert set(value) == {"schema_version", "status", "artifacts", "counts", "diagnostics"}
+    assert set(value) == {"schema_version", "status", "artifacts", "counts", "diagnostics", "evidence"}
     return value
 
 

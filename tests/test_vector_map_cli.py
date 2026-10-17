@@ -29,8 +29,9 @@ import vector_map_raster as raster  # noqa: E402
 import vector_map_svg as svg_io  # noqa: E402
 
 SVG_NS = "{http://www.w3.org/2000/svg}"
-RESULT_KEYS = {"schema_version", "status", "artifacts", "counts", "diagnostics"}
+RESULT_KEYS = {"schema_version", "status", "artifacts", "counts", "diagnostics", "evidence"}
 ZERO_COUNTS = {"layers": 0, "paths": 0, "commands": 0, "vertices": 0, "svg_bytes": 0, "by_layer": {}}
+CAD_PRINT = {"cad_render": "not_run", "physical_print": "pending"}
 S23 = "S2.3 (STABL-vjpnctjh)"
 
 
@@ -417,6 +418,7 @@ def test_json_success_reports_published_complexity(tmp_path, input_kind, role, e
     assert result.returncode == 0, result.stderr
     payload = one_result(result)
     assert payload["status"] == "converted"
+    assert payload["evidence"] == {"conversion": "converted", **CAD_PRINT}
     assert payload["artifacts"] == {"svg": str(out), "manifest": str(out.with_suffix(".vector.json"))}
     manifest = json.loads(out.with_suffix(".vector.json").read_text())
     measured = svg_io.inspect_published_svg(out.read_text(), config.Canvas(**manifest["canvas"])).metrics
@@ -446,6 +448,7 @@ def test_json_on_argparse_failure_is_one_invalid_result(tmp_path):
     assert result.returncode == 2
     payload = one_result(result)
     assert payload["status"] == "invalid"
+    assert payload["evidence"] == {"conversion": "invalid", **CAD_PRINT}
     assert payload["artifacts"] == {"svg": None}
     assert payload["counts"] == ZERO_COUNTS
     assert payload["diagnostics"][0]["level"] == "error"
@@ -467,9 +470,36 @@ def test_json_on_processing_failure_is_one_failed_result(tmp_path):
     assert result.returncode == 1
     payload = one_result(result)
     assert payload["status"] == "failed"
+    assert payload["evidence"] == {"conversion": "failed", **CAD_PRINT}
     assert payload["artifacts"] == {"svg": None}
     assert payload["counts"] == ZERO_COUNTS
     assert not out.exists()
+
+
+def test_json_on_publication_failure_keeps_one_failed_result(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("vtracer")
+    import vector_map
+    import vector_map_artifacts as artifacts
+
+    def fail_publish(_self, _files, _manifest=None, *, prune=None):
+        raise OSError("publication refused")
+
+    monkeypatch.setattr(artifacts.Bundle, "publish", fail_publish)
+    out = tmp_path / "o.svg"
+    code = vector_map.main([str(FIXTURES / "donut.png"), str(out), "--input-kind", "mask",
+                            "--width-mm", "10", "--json"])
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert code == 1
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert set(payload) == RESULT_KEYS
+    assert payload["status"] == "failed"
+    assert payload["evidence"] == {"conversion": "failed", **CAD_PRINT}
+    assert payload["counts"] == ZERO_COUNTS
+    assert "publication refused" in captured.err
+    assert not out.exists()
+    assert not out.with_suffix(".vector.json").exists()
 
 
 def test_missing_source_is_a_processing_failure(tmp_path):
