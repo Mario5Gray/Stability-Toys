@@ -17,7 +17,7 @@ The depth, pose, and all extras install and run `--help`. Their inference is unt
 CPython 3.14 and later refuse vector conversion. CPython 3.10, 3.11, and 3.13 are unverified.
 Do not read "pip installs it" as "supported". The [S4.3 regression report](superpowers/reports/2026-10-18-vector-map-s4-3-regression.md) holds the matrix.
 
-OpenSCAD is not on `PATH` by default. Set it by name:
+OpenSCAD is not on `PATH` by default, and the default Mac install can be a later version. Select the 2021.01 binary explicitly:
 
 ```bash
 export OPENSCAD=/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
@@ -84,10 +84,11 @@ st-vector-map $C/source.png $W/relief.svg --input-kind image --mask $C/mask.png 
 - **Export.** `--export-scad` writes `<stem>.scad` beside the SVG. It never starts OpenSCAD.
   `--no-export-scad` overrides a recipe export request. It validates values and writes no source.
 - **Replay.** `--debug-bundle` saves the prepared masks and `<stem>.debug/recipe.json`. Replay with
-  `st-vector-map replay.svg --recipe relief.debug/recipe.json`.
+  `st-vector-map $W/replay.svg --recipe $W/relief.debug/recipe.json`.
 
 A run publishes `<stem>.svg`, `<stem>.vector.json`, and `<stem>.layers/<role>.svg`. It adds `<stem>.scad`, the preview,
-and the debug directory when requested. The manifest lists every file with a hash. Trust only files that the current manifest lists with matching hashes.
+and the debug directory when requested. The manifest lists every other published artifact with a hash. It cannot list or hash itself.
+Trust only artifacts that the current manifest lists with matching hashes.
 
 The relief run warns when the silhouette has several disconnected parts and no backing. Add `--backing-mm` to join them.
 
@@ -128,7 +129,8 @@ Four sources answer four different questions. None replaces another.
 | Did conversion publish an SVG? | CLI `--json` `evidence.conversion` | `converted`, `failed`, or `invalid` |
 | Does the trace match the mask? | [S4.1 corpus report](superpowers/reports/2026-10-15-vector-map-s4-1-corpus.md). Per case: `<case>/<mode>/result.json`, field `fidelity.failures`. | 4 of 8 cases pass. Four fail. |
 | Does OpenSCAD render it? | The same `result.json`, field `cad_passed` | 16 of 16 rows pass on OpenSCAD 2021.01 |
-| Does it slice and print? | [S4.5 print trial](superpowers/reports/2026-10-17-vector-map-s4-5-print-trial.md) | Both rows PASS, by operator report |
+| Does it slice? | [S4.5 print trial](superpowers/reports/2026-10-17-vector-map-s4-5-print-trial.md), Slicer rows. Operator: Mario. | `badge/raised` PASS and `brick/engraved` PASS, by operator report |
+| Does it print? | The same report, Print rows. Operator: Mario. | `badge/raised` PASS and `brick/engraved` PASS, by operator report |
 
 The install and repeatability evidence is in the [S4.3 regression report](superpowers/reports/2026-10-18-vector-map-s4-3-regression.md).
 CLI JSON always states `cad_render: not_run` and `physical_print: pending`. This stays true after external acceptance.
