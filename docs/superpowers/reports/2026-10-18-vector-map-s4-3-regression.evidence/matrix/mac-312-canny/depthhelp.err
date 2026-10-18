@@ -1,0 +1,1 @@
+st-depth-map needs torch. Install the depth extra: pip install "./scripts[depth]"

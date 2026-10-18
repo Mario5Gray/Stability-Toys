@@ -1,0 +1,242 @@
+{
+ "enigma-312-all": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "enigma-312-canny": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ },
+ "enigma-312-depth": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "enigma-312-make-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "0",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "0"
+ },
+ "enigma-312-pose": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "enigma-312-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "0",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.12 (main, Jan 27 2026, 23:58:14) [Clang 21.1.4 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "0"
+ },
+ "enigma-314-canny": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.14.8 (main, Oct  1 2026, 00:00:00) [GCC 16.2.1 20260819 (Red Hat 16.2.1-2)]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ },
+ "enigma-314-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Linux 7.2.10-200.fc44.x86_64 x86_64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.14.8 (main, Oct  1 2026, 00:00:00) [GCC 16.2.1 20260819 (Red Hat 16.2.1-2)]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ },
+ "mac-312-all": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "1",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "mac-312-canny": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ },
+ "mac-312-depth": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "mac-312-make-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "0",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "0"
+ },
+ "mac-312-pose": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "0",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "1",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "0",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": true,
+  "vector_exit": "1"
+ },
+ "mac-312-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "0",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.12.15 (main, Oct 13 2026, 16:47:20) [Clang 21.1.8 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "0"
+ },
+ "mac-314-canny": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.14.8 | packaged by conda-forge | (main, Oct 12 2026, 17:29:31) [Clang 20.1.8 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ },
+ "mac-314-vector": {
+  "adapter_exit": "0",
+  "canny_exit": "0",
+  "depthhelp_exit": "1",
+  "guard_exit": "1",
+  "install_exit": "0",
+  "pip_check_exit": "0",
+  "platform": "Darwin 25.0.0 arm64",
+  "posehelp_exit": "1",
+  "python": [
+   "3.14.8 | packaged by conda-forge | (main, Oct 12 2026, 17:29:31) [Clang 20.1.8 ]"
+  ],
+  "torch_present": false,
+  "vector_exit": "1"
+ }
+}

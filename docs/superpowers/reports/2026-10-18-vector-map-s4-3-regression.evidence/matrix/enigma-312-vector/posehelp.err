@@ -1,0 +1,1 @@
+st-pose-map needs torch. Install the pose extra: pip install "./scripts[pose]"

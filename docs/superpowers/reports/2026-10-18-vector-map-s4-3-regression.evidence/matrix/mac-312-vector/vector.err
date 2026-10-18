@@ -1,0 +1,4 @@
+loading  <path>
+raster   original 128x128, oriented 128x128, processed 128x128 px, scale 0.78125 mm/px
+tracing  128x128 px as 100x100 mm (vtracer {'mode': 'polygon', 'filter_speckle': 4})
+saved    <path> (paths: 1)

@@ -6,9 +6,10 @@ Run date: 2026-10-18. Writer: Theta.
 
 ## Verdict
 
-- Supported for the alpha: CPython 3.12 on macOS arm64 and Fedora 44 x86_64. All five extras install and `pip check` passes, except the two Mac Torch extras noted below.
+- Proven (alpha support claim): `st-vector-map` and `st-canny-map` convert a real image on CPython 3.12, on macOS arm64 and Fedora 44 x86_64.
+- Installed only, not proven: depth, pose, and all. They install on both hosts and `--help` runs. Inference never ran. On the Mac, `pip check` fails for pose and all.
 - Refused: production vector conversion on CPython 3.14. The refusal works on both hosts.
-- Unverified: CPython 3.10, 3.11, 3.13, and depth or pose on 3.14. No run exists for them.
+- Unverified: CPython 3.10, 3.11, 3.13, depth or pose inference, and depth, pose, or all on 3.14. No run exists for them.
 - Two complete 16-row corpus runs agree byte for byte on every published artifact.
 - `vtracer==1.0.0a4` is rejected for this release. Its API lacks `convert_raw_image_to_svg`.
 - No physical print claim. CLI JSON keeps `physical_print: pending`.
@@ -83,11 +84,15 @@ S4.2 added vertices and evidence fields. I compared run 2 to run 1 only, not to 
 
 ## 3. Installation matrix
 
+Durable records: `docs/superpowers/reports/2026-10-18-vector-map-s4-3-regression.evidence/` (see section 7). Each cell has its full `pip freeze`, `pip check` output, and tool output. `matrix/summary.json` holds the exit codes.
+
 Method: `cell.sh` per cell. Fresh `venv`, then the exact command `python -m pip install './scripts[EXTRA]'` from a copy of the repository tree, then `pip freeze`, `pip check`, entry-point listing, Torch presence, and a real run of each tool the extra provides.
 The copy lives outside the repository so `build/` and `egg-info` stay out of the work tree.
 Test input: `tests/fixtures/vector_map/donut.png`. Vector command: `--input-kind mask --width-mm 100`.
 
 ### 3.1 CPython 3.12
+
+Column meaning: Install is `pip install` exit. `pip check` is its exit. Run is a real conversion of the fixture. Help is `--help` only and proves nothing about inference.
 
 | Host | Extra | Install | `pip check` | Torch | `st-vector-map` | `st-canny-map` | depth, pose `--help` |
 |---|---|---|---|---|---|---|---|
@@ -107,8 +112,8 @@ Test input: `tests/fixtures/vector_map/donut.png`. Vector command: `--input-kind
 Notes:
 
 - `all` does not install VTracer. The refusal in those rows is the designed behavior.
-- Mac `pose` and `all`: `import mediapipe` works (0.10.14, arm64) and `st-pose-map --help` runs. `pip check` still reports the platform message. I did not run pose inference. Support claim: installs and imports. Pose output is unverified on Mac.
-- I ran depth and pose only to `--help`. No model download or inference ran. Depth and pose output are unverified on both hosts.
+- Mac `pose` and `all`: `pip check` **fails** with "mediapipe 0.10.14 is not supported on this platform". `import mediapipe` works and `st-pose-map --help` runs. I did not run pose inference. These two cells are not a support claim.
+- Depth and pose ran only to `--help`. No model download or inference ran. Their output is unverified on both hosts. The depth and pose rows show install and help results only.
 - `make install-controlnet-scripts EXTRAS=vector` matches the direct pip result on both hosts. Resolved packages are identical.
 - Torch came from pip on both hosts. The documented conda-first Mac step was not needed. Torch 2.14.1 satisfied the `torch>=2.1` pin.
 - Key versions: vtracer 0.6.15, resvg-py 0.5.0, opencv-python-headless 5.0.0.93, mediapipe 0.10.14, torch 2.14.1, transformers 5.20.1.
@@ -152,3 +157,16 @@ Installed alone, with numpy and Pillow, in disposable venvs. Hosts: Mac conda 3.
 - Corpus CAD ran on the Mac only. enigma lacks a native OpenSCAD on `PATH`.
 - Mac `pose`: `pip check` reports a platform message. Treat pose on Mac as installable, not proven.
 - Print claims: none. See the S4.5 print report for the separate trial.
+
+## 7. Durable evidence
+
+Directory: `docs/superpowers/reports/2026-10-18-vector-map-s4-3-regression.evidence/`. Host paths and the login name are scrubbed. A scan found none.
+
+- `corpus/run1.json`, `corpus/run2.json`: per row, the full SHA-256 and size of every artifact, plus source, mask, and manifest hashes, recipe, fidelity, and CAD verdict. Also host, OpenSCAD version, selection, manifest hash check, and run 2 regeneration compare. They omit work-directory paths and STL-adjacent paths.
+- `matrix/<host>-<python>-<extra>/`: `freeze.txt` (full `pip freeze`), `check.txt`, `key.txt`, `entrypoints.txt`, `torch.txt`, and the tool, guard, and adapter output. `matrix/summary.json` lists exit codes for every cell. `file://` paths in `freeze.txt` are replaced by `<scratch>`.
+- `candidate/<host>-cand-<python>/`: `freeze.txt`, `probe.out` (API listing), `smoke.out`, and exit codes.
+- `candidate/wheels.json`: exact wheels and SHA-256.
+  - `vtracer-1.0.0a4-cp38-abi3-macosx_11_0_arm64.whl`: `d120dcee58ec8c92a303b46d3cb141c9bdb891dc2234bebf67373e130fd2f974`
+  - `vtracer-1.0.0a4-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl`: `94fb2737bce7d66f82981de25cf9fd38685f02c5a0399354e536837c501a6007`
+  - The hash is of the file `pip download` fetched on each host after the probe. The install logs show the same filename. The wheel is abi3, so one file serves 3.12 and 3.14 per platform.
+- Gap: I did not keep the raw work directories or the STL files. Anyone can regenerate them with the commands in section 2.2.

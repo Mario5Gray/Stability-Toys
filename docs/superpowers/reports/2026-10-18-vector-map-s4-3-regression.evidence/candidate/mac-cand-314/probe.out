@@ -1,0 +1,11 @@
+version 1.0.0-alpha.4
+names ['Config', 'convert_bytes', 'convert_file', 'convert_pixels', 'vtracer']
+sig Config (clustering='color-cluster', hierarchical='stacked', mode='spline', filter_speckle=4, color_precision=6, layer_difference=16, corner_threshold=60, length_threshold=4.0, max_iterations=10, splice_threshold=45, simplify=None, path_precision=2, palette=None, max_colors=None, optimize=1, binary_threshold=128, adaptive=False, adaptive_window=0, adaptive_t=15.0, watershed_detail=128)
+doc Config Conversion configuration. Construct with keyword arguments or a preset, | mutate via properties, then call one of the `convert_*` methods.
+sig convert_bytes (data, config=None, format=None)
+doc convert_bytes Convert encoded image bytes to an SVG string, using `config` (or defaults).
+sig convert_file (input_path, output_path, config=None)
+doc convert_file Convert a file to SVG on disk, using `config` (or defaults).
+sig convert_pixels (rgba, width, height, config=None)
+doc convert_pixels Convert a raw RGBA8 buffer to an SVG string, using `config` (or defaults).
+has_convert_raw_image_to_svg False

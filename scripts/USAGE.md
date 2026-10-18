@@ -38,8 +38,9 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 >
 > The `vector` extra pins `vtracer==0.6.15`. The `all` extra does not include it.
 >
-> Tested support: CPython 3.12 on macOS arm64 and Fedora 44 x86_64. Every extra installs there. Vector and canny need no Torch.
-> CPython 3.10, 3.11, and 3.13 are untested. Depth and pose on CPython 3.14 are untested. Depth and pose output is untested.
+> Proven on CPython 3.12 (macOS arm64 and Fedora 44 x86_64): `st-vector-map` and `st-canny-map` convert a real image. Vector and canny need no Torch.
+> Installed and `--help` only: the depth, pose, and all extras. Their inference is untested. On macOS arm64, `pip check` fails for pose and all (mediapipe 0.10.14 platform message).
+> Untested: CPython 3.10, 3.11, and 3.13, and depth, pose, or all on CPython 3.14.
 > Evidence: `docs/superpowers/reports/2026-10-18-vector-map-s4-3-regression.md`.
 >
 > On CPython 3.14 and later, `st-vector-map` refuses conversion. vtracer 0.6.15 crashed on CPython 3.14.7 (Fedora 44, x86_64).
