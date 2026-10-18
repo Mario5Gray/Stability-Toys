@@ -1,0 +1,3034 @@
+{
+ "evidence_complete": true,
+ "exit_code": 0,
+ "fidelity_matches_pin": true,
+ "fidelity_modes_agree": true,
+ "fidelity_summary": {
+  "badge": {
+   "failures": [],
+   "passed": true
+  },
+  "bracket": {
+   "failures": [
+    "centroid"
+   ],
+   "passed": false
+  },
+  "brick": {
+   "failures": [
+    "centroid",
+    "topology"
+   ],
+   "passed": false
+  },
+  "coins": {
+   "failures": [],
+   "passed": true
+  },
+  "gravel": {
+   "failures": [
+    "boundary",
+    "topology"
+   ],
+   "passed": false
+  },
+  "horse": {
+   "failures": [
+    "centroid",
+    "topology"
+   ],
+   "passed": false
+  },
+  "pcb": {
+   "failures": [],
+   "passed": true
+  },
+  "truchet": {
+   "failures": [],
+   "passed": true
+  }
+ },
+ "host": {
+  "machine": "arm64",
+  "openscad": "OpenSCAD version 2021.01",
+  "os": "macOS-26.0.1-arm64-arm-64bit",
+  "processor": "arm",
+  "python": "3.12.13",
+  "resvg-py": "0.5.0",
+  "vtracer": "0.6.15"
+ },
+ "manifest_hash_check": {
+  "checked": 152,
+  "mismatches": []
+ },
+ "openscad": "OpenSCAD version 2021.01",
+ "pinned_signature": {
+  "badge": [],
+  "bracket": [
+   "centroid"
+  ],
+  "brick": [
+   "centroid",
+   "topology"
+  ],
+  "coins": [],
+  "gravel": [
+   "boundary",
+   "topology"
+  ],
+  "horse": [
+   "centroid",
+   "topology"
+  ],
+  "pcb": [],
+  "truchet": []
+ },
+ "regeneration": {
+  "against": "<earlier-index>",
+  "excluded": [
+   "out.stl",
+   "area-*",
+   "mesh.png"
+  ],
+  "passed": true,
+  "rows": {
+   "badge/engraved": [],
+   "badge/raised": [],
+   "bracket/engraved": [],
+   "bracket/raised": [],
+   "brick/engraved": [],
+   "brick/raised": [],
+   "coins/engraved": [],
+   "coins/raised": [],
+   "gravel/engraved": [],
+   "gravel/raised": [],
+   "horse/engraved": [],
+   "horse/raised": [],
+   "pcb/engraved": [],
+   "pcb/raised": [],
+   "truchet/engraved": [],
+   "truchet/raised": []
+  }
+ },
+ "rows": [
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 3139,
+     "sha256": "f33299e410e74e1cddb403efd188de8b707fe337754b7de10576d5ce6929fd6d"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 6039,
+     "sha256": "fbc155682e6bcc511384b9b5789b8e01e0cf04369c3f1749364538361bb5e389"
+    },
+    "fidelity.png": {
+     "bytes": 7338,
+     "sha256": "575ecef55e5927572d8f9d9283bd18270fa65279bf993c3ca4b43fbb02e094bd"
+    },
+    "mesh.png": {
+     "bytes": 8687,
+     "sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1817,
+     "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+    },
+    "out.debug/structure.png": {
+     "bytes": 2460,
+     "sha256": "8010e7fdc6a886a99cc9577a30a4c5ec3667106ace6f2a8b6894fee639348fd3"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1590,
+     "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 2809,
+     "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
+    },
+    "out.preview.png": {
+     "bytes": 45804,
+     "sha256": "364017fb453921486b52345a0768d6a1aabb254be925e47c45c46879d6092773"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 193156,
+     "sha256": "cd310568f4b501893ba9b4739c24ed6dc587563200f16862cb55e5f67f604d10"
+    },
+    "out.svg": {
+     "bytes": 4291,
+     "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
+    },
+    "out.vector.json": {
+     "bytes": 7694,
+     "sha256": "4d1c1e811dbaa3107f8b0ffa05ab1636ab293e54729c00cc4bd2637986b256ff"
+    }
+   },
+   "cad_passed": true,
+   "case": "badge",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+    "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     10,
+     10,
+     246,
+     246
+    ],
+    "bounds_render": [
+     10,
+     10,
+     246,
+     246
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.06813915348063704,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 22368,
+    "orientation_xor_px": {
+     "antitranspose": 3441,
+     "fliplr": 539,
+     "flipud": 4191,
+     "rot180": 4215,
+     "rot270": 3389,
+     "rot90": 3399,
+     "transpose": 3347
+    },
+    "passed": true,
+    "perimeter_px": 2352,
+    "polygon_area_px": 22652.5,
+    "topology_mask": [
+     6,
+     2
+    ],
+    "topology_render": [
+     6,
+     2
+    ],
+    "xor_pct_of_canvas": 0.77667236328125,
+    "xor_pct_of_material": 2.275572246065808,
+    "xor_per_perimeter_px": 0.21641156462585034,
+    "xor_px": 509
+   },
+   "manifest_sha256": "4d1c1e811dbaa3107f8b0ffa05ab1636ab293e54729c00cc4bd2637986b256ff",
+   "mask_sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 3139,
+     "sha256": "f33299e410e74e1cddb403efd188de8b707fe337754b7de10576d5ce6929fd6d"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 6039,
+     "sha256": "fbc155682e6bcc511384b9b5789b8e01e0cf04369c3f1749364538361bb5e389"
+    },
+    "fidelity.png": {
+     "bytes": 7338,
+     "sha256": "575ecef55e5927572d8f9d9283bd18270fa65279bf993c3ca4b43fbb02e094bd"
+    },
+    "mesh.png": {
+     "bytes": 8687,
+     "sha256": "bdde5cfd418e52ea59e66e3951e93c92652352ae1f888e2d9f9e1ef8780ddffd"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1817,
+     "sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716"
+    },
+    "out.debug/structure.png": {
+     "bytes": 2460,
+     "sha256": "8010e7fdc6a886a99cc9577a30a4c5ec3667106ace6f2a8b6894fee639348fd3"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1590,
+     "sha256": "8b4306309b5ab15c1ad4240991c2ccb2827e06cc70b7489ad130894074b69303"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 2809,
+     "sha256": "59533d1ce2c16ca3c316a7f90e4d3a550adbcc77918977fcc40aea24a4cce952"
+    },
+    "out.preview.png": {
+     "bytes": 45804,
+     "sha256": "364017fb453921486b52345a0768d6a1aabb254be925e47c45c46879d6092773"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 193156,
+     "sha256": "cd310568f4b501893ba9b4739c24ed6dc587563200f16862cb55e5f67f604d10"
+    },
+    "out.svg": {
+     "bytes": 4291,
+     "sha256": "14aa7d2a4857f8e5e262d9306e9cdf8e3e0aff436f3ef797db3ff856a5140dd8"
+    },
+    "out.vector.json": {
+     "bytes": 7696,
+     "sha256": "7bcbd0d8e45c288681b6da76a21e17ca0b8b5f9cbd444889c14c9793e23a5b71"
+    }
+   },
+   "cad_passed": true,
+   "case": "badge",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.1209608843537415,
+    "area_dev_signed_per_perimeter_px": 0.1209608843537415,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     10,
+     10,
+     246,
+     246
+    ],
+    "bounds_render": [
+     10,
+     10,
+     246,
+     246
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.06813915348063704,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 22368,
+    "orientation_xor_px": {
+     "antitranspose": 3441,
+     "fliplr": 539,
+     "flipud": 4191,
+     "rot180": 4215,
+     "rot270": 3389,
+     "rot90": 3399,
+     "transpose": 3347
+    },
+    "passed": true,
+    "perimeter_px": 2352,
+    "polygon_area_px": 22652.5,
+    "topology_mask": [
+     6,
+     2
+    ],
+    "topology_render": [
+     6,
+     2
+    ],
+    "xor_pct_of_canvas": 0.77667236328125,
+    "xor_pct_of_material": 2.275572246065808,
+    "xor_per_perimeter_px": 0.21641156462585034,
+    "xor_px": 509
+   },
+   "manifest_sha256": "7bcbd0d8e45c288681b6da76a21e17ca0b8b5f9cbd444889c14c9793e23a5b71",
+   "mask_sha256": "0dfe3e028132e38dbd792d6e92fa943dc3ed9dba4b44c637996245e75327f716",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "cb4ef46bdf93f83fee6714211154ea5e58bad86e611db26094f9b2a218d1b96f"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 2903,
+     "sha256": "2c649945ff48c00dcad546782490e4a5d6da3aa239b9914eef14d28cab7526d7"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 3078,
+     "sha256": "0dab9edf3b66379039f77b2449e2150e99aadd21ee6563c2a9f5d34dee7c360b"
+    },
+    "fidelity.png": {
+     "bytes": 3601,
+     "sha256": "e18abf48c74cd8e818671d439bd3f681dbcc09f084aa6c198a67202806de5ed1"
+    },
+    "mesh.png": {
+     "bytes": 5785,
+     "sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 968,
+     "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+    },
+    "out.debug/structure.png": {
+     "bytes": 995,
+     "sha256": "2a67cac4201478e8c4e90de6b1e83ffcd3bbc8328b6587ced831a9950af6aef6"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1467,
+     "sha256": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 1534,
+     "sha256": "31fae193dc2105d5be4cd350fb8e7ec2e757ee6574aee01421d7a2d3dc33fd99"
+    },
+    "out.preview.png": {
+     "bytes": 20778,
+     "sha256": "9e15eea2c5a851493a9ff8d984152c893f6c54e1c06ed2d39cafb4f852c5c8fa"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 90892,
+     "sha256": "f0dfd912cbaac082e2ba7edc26f90c50dc56bee6e885c0cecb9867dcf4c9aed4"
+    },
+    "out.svg": {
+     "bytes": 2893,
+     "sha256": "a9f7da4e395ffd005af8f526c190d7d76db43147db4a82879eb54d28d4675ac9"
+    },
+    "out.vector.json": {
+     "bytes": 7703,
+     "sha256": "1bcb2d0ad73de48506fe8d8c136edaea42b25691357f1b9f2601ab0190bbb8a1"
+    }
+   },
+   "cad_passed": true,
+   "case": "bracket",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+    "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     30,
+     25,
+     226,
+     210
+    ],
+    "bounds_render": [
+     30,
+     25,
+     226,
+     210
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.4641898121774974,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [
+     "centroid"
+    ],
+    "mask_area_px": 3462,
+    "orientation_xor_px": {
+     "antitranspose": 6862,
+     "fliplr": 294,
+     "flipud": 5294,
+     "rot180": 5294,
+     "rot270": 6870,
+     "rot90": 6866,
+     "transpose": 6874
+    },
+    "passed": false,
+    "perimeter_px": 2708,
+    "polygon_area_px": 3599.0,
+    "topology_mask": [
+     6,
+     3
+    ],
+    "topology_render": [
+     6,
+     3
+    ],
+    "xor_pct_of_canvas": 0.3662109375,
+    "xor_pct_of_material": 6.932409012131716,
+    "xor_per_perimeter_px": 0.08862629246676514,
+    "xor_px": 240
+   },
+   "manifest_sha256": "1bcb2d0ad73de48506fe8d8c136edaea42b25691357f1b9f2601ab0190bbb8a1",
+   "mask_sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 2903,
+     "sha256": "2c649945ff48c00dcad546782490e4a5d6da3aa239b9914eef14d28cab7526d7"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 3078,
+     "sha256": "0dab9edf3b66379039f77b2449e2150e99aadd21ee6563c2a9f5d34dee7c360b"
+    },
+    "fidelity.png": {
+     "bytes": 3601,
+     "sha256": "e18abf48c74cd8e818671d439bd3f681dbcc09f084aa6c198a67202806de5ed1"
+    },
+    "mesh.png": {
+     "bytes": 5785,
+     "sha256": "03749a320cedbdd6ca834b79ac9a106f2b772a905428e5deb8b4d29f5e1aad9d"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 968,
+     "sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3"
+    },
+    "out.debug/structure.png": {
+     "bytes": 995,
+     "sha256": "2a67cac4201478e8c4e90de6b1e83ffcd3bbc8328b6587ced831a9950af6aef6"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1467,
+     "sha256": "fdadc075b3580198631f1e36a30199edb14259c7d0a8ab12b5659f5a9b081196"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 1534,
+     "sha256": "31fae193dc2105d5be4cd350fb8e7ec2e757ee6574aee01421d7a2d3dc33fd99"
+    },
+    "out.preview.png": {
+     "bytes": 20778,
+     "sha256": "9e15eea2c5a851493a9ff8d984152c893f6c54e1c06ed2d39cafb4f852c5c8fa"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 90892,
+     "sha256": "f0dfd912cbaac082e2ba7edc26f90c50dc56bee6e885c0cecb9867dcf4c9aed4"
+    },
+    "out.svg": {
+     "bytes": 2893,
+     "sha256": "a9f7da4e395ffd005af8f526c190d7d76db43147db4a82879eb54d28d4675ac9"
+    },
+    "out.vector.json": {
+     "bytes": 7705,
+     "sha256": "acf750387a5eba4b26c614c1e078964f65839612adb037677be96c8e8e30e10a"
+    }
+   },
+   "cad_passed": true,
+   "case": "bracket",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.050590841949778434,
+    "area_dev_signed_per_perimeter_px": 0.050590841949778434,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     30,
+     25,
+     226,
+     210
+    ],
+    "bounds_render": [
+     30,
+     25,
+     226,
+     210
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.4641898121774974,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [
+     "centroid"
+    ],
+    "mask_area_px": 3462,
+    "orientation_xor_px": {
+     "antitranspose": 6862,
+     "fliplr": 294,
+     "flipud": 5294,
+     "rot180": 5294,
+     "rot270": 6870,
+     "rot90": 6866,
+     "transpose": 6874
+    },
+    "passed": false,
+    "perimeter_px": 2708,
+    "polygon_area_px": 3599.0,
+    "topology_mask": [
+     6,
+     3
+    ],
+    "topology_render": [
+     6,
+     3
+    ],
+    "xor_pct_of_canvas": 0.3662109375,
+    "xor_pct_of_material": 6.932409012131716,
+    "xor_per_perimeter_px": 0.08862629246676514,
+    "xor_px": 240
+   },
+   "manifest_sha256": "acf750387a5eba4b26c614c1e078964f65839612adb037677be96c8e8e30e10a",
+   "mask_sha256": "9c5dea2611431c07a0d1cf0555235ba28c03a5f05c5777ebd9fb4c88cc93e1e3",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "65d5052243c582d685739030c875d8ede4539b6beae3488b29552365654f31e3"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1086,
+     "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+     "bytes": 411,
+     "sha256": "1d2354a750fb71dcd24a50aac58b110782b8b440d3e937651ba6e7ab31f435a9"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1090,
+     "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+     "bytes": 12165,
+     "sha256": "87bdb8da6964560dfc14403065214e5c6ecc8d1fceebf22649d50d00b6adc9d5"
+    },
+    "area-structure.scad": {
+     "bytes": 1089,
+     "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+     "bytes": 13323,
+     "sha256": "9dd2254067ab0767039537a17ee5e1c17e238a477b17d0d090d70739e3745a90"
+    },
+    "fidelity.png": {
+     "bytes": 12140,
+     "sha256": "2d1f697be74240a84f0743cc1fda439395484cdaa08da0c3e074c1838f199b2d"
+    },
+    "mesh.png": {
+     "bytes": 8525,
+     "sha256": "1840a8ae46df33e0331037c8c8b5392cdcf4b5510bbda1fb94c817ec34857547"
+    },
+    "out.debug/detail.png": {
+     "bytes": 257,
+     "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 2705,
+     "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+    },
+    "out.debug/structure.png": {
+     "bytes": 2861,
+     "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 234,
+     "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 5497,
+     "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 6242,
+     "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
+    },
+    "out.preview.png": {
+     "bytes": 83267,
+     "sha256": "1ba1dbc1bed64c4c6c600fc38e8d4c952cf2586bfb468eececf2d3c00c31abea"
+    },
+    "out.scad": {
+     "bytes": 1506,
+     "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
+    },
+    "out.stl": {
+     "bytes": 496349,
+     "sha256": "23683ac48439e807ad3801307ae5419457f26d6d5fc0e375c3a18b750876f081"
+    },
+    "out.svg": {
+     "bytes": 11732,
+     "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
+    },
+    "out.vector.json": {
+     "bytes": 8205,
+     "sha256": "06051c71d18d84ec5dd9822f9df3a06ee626f38c41e26ef05c9bf7f3e75836e3"
+    }
+   },
+   "cad_passed": true,
+   "case": "brick",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+    "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.262400349052011,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "centroid",
+     "topology"
+    ],
+    "mask_area_px": 13770,
+    "orientation_xor_px": {
+     "antitranspose": 21335,
+     "fliplr": 20227,
+     "flipud": 20525,
+     "rot180": 20357,
+     "rot270": 20781,
+     "rot90": 20789,
+     "transpose": 21245
+    },
+    "passed": false,
+    "perimeter_px": 9913,
+    "polygon_area_px": 12817.0,
+    "topology_mask": [
+     1,
+     53
+    ],
+    "topology_render": [
+     5,
+     53
+    ],
+    "xor_pct_of_canvas": 4.28314208984375,
+    "xor_pct_of_material": 20.38489469862019,
+    "xor_per_perimeter_px": 0.28316352264702915,
+    "xor_px": 2807
+   },
+   "manifest_sha256": "06051c71d18d84ec5dd9822f9df3a06ee626f38c41e26ef05c9bf7f3e75836e3",
+   "mask_sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1359,
+     "sha256": "741e215b9c601a866c517e053a2b3701719333f6dedf399609b9ccbaef37ca4e"
+    },
+    "area-detail.svg": {
+     "bytes": 411,
+     "sha256": "1d2354a750fb71dcd24a50aac58b110782b8b440d3e937651ba6e7ab31f435a9"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1363,
+     "sha256": "1dc4f63cfdeb1f234d17f2bfd6e3fbaf38d9dddc1b6fefcdde84af999d3b04bc"
+    },
+    "area-silhouette.svg": {
+     "bytes": 12165,
+     "sha256": "87bdb8da6964560dfc14403065214e5c6ecc8d1fceebf22649d50d00b6adc9d5"
+    },
+    "area-structure.scad": {
+     "bytes": 1362,
+     "sha256": "65641f9f548c3d1c719b3cd442f99d11d3abb2c7ca5c4cc11285ec130d15169b"
+    },
+    "area-structure.svg": {
+     "bytes": 13323,
+     "sha256": "9dd2254067ab0767039537a17ee5e1c17e238a477b17d0d090d70739e3745a90"
+    },
+    "fidelity.png": {
+     "bytes": 12140,
+     "sha256": "2d1f697be74240a84f0743cc1fda439395484cdaa08da0c3e074c1838f199b2d"
+    },
+    "mesh.png": {
+     "bytes": 8415,
+     "sha256": "957f180eefd21106dccead0821ca3c5085602c9446a8a7b83acde4458a7e40d9"
+    },
+    "out.debug/detail.png": {
+     "bytes": 257,
+     "sha256": "d6f5ac379ad64b319468b3672ad3e0998be605429597764becb7a66ad7487793"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 2705,
+     "sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa"
+    },
+    "out.debug/structure.png": {
+     "bytes": 2861,
+     "sha256": "644cd1f9d94a2544da1cdc15a2eee38ef05e6570e896bd550c8241566d98f604"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 234,
+     "sha256": "a906017cb0d8b9703e8bd6fae0d7df4ad3e8a03e139cfa0ea18918013b31d150"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 5497,
+     "sha256": "bd759033a739346f04662e5646db8316085ea33ea02358d25973322a117db91b"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 6242,
+     "sha256": "e8fc5ee19f47118c86cfbfaced4fc1c3af73a47d63ebf5c3ea98df8a70c49117"
+    },
+    "out.preview.png": {
+     "bytes": 83267,
+     "sha256": "1ba1dbc1bed64c4c6c600fc38e8d4c952cf2586bfb468eececf2d3c00c31abea"
+    },
+    "out.scad": {
+     "bytes": 1783,
+     "sha256": "a98c4f9bf037958aa4e6a3a6288236a1bb6771ed4cae54e8b37924a944ae8910"
+    },
+    "out.stl": {
+     "bytes": 495754,
+     "sha256": "04db04251e0d42272534c6d1ffa1376dd0ca13d4a66dc50f448bdf5303fde3e2"
+    },
+    "out.svg": {
+     "bytes": 11732,
+     "sha256": "2a23a85856142aea35a8bb1aeed3022bfc01e1fcb57b27154ba97742920f2d14"
+    },
+    "out.vector.json": {
+     "bytes": 8267,
+     "sha256": "92436b426e1fa7a067372deb22e8efedc64ea68cc597651963a01210dc72c88c"
+    }
+   },
+   "cad_passed": true,
+   "case": "brick",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.09613638656309896,
+    "area_dev_signed_per_perimeter_px": -0.09613638656309896,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 2.262400349052011,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "centroid",
+     "topology"
+    ],
+    "mask_area_px": 13770,
+    "orientation_xor_px": {
+     "antitranspose": 21335,
+     "fliplr": 20227,
+     "flipud": 20525,
+     "rot180": 20357,
+     "rot270": 20781,
+     "rot90": 20789,
+     "transpose": 21245
+    },
+    "passed": false,
+    "perimeter_px": 9913,
+    "polygon_area_px": 12817.0,
+    "topology_mask": [
+     1,
+     53
+    ],
+    "topology_render": [
+     5,
+     53
+    ],
+    "xor_pct_of_canvas": 4.28314208984375,
+    "xor_pct_of_material": 20.38489469862019,
+    "xor_per_perimeter_px": 0.28316352264702915,
+    "xor_px": 2807
+   },
+   "manifest_sha256": "92436b426e1fa7a067372deb22e8efedc64ea68cc597651963a01210dc72c88c",
+   "mask_sha256": "51ef2eed9776398123eb14f344294835ccb5af7529b8d41e14f0f8ddb88204fa",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "a8ca0820affae339011c9fd3fda99488befa6d270767a38d9f8c2a305ae72435"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1086,
+     "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+     "bytes": 14608,
+     "sha256": "1b2514a0d68f3b057de605ed5c8ea3889f16469e2141fd63110b6f16a3728686"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1090,
+     "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+     "bytes": 6310,
+     "sha256": "fc8fc4bd6c22fac3d7795d17a1bc91f9b700fbf755a7e16edc3cb3b0f18cb7e6"
+    },
+    "area-structure.scad": {
+     "bytes": 1089,
+     "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+     "bytes": 16773,
+     "sha256": "662e233b6e5295c2cfb61f169df5a7f08a099cae49e1c81e7dde15db87c7811f"
+    },
+    "fidelity.png": {
+     "bytes": 7173,
+     "sha256": "5486fd6c8c506b0fe7870c34b3e2505386a8aa3bb106df6429f22e9cf95a0820"
+    },
+    "mesh.png": {
+     "bytes": 15763,
+     "sha256": "80dc09b63f686166bd26d93c433e5e84d4a406c93acdef58a7512fea712bdcc1"
+    },
+    "out.debug/detail.png": {
+     "bytes": 2366,
+     "sha256": "cc808c53906da381b579583839362eb37503d347e34326611c5cf23a43ef080e"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1713,
+     "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+    },
+    "out.debug/structure.png": {
+     "bytes": 3211,
+     "sha256": "ee786281d1b868fbe589f81acd3b3bf085e77d2fc50abf0c1204c5bb11793870"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 7067,
+     "sha256": "9e2ec35223ae4b4757468e4a718258859e3d0d7407c8072c3295418f794f9ca1"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 3702,
+     "sha256": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 7995,
+     "sha256": "1a88740aaa39934b393c17dc065fcdd86dc4c32b8822d2ba3df54a2e0c21da9c"
+    },
+    "out.preview.png": {
+     "bytes": 99392,
+     "sha256": "eaa7ca76184197b6e590150d48084645760837c5180de60667c9b7594f6b83b6"
+    },
+    "out.scad": {
+     "bytes": 1511,
+     "sha256": "c474dde659efe9f9e6a2d662c26ace8a2b88a7ffdc49f3804bae830a639f46a7"
+    },
+    "out.stl": {
+     "bytes": 999800,
+     "sha256": "b9ee036ab95dbfca8272bd418a16d159b8336cbef13a3c20f6cace44322b4090"
+    },
+    "out.svg": {
+     "bytes": 18513,
+     "sha256": "ebe710885a3b8fa705d81d9a4ed200aad31c1d854cc46d5c32a54d22e85c4443"
+    },
+    "out.vector.json": {
+     "bytes": 9559,
+     "sha256": "5a80856397b8674136b03222c40a5b6d4b6e0c16a399199bcd71a67e37ada7fd"
+    }
+   },
+   "cad_passed": true,
+   "case": "coins",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+    "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     12,
+     10,
+     255,
+     193
+    ],
+    "bounds_render": [
+     12,
+     10,
+     255,
+     193
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.13470711976021887,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 18068,
+    "orientation_xor_px": {
+     "fliplr": 13636,
+     "flipud": 18432,
+     "rot180": 17716
+    },
+    "passed": true,
+    "perimeter_px": 2942,
+    "polygon_area_px": 18379.5,
+    "topology_mask": [
+     24,
+     0
+    ],
+    "topology_render": [
+     24,
+     0
+    ],
+    "xor_pct_of_canvas": 0.7232363861386139,
+    "xor_pct_of_material": 2.0699579366836396,
+    "xor_per_perimeter_px": 0.12712440516655338,
+    "xor_px": 374
+   },
+   "manifest_sha256": "5a80856397b8674136b03222c40a5b6d4b6e0c16a399199bcd71a67e37ada7fd",
+   "mask_sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1096,
+     "sha256": "f6bf30ff764683fe95c7d69d412e670677e790dfb27e31d2ace34e365dc772dd"
+    },
+    "area-detail.svg": {
+     "bytes": 14608,
+     "sha256": "5aaed9d55a2e0e07ae7687bff24d6f9c7df53ef202234fb9d48873a14591b181"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1100,
+     "sha256": "316a2f8e450791d6aa01a526b8e035ad796e389bbb58b621937c7b67d8c6f79f"
+    },
+    "area-silhouette.svg": {
+     "bytes": 6310,
+     "sha256": "fc8fc4bd6c22fac3d7795d17a1bc91f9b700fbf755a7e16edc3cb3b0f18cb7e6"
+    },
+    "area-structure.scad": {
+     "bytes": 1099,
+     "sha256": "2ced2700b576634593789b04750f34b1b06a8e6b6e055ac598eb7ac095365322"
+    },
+    "area-structure.svg": {
+     "bytes": 16773,
+     "sha256": "662e233b6e5295c2cfb61f169df5a7f08a099cae49e1c81e7dde15db87c7811f"
+    },
+    "fidelity.png": {
+     "bytes": 7173,
+     "sha256": "5486fd6c8c506b0fe7870c34b3e2505386a8aa3bb106df6429f22e9cf95a0820"
+    },
+    "mesh.png": {
+     "bytes": 15588,
+     "sha256": "aaf6fbdf648d12a0293826c37bf0c2bc98546d1b805b01a9ab9559e32737f072"
+    },
+    "out.debug/detail.png": {
+     "bytes": 2366,
+     "sha256": "cc808c53906da381b579583839362eb37503d347e34326611c5cf23a43ef080e"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1713,
+     "sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d"
+    },
+    "out.debug/structure.png": {
+     "bytes": 3211,
+     "sha256": "ee786281d1b868fbe589f81acd3b3bf085e77d2fc50abf0c1204c5bb11793870"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 7067,
+     "sha256": "9e2ec35223ae4b4757468e4a718258859e3d0d7407c8072c3295418f794f9ca1"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 3702,
+     "sha256": "926b82094d3bf28e6afaac95c826155dcee24e8e626ebd6ce81176d85aa8d707"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 7995,
+     "sha256": "1a88740aaa39934b393c17dc065fcdd86dc4c32b8822d2ba3df54a2e0c21da9c"
+    },
+    "out.preview.png": {
+     "bytes": 99392,
+     "sha256": "eaa7ca76184197b6e590150d48084645760837c5180de60667c9b7594f6b83b6"
+    },
+    "out.scad": {
+     "bytes": 1525,
+     "sha256": "8fc823dc1780d9f74ae16dc9962c2ca725652d3997d24cdbef876f6924c67e44"
+    },
+    "out.stl": {
+     "bytes": 1088829,
+     "sha256": "3d8409e95c9a85308b857c687c67f66c19fb3f43ce4e9c8bce6798053d7ef5bb"
+    },
+    "out.svg": {
+     "bytes": 18513,
+     "sha256": "ebe710885a3b8fa705d81d9a4ed200aad31c1d854cc46d5c32a54d22e85c4443"
+    },
+    "out.vector.json": {
+     "bytes": 9216,
+     "sha256": "0f3aacfe25b03dc4f233944f56a5d02d122c7559dc645c256e7ab800687f746c"
+    }
+   },
+   "cad_passed": true,
+   "case": "coins",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.10588035350101971,
+    "area_dev_signed_per_perimeter_px": 0.10588035350101971,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     12,
+     10,
+     255,
+     193
+    ],
+    "bounds_render": [
+     12,
+     10,
+     255,
+     193
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.13470711976021887,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 18068,
+    "orientation_xor_px": {
+     "fliplr": 13636,
+     "flipud": 18432,
+     "rot180": 17716
+    },
+    "passed": true,
+    "perimeter_px": 2942,
+    "polygon_area_px": 18379.5,
+    "topology_mask": [
+     24,
+     0
+    ],
+    "topology_render": [
+     24,
+     0
+    ],
+    "xor_pct_of_canvas": 0.7232363861386139,
+    "xor_pct_of_material": 2.0699579366836396,
+    "xor_per_perimeter_px": 0.12712440516655338,
+    "xor_px": 374
+   },
+   "manifest_sha256": "0f3aacfe25b03dc4f233944f56a5d02d122c7559dc645c256e7ab800687f746c",
+   "mask_sha256": "1d62fcaff877c0702b67eaa4bb91daa218425630fcff633828b2a766a2284d3d",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "c91b4fbeecb21e79033604dfe5dfc4c488ed04a6cd1d1bbf6a0be20edde231f5"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1086,
+     "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+     "bytes": 5815,
+     "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1090,
+     "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+     "bytes": 48183,
+     "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
+    },
+    "area-structure.scad": {
+     "bytes": 1089,
+     "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+     "bytes": 68418,
+     "sha256": "dcfc2b203f93d7895c062337c3bc428df733a757c1f4de1e8693216d53be17e9"
+    },
+    "fidelity.png": {
+     "bytes": 34224,
+     "sha256": "bb62804beb754d684c264f11442a5d389e7b49a7000e8443f310bee17ac5fd5b"
+    },
+    "mesh.png": {
+     "bytes": 26360,
+     "sha256": "8190a4d0e52a90d41af702c7633e26d5cee7c5b50fa0b2753936a344066137e5"
+    },
+    "out.debug/detail.png": {
+     "bytes": 2598,
+     "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 7971,
+     "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+    },
+    "out.debug/structure.png": {
+     "bytes": 9534,
+     "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 3945,
+     "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 28836,
+     "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 36131,
+     "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
+    },
+    "out.preview.png": {
+     "bytes": 203673,
+     "sha256": "45f7d4cb71b932e06927bfb71585026c7e17d660c548704fd997877d5c01af16"
+    },
+    "out.scad": {
+     "bytes": 1506,
+     "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
+    },
+    "out.stl": {
+     "bytes": 2936516,
+     "sha256": "a9cffea7e7aed809bc726f6a5cfcef562f9752e4aafcc329f1dfec8e15a07acb"
+    },
+    "out.svg": {
+     "bytes": 68671,
+     "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
+    },
+    "out.vector.json": {
+     "bytes": 8939,
+     "sha256": "5337db3c6726b9fe1aa049b89dc0911cd538bcb4c3df04c6b5788e876132601f"
+    }
+   },
+   "cad_passed": true,
+   "case": "gravel",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+    "area_dev_signed_per_perimeter_px": 0.08745670460168234,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.7360679774997898,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.46412606773205256,
+    "checks": {
+     "area": true,
+     "boundary": false,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "boundary",
+     "topology"
+    ],
+    "mask_area_px": 26668,
+    "orientation_xor_px": {
+     "antitranspose": 31774,
+     "fliplr": 32084,
+     "flipud": 31246,
+     "rot180": 31790,
+     "rot270": 32012,
+     "rot90": 32136,
+     "transpose": 30990
+    },
+    "passed": false,
+    "perimeter_px": 16168,
+    "polygon_area_px": 28082.0,
+    "topology_mask": [
+     225,
+     13
+    ],
+    "topology_render": [
+     208,
+     27
+    ],
+    "xor_pct_of_canvas": 6.01806640625,
+    "xor_pct_of_material": 14.789260536973151,
+    "xor_per_perimeter_px": 0.24393864423552697,
+    "xor_px": 3944
+   },
+   "manifest_sha256": "5337db3c6726b9fe1aa049b89dc0911cd538bcb4c3df04c6b5788e876132601f",
+   "mask_sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1479,
+     "sha256": "deb31b23eabba3bc29e570d6a0232975dffe9f1b0d60afac77ddcc96cbb4d719"
+    },
+    "area-detail.svg": {
+     "bytes": 5815,
+     "sha256": "fe3860488130c3d3cc494b40576d3f62977e165853220de2dbdb6d6e9ef4c196"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1483,
+     "sha256": "cb03c11e3f11b5da8a9730f30b34e91a0e217764de0962c0cea25697d7cf3fab"
+    },
+    "area-silhouette.svg": {
+     "bytes": 48183,
+     "sha256": "de5f450b5bf1323c971187b7450403bd31624c9159cab12ccc727bb56daec2d3"
+    },
+    "area-structure.scad": {
+     "bytes": 1482,
+     "sha256": "8940905001c1fe58cf092e310fdd90977b515b14ba324a102d1b860706d45648"
+    },
+    "area-structure.svg": {
+     "bytes": 68418,
+     "sha256": "dcfc2b203f93d7895c062337c3bc428df733a757c1f4de1e8693216d53be17e9"
+    },
+    "fidelity.png": {
+     "bytes": 34224,
+     "sha256": "bb62804beb754d684c264f11442a5d389e7b49a7000e8443f310bee17ac5fd5b"
+    },
+    "mesh.png": {
+     "bytes": 26298,
+     "sha256": "64a03bc2d3c09c462acc9d9a5032ca092cab2091f5d1cd54106df28c3d51aa4d"
+    },
+    "out.debug/detail.png": {
+     "bytes": 2598,
+     "sha256": "54b27b017d864f5649ace1b51ab7b4e64cd16f33a2abbdd6fc4e35d33ac73814"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 7971,
+     "sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3"
+    },
+    "out.debug/structure.png": {
+     "bytes": 9534,
+     "sha256": "24da921574c448401db38848011386d08289be5a10f84e8694a1a01551e8f449"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 3945,
+     "sha256": "b60daa4972ec70333ce827203c1e81e6c34e776c682cf426f73802f892309d84"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 28836,
+     "sha256": "61c621e66f706c20188347b1a88f23e82ae8f6a4fcbaa100a009d3b69399ee8e"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 36131,
+     "sha256": "17016e86d0bc23f894fb66cad7da61fc3476e5e606bcce05c6bbb2a3ca89bb1f"
+    },
+    "out.preview.png": {
+     "bytes": 203673,
+     "sha256": "45f7d4cb71b932e06927bfb71585026c7e17d660c548704fd997877d5c01af16"
+    },
+    "out.scad": {
+     "bytes": 1903,
+     "sha256": "899a84b67d1ac00851d4592392c6bc6c4151e8cb6c6cdfe14feeef1330559f2e"
+    },
+    "out.stl": {
+     "bytes": 2954011,
+     "sha256": "b3c49a3028673e6d10c31b94992d2dbeee2cd70f77d55c9e7783f1c2f274a172"
+    },
+    "out.svg": {
+     "bytes": 68671,
+     "sha256": "1071b2c441d9146a09657e7d4e9fc088f4af3ff6584401a4c062204bfbd3beab"
+    },
+    "out.vector.json": {
+     "bytes": 9001,
+     "sha256": "b0dbec8c9463da72534d1a9e9f9d3ddb99487cdd0cb134e1b5b0b8a72416cbe7"
+    }
+   },
+   "cad_passed": true,
+   "case": "gravel",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.08745670460168234,
+    "area_dev_signed_per_perimeter_px": 0.08745670460168234,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.7360679774997898,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.46412606773205256,
+    "checks": {
+     "area": true,
+     "boundary": false,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "boundary",
+     "topology"
+    ],
+    "mask_area_px": 26668,
+    "orientation_xor_px": {
+     "antitranspose": 31774,
+     "fliplr": 32084,
+     "flipud": 31246,
+     "rot180": 31790,
+     "rot270": 32012,
+     "rot90": 32136,
+     "transpose": 30990
+    },
+    "passed": false,
+    "perimeter_px": 16168,
+    "polygon_area_px": 28082.0,
+    "topology_mask": [
+     225,
+     13
+    ],
+    "topology_render": [
+     208,
+     27
+    ],
+    "xor_pct_of_canvas": 6.01806640625,
+    "xor_pct_of_material": 14.789260536973151,
+    "xor_per_perimeter_px": 0.24393864423552697,
+    "xor_px": 3944
+   },
+   "manifest_sha256": "b0dbec8c9463da72534d1a9e9f9d3ddb99487cdd0cb134e1b5b0b8a72416cbe7",
+   "mask_sha256": "66b7c0430264adb286f0c89a266a53f68e831e379fbcc5cd5ae1c27d4812e0c3",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "bde930e5875863e7d14ac47e4497211ab2e8cd3fecfd8302a688ee1c94d37543"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 2803,
+     "sha256": "d1287dcc3ee1973eac52667e73f4ae911ccc772d6ad7f5de6e49549293945c6d"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 4930,
+     "sha256": "44075861016a9be12639a2a718f7c2aa8799b899fe508e333e923eaf93b01247"
+    },
+    "fidelity.png": {
+     "bytes": 5016,
+     "sha256": "c9f8fb74ca76fe487fa0792c150eb03ccbb986cf11afa879fe48a74b7cbbad63"
+    },
+    "mesh.png": {
+     "bytes": 7613,
+     "sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b"
+    },
+    "out.debug/detail.png": {
+     "bytes": 132,
+     "sha256": "ecfeb413d83685b9485b07939ba8606b999a333d65ae6a8f75f92a1e69e0650b"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1236,
+     "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+    },
+    "out.debug/structure.png": {
+     "bytes": 1753,
+     "sha256": "52d62e1f487173738d75034defa9f40be6076a81866815badfe3f1ea33dd39aa"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1390,
+     "sha256": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 2425,
+     "sha256": "402f12c823d3ad271bc756701c6260f28e96cbf0587f544d27d943d97256105c"
+    },
+    "out.preview.png": {
+     "bytes": 37190,
+     "sha256": "6bcb2246ee29c3da07e7bb6d8c46b1ca0b01e221bc112ff262f862e2a6d10582"
+    },
+    "out.scad": {
+     "bytes": 1037,
+     "sha256": "c5adf7a4013cd8c2f1d3b616828bc8d416906659d26151505abb6a8d891c606a"
+    },
+    "out.stl": {
+     "bytes": 158072,
+     "sha256": "102e7cf0c2aea6b32f9cc53543bb5439fe1a99bc6be8fbf7ba87864ca17e70d3"
+    },
+    "out.svg": {
+     "bytes": 3702,
+     "sha256": "7cd01393a4ad97ddc28e6cce718248f642b2fb3f4cc7bb86ad464c5d4ca01aaf"
+    },
+    "out.vector.json": {
+     "bytes": 7392,
+     "sha256": "1c6beaf122ca33d8822459568d9ec3ddfe885134dfe950aff3ca44d4b2b8971a"
+    }
+   },
+   "cad_passed": true,
+   "case": "horse",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+    "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+     11,
+     6,
+     249,
+     200
+    ],
+    "bounds_render": [
+     11,
+     6,
+     249,
+     200
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.8509753644078816,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "centroid",
+     "topology"
+    ],
+    "mask_area_px": 17779,
+    "orientation_xor_px": {
+     "fliplr": 18473,
+     "flipud": 16815,
+     "rot180": 20751
+    },
+    "passed": false,
+    "perimeter_px": 1694,
+    "polygon_area_px": 18374.5,
+    "topology_mask": [
+     1,
+     0
+    ],
+    "topology_render": [
+     1,
+     2
+    ],
+    "xor_pct_of_canvas": 1.1216517857142858,
+    "xor_pct_of_material": 3.391641824624557,
+    "xor_per_perimeter_px": 0.35596221959858326,
+    "xor_px": 603
+   },
+   "manifest_sha256": "1c6beaf122ca33d8822459568d9ec3ddfe885134dfe950aff3ca44d4b2b8971a",
+   "mask_sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 2803,
+     "sha256": "d1287dcc3ee1973eac52667e73f4ae911ccc772d6ad7f5de6e49549293945c6d"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 4930,
+     "sha256": "44075861016a9be12639a2a718f7c2aa8799b899fe508e333e923eaf93b01247"
+    },
+    "fidelity.png": {
+     "bytes": 5016,
+     "sha256": "c9f8fb74ca76fe487fa0792c150eb03ccbb986cf11afa879fe48a74b7cbbad63"
+    },
+    "mesh.png": {
+     "bytes": 7613,
+     "sha256": "92b85231b817e652a2326223c7668c31ae473ce68c4a39f631163d0c851c834b"
+    },
+    "out.debug/detail.png": {
+     "bytes": 132,
+     "sha256": "ecfeb413d83685b9485b07939ba8606b999a333d65ae6a8f75f92a1e69e0650b"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 1236,
+     "sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f"
+    },
+    "out.debug/structure.png": {
+     "bytes": 1753,
+     "sha256": "52d62e1f487173738d75034defa9f40be6076a81866815badfe3f1ea33dd39aa"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 1390,
+     "sha256": "7e5f6988596212130b685535a97cb2ac4698a513729e36f9361f1b5db826f6bb"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 2425,
+     "sha256": "402f12c823d3ad271bc756701c6260f28e96cbf0587f544d27d943d97256105c"
+    },
+    "out.preview.png": {
+     "bytes": 37190,
+     "sha256": "6bcb2246ee29c3da07e7bb6d8c46b1ca0b01e221bc112ff262f862e2a6d10582"
+    },
+    "out.scad": {
+     "bytes": 1037,
+     "sha256": "c5adf7a4013cd8c2f1d3b616828bc8d416906659d26151505abb6a8d891c606a"
+    },
+    "out.stl": {
+     "bytes": 158072,
+     "sha256": "102e7cf0c2aea6b32f9cc53543bb5439fe1a99bc6be8fbf7ba87864ca17e70d3"
+    },
+    "out.svg": {
+     "bytes": 3702,
+     "sha256": "7cd01393a4ad97ddc28e6cce718248f642b2fb3f4cc7bb86ad464c5d4ca01aaf"
+    },
+    "out.vector.json": {
+     "bytes": 7394,
+     "sha256": "4c39481e64fbc56789dc9271948576f63e0e7ef3a6f5a32af94d86702f8c7430"
+    }
+   },
+   "cad_passed": true,
+   "case": "horse",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.3515348288075561,
+    "area_dev_signed_per_perimeter_px": 0.3515348288075561,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.9142135623730951,
+    "bounds_mask": [
+     11,
+     6,
+     249,
+     200
+    ],
+    "bounds_render": [
+     11,
+     6,
+     249,
+     200
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.8509753644078816,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": false,
+     "orientation": true,
+     "scale": true,
+     "topology": false,
+     "xor": true
+    },
+    "failures": [
+     "centroid",
+     "topology"
+    ],
+    "mask_area_px": 17779,
+    "orientation_xor_px": {
+     "fliplr": 18473,
+     "flipud": 16815,
+     "rot180": 20751
+    },
+    "passed": false,
+    "perimeter_px": 1694,
+    "polygon_area_px": 18374.5,
+    "topology_mask": [
+     1,
+     0
+    ],
+    "topology_render": [
+     1,
+     2
+    ],
+    "xor_pct_of_canvas": 1.1216517857142858,
+    "xor_pct_of_material": 3.391641824624557,
+    "xor_per_perimeter_px": 0.35596221959858326,
+    "xor_px": 603
+   },
+   "manifest_sha256": "4c39481e64fbc56789dc9271948576f63e0e7ef3a6f5a32af94d86702f8c7430",
+   "mask_sha256": "33806d96a76a5b227405d25e47aabe0f64694b16f1d1ecd2e92e08c57e195c6f",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "a375f31da5d9c8c76c59be048bc0737dc54377a88aa2e158696b1d8981aa936d"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 19199,
+     "sha256": "5c1fad1f5f424fe00b6401ecd640d209761a88a2c061c46dec0d4196ae781d83"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 40193,
+     "sha256": "c5d7d0b82068a1c57b2a75327d31c12ad7d2c591f34cd304a0e4fb894d55aad8"
+    },
+    "fidelity.png": {
+     "bytes": 7241,
+     "sha256": "ad9f73295fd54f4cf80a5536e48619562ff09d4cab5b98435b5e765681c2cd3d"
+    },
+    "mesh.png": {
+     "bytes": 12890,
+     "sha256": "27aa84382fbf58c307e80645570b3e8422df0c34780434e8afe6a7b4a10e87a1"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 898,
+     "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+    },
+    "out.debug/structure.png": {
+     "bytes": 1322,
+     "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 8350,
+     "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 19388,
+     "sha256": "617e81d5c89977b68fea79088835b45134bcfb80b971f01783fd989f57c3f992"
+    },
+    "out.preview.png": {
+     "bytes": 41157,
+     "sha256": "1e64f30f36271660e86dff512ee7fa166f305988671b07689184c34461916cc0"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 1380647,
+     "sha256": "9392fca506bf6ae6e980e7c6aaa1a73704239430cec0d3327a686ef31f930704"
+    },
+    "out.svg": {
+     "bytes": 27630,
+     "sha256": "1b6388b710fa39a0c1cea986855179a0a7eea6500ad7cc85cafd80a9c166b14a"
+    },
+    "out.vector.json": {
+     "bytes": 7789,
+     "sha256": "741fd90d67f1b77094ed0becc1f58ef09cda795b92ac1dd0aa8209bcf1315252"
+    }
+   },
+   "cad_passed": true,
+   "case": "pcb",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+    "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     15,
+     15,
+     242,
+     242
+    ],
+    "bounds_render": [
+     15,
+     15,
+     242,
+     242
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.08305428584884239,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 14312,
+    "orientation_xor_px": {
+     "antitranspose": 3708,
+     "fliplr": 3248,
+     "flipud": 3628,
+     "rot180": 4100,
+     "rot270": 3890,
+     "rot90": 3586,
+     "transpose": 3584
+    },
+    "passed": true,
+    "perimeter_px": 6756,
+    "polygon_area_px": 14467.0,
+    "topology_mask": [
+     30,
+     64
+    ],
+    "topology_render": [
+     30,
+     64
+    ],
+    "xor_pct_of_canvas": 1.025390625,
+    "xor_pct_of_material": 4.6953605366126325,
+    "xor_per_perimeter_px": 0.0994671403197158,
+    "xor_px": 672
+   },
+   "manifest_sha256": "741fd90d67f1b77094ed0becc1f58ef09cda795b92ac1dd0aa8209bcf1315252",
+   "mask_sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c"
+  },
+  {
+   "artifact_hashes": {
+    "area-silhouette.scad": {
+     "bytes": 727,
+     "sha256": "b530b988d19bfd3459089cd4fb9a9716c3112a1049badf51f8745bd90bb35122"
+    },
+    "area-silhouette.svg": {
+     "bytes": 19199,
+     "sha256": "5c1fad1f5f424fe00b6401ecd640d209761a88a2c061c46dec0d4196ae781d83"
+    },
+    "area-structure.scad": {
+     "bytes": 726,
+     "sha256": "c3e339df14e3622c518eed335517d3d64b49c722966334f68dcca967d832f8e0"
+    },
+    "area-structure.svg": {
+     "bytes": 40193,
+     "sha256": "c5d7d0b82068a1c57b2a75327d31c12ad7d2c591f34cd304a0e4fb894d55aad8"
+    },
+    "fidelity.png": {
+     "bytes": 7241,
+     "sha256": "ad9f73295fd54f4cf80a5536e48619562ff09d4cab5b98435b5e765681c2cd3d"
+    },
+    "mesh.png": {
+     "bytes": 12890,
+     "sha256": "27aa84382fbf58c307e80645570b3e8422df0c34780434e8afe6a7b4a10e87a1"
+    },
+    "out.debug/detail.png": {
+     "bytes": 143,
+     "sha256": "5933d4c44ed2bc2f431e2698b41923a18d056b24b450540bb109e7592a547060"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 898,
+     "sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222"
+    },
+    "out.debug/structure.png": {
+     "bytes": 1322,
+     "sha256": "3576b619a70f2a0b280cde61e5bf10cc017af3c1337f9aae76482b83e4931fc8"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 8350,
+     "sha256": "fb0c38bfb4b0f03df236a6c34f60f7f7d6330dee488c35e8972304b4904d32de"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 19388,
+     "sha256": "617e81d5c89977b68fea79088835b45134bcfb80b971f01783fd989f57c3f992"
+    },
+    "out.preview.png": {
+     "bytes": 41157,
+     "sha256": "1e64f30f36271660e86dff512ee7fa166f305988671b07689184c34461916cc0"
+    },
+    "out.scad": {
+     "bytes": 1032,
+     "sha256": "bead7b121e462c3f81a56c4f58f87ab8363547324e5b16d83aea5bfc58db1739"
+    },
+    "out.stl": {
+     "bytes": 1380647,
+     "sha256": "ea565bbe53b9bb1944c108d457fca89449876e17e80dfe7b84e353e6f83d5b75"
+    },
+    "out.svg": {
+     "bytes": 27630,
+     "sha256": "1b6388b710fa39a0c1cea986855179a0a7eea6500ad7cc85cafd80a9c166b14a"
+    },
+    "out.vector.json": {
+     "bytes": 7791,
+     "sha256": "e258c0d6ba31a82e4dfa8b63bacf8681e73165f9026879edd1890343c383aba9"
+    }
+   },
+   "cad_passed": true,
+   "case": "pcb",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.02294256956779159,
+    "area_dev_signed_per_perimeter_px": 0.02294256956779159,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 0.5,
+    "bounds_mask": [
+     15,
+     15,
+     242,
+     242
+    ],
+    "bounds_render": [
+     15,
+     15,
+     242,
+     242
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.08305428584884239,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 14312,
+    "orientation_xor_px": {
+     "antitranspose": 3708,
+     "fliplr": 3248,
+     "flipud": 3628,
+     "rot180": 4100,
+     "rot270": 3890,
+     "rot90": 3586,
+     "transpose": 3584
+    },
+    "passed": true,
+    "perimeter_px": 6756,
+    "polygon_area_px": 14467.0,
+    "topology_mask": [
+     30,
+     64
+    ],
+    "topology_render": [
+     30,
+     64
+    ],
+    "xor_pct_of_canvas": 1.025390625,
+    "xor_pct_of_material": 4.6953605366126325,
+    "xor_per_perimeter_px": 0.0994671403197158,
+    "xor_px": 672
+   },
+   "manifest_sha256": "e258c0d6ba31a82e4dfa8b63bacf8681e73165f9026879edd1890343c383aba9",
+   "mask_sha256": "001b22f13bfe54a170f3729e3e43209a3b8590414eb82a114777e95897de9222",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "6da388d59804395ecfded06b97b3279baac0caf2dd7ec9db208e4f4bbd698c3c"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1086,
+     "sha256": "ecdc674bc58c398f1bab967609d6ed4097b869002936081c976635eec31e6ec0"
+    },
+    "area-detail.svg": {
+     "bytes": 2525,
+     "sha256": "db1a9e5fd8f6fb3ae745c65339d72086e8b3474643c5e55a0f63103549608af8"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1090,
+     "sha256": "63f788f1ec368426e5b331e5c987b8330d2068897e0310043e613f6cc9f5b8ca"
+    },
+    "area-silhouette.svg": {
+     "bytes": 40490,
+     "sha256": "71d8ed0cb9bcf69f870c0267b1b4bf639eabd915e137c5e980e9bfaf934a2e92"
+    },
+    "area-structure.scad": {
+     "bytes": 1089,
+     "sha256": "69c325e65831eb7a279cc0ba51b06303e6c8910d416fd491b2b11daef12e26ee"
+    },
+    "area-structure.svg": {
+     "bytes": 44596,
+     "sha256": "ffdd5e2d559bf29ef479da5b869528b664a95227fc640a3ccb54bbe71c651303"
+    },
+    "fidelity.png": {
+     "bytes": 24771,
+     "sha256": "88148d1d93af1a1708dcf3f3556f7131869dcd3cb1d92cf38027de7e14eb1dcd"
+    },
+    "mesh.png": {
+     "bytes": 17387,
+     "sha256": "7056acdf5e010a2751802b0040f5e8bcd1eb9b4d511444257da74e560c79df60"
+    },
+    "out.debug/detail.png": {
+     "bytes": 641,
+     "sha256": "1c3ed33d1b6ba03bde4bde0d49fa413f53eeaa984675e75a82f999c41da61b5f"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 812,
+     "sha256": "2309eb744c622026bdbe93bc2707a99a76aa6ae448965992775487d3a98b0075"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 4855,
+     "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+    },
+    "out.debug/structure.png": {
+     "bytes": 5842,
+     "sha256": "91995e87e0af7023b1831dae1749e65f08f2cfa3b86206f2e46fc97056dee3e3"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 1482,
+     "sha256": "fcffbb2b358bf43a9ebf9f063ca19d7ef91c1bd5d6ef75f4d064f3cead77eba1"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 19400,
+     "sha256": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 24622,
+     "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
+    },
+    "out.preview.png": {
+     "bytes": 146332,
+     "sha256": "272c593c448670f6ff88827d54a476069d21b1a942ee07fde8512cec10dc6f20"
+    },
+    "out.scad": {
+     "bytes": 1506,
+     "sha256": "22af5cfe2ac630a67d287386b65559a104769550382a17e6863ed23d8bcaf23a"
+    },
+    "out.stl": {
+     "bytes": 1634375,
+     "sha256": "730a899e7e3198e7b46d104890dceace5d341d0a1f51b7f12950e19809400dc6"
+    },
+    "out.svg": {
+     "bytes": 45263,
+     "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
+    },
+    "out.vector.json": {
+     "bytes": 8814,
+     "sha256": "513127678b2e6a5984ca22b062c7c027e8eee4e019d2f7ba336879390ab5d39d"
+    }
+   },
+   "cad_passed": true,
+   "case": "truchet",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+    "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.5,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.07442435758417458,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 19468,
+    "orientation_xor_px": {
+     "antitranspose": 17224,
+     "fliplr": 21212,
+     "flipud": 22794,
+     "rot180": 24362,
+     "rot270": 22824,
+     "rot90": 22764,
+     "transpose": 21006
+    },
+    "passed": true,
+    "perimeter_px": 14098,
+    "polygon_area_px": 21953.5,
+    "topology_mask": [
+     55,
+     20
+    ],
+    "topology_render": [
+     55,
+     20
+    ],
+    "xor_pct_of_canvas": 5.517578125,
+    "xor_pct_of_material": 18.574070269159648,
+    "xor_per_perimeter_px": 0.25649028230954746,
+    "xor_px": 3616
+   },
+   "manifest_sha256": "513127678b2e6a5984ca22b062c7c027e8eee4e019d2f7ba336879390ab5d39d",
+   "mask_sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39",
+   "mode": "raised",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "raised",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51"
+  },
+  {
+   "artifact_hashes": {
+    "area-detail.scad": {
+     "bytes": 1473,
+     "sha256": "90e9619bbff714033934612b2feaff49449a7c158f0c0127c4c37faabe1c4a7b"
+    },
+    "area-detail.svg": {
+     "bytes": 2525,
+     "sha256": "db1a9e5fd8f6fb3ae745c65339d72086e8b3474643c5e55a0f63103549608af8"
+    },
+    "area-silhouette.scad": {
+     "bytes": 1477,
+     "sha256": "b01767bd61a0b24ab0e002db114cc98b06c18b73d6d6378d0d9095d86ed98e1b"
+    },
+    "area-silhouette.svg": {
+     "bytes": 40490,
+     "sha256": "71d8ed0cb9bcf69f870c0267b1b4bf639eabd915e137c5e980e9bfaf934a2e92"
+    },
+    "area-structure.scad": {
+     "bytes": 1476,
+     "sha256": "04bc1bcd84bddd47e5aac41cd17fdd5dc9343f15cc0124acf2ea1ef2cbbeb048"
+    },
+    "area-structure.svg": {
+     "bytes": 44596,
+     "sha256": "ffdd5e2d559bf29ef479da5b869528b664a95227fc640a3ccb54bbe71c651303"
+    },
+    "fidelity.png": {
+     "bytes": 24771,
+     "sha256": "88148d1d93af1a1708dcf3f3556f7131869dcd3cb1d92cf38027de7e14eb1dcd"
+    },
+    "mesh.png": {
+     "bytes": 17304,
+     "sha256": "4ce93801f7833df07a72d4c80b98bd46dd17fe2821ea7d26103b4629e0885123"
+    },
+    "out.debug/detail.png": {
+     "bytes": 641,
+     "sha256": "1c3ed33d1b6ba03bde4bde0d49fa413f53eeaa984675e75a82f999c41da61b5f"
+    },
+    "out.debug/recipe.json": {
+     "bytes": 814,
+     "sha256": "9d6a7dec193a6c6b0123471c8b2fa7e1314485ce38d2a86a0d9cbf59b826c208"
+    },
+    "out.debug/silhouette.png": {
+     "bytes": 4855,
+     "sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39"
+    },
+    "out.debug/structure.png": {
+     "bytes": 5842,
+     "sha256": "91995e87e0af7023b1831dae1749e65f08f2cfa3b86206f2e46fc97056dee3e3"
+    },
+    "out.layers/detail.svg": {
+     "bytes": 1482,
+     "sha256": "fcffbb2b358bf43a9ebf9f063ca19d7ef91c1bd5d6ef75f4d064f3cead77eba1"
+    },
+    "out.layers/silhouette.svg": {
+     "bytes": 19400,
+     "sha256": "4f1ed0448822e7d944715451170b76f34d839379d79006b83f46fbd8ca87e933"
+    },
+    "out.layers/structure.svg": {
+     "bytes": 24622,
+     "sha256": "f76e5f1557ee6c67ac350a2d5e64fcfa81f2d6d781e49650648dba0b2819ca41"
+    },
+    "out.preview.png": {
+     "bytes": 146332,
+     "sha256": "272c593c448670f6ff88827d54a476069d21b1a942ee07fde8512cec10dc6f20"
+    },
+    "out.scad": {
+     "bytes": 1897,
+     "sha256": "ff276750eae47503528e346335933b1136960d0008e92957e826a2ffa2ac62a8"
+    },
+    "out.stl": {
+     "bytes": 1648497,
+     "sha256": "bfc4887ba66d1566d7d3af42b8f68ccc5ad796716a0107647b5ff565d7213e1f"
+    },
+    "out.svg": {
+     "bytes": 45263,
+     "sha256": "d25c4decb947c4188db537692ca4b8e4d2319b361458a7822e8d63f3c0bd1515"
+    },
+    "out.vector.json": {
+     "bytes": 8876,
+     "sha256": "d4296573dc99df587e7cba46fd1705cb808e218c3fe46c5c8195f846ce704eb7"
+    }
+   },
+   "cad_passed": true,
+   "case": "truchet",
+   "fidelity": {
+    "area_dev_abs_per_perimeter_px": 0.17630160306426443,
+    "area_dev_signed_per_perimeter_px": 0.17630160306426443,
+    "bbox_size_delta_px": 0,
+    "boundary_max_distance_px": 1.5,
+    "bounds_mask": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_render": [
+     0,
+     0,
+     256,
+     256
+    ],
+    "bounds_shift_px": 0,
+    "centroid_shift_px": 0.07442435758417458,
+    "checks": {
+     "area": true,
+     "boundary": true,
+     "bounds": true,
+     "centroid": true,
+     "orientation": true,
+     "scale": true,
+     "topology": true,
+     "xor": true
+    },
+    "failures": [],
+    "mask_area_px": 19468,
+    "orientation_xor_px": {
+     "antitranspose": 17224,
+     "fliplr": 21212,
+     "flipud": 22794,
+     "rot180": 24362,
+     "rot270": 22824,
+     "rot90": 22764,
+     "transpose": 21006
+    },
+    "passed": true,
+    "perimeter_px": 14098,
+    "polygon_area_px": 21953.5,
+    "topology_mask": [
+     55,
+     20
+    ],
+    "topology_render": [
+     55,
+     20
+    ],
+    "xor_pct_of_canvas": 5.517578125,
+    "xor_pct_of_material": 18.574070269159648,
+    "xor_per_perimeter_px": 0.25649028230954746,
+    "xor_px": 3616
+   },
+   "manifest_sha256": "d4296573dc99df587e7cba46fd1705cb808e218c3fe46c5c8195f846ce704eb7",
+   "mask_sha256": "0f79f95ba662f9da5db1652ec9668980fe632836566a84dc82e70203d9470a39",
+   "mode": "engraved",
+   "resolved_recipe": {
+    "alpha": false,
+    "backing_mm": 0.0,
+    "center": false,
+    "detail": {
+     "path": "detail.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.5
+    },
+    "detail_height_mm": 0.2,
+    "detail_mode": "engraved",
+    "export_scad": true,
+    "input": "silhouette.png",
+    "input_kind": "image",
+    "invert": false,
+    "layers": [
+     "silhouette",
+     "structure",
+     "detail"
+    ],
+    "mask": "silhouette.png",
+    "max_path_commands": 1000000,
+    "max_paths": 10000,
+    "max_svg_bytes": 20971520,
+    "preset": "relief-0.4",
+    "schema_version": 1,
+    "silhouette_thickness_mm": 1.2,
+    "structure": {
+     "path": "structure.png",
+     "prepared": true,
+     "source": "map",
+     "width_mm": 0.8
+    },
+    "structure_height_mm": 0.6,
+    "vtracer": {
+     "filter_speckle": 4,
+     "mode": "polygon"
+    },
+    "width_mm": 100.0
+   },
+   "source_sha256": "ad44bf5e3b1df9824f4273dae2c29463e54e4377b01b41396cfafe2ed91d0c51"
+  }
+ ],
+ "selection": {
+  "cases": [
+   "badge",
+   "bracket",
+   "brick",
+   "coins",
+   "gravel",
+   "horse",
+   "pcb",
+   "truchet"
+  ],
+  "full": true,
+  "modes": [
+   "raised",
+   "engraved"
+  ]
+ }
+}

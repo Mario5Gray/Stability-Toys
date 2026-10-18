@@ -1,0 +1,1 @@
+error: Python 3.14 is unsupported for vector conversion. vtracer==0.6.15 crashed on CPython 3.14, so 3.14 and later are refused. Use CPython 3.12.

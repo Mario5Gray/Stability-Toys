@@ -1,0 +1,2 @@
+adapter_refused st-vector-map needs vtracer==0.6.15. Install the vector extra.
+vtracer_imported False

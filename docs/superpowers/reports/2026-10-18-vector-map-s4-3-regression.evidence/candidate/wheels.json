@@ -1,0 +1,5 @@
+{
+ "vtracer-1.0.0a4-cp38-abi3-macosx_11_0_arm64.whl": "d120dcee58ec8c92a303b46d3cb141c9bdb891dc2234bebf67373e130fd2f974",
+ "vtracer-1.0.0a4-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "94fb2737bce7d66f82981de25cf9fd38685f02c5a0399354e536837c501a6007",
+ "note": "sha256 of the file pip download fetched from PyPI on each host after the probe. Install logs show the same filename."
+}

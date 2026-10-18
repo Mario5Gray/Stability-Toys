@@ -1,0 +1,5 @@
+mediapipe==0.10.14
+opencv-contrib-python==5.0.0.93
+opencv-python-headless==5.0.0.93
+torch==2.14.1
+torchvision==0.29.1

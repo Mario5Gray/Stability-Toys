@@ -1,0 +1,1 @@
+mediapipe 0.10.14 is not supported on this platform
