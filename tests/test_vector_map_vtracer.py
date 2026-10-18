@@ -422,3 +422,53 @@ def test_limit_failure_calls_upstream_once_with_unchanged_options(upstream_calls
     assert len(upstream_calls) == 1
     assert upstream_calls[0]["filter_speckle"] == 4
     assert upstream_calls[0]["mode"] == "polygon"
+
+
+# --- Supported-Python guard (S4.3a, STABL-mlahbjjj) ---------------------------
+# vtracer 0.6.15 segfaults on CPython 3.14 (enigma, Fedora 44, 3.14.7 x86_64).
+# These tests simulate the interpreter version. They prove guard order only.
+# Never call the unguarded 0.6.15 conversion on a real 3.14 interpreter in this process.
+
+
+class _BlockVtracerImport:
+    """A meta-path finder. Any import of vtracer fails the test."""
+
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "vtracer":
+            raise AssertionError(f"import {name} ran before the Python guard")
+        return None
+
+
+def _block_vtracer_import(monkeypatch):
+    """Remove the loaded vtracer so that an import statement reaches the finder."""
+    monkeypatch.delitem(sys.modules, "vtracer", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_BlockVtracerImport(), *sys.meta_path])
+
+
+def _simulate_python(monkeypatch, version_info):
+    monkeypatch.setattr(adapter, "sys", type(sys)("simulated_sys"), raising=False)
+    adapter.sys.version_info = version_info
+
+
+@pytest.mark.parametrize("version_info", [(3, 14, 0, "final", 0), (3, 15, 0, "alpha", 1)], ids=["3.14", "3.15"])
+def test_unsupported_python_is_refused_before_vtracer_import(monkeypatch, version_info):
+    _simulate_python(monkeypatch, version_info)
+    _block_vtracer_import(monkeypatch)
+    layer = np.zeros((16, 16), bool)
+    layer[4:12, 4:12] = True
+    with pytest.raises(RuntimeError, match=rf"Python {version_info[0]}\.{version_info[1]} is unsupported"):
+        adapter.trace_layer(layer)
+    assert "vtracer" not in sys.modules
+
+
+def test_require_supported_python_accepts_3_13(monkeypatch):
+    _simulate_python(monkeypatch, (3, 13, 9, "final", 0))
+    adapter.require_supported_python()
+
+
+def test_supported_python_control_traces_with_real_vtracer():
+    assert sys.version_info[:2] < (3, 14), "this control needs the 3.12 baseline interpreter"
+    layer = np.zeros((16, 16), bool)
+    layer[4:12, 4:12] = True
+    adapter.require_supported_python()
+    assert svg_paths(adapter.trace_layer(layer).svg)

@@ -140,6 +140,8 @@ def main(argv=None):
 def _convert(args, diagnostics, published):
     snapshots = {}
     destination, settings = _settings(args, snapshots=snapshots)
+    # Refuse an unsupported interpreter before any bundle, input snapshot, or preparation work.
+    adapter.require_supported_python()
     layered = settings.layers is not None
     bundle = artifacts.Bundle(destination, debug=args.debug_bundle, preview=args.preview, overwrite=args.overwrite,
                               inputs=artifacts.input_paths(settings, args.recipe), layered=layered)

@@ -282,3 +282,88 @@ def test_test_image_installs_wrapper_package_metadata():
     lines = [line.strip() for line in (ROOT / "Dockerfile.test").read_text().splitlines()]
     copy = lines.index("COPY scripts/ /app/scripts/")
     assert "RUN pip install --no-cache-dir --no-deps /app/scripts" in lines[copy + 1:]
+
+
+# --- Real CPython 3.14 refusal (S4.3a, STABL-mlahbjjj) -----------------------
+# vtracer 0.6.15 segfaults on CPython 3.14 (enigma, Fedora 44, 3.14.7 x86_64).
+# Set ST_VECTOR_MAP_PYTHON314 to a CPython >= 3.14 interpreter that has the vector extra.
+# Each run is a fresh child with -X faulthandler, so a native crash stays in the child.
+# Never run the unguarded 0.6.15 conversion here.
+
+PYTHON314_ENV = "ST_VECTOR_MAP_PYTHON314"
+
+
+@pytest.fixture
+def python_314():
+    interpreter = __import__("os").environ.get(PYTHON314_ENV)
+    if not interpreter:
+        pytest.skip(f"{PYTHON314_ENV} is not set. Give a CPython >= 3.14 with the vector extra.")
+    probe = subprocess.run([interpreter, "-c", "import sys; print(sys.version_info[:2] >= (3, 14))"],
+                           capture_output=True, text=True)
+    assert probe.stdout.strip() == "True", f"{interpreter} is not CPython >= 3.14: {probe}"
+    return interpreter
+
+
+def _guarded_cli_args(tmp_path, mode):
+    from PIL import Image
+
+    out = tmp_path / "out"
+    out.mkdir()
+    if mode == "standalone":
+        return out, [str(ROOT / "tests" / "fixtures" / "vector_map" / "donut.png"), str(out / "o.svg"),
+                     "--input-kind", "mask", "--width-mm", "10"]
+    source, mask = tmp_path / "source.png", tmp_path / "mask.png"
+    Image.new("RGB", (32, 24), (90, 90, 90)).save(source)
+    silhouette = Image.new("L", (32, 24), 0)
+    silhouette.paste(255, (2, 2, 30, 22))
+    silhouette.save(mask)
+    return out, [str(source), str(out / "o.svg"), "--input-kind", "image", "--mask", str(mask),
+                 "--width-mm", "32", "--layers", "silhouette"]
+
+
+@pytest.mark.parametrize("mode", ["standalone", "layered"])
+def test_real_python_314_cli_refuses_without_crash_or_artifacts(python_314, tmp_path, mode):
+    import json
+
+    out, args = _guarded_cli_args(tmp_path, mode)
+    result = subprocess.run(
+        [python_314, "-X", "faulthandler", str(SCRIPTS / "vector_map.py"), *args, "--debug-bundle", "--json"],
+        capture_output=True, text=True, cwd=tmp_path, timeout=120,
+    )
+    assert result.returncode == 1, result
+    assert "Fatal Python error" not in result.stderr
+    assert "Traceback" not in result.stderr
+    assert "is unsupported for vector conversion" in result.stderr
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    assert len(lines) == 1, result.stdout
+    payload = json.loads(lines[0])
+    assert payload["status"] == "failed"
+    assert payload["evidence"]["conversion"] == "failed"
+    assert payload["artifacts"] == {"svg": None}
+    assert payload["counts"]["paths"] == payload["counts"]["layers"] == 0
+    assert list(out.iterdir()) == []
+
+
+def test_real_python_314_adapter_refuses_before_vtracer_import(python_314):
+    code = textwrap.dedent(
+        """
+        import sys
+        sys.path.insert(0, sys.argv[1])
+        import numpy as np
+        import vector_map_vtracer
+
+        layer = np.zeros((16, 16), bool)
+        layer[4:12, 4:12] = True
+        try:
+            vector_map_vtracer.trace_layer(layer)
+        except RuntimeError as exc:
+            print("REFUSED", exc)
+        print("VTRACER_IMPORTED", "vtracer" in sys.modules)
+        """
+    )
+    result = subprocess.run([python_314, "-X", "faulthandler", "-c", code, str(SCRIPTS)],
+                            capture_output=True, text=True, cwd=ROOT, timeout=120)
+    assert result.returncode == 0, result
+    assert "Fatal Python error" not in result.stderr
+    assert "REFUSED Python 3.1" in result.stdout
+    assert "VTRACER_IMPORTED False" in result.stdout
