@@ -509,3 +509,45 @@ def test_interrupted_overwrite_leaves_no_completion_manifest(capsys, monkeypatch
     assert destination.read_bytes() != old_svg
     _record(mode="mask", group="failure", case="interrupted_overwrite", exit=code,
             manifest_present=False, svg_replaced_before_failure=True)
+
+
+# --- S4.3: layered output repeats across independent directories --------------
+
+
+def _layered_scene(root):
+    shape = (24, 32)
+
+    def mask(name, rows, cols):
+        data = np.zeros(shape, np.uint8)
+        data[rows, cols] = 255
+        Image.fromarray(data).save(root / name)
+        return root / name
+
+    root.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.full((*shape, 3), 90, np.uint8)).save(root / "source.png")
+    return (root / "source.png", mask("sil.png", slice(2, 22), slice(2, 30)),
+            mask("str.png", slice(7, 10), slice(4, 28)), mask("det.png", slice(14, 17), slice(5, 25)))
+
+
+def _layered_run(capsys, monkeypatch, scene, root):
+    source, sil, structure, detail = scene
+    out = root / "out" / "layered.svg"
+    code, result, error, _, _ = _in_process(
+        capsys, monkeypatch, source, out, "--input-kind", "image", "--mask", sil, "--width-mm", "32",
+        "--layers", "silhouette,structure,detail", "--structure-map", structure, "--detail-map", detail,
+        "--preview", "--debug-bundle")
+    assert code == 0, error
+    files = {path.relative_to(out.parent).as_posix(): path.read_bytes()
+             for path in sorted(out.parent.rglob("*")) if path.is_file()}
+    return files, result
+
+
+def test_layered_conversion_repeats_across_independent_directories(capsys, monkeypatch, tmp_path):
+    scene = _layered_scene(tmp_path / "inputs")  # Manifests record input paths as given, so share them.
+    files_a, result_a = _layered_run(capsys, monkeypatch, scene, tmp_path / "a")
+    files_b, result_b = _layered_run(capsys, monkeypatch, scene, tmp_path / "b")
+    assert {n for n in files_a if n.startswith("layered.layers/")} == {
+        f"layered.layers/{role}.svg" for role in ("silhouette", "structure", "detail")}
+    assert files_a == files_b
+    for key in ("status", "counts", "diagnostics", "evidence"):
+        assert result_a[key] == result_b[key], key
