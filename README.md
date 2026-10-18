@@ -749,6 +749,7 @@ make install-st   # builds and places st + stcn in ~/.local/bin
 - **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard
 - **Usage guide:** [`cli/go/USAGE.md`](cli/go/USAGE.md) — first run, generation, img2img, ControlNet, job control
 - **Operator guide:** [`CONTROLNET.md`](CONTROLNET.md) — required models, `modes.yml` policy, `controlnets.yaml` registry, supported server-side flows
+- **Vector-map relief:** [`docs/vector-map-operator.md`](docs/vector-map-operator.md) — image to SVG, SCAD, and evidence review. CLI flags: [`scripts/USAGE.md`](scripts/USAGE.md#st-vector-map)
 
 `st read <image.png>` prints all embedded PNG metadata offline — generation params
 (`lcm`), per-attachment ControlNet provenance (`controlnet`), and standalone

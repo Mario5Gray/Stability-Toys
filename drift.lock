@@ -111,6 +111,10 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> utils/m
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_config.py sig:b13065a52825551f
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_diagnostics.py sig:7b5b0774cdfdda3d
 docs/superpowers/specs/2026-10-06-vector-map-raster-design.md -> scripts/vector_map_raster.py sig:2ccd0ab051f109c7
+docs/vector-map-operator.md -> scripts/USAGE.md sig:cedebdd478134796
+docs/vector-map-operator.md -> scripts/vector_map.py sig:c645f4ee3b2bfed3
+docs/vector-map-operator.md -> scripts/vector_map_config.py sig:b13065a52825551f
+docs/vector-map-operator.md -> scripts/vector_map_scad.py sig:6c5518f91ffb3976
 scripts/USAGE.md -> scripts/vector_map.py sig:c645f4ee3b2bfed3
 scripts/USAGE.md -> scripts/vector_map_artifacts.py sig:2b7ea47ec8b5387c
 scripts/USAGE.md -> scripts/vector_map_config.py sig:b13065a52825551f
