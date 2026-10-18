@@ -17,7 +17,7 @@ The depth, pose, and all extras install and run `--help`. Their inference is unt
 CPython 3.14 and later refuse vector conversion. CPython 3.10, 3.11, and 3.13 are unverified.
 Do not read "pip installs it" as "supported". The [S4.3 regression report](superpowers/reports/2026-10-18-vector-map-s4-3-regression.md) holds the matrix.
 
-OpenSCAD is not on `PATH` by default, and the default Mac install can be a later version. Select the 2021.01 binary explicitly:
+`PATH` can hold a later OpenSCAD version, and the 2021.01 binary can be absent from it. Select the 2021.01 binary explicitly:
 
 ```bash
 export OPENSCAD=/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
@@ -122,7 +122,7 @@ Render and slice outside the repository. `*.stl` is not ignored by git.
 
 ## 5. Evidence
 
-Four sources answer four different questions. None replaces another.
+Five questions have five separate verdicts. None replaces another.
 
 | Question | Source | Verdict |
 |---|---|---|
