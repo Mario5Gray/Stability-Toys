@@ -985,3 +985,107 @@ def test_published_svg_is_the_normalizer_output(run_injected):
     assert code == 0
     canvas = config.Canvas(width_px=128, height_px=128, width_mm=10.0, height_mm=10.0, mm_per_px=10 / 128)
     assert out.read_text() == normalize_svg(injected(TRIANGLE_PATH), canvas).svg
+
+
+# --- Supported-Python guard (S4.3a, STABL-mlahbjjj) ---------------------------
+# Simulated CPython 3.14 on the adapter's sys reference. The CLI and the adapter share one check.
+# These tests prove guard order and the failure contract, not native-platform safety.
+
+
+class _Tripwire(type(sys)):
+    def __getattr__(self, name):
+        raise AssertionError(f"vtracer.{name} was read before the Python guard")
+
+
+@pytest.fixture
+def python_314(monkeypatch):
+    import vector_map_vtracer as adapter
+
+    simulated = type(sys)("simulated_sys")
+    simulated.version_info = (3, 14, 7, "final", 0)
+    monkeypatch.setattr(adapter, "sys", simulated, raising=False)
+    monkeypatch.setitem(sys.modules, "vtracer", _Tripwire("vtracer"))
+
+
+@pytest.fixture
+def guard_inputs(tmp_path):
+    """Inputs in their own directory, so the output directory starts empty."""
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    source = inputs / "source.png"
+    Image.fromarray(np.full((24, 32, 3), 90, np.uint8)).save(source)
+    mask = np.zeros((24, 32), np.uint8)
+    mask[2:22, 2:30] = 255
+    Image.fromarray(mask).save(inputs / "mask.png")
+    out = tmp_path / "out"
+    out.mkdir()
+    return {"source": source, "mask": inputs / "mask.png", "out": out}
+
+
+GUARD_MODES = {
+    "standalone": lambda inputs: [str(FIXTURES / "donut.png"), str(inputs["out"] / "o.svg"),
+                                  "--input-kind", "mask", "--width-mm", "10"],
+    "layered": lambda inputs: [str(inputs["source"]), str(inputs["out"] / "o.svg"), "--input-kind", "image",
+                               "--mask", str(inputs["mask"]), "--width-mm", "32", "--layers", "silhouette"],
+}
+
+
+def _main_json(capsys, argv):
+    import vector_map
+
+    code = vector_map.main([*argv, "--json"])
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 1, captured
+    payload = json.loads(lines[0])
+    assert set(payload) == RESULT_KEYS
+    return code, payload, captured.err
+
+
+@pytest.mark.parametrize("mode", sorted(GUARD_MODES))
+def test_unsupported_python_fails_with_one_result_and_no_artifacts(mode, python_314, guard_inputs, capsys):
+    code, payload, stderr = _main_json(capsys, [*GUARD_MODES[mode](guard_inputs), "--debug-bundle"])
+    assert code == 1, stderr
+    assert payload["status"] == "failed"
+    assert payload["evidence"] == {"conversion": "failed", **CAD_PRINT}
+    assert payload["counts"] == ZERO_COUNTS
+    assert payload["artifacts"] == {"svg": None}
+    message = payload["diagnostics"][0]["message"]
+    assert payload["diagnostics"][0]["level"] == "error"
+    assert "Python 3.14 is unsupported" in message
+    assert "Python 3.14 is unsupported" in stderr
+    assert not message.startswith("VTracer") and " layer " not in message
+    assert list(guard_inputs["out"].iterdir()) == []
+
+
+@pytest.mark.parametrize("mode", sorted(GUARD_MODES))
+def test_unsupported_python_is_refused_before_bundle_creation(mode, python_314, guard_inputs, capsys, monkeypatch):
+    import vector_map
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("bundle or preparation started before the Python guard")
+
+    monkeypatch.setattr(vector_map.artifacts, "Bundle", forbidden)
+    monkeypatch.setattr(vector_map.artifacts, "snapshot_inputs", forbidden)
+    monkeypatch.setattr(vector_map.raster, "prepare", forbidden)
+    code, payload, stderr = _main_json(capsys, [*GUARD_MODES[mode](guard_inputs), "--debug-bundle"])
+    assert code == 1, stderr
+    assert "Python 3.14 is unsupported" in payload["diagnostics"][0]["message"]
+
+
+def test_invalid_configuration_still_exits_2_on_unsupported_python(python_314, guard_inputs, capsys):
+    argv = [str(FIXTURES / "donut.png"), str(guard_inputs["out"] / "o.svg"), "--input-kind", "mask",
+            "--width-mm", "10", "--height-mm", "10"]
+    code, payload, _ = _main_json(capsys, argv)
+    assert code == 2
+    assert payload["status"] == "invalid"
+    assert "unsupported" not in payload["diagnostics"][0]["message"]
+
+
+def test_help_still_exits_0_on_unsupported_python(python_314, capsys):
+    import vector_map
+
+    with pytest.raises(SystemExit) as stop:
+        vector_map.main(["--help"])
+    assert stop.value.code == 0
+    assert "--input-kind" in capsys.readouterr().out

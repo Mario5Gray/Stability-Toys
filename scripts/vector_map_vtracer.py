@@ -10,8 +10,12 @@ inversion has no full-canvas path (S1.2, STABL-snyaxjef).
 VTracer does not check enums or most ranges. A bad mode silently becomes spline.
 VTracer ignores alpha. This module checks the layer and the options first.
 The output is inspected (S2.5, STABL-npoznayt) before any path is read. The raw text is returned unchanged.
+
+vtracer 0.6.15 segfaults on CPython 3.14 (S4.3a, STABL-mlahbjjj). The CLI and trace_layer
+refuse CPython 3.14 and later before VTracer is imported.
 """
 
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.metadata import version
@@ -48,6 +52,21 @@ FILTER_SPECKLE_RANGE = (0, 128)
 DEFAULT_OPTIONS = {"mode": "polygon", "filter_speckle": 4}
 
 
+# First CPython version that vtracer 0.6.15 does not support. The crash is native, so no
+# in-process recovery is possible. Policy: STABL-mlahbjjj option 2, a vector-only runtime guard.
+UNSUPPORTED_PYTHON = (3, 14)
+
+
+def require_supported_python():
+    """Refuse CPython 3.14 and later before VTracer is imported. Raise RuntimeError."""
+    current = tuple(sys.version_info[:2])
+    if current >= UNSUPPORTED_PYTHON:
+        raise RuntimeError(
+            f"Python {current[0]}.{current[1]} is unsupported for vector conversion. "
+            "vtracer==0.6.15 crashed on CPython 3.14, so 3.14 and later are refused. Use CPython 3.12."
+        )
+
+
 class UnintendedBackgroundError(ValueError):
     """The trace has a full-canvas path that the input material does not explain."""
 
@@ -67,6 +86,7 @@ def trace_layer(layer, options=None, *, svg_limits=None):
     """
     material = _material(layer)
     resolved = resolve_options(options)
+    require_supported_python()
     try:
         import vtracer
     except ImportError as exc:
