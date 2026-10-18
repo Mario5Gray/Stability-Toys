@@ -992,9 +992,13 @@ def test_published_svg_is_the_normalizer_output(run_injected):
 # These tests prove guard order and the failure contract, not native-platform safety.
 
 
-class _Tripwire(type(sys)):
-    def __getattr__(self, name):
-        raise AssertionError(f"vtracer.{name} was read before the Python guard")
+class _BlockVtracerImport:
+    """A meta-path finder. Any import of vtracer fails the test."""
+
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "vtracer":
+            raise AssertionError(f"import {name} ran before the Python guard")
+        return None
 
 
 @pytest.fixture
@@ -1004,7 +1008,9 @@ def python_314(monkeypatch):
     simulated = type(sys)("simulated_sys")
     simulated.version_info = (3, 14, 7, "final", 0)
     monkeypatch.setattr(adapter, "sys", simulated, raising=False)
-    monkeypatch.setitem(sys.modules, "vtracer", _Tripwire("vtracer"))
+    # Remove the loaded vtracer so that an import statement reaches the blocking finder.
+    monkeypatch.delitem(sys.modules, "vtracer", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_BlockVtracerImport(), *sys.meta_path])
 
 
 @pytest.fixture

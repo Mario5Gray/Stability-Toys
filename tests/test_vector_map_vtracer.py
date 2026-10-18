@@ -430,11 +430,19 @@ def test_limit_failure_calls_upstream_once_with_unchanged_options(upstream_calls
 # Never call the unguarded 0.6.15 conversion on a real 3.14 interpreter in this process.
 
 
-class _VtracerTripwire(type(sys)):
-    """A vtracer stand-in. Any attribute read fails the test."""
+class _BlockVtracerImport:
+    """A meta-path finder. Any import of vtracer fails the test."""
 
-    def __getattr__(self, name):
-        raise AssertionError(f"vtracer.{name} was read before the Python guard")
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "vtracer":
+            raise AssertionError(f"import {name} ran before the Python guard")
+        return None
+
+
+def _block_vtracer_import(monkeypatch):
+    """Remove the loaded vtracer so that an import statement reaches the finder."""
+    monkeypatch.delitem(sys.modules, "vtracer", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_BlockVtracerImport(), *sys.meta_path])
 
 
 def _simulate_python(monkeypatch, version_info):
@@ -445,11 +453,12 @@ def _simulate_python(monkeypatch, version_info):
 @pytest.mark.parametrize("version_info", [(3, 14, 0, "final", 0), (3, 15, 0, "alpha", 1)], ids=["3.14", "3.15"])
 def test_unsupported_python_is_refused_before_vtracer_import(monkeypatch, version_info):
     _simulate_python(monkeypatch, version_info)
-    monkeypatch.setitem(sys.modules, "vtracer", _VtracerTripwire("vtracer"))
+    _block_vtracer_import(monkeypatch)
     layer = np.zeros((16, 16), bool)
     layer[4:12, 4:12] = True
     with pytest.raises(RuntimeError, match=rf"Python {version_info[0]}\.{version_info[1]} is unsupported"):
         adapter.trace_layer(layer)
+    assert "vtracer" not in sys.modules
 
 
 def test_require_supported_python_accepts_3_13(monkeypatch):
