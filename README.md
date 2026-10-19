@@ -17,6 +17,23 @@ tags:
 
 A flexible inference server for Stable Diffusion and SDXL with dynamic model loading, LoRA support, and experimental NPU acceleration.
 
+## Vector-map alpha: start here
+
+The [vector-map alpha](https://github.com/Mario5Gray/Stability-Toys/releases/tag/st-vector-map-alpha-2026-10-18) converts raster inputs to SVG and can generate OpenSCAD relief source.
+Real `st-vector-map` and `st-canny-map` conversion is proven on CPython 3.12, macOS arm64 and Fedora 44 x86_64.
+From the repository root, use a CPython 3.12 environment:
+
+```bash
+make install-controlnet-scripts EXTRAS=vector
+W=$(mktemp -d)
+st-vector-map tests/fixtures/vector_map/corpus/badge/mask.png "$W/badge.svg" --input-kind mask --width-mm 100
+```
+
+Next, use the [operator guide](docs/vector-map-operator.md) for image inputs, layered relief, replay, and evidence review.
+Use the [CLI reference](scripts/USAGE.md#st-vector-map) for flags and JSON fields.
+Read the [S4.1 corpus report](docs/superpowers/reports/2026-10-15-vector-map-s4-1-corpus.md) for fidelity and CAD results.
+SVG conversion alone does not prove CAD rendering or physical printing.
+
 ## Origin & Evolution
 
 This project originated as a **proof-of-concept for running LCM/SD models on embedded IoT platforms** powered by RockChip NPUs (RK3588/RK356x). The goal was to demonstrate that efficient generative AI could run on edge devices using RKNN (Rockchip Neural Network) acceleration.
@@ -749,7 +766,6 @@ make install-st   # builds and places st + stcn in ~/.local/bin
 - **Reference:** [`cli/go/README.md`](cli/go/README.md) — commands, config, OpenAPI drift guard
 - **Usage guide:** [`cli/go/USAGE.md`](cli/go/USAGE.md) — first run, generation, img2img, ControlNet, job control
 - **Operator guide:** [`CONTROLNET.md`](CONTROLNET.md) — required models, `modes.yml` policy, `controlnets.yaml` registry, supported server-side flows
-- **Vector-map relief:** [`docs/vector-map-operator.md`](docs/vector-map-operator.md) — image to SVG, SCAD, and evidence review. CLI flags: [`scripts/USAGE.md`](scripts/USAGE.md#st-vector-map)
 
 `st read <image.png>` prints all embedded PNG metadata offline — generation params
 (`lcm`), per-attachment ControlNet provenance (`controlnet`), and standalone
