@@ -215,7 +215,7 @@ def test_prepare_source_latents_different_seed_differs():
     assert not torch.equal(result_a, result_b)
 
 
-@pytest.mark.parametrize("width, height", [(0, 64), (64, 0), (-1, 64)])
+@pytest.mark.parametrize("width, height", [(0, 64), (64, 0), (-1, 64), (65, 64), (64, 65)])
 def test_prepare_source_latents_rejects_invalid_dimensions_before_vae_encode(width, height):
     pipe = FakePipe()
     with pytest.raises(ValueError):

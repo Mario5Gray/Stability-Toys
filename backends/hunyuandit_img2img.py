@@ -42,8 +42,10 @@ def prepare_source_latents(pipe, image, *, width, height, timestep, generator, d
     """
     from diffusers.utils.torch_utils import randn_tensor
 
-    if width <= 0 or height <= 0:
-        raise ValueError(f"width and height must be positive, got {width}x{height}")
+    if width <= 0 or height <= 0 or width % 8 != 0 or height % 8 != 0:
+        raise ValueError(
+            f"width and height must be positive and divisible by 8, got {width}x{height}"
+        )
 
     image_tensor = pipe.image_processor.preprocess(image, height=height, width=width)
     image_tensor = image_tensor.to(device=pipe.vae.device, dtype=pipe.vae.dtype)
