@@ -184,25 +184,25 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         assert snapshot.mode_name == "HunyuanDiT"
         assert snapshot.resolved.profile.family_id == "hunyuandit"
         caps = provider.family_binding("hunyuandit").execution_capabilities
-        assert caps.supports_img2img is False
+        assert caps.supports_img2img is True
         assert caps.supports_controlnet is True
         assert caps.supports_img2img_and_controlnet is False
 
-        # Admission rejects the unsupported Hunyuan img2img paths before any
-        # preprocessing/store activity is needed.
+        # Plain img2img is admitted; the combined operation stays rejected
+        # before any preprocessing/store activity is needed.
         source_control = ControlNetAttachment(
             attachment_id="cn-src",
             control_type="canny",
             source_asset_ref="upload-ref",
             preprocess=ControlNetPreprocessRequest(id="canny"),
         )
-        with pytest.raises(ValueError, match="img2img operation"):
-            admit_generation_operation(
-                GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap."),
-                snapshot=snapshot,
-                provider=provider,
-                has_init_image=True,
-            )
+        admitted_img2img = admit_generation_operation(
+            GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap."),
+            snapshot=snapshot,
+            provider=provider,
+            has_init_image=True,
+        )
+        assert admitted_img2img == "img2img"
         with pytest.raises(ValueError, match="img2img\\+controlnet operation"):
             admit_generation_operation(
                 GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap.", controlnets=[source_control]),
