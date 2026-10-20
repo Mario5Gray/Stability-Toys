@@ -18,10 +18,10 @@ CUDA_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
         "backends.cuda_worker.DiffusersSDXLCudaWorker",
         ExecutionCapabilities(True, True, True),
     ),
-    # HunyuanDiT first delivery: ControlNet txt2img only — no img2img, no
-    # combined img2img+ControlNet.
+    # HunyuanDiT: ControlNet txt2img and plain img2img — no combined
+    # img2img+ControlNet.
     "hunyuandit": FamilyPlatformBinding(
         "backends.cuda_worker.DiffusersHunyuanDiTCudaWorker",
-        ExecutionCapabilities(False, True, False),
+        ExecutionCapabilities(True, True, False),
     ),
 }

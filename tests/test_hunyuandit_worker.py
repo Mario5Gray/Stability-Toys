@@ -18,12 +18,14 @@ construction and request-shaping contract:
   - every init image fails explicitly in the worker
 """
 
+import io
 import json
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from PIL import Image as PILImage
 
 _MISSING = object()
 
@@ -468,14 +470,135 @@ def test_single_controlnet_txt2img_uses_control_image_kwarg():
     assert "controlnet" not in call  # popped before the pipeline call
 
 
-def test_worker_rejects_init_image_explicitly():
+def _tiny_png_bytes(size=(4, 4)):
+    buf = io.BytesIO()
+    PILImage.new("RGB", size, color=(10, 20, 30)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _lcm_metadata(png_bytes):
+    img = PILImage.open(io.BytesIO(png_bytes))
+    return json.loads(img.text["lcm"])  # type: ignore[attr-defined]
+
+
+def test_hunyuandit_img2img_route_delegates_to_component():
     worker = _run_new_worker()
     worker.pipe = _FakePipelineBase()
-    job = SimpleNamespace(req=_make_req(), init_image=b"\x89PNG init",
-                          controlnet_bindings=[])
+    req = _make_req()
+    job = SimpleNamespace(
+        req=req, init_image=_tiny_png_bytes(), controlnet_bindings=[]
+    )
 
-    with pytest.raises(RuntimeError, match="init image|img2img"):
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+    captured = {}
+
+    def _fake_run_hunyuan_img2img(pipe, image, conditioning, **kwargs):
+        captured["pipe"] = pipe
+        captured["image"] = image
+        captured["conditioning"] = conditioning
+        captured["kwargs"] = kwargs
+        return [fake_output_image]
+
+    with patch(
+        "backends.hunyuandit_img2img.run_hunyuan_img2img",
+        side_effect=_fake_run_hunyuan_img2img,
+    ), patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        png_bytes, seed = worker.run_job(job)
+
+    # Decoded to RGB and resized to the requested size, not the source size.
+    assert captured["image"].mode == "RGB"
+    assert captured["image"].size == (1024, 1024)
+    # Default strength applies when the request carries none.
+    assert captured["kwargs"]["strength"] == 0.75
+    assert captured["kwargs"]["width"] == 1024
+    assert captured["kwargs"]["height"] == 1024
+    assert captured["kwargs"]["generator"] is not None
+    # Conditioning was delegated through the existing artifact machinery,
+    # not rebuilt ad hoc for img2img.
+    assert captured["conditioning"] == {"prompt": "a red panda"}
+    assert captured["pipe"] is worker.pipe
+    # Scheduler selection still ran for the img2img branch.
+    worker._apply_request_scheduler.assert_called_once_with(req)
+    # No ControlNet composition: the base pipeline's own __call__ never ran.
+    assert worker.pipe.calls == []
+
+    assert seed == 7
+    metadata = _lcm_metadata(png_bytes)
+    assert metadata["denoise_strength"] == 0.75
+    assert metadata["prompt"] == "a red panda"
+    assert metadata["seed"] == 7
+
+
+def test_hunyuandit_img2img_route_runs_denoise_inside_inference_mode():
+    # Every other generation call site in this worker wraps the pipe call in
+    # torch.inference_mode() (saves the autograd graph VRAM a loop this long
+    # never needs); the img2img route must too.
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[]
+    )
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+    events = []
+
+    class _RecordingInferenceMode:
+        def __enter__(self):
+            events.append("enter")
+            return self
+
+        def __exit__(self, *exc_info):
+            events.append("exit")
+            return False
+
+    def _fake_run_hunyuan_img2img(*args, **kwargs):
+        events.append("call")
+        return [fake_output_image]
+
+    mock_torch = MagicMock(inference_mode=lambda: _RecordingInferenceMode())
+
+    with patch(
+        "backends.hunyuandit_img2img.run_hunyuan_img2img",
+        side_effect=_fake_run_hunyuan_img2img,
+    ), patch("backends.cuda_worker.torch", mock_torch):
         worker.run_job(job)
+
+    assert events == ["enter", "call", "exit"]
+
+
+def test_hunyuandit_img2img_route_honors_explicit_strength():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    req = _make_req()
+    req.denoise_strength = 0.3
+    job = SimpleNamespace(
+        req=req, init_image=_tiny_png_bytes(), controlnet_bindings=[]
+    )
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+
+    with patch(
+        "backends.hunyuandit_img2img.run_hunyuan_img2img",
+        return_value=[fake_output_image],
+    ), patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        png_bytes, _seed = worker.run_job(job)
+
+    assert _lcm_metadata(png_bytes)["denoise_strength"] == 0.3
+
+
+def test_hunyuandit_worker_rejects_combined_init_image_and_controlnet():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = SimpleNamespace(
+        model_id="hunyuan-canny", attachment_id="cn_1", control_type="canny"
+    )
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+
+    with pytest.raises(RuntimeError, match="img2img.*controlnet|controlnet.*img2img"):
+        worker.run_job(job)
+
+    # Defense in depth: rejected before any model or image work ran.
+    worker._apply_request_scheduler.assert_not_called()
 
 
 def _memory_opt_probe_pipe():

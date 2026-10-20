@@ -45,6 +45,32 @@ As verified on 2026-09-30, shared Concourse task checks syntax and Ruff only. It
 Task source: `../continuous/tasks/test-stability-toys.yml`, relative to repository root.
 Task selection: `../continuous/vars/stability-toys.yml`.
 
+## HunyuanDiT img2img Live Acceptance
+
+Live img2img acceptance needs a real CUDA host with the HunyuanDiT model mounted.
+A laptop run gives a clean skip, not a pass.
+
+Run on the NVIDIA host:
+
+```bash
+docker compose -f docker-compose.test.yml build test-cuda
+docker compose -f docker-compose.test.yml run --rm test-cuda \
+  python -m tests.run tests/test_hunyuandit_acceptance.py -- -q
+```
+
+Expect both tests to pass: the existing ControlNet txt2img acceptance, plus the
+new img2img acceptance. The img2img test runs two strengths (0.25 and 0.75)
+with the same prompt and seed.
+
+Check the printed output: artifact paths, elapsed seconds, peak allocated VRAM
+bytes. Check the PNG metadata: dimensions, seed, and `denoise_strength` match
+the request. Review the saved source and both output images for visible
+source influence, especially at strength 0.25. No blocked ignored-input
+warning is allowed (see `hunyuan_warning_policy.py`).
+
+A local skip is not a pass. Record exact versions, the command, and artifact
+paths in the task report.
+
 ## Local vs CUDA Test Paths
 
 Use the local/native path by default:

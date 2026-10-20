@@ -1808,10 +1808,15 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     def run_job(self, job, progress=None, should_cancel=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, "init_image", None)
-        if init_image is not None:
+        bindings = getattr(job, "controlnet_bindings", []) or []
+        if init_image is not None and bindings:
+            # Admission already rejects this combination (family-specific
+            # img2img+controlnet error); this is defense in depth against a
+            # direct run_job call that bypasses admission.
             raise RuntimeError(
-                "HunyuanDiT worker does not accept an init image; img2img is "
-                "unsupported for this family"
+                "HunyuanDiT worker does not accept an init image combined "
+                "with ControlNet; img2img+controlnet is unsupported for "
+                "this family"
             )
 
         try:
@@ -1842,7 +1847,6 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                 debug_dir, "pipe_state_after_scheduler.json", _hunyuan_pipe_state(self.pipe)
             )
 
-        bindings = getattr(job, "controlnet_bindings", []) or []
         loaded_ids: list[str] = []
         controlnet_kwargs: dict[str, Any] = {}
 
@@ -1851,6 +1855,57 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         pipe_kwargs = None
         try:
             conditioning_artifact = self._conditioning_artifact_for_request(req)
+
+            if init_image is not None:
+                # Plain img2img: Diffusers 0.39 has no HunyuanDiT img2img
+                # pipeline, so backends.hunyuandit_img2img owns the
+                # denoising path directly, sharing this worker's already
+                # loaded transformer/VAE/encoders/scheduler.
+                from backends.hunyuandit_img2img import run_hunyuan_img2img
+
+                denoise_strength = float(getattr(req, "denoise_strength", None) or 0.75)
+                try:
+                    init_pil = Image.open(io.BytesIO(init_image)).convert("RGB")
+                except Exception as e:
+                    raise RuntimeError(f"invalid init image bytes: {e!r}")
+                init_pil = init_pil.resize((width, height))
+
+                conditioning_kwargs = self._accept_conditioning_artifact(
+                    self.pipe,
+                    conditioning_artifact,
+                )
+
+                with torch.inference_mode():
+                    images = run_hunyuan_img2img(
+                        self.pipe,
+                        init_pil,
+                        conditioning_kwargs,
+                        width=width,
+                        height=height,
+                        steps=int(req.num_inference_steps),
+                        strength=denoise_strength,
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                        progress=progress,
+                        should_cancel=should_cancel,
+                    )
+                img: Image.Image = images[0]
+
+                pnginfo = PngImagePlugin.PngInfo()
+                pnginfo.add_text("lcm", json.dumps({
+                    "prompt": req.prompt,
+                    "seed": seed,
+                    "size": req.size,
+                    "steps": int(req.num_inference_steps),
+                    "cfg": float(req.guidance_scale),
+                    "negative_prompt": getattr(req, "negative_prompt", None),
+                    "scheduler_id": scheduler_id,
+                    "denoise_strength": denoise_strength,
+                }))
+                buf = io.BytesIO()
+                img.save(buf, format="PNG", pnginfo=pnginfo)
+                return buf.getvalue(), seed
+
             if bindings:
                 # control-map key resolves to "control_image" via the family profile.
                 controlnet_kwargs = self._build_controlnet_kwargs(
