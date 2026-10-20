@@ -32,3 +32,25 @@ def select_timesteps(scheduler, steps, strength, device):
     if not timesteps:
         raise ValueError("scheduler produced an empty timestep schedule")
     return timesteps, effective_steps
+
+
+def prepare_source_latents(pipe, image, *, width, height, timestep, generator, dtype, device):
+    """Encode ``image`` with ``pipe``'s loaded VAE and noise it to ``timestep``.
+
+    Returns the noisy source latent, ready as the denoising loop's initial
+    latent. Dimensions are validated before the VAE is touched.
+    """
+    from diffusers.utils.torch_utils import randn_tensor
+
+    if width <= 0 or height <= 0:
+        raise ValueError(f"width and height must be positive, got {width}x{height}")
+
+    image_tensor = pipe.image_processor.preprocess(image, height=height, width=width)
+    image_tensor = image_tensor.to(device=pipe.vae.device, dtype=pipe.vae.dtype)
+
+    latent_dist = pipe.vae.encode(image_tensor).latent_dist
+    source_latent = latent_dist.sample(generator=generator) * pipe.vae.config.scaling_factor
+    source_latent = source_latent.to(device=device, dtype=dtype)
+
+    noise = randn_tensor(source_latent.shape, generator=generator, device=source_latent.device, dtype=dtype)
+    return pipe.scheduler.add_noise(source_latent, noise, timestep)
