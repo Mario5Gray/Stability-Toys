@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import importlib
 import io
+import json
 import logging
 import os
 import sys
@@ -21,7 +22,7 @@ import pytest
 import torch
 from hunyuan_control_map import control_map_png
 from hunyuan_warning_policy import blocking_ignored_warnings
-from PIL import Image, PngImagePlugin
+from PIL import Image, ImageDraw, PngImagePlugin
 
 from backends.model_registry import ModelRegistry
 from backends.platforms.cuda import CUDAProvider
@@ -126,6 +127,28 @@ def _job(req: GenerateRequest, *, bindings, epoch: int) -> GenerationJob:
         controlnet_bindings=list(bindings),
         resolution_epoch=epoch,
     )
+
+
+def _img2img_job(req: GenerateRequest, *, init_image: bytes, epoch: int) -> GenerationJob:
+    return GenerationJob(
+        req=req,
+        init_image=init_image,
+        controlnet_bindings=[],
+        resolution_epoch=epoch,
+    )
+
+
+def _generate_img2img_source(size: tuple[int, int] = (1024, 1024)) -> bytes:
+    """A simple RGB source distinct from the Canny control map — a plain
+    silhouette gives img2img strength something visible to preserve (low
+    strength) or override (high strength) on review."""
+    img = Image.new("RGB", size, color=(30, 60, 90))
+    draw = ImageDraw.Draw(img)
+    w, h = size
+    draw.ellipse((w * 0.2, h * 0.2, w * 0.8, h * 0.8), fill=(200, 160, 90))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
@@ -277,6 +300,127 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         stale_future = pool.submit_job(_job(req, bindings=bindings, epoch=old_epoch))
         with pytest.raises(StaleResolutionError):
             stale_future.result(timeout=60.0)
+    finally:
+        pool.shutdown()
+        reset_worker_pool()
+        reset_controlnet_registry()
+
+
+def test_hunyuandit_img2img_workerpool_acceptance(monkeypatch, tmp_path):
+    # Collection guard requires dedicated process. Do not repair Torch imports.
+    real_diffusers = importlib.import_module("diffusers")
+    assert not type(real_diffusers).__module__.startswith("unittest.mock"), (
+        "a test stub still occupies sys.modules['diffusers']; the live "
+        "acceptance needs the real library"
+    )
+
+    conf_dir = _production_conf_dir()
+    monkeypatch.setenv("CONTROLNET_REGISTRY_PATH", str(conf_dir / "controlnets.yaml"))
+    monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "strict")
+    monkeypatch.setenv("MODE_CONFIG_PATH", str(conf_dir))
+    reset_controlnet_registry()
+    reset_worker_pool()
+
+    mode_config = ModeConfigManager(str(conf_dir))
+    hunyuan_mode = mode_config.get_mode("HunyuanDiT")
+    _require_runtime_path(Path(hunyuan_mode.model_path), "HunyuanDiT base model")
+
+    provider = CUDAProvider()
+    pool = WorkerPool(queue_max=2, mode_config=mode_config, registry=ModelRegistry())
+
+    try:
+        pool.switch_mode("HunyuanDiT", force=True).result(timeout=600.0)
+        snapshot = pool.get_active_model_snapshot()
+        assert snapshot is not None
+        assert snapshot.mode_name == "HunyuanDiT"
+        assert snapshot.resolved.profile.family_id == "hunyuandit"
+        caps = provider.family_binding("hunyuandit").execution_capabilities
+        assert caps.supports_img2img is True
+        assert caps.supports_controlnet is True
+        assert caps.supports_img2img_and_controlnet is False
+
+        base_req = GenerateRequest(
+            prompt="a weathered lighthouse at dusk, oil painting",
+            negative_prompt="blurry, noisy, low quality",
+            size="1024x1024",
+            num_inference_steps=30,
+            guidance_scale=5.0,
+            seed=4242,
+        )
+
+        admitted = admit_generation_operation(
+            base_req, snapshot=snapshot, provider=provider, has_init_image=True,
+        )
+        assert admitted == "img2img"
+
+        # Admission still rejects the combined operation even though plain
+        # img2img is now supported.
+        source_control = ControlNetAttachment(
+            attachment_id="cn-src",
+            control_type="canny",
+            source_asset_ref="upload-ref",
+            preprocess=ControlNetPreprocessRequest(id="canny"),
+        )
+        combined_req = GenerateRequest(
+            prompt=base_req.prompt, size="1024x1024", controlnets=[source_control],
+        )
+        with pytest.raises(ValueError, match="img2img\\+controlnet operation"):
+            admit_generation_operation(
+                combined_req, snapshot=snapshot, provider=provider, has_init_image=True,
+            )
+
+        source_bytes = _generate_img2img_source((1024, 1024))
+        out_dir = Path(os.environ.get("ACCEPTANCE_OUT_DIR", tmp_path))
+        source_path = out_dir / "hunyuandit-img2img-source.png"
+        _write_png(source_path, source_bytes)
+
+        epoch = snapshot.resolution_epoch
+        torch.cuda.reset_peak_memory_stats()
+        results: dict[float, tuple[bytes, int, float]] = {}
+        with _captured_diffusers_warnings() as diffusers_warnings:
+            for strength in (0.25, 0.75):
+                req = base_req.model_copy(update={"denoise_strength": strength})
+                started = time.monotonic()
+                png_bytes, seed = pool.submit_job(
+                    _img2img_job(req, init_image=source_bytes, epoch=epoch)
+                ).result(timeout=900.0)
+                elapsed_s = time.monotonic() - started
+                results[strength] = (png_bytes, seed, elapsed_s)
+        peak_allocated = int(torch.cuda.max_memory_allocated())
+
+        for strength, (png_bytes, seed, elapsed_s) in results.items():
+            output_path = out_dir / f"hunyuandit-img2img-strength-{strength:.2f}-acceptance.png"
+            _write_png(output_path, png_bytes)
+
+            # Printed before any assertion: a failing run must still surrender
+            # its measurement.
+            print(
+                "[acceptance] "
+                f"artifact={output_path} strength={strength} elapsed_s={elapsed_s:.2f} "
+                f"peak_allocated_bytes={peak_allocated} "
+                f"torch={torch.__version__} cuda={torch.version.cuda}"
+            )
+
+            img = Image.open(io.BytesIO(png_bytes))
+            img.load()
+            assert img.size == (1024, 1024)
+            assert seed == 4242
+            assert "lcm" in img.text
+            metadata = json.loads(img.text["lcm"])
+            assert metadata["denoise_strength"] == strength
+
+        # Size, seed, metadata, and PNG text chunks all hold for pure noise, so
+        # the warning stream is the only in-test signal for a silently dropped
+        # denoiser input.
+        blocking = blocking_ignored_warnings(diffusers_warnings.messages)
+        assert not blocking, (
+            f"diffusers reported {len(blocking)} blocking ignored-input "
+            f"warning(s); first: {blocking[0]}"
+        )
+
+        status = pool.free_vram("hunyuandit-img2img-acceptance")
+        assert status["is_loaded"] is False
+        assert status["vram"]["allocated_bytes"] <= peak_allocated
     finally:
         pool.shutdown()
         reset_worker_pool()
