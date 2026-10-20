@@ -202,10 +202,10 @@ def test_cuda_execution_capabilities_per_family():
         assert caps.supports_img2img is True
         assert caps.supports_controlnet is True
         assert caps.supports_img2img_and_controlnet is True
-    # Phase 3: HunyuanDiT ships ControlNet txt2img only — it must not advertise
-    # img2img or combined img2img+ControlNet execution.
+    # HunyuanDiT ships ControlNet txt2img and plain img2img — it must not
+    # advertise combined img2img+ControlNet execution.
     hunyuan = CUDA_FAMILY_BINDINGS["hunyuandit"].execution_capabilities
-    assert hunyuan.supports_img2img is False
+    assert hunyuan.supports_img2img is True
     assert hunyuan.supports_controlnet is True
     assert hunyuan.supports_img2img_and_controlnet is False
 
