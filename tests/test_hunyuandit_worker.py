@@ -529,6 +529,42 @@ def test_hunyuandit_img2img_route_delegates_to_component():
     assert metadata["seed"] == 7
 
 
+def test_hunyuandit_img2img_route_runs_denoise_inside_inference_mode():
+    # Every other generation call site in this worker wraps the pipe call in
+    # torch.inference_mode() (saves the autograd graph VRAM a loop this long
+    # never needs); the img2img route must too.
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[]
+    )
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+    events = []
+
+    class _RecordingInferenceMode:
+        def __enter__(self):
+            events.append("enter")
+            return self
+
+        def __exit__(self, *exc_info):
+            events.append("exit")
+            return False
+
+    def _fake_run_hunyuan_img2img(*args, **kwargs):
+        events.append("call")
+        return [fake_output_image]
+
+    mock_torch = MagicMock(inference_mode=lambda: _RecordingInferenceMode())
+
+    with patch(
+        "backends.hunyuandit_img2img.run_hunyuan_img2img",
+        side_effect=_fake_run_hunyuan_img2img,
+    ), patch("backends.cuda_worker.torch", mock_torch):
+        worker.run_job(job)
+
+    assert events == ["enter", "call", "exit"]
+
+
 def test_hunyuandit_img2img_route_honors_explicit_strength():
     worker = _run_new_worker()
     worker.pipe = _FakePipelineBase()

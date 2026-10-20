@@ -1875,19 +1875,20 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                     conditioning_artifact,
                 )
 
-                images = run_hunyuan_img2img(
-                    self.pipe,
-                    init_pil,
-                    conditioning_kwargs,
-                    width=width,
-                    height=height,
-                    steps=int(req.num_inference_steps),
-                    strength=denoise_strength,
-                    guidance_scale=float(req.guidance_scale),
-                    generator=gen,
-                    progress=progress,
-                    should_cancel=should_cancel,
-                )
+                with torch.inference_mode():
+                    images = run_hunyuan_img2img(
+                        self.pipe,
+                        init_pil,
+                        conditioning_kwargs,
+                        width=width,
+                        height=height,
+                        steps=int(req.num_inference_steps),
+                        strength=denoise_strength,
+                        guidance_scale=float(req.guidance_scale),
+                        generator=gen,
+                        progress=progress,
+                        should_cancel=should_cancel,
+                    )
                 img: Image.Image = images[0]
 
                 pnginfo = PngImagePlugin.PngInfo()

@@ -29,7 +29,11 @@ def select_timesteps(scheduler, steps, strength, device):
     effective_steps = min(steps, max(1, int(steps * strength)))
     offset = (steps - effective_steps) * scheduler.order
     timesteps = scheduler.timesteps[offset:]
-    if not timesteps:
+    # len(), not `if not timesteps:` — a real scheduler's timesteps is a
+    # tensor, and bool() of a multi-element tensor raises; bool() of a
+    # single-element tensor also misreads a legitimate timestep value of 0
+    # as falsy/empty.
+    if len(timesteps) == 0:
         raise ValueError("scheduler produced an empty timestep schedule")
     return timesteps, effective_steps
 
@@ -74,11 +78,14 @@ def run_hunyuan_img2img(
 ):
     """Run the Hunyuan-only img2img denoising loop.
 
-    ``conditioning`` is the dict produced by the worker's existing
-    conditioning artifact (``prompt_embeds``/``negative_prompt_embeds`` for
-    the CLIP/BERT encoder, the ``_2`` pair for mT5), the same shape fed to
-    ``HunyuanDiTPipeline.__call__`` today. This mirrors that call's
-    denoising loop exactly (diffusers 0.39
+    ``conditioning`` is the dict ``backends.cuda_worker._accept_conditioning_artifact``
+    returns for Hunyuan's native/delegated conditioning (the only kind this
+    two-encoder family supports): ``{"prompt": str, "negative_prompt": str |
+    None}``. Both text encoders are driven from the same ``prompt``/
+    ``negative_prompt`` pair via ``pipe.encode_prompt``, which performs its
+    own real tokenize-and-encode when given no pre-built embeds — exactly
+    what ``HunyuanDiTPipeline.__call__`` does today. This mirrors that
+    call's denoising loop (diffusers 0.39
     ``pipelines/hunyuandit/pipeline_hunyuandit.py``) since diffusers has no
     HunyuanDiT img2img pipeline to call instead.
     """
@@ -105,38 +112,35 @@ def run_hunyuan_img2img(
         device=device,
     )
 
+    prompt = conditioning["prompt"]
+    negative_prompt = conditioning.get("negative_prompt")
+
     prompt_embeds, negative_prompt_embeds, prompt_attention_mask, negative_prompt_attention_mask = (
         pipe.encode_prompt(
-            prompt=None,
+            prompt=prompt,
             device=device,
             dtype=dtype,
             num_images_per_prompt=num_images_per_prompt,
             do_classifier_free_guidance=do_cfg,
-            prompt_embeds=conditioning["prompt_embeds"],
-            negative_prompt_embeds=conditioning.get("negative_prompt_embeds"),
-            prompt_attention_mask=conditioning["prompt_attention_mask"],
-            negative_prompt_attention_mask=conditioning.get("negative_prompt_attention_mask"),
+            negative_prompt=negative_prompt,
             max_sequence_length=77,
             text_encoder_index=0,
         )
     )
     prompt_embeds_2, negative_prompt_embeds_2, prompt_attention_mask_2, negative_prompt_attention_mask_2 = (
         pipe.encode_prompt(
-            prompt=None,
+            prompt=prompt,
             device=device,
             dtype=dtype,
             num_images_per_prompt=num_images_per_prompt,
             do_classifier_free_guidance=do_cfg,
-            prompt_embeds=conditioning["prompt_embeds_2"],
-            negative_prompt_embeds=conditioning.get("negative_prompt_embeds_2"),
-            prompt_attention_mask=conditioning["prompt_attention_mask_2"],
-            negative_prompt_attention_mask=conditioning.get("negative_prompt_attention_mask_2"),
+            negative_prompt=negative_prompt,
             max_sequence_length=256,
             text_encoder_index=1,
         )
     )
 
-    batch_size = conditioning["prompt_embeds"].shape[0]
+    batch_size = 1 if isinstance(prompt, str) else len(prompt)
 
     if do_cfg:
         prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])

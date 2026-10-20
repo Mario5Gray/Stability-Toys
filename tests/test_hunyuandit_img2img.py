@@ -5,9 +5,11 @@ preparation used by the Hunyuan denoising loop.
 """
 
 import concurrent.futures
+from types import SimpleNamespace
 
 import pytest
 import torch
+from diffusers.pipelines.hunyuandit.pipeline_hunyuandit import HunyuanDiTPipeline
 from PIL import Image
 
 from backends.hunyuandit_img2img import (
@@ -18,10 +20,14 @@ from backends.hunyuandit_img2img import (
 
 
 class FakeScheduler:
+    """``timesteps`` is a real tensor, matching DDPMScheduler. A fake that used
+    a plain list here previously let `if not timesteps:` (ambiguous on a
+    multi-element tensor) pass unit tests while raising in production."""
+
     order = 1
 
     def set_timesteps(self, steps, device=None):
-        self.timesteps = list(range(steps - 1, -1, -1))
+        self.timesteps = torch.arange(steps - 1, -1, -1)
 
     def add_noise(self, latent, noise, timestep):
         return latent + noise
@@ -36,19 +42,19 @@ class MissingAddNoise:
     order = 1
 
     def set_timesteps(self, steps, device=None):
-        self.timesteps = list(range(steps - 1, -1, -1))
+        self.timesteps = torch.arange(steps - 1, -1, -1)
 
 
 def test_select_timesteps_partial_strength():
     timesteps, effective_steps = select_timesteps(FakeScheduler(), 30, 0.25, "cpu")
-    assert timesteps == list(range(6, -1, -1))
+    assert timesteps.tolist() == list(range(6, -1, -1))
     assert effective_steps == 7
 
 
 def test_select_timesteps_full_strength_selects_all_steps():
     timesteps, effective_steps = select_timesteps(FakeScheduler(), 30, 1.0, "cpu")
     assert effective_steps == 30
-    assert timesteps == list(range(29, -1, -1))
+    assert timesteps.tolist() == list(range(29, -1, -1))
 
 
 def test_select_timesteps_minimum_strength_selects_at_least_one():
@@ -294,7 +300,7 @@ class FakeDenoiseScheduler:
         self.last_latents = None
 
     def set_timesteps(self, steps, device=None):
-        self.timesteps = list(range(steps - 1, -1, -1))
+        self.timesteps = torch.arange(steps - 1, -1, -1)
 
     def add_noise(self, latent, noise, timestep):
         return latent + noise
@@ -365,44 +371,63 @@ class FakeTransformer:
         return (torch.cat([noise, variance], dim=1),)
 
 
+class FakeTokenizer:
+    """Enough of a HF tokenizer for ``HunyuanDiTPipeline.encode_prompt``'s real
+    tokenize branch: fixed-length padding, an attention mask of all ones, and
+    a `batch_decode` that never triggers the truncation-warning branch."""
+
+    def __call__(self, prompt, padding="max_length", max_length=77, truncation=True,
+                 return_attention_mask=False, return_tensors="pt"):
+        batch = [prompt] if isinstance(prompt, str) else list(prompt)
+        input_ids = torch.zeros(len(batch), max_length, dtype=torch.long)
+        attention_mask = torch.ones(len(batch), max_length, dtype=torch.long)
+        return SimpleNamespace(input_ids=input_ids, attention_mask=attention_mask)
+
+    def batch_decode(self, ids, *args, **kwargs):
+        return [""] * ids.shape[0]
+
+
+class FakeTextEncoder:
+    def __init__(self, hidden_size):
+        self.hidden_size = hidden_size
+
+    def __call__(self, input_ids, attention_mask=None):
+        batch, seq_len = input_ids.shape
+        return (torch.ones(batch, seq_len, self.hidden_size),)
+
+
 class FakeHunyuanPipe:
     def __init__(self):
         self.image_processor = FakeImageProcessor3()
         self.vae = FakeVae3()
         self.scheduler = FakeDenoiseScheduler()
         self.transformer = FakeTransformer()
+        self.tokenizer = FakeTokenizer()
+        self.tokenizer_2 = FakeTokenizer()
+        self.text_encoder = FakeTextEncoder(HIDDEN_SIZE)
+        self.text_encoder_2 = FakeTextEncoder(HIDDEN_SIZE)
         self.encode_prompt_calls = []
         self.safety_checker_calls = []
         self.free_hooks_calls = 0
 
-    def encode_prompt(
-        self,
-        *,
-        prompt,
-        device,
-        dtype,
-        num_images_per_prompt,
-        do_classifier_free_guidance,
-        negative_prompt=None,
-        prompt_embeds=None,
-        negative_prompt_embeds=None,
-        prompt_attention_mask=None,
-        negative_prompt_attention_mask=None,
-        max_sequence_length=None,
-        text_encoder_index=0,
-    ):
+    def encode_prompt(self, **kwargs):
+        # Delegates to the REAL installed HunyuanDiTPipeline.encode_prompt,
+        # bound to this fake, so the test exercises the actual reference
+        # tokenize/encode logic rather than a hand-rolled approximation of
+        # it — this is what caught run_hunyuan_img2img passing prompt_embeds
+        # it invented itself instead of the `prompt`/`negative_prompt`
+        # strings the worker's conditioning artifact actually supplies.
+        result = HunyuanDiTPipeline.encode_prompt(self, **kwargs)
+        prompt_embeds_out = result[0]
         self.encode_prompt_calls.append(
             dict(
-                text_encoder_index=text_encoder_index,
-                max_sequence_length=max_sequence_length,
-                do_classifier_free_guidance=do_classifier_free_guidance,
-                seq_len=prompt_embeds.shape[1],
+                text_encoder_index=kwargs.get("text_encoder_index", 0),
+                max_sequence_length=kwargs.get("max_sequence_length"),
+                do_classifier_free_guidance=kwargs.get("do_classifier_free_guidance"),
+                seq_len=prompt_embeds_out.shape[1],
             )
         )
-        prompt_embeds = prompt_embeds.to(dtype=dtype, device=device)
-        if do_classifier_free_guidance:
-            negative_prompt_embeds = negative_prompt_embeds.to(dtype=dtype, device=device)
-        return prompt_embeds, negative_prompt_embeds, prompt_attention_mask, negative_prompt_attention_mask
+        return result
 
     def run_safety_checker(self, image, device, dtype):
         self.safety_checker_calls.append(image)
@@ -413,15 +438,12 @@ class FakeHunyuanPipe:
 
 
 def _fake_conditioning():
+    # The shape backends.cuda_worker._accept_conditioning_artifact actually
+    # returns for Hunyuan's native/delegated conditioning (the only kind this
+    # family supports) — plain strings, not pre-encoded embeds.
     return {
-        "prompt_embeds": torch.rand(1, 77, HIDDEN_SIZE),
-        "negative_prompt_embeds": torch.rand(1, 77, HIDDEN_SIZE),
-        "prompt_attention_mask": torch.ones(1, 77),
-        "negative_prompt_attention_mask": torch.ones(1, 77),
-        "prompt_embeds_2": torch.rand(1, 256, HIDDEN_SIZE),
-        "negative_prompt_embeds_2": torch.rand(1, 256, HIDDEN_SIZE),
-        "prompt_attention_mask_2": torch.ones(1, 256),
-        "negative_prompt_attention_mask_2": torch.ones(1, 256),
+        "prompt": "a weathered lighthouse at dusk, oil painting",
+        "negative_prompt": "blurry, noisy, low quality",
     }
 
 
@@ -484,6 +506,31 @@ def test_run_hunyuan_img2img_contract():
     assert len(images) == 1
     assert isinstance(images[0], Image.Image)
     assert pipe.free_hooks_calls == 1
+
+
+def test_run_hunyuan_img2img_accepts_conditioning_without_negative_prompt_key():
+    # DelegatedConditioning always carries a "negative_prompt" key, but the
+    # worker's `conditioning.get(...)` must not assume it: a missing key or
+    # an explicit None both mean "let the real pipeline default to unconditional".
+    pipe = FakeHunyuanPipe()
+    conditioning = {"prompt": "a quiet harbor at sunrise"}
+
+    images = run_hunyuan_img2img(
+        pipe,
+        "source-image",
+        conditioning,
+        width=64,
+        height=64,
+        steps=4,
+        strength=0.5,
+        guidance_scale=3.5,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        progress=None,
+        should_cancel=None,
+    )
+
+    assert len(images) == 1
+    assert all(c["do_classifier_free_guidance"] for c in pipe.encode_prompt_calls)
 
 
 def test_run_hunyuan_img2img_cancellation_stops_before_next_step():
