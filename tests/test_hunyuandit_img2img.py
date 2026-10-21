@@ -526,6 +526,13 @@ class FakeTransformerConfig:
     in_channels = LATENT_CHANNELS
 
 
+# Distinguishes "transformer called without this kwarg at all" from "called
+# with controlnet_block_samples=None" — the plain img2img path must do the
+# former (the installed HunyuanDiT2DModel.forward accepts the kwarg, but the
+# combined-path contract is that the plain path never names it).
+_CONTROLNET_BLOCK_SAMPLES_NOT_PASSED = object()
+
+
 class FakeTransformer:
     def __init__(self):
         self.config = FakeTransformerConfig()
@@ -547,6 +554,7 @@ class FakeTransformer:
         style,
         image_rotary_emb,
         return_dict=False,
+        controlnet_block_samples=_CONTROLNET_BLOCK_SAMPLES_NOT_PASSED,
     ):
         self.calls.append(
             dict(
@@ -559,6 +567,7 @@ class FakeTransformer:
                 image_meta_size=image_meta_size,
                 style=style,
                 image_rotary_emb=image_rotary_emb,
+                controlnet_block_samples=controlnet_block_samples,
             )
         )
         batch = latent_model_input.shape[0]
@@ -766,3 +775,347 @@ def test_run_hunyuan_img2img_cancellation_stops_before_next_step():
 
     assert len(pipe.transformer.calls) == 1
     assert len(pipe.scheduler.step_calls) == 1
+
+
+# --- Task 3: ControlNet residuals in the selected denoising steps ----------
+#
+# ``FakeControlNetModel``'s forward signature and return shape
+# (``(controlnet_block_res_samples,)``) match the installed
+# ``diffusers/models/controlnets/controlnet_hunyuan.py``
+# ``HunyuanDiT2DControlNetModel.forward``, not SDXL's ControlNet call shape.
+
+SENTINEL_BLOCK_SAMPLES = (torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0]))
+
+
+class FakeControlNetModel:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(
+        self,
+        hidden_states,
+        timestep,
+        controlnet_cond,
+        conditioning_scale=1.0,
+        encoder_hidden_states=None,
+        text_embedding_mask=None,
+        encoder_hidden_states_t5=None,
+        text_embedding_mask_t5=None,
+        image_meta_size=None,
+        style=None,
+        image_rotary_emb=None,
+        return_dict=True,
+    ):
+        self.calls.append(
+            dict(
+                hidden_states=hidden_states,
+                timestep=timestep,
+                controlnet_cond=controlnet_cond,
+                conditioning_scale=conditioning_scale,
+                encoder_hidden_states=encoder_hidden_states,
+                text_embedding_mask=text_embedding_mask,
+                encoder_hidden_states_t5=encoder_hidden_states_t5,
+                text_embedding_mask_t5=text_embedding_mask_t5,
+                image_meta_size=image_meta_size,
+                style=style,
+                image_rotary_emb=image_rotary_emb,
+            )
+        )
+        return (SENTINEL_BLOCK_SAMPLES,)
+
+
+class FakeVaeRandom(FakeVae3):
+    """Like FakeVae3, but ``sample()`` draws real randomness from the given
+    generator (instead of returning a fixed value) and records each call's
+    drawn value in ``sampled_values``, so same-seed/different-seed
+    reproducibility across the source AND control latents can be asserted."""
+
+    def __init__(self):
+        super().__init__()
+        self.sampled_values = []
+
+    def encode(self, tensor):
+        self.encode_calls.append(tensor)
+        shape = (tensor.shape[0], LATENT_CHANNELS, tensor.shape[-2] // 8, tensor.shape[-1] // 8)
+        store = self.sampled_values
+
+        class _Dist:
+            def sample(self, generator=None):
+                value = torch.randn(shape, generator=generator)
+                store.append(value)
+                return value
+
+        class _Out:
+            latent_dist = _Dist()
+
+        return _Out()
+
+
+def test_run_hunyuan_img2img_combined_applies_controlnet_residuals_each_step():
+    pipe = FakeHunyuanPipe()
+    controlnet = FakeControlNetModel()
+    conditioning = _fake_conditioning()
+    guidance_scale = 3.5  # do_cfg True
+
+    expected_timesteps, expected_effective_steps = select_timesteps(
+        FakeDenoiseScheduler(), 30, 0.25, "cpu"
+    )
+    assert expected_effective_steps == 7
+
+    progress_calls = []
+
+    def progress(step, total, phase):
+        progress_calls.append((step, total, phase))
+
+    images = run_hunyuan_img2img(
+        pipe,
+        "source-image",
+        conditioning,
+        width=64,
+        height=64,
+        steps=30,
+        strength=0.25,
+        guidance_scale=guidance_scale,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        progress=progress,
+        should_cancel=None,
+        controlnet=controlnet,
+        control_image="control-image",
+        controlnet_conditioning_scale=0.8,
+    )
+
+    assert len(controlnet.calls) == 7
+    assert len(pipe.transformer.calls) == 7
+    assert progress_calls[-1][1] == 7
+    assert len(progress_calls) == 7
+
+    first_controlnet_cond = controlnet.calls[0]["controlnet_cond"]
+    for cn_call, t_call in zip(controlnet.calls, pipe.transformer.calls):
+        assert cn_call["conditioning_scale"] == 0.8
+        assert cn_call["controlnet_cond"] is first_controlnet_cond
+        assert t_call["controlnet_block_samples"] is SENTINEL_BLOCK_SAMPLES
+        # ControlNet and transformer see the identical per-step tensors.
+        assert cn_call["hidden_states"] is t_call["latent_model_input"]
+        assert cn_call["timestep"] is t_call["t_expand"]
+        assert isinstance(cn_call["timestep"], torch.Tensor)
+        assert cn_call["encoder_hidden_states"] is t_call["encoder_hidden_states"]
+        assert cn_call["text_embedding_mask"] is t_call["text_embedding_mask"]
+        assert cn_call["encoder_hidden_states_t5"] is t_call["encoder_hidden_states_t5"]
+        assert cn_call["text_embedding_mask_t5"] is t_call["text_embedding_mask_t5"]
+        assert cn_call["image_meta_size"] is t_call["image_meta_size"]
+        assert cn_call["style"] is t_call["style"]
+        assert cn_call["image_rotary_emb"] is t_call["image_rotary_emb"]
+
+    # CFG doubled the control image batch before VAE encode (encode_calls[0]
+    # is the source image, always batch 1; encode_calls[1] is the control
+    # image).
+    assert pipe.vae.encode_calls[0].shape[0] == 1
+    assert pipe.vae.encode_calls[1].shape[0] == 2
+
+    assert len(images) == 1
+
+
+def test_run_hunyuan_img2img_combined_omits_controlnet_block_samples_on_plain_path():
+    pipe = FakeHunyuanPipe()
+    conditioning = _fake_conditioning()
+
+    run_hunyuan_img2img(
+        pipe,
+        "source-image",
+        conditioning,
+        width=64,
+        height=64,
+        steps=4,
+        strength=0.5,
+        guidance_scale=3.5,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        progress=None,
+        should_cancel=None,
+    )
+
+    assert all(
+        c["controlnet_block_samples"] is _CONTROLNET_BLOCK_SAMPLES_NOT_PASSED
+        for c in pipe.transformer.calls
+    )
+
+
+def test_run_hunyuan_img2img_combined_rejects_controlnet_without_control_image():
+    pipe = FakeHunyuanPipe()
+    with pytest.raises(ValueError):
+        run_hunyuan_img2img(
+            pipe,
+            "source-image",
+            _fake_conditioning(),
+            width=64,
+            height=64,
+            steps=4,
+            strength=0.5,
+            guidance_scale=3.5,
+            generator=torch.Generator(device="cpu").manual_seed(0),
+            progress=None,
+            should_cancel=None,
+            controlnet=FakeControlNetModel(),
+        )
+
+
+def test_run_hunyuan_img2img_combined_rejects_control_image_without_controlnet():
+    pipe = FakeHunyuanPipe()
+    with pytest.raises(ValueError):
+        run_hunyuan_img2img(
+            pipe,
+            "source-image",
+            _fake_conditioning(),
+            width=64,
+            height=64,
+            steps=4,
+            strength=0.5,
+            guidance_scale=3.5,
+            generator=torch.Generator(device="cpu").manual_seed(0),
+            progress=None,
+            should_cancel=None,
+            control_image="control-image",
+        )
+
+
+def test_run_hunyuan_img2img_combined_cancellation_stops_further_controlnet_calls():
+    pipe = FakeHunyuanPipe()
+    controlnet = FakeControlNetModel()
+
+    calls = {"n": 0}
+
+    def should_cancel():
+        calls["n"] += 1
+        return calls["n"] >= 1
+
+    with pytest.raises(concurrent.futures.CancelledError):
+        run_hunyuan_img2img(
+            pipe,
+            "source-image",
+            _fake_conditioning(),
+            width=64,
+            height=64,
+            steps=4,
+            strength=0.5,
+            guidance_scale=3.5,
+            generator=torch.Generator(device="cpu").manual_seed(0),
+            progress=None,
+            should_cancel=should_cancel,
+            controlnet=controlnet,
+            control_image="control-image",
+        )
+
+    assert len(controlnet.calls) == 1
+    assert len(pipe.transformer.calls) == 1
+
+
+def test_run_hunyuan_img2img_combined_draw_order_is_source_sample_then_noise_then_control_sample():
+    order = []
+
+    class OrderedScheduler(FakeDenoiseScheduler):
+        def add_noise(self, latent, noise, timestep):
+            order.append("source_noise")
+            return super().add_noise(latent, noise, timestep)
+
+    class OrderedVae(FakeVae3):
+        def encode(self, tensor):
+            self.encode_calls.append(tensor)
+            is_source = len(self.encode_calls) == 1
+            value = torch.full(
+                (tensor.shape[0], LATENT_CHANNELS, tensor.shape[-2] // 8, tensor.shape[-1] // 8), 2.0
+            )
+
+            class _Dist:
+                def sample(self, generator=None):
+                    order.append("source_sample" if is_source else "control_sample")
+                    return value
+
+            class _Out:
+                latent_dist = _Dist()
+
+            return _Out()
+
+    pipe = FakeHunyuanPipe()
+    pipe.vae = OrderedVae()
+    pipe.scheduler = OrderedScheduler()
+    controlnet = FakeControlNetModel()
+
+    run_hunyuan_img2img(
+        pipe,
+        "source-image",
+        _fake_conditioning(),
+        width=64,
+        height=64,
+        steps=4,
+        strength=0.5,
+        guidance_scale=3.5,
+        generator=torch.Generator(device="cpu").manual_seed(0),
+        progress=None,
+        should_cancel=None,
+        controlnet=controlnet,
+        control_image="control-image",
+    )
+
+    assert order == ["source_sample", "source_noise", "control_sample"]
+
+
+def _run_combined_with_seed(seed):
+    pipe = FakeHunyuanPipe()
+    pipe.vae = FakeVaeRandom()
+    controlnet = FakeControlNetModel()
+
+    run_hunyuan_img2img(
+        pipe,
+        "source-image",
+        _fake_conditioning(),
+        width=64,
+        height=64,
+        steps=4,
+        strength=0.5,
+        guidance_scale=3.5,
+        generator=torch.Generator(device="cpu").manual_seed(seed),
+        progress=None,
+        should_cancel=None,
+        controlnet=controlnet,
+        control_image="control-image",
+    )
+    return pipe.vae.sampled_values
+
+
+def test_run_hunyuan_img2img_combined_same_seed_reproduces_source_and_control_latents():
+    values_a = _run_combined_with_seed(7)
+    values_b = _run_combined_with_seed(7)
+
+    assert torch.equal(values_a[0], values_b[0])
+    assert torch.equal(values_a[1], values_b[1])
+
+
+def test_run_hunyuan_img2img_combined_different_seed_changes_latents():
+    values_a = _run_combined_with_seed(7)
+    values_b = _run_combined_with_seed(8)
+
+    assert not torch.equal(values_a[0], values_b[0]) or not torch.equal(values_a[1], values_b[1])
+
+
+def test_run_hunyuan_img2img_combined_scheduler_missing_add_noise_fails_before_controlnet_call():
+    pipe = FakeHunyuanPipe()
+    pipe.scheduler = MissingAddNoise()
+    controlnet = FakeControlNetModel()
+
+    with pytest.raises(ValueError, match="MissingAddNoise"):
+        run_hunyuan_img2img(
+            pipe,
+            "source-image",
+            _fake_conditioning(),
+            width=64,
+            height=64,
+            steps=4,
+            strength=0.5,
+            guidance_scale=3.5,
+            generator=torch.Generator(device="cpu").manual_seed(0),
+            progress=None,
+            should_cancel=None,
+            controlnet=controlnet,
+            control_image="control-image",
+        )
+
+    assert controlnet.calls == []
