@@ -40,7 +40,9 @@ installed ControlNet pipeline has no init-image/strength call contract.
    Enable `supports_img2img_and_controlnet` only with the worker route in the
    same change. Existing mode policy, preprocessing, registry family checks,
    and binding resolution run before the job is queued. Combined requests on
-   unsupported families keep their existing rejection behavior.
+   unsupported families keep their existing rejection behavior. For Hunyuan
+   combined requests, reject a non-Canny control type or nondefault control
+   timing window at admission, before preprocessing writes an artifact.
 2. The Hunyuan worker requires exactly one resolved Canny binding for a
    combined job. It validates the init image and map bytes, rejects a native
    aspect-ratio divergence greater than the existing 2% tolerance, then
@@ -56,7 +58,13 @@ installed ControlNet pipeline has no init-image/strength call contract.
    noising from the request generator as plain img2img already does.
 4. The component prepares the Canny image with the installed Hunyuan
    ControlNet pipeline's image normalization and CFG batch behavior, then
-   encodes and scales it with the shared VAE using the same request generator.
+   encodes and scales it with the shared VAE. It passes the request generator
+   to the control-image latent distribution's `sample(generator=generator)`.
+   This deliberately differs from Diffusers 0.39's
+   `HunyuanDiTControlNetPipeline`, which calls `sample()` without a generator;
+   the difference makes the combined path repeatable for the same seed and
+   inputs. Preserve the current source-sample then source-noise order; sample
+   the control latent afterward from that same generator.
    It runs ControlNet on each selected timestep and passes the returned block
    samples to the Hunyuan transformer. Text conditioning, rotary embeddings,
    guidance, scheduler stepping, progress, cancellation, safety check, and
@@ -96,8 +104,10 @@ already-loaded model dtype/device. No `from_pipe` fp32 recast is allowed.
 - Component tests assert the installed Hunyuan ControlNet call contract:
   normalized/CFG-batched map latent, seeded VAE sampling, per-selected-step
   ControlNet call, residual blocks passed to the transformer, conditioning
-  scale, progress count, and no ControlNet call on the plain path. Use real
-  tensor timesteps where relevant.
+  scale, progress count, and no ControlNet call on the plain path. Two
+  combined runs with the same seed and inputs must produce the same prepared
+  source and control latents; a changed seed must change at least one. Use
+  real tensor timesteps where relevant.
 - A dedicated enigma CUDA acceptance run exercises the production `WorkerPool`
   with the mounted Hunyuan base and Canny checkpoints. Save the source, map,
   and outputs for low and higher `denoise_strength` with fixed seed. Check
