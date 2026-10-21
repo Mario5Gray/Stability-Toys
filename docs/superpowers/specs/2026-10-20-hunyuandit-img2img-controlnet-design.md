@@ -1,6 +1,7 @@
 # HunyuanDiT img2img + ControlNet design
 
-**Status:** Proposed for written-spec review.
+**Status:** Reviewed for implementation planning; control-latent seeding decision
+resolved after review.
 
 ## Goal and scope
 
