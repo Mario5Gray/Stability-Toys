@@ -39,6 +39,14 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
             raise ValueError(
                 f"family '{family_id}' does not support the img2img+controlnet operation"
             )
+        if family_id == "hunyuandit":
+            for attachment in req.controlnets:
+                if attachment.control_type != "canny":
+                    raise ValueError("HunyuanDiT combined img2img+controlnet supports Canny only")
+                if attachment.start_percent != 0.0 or attachment.end_percent != 1.0:
+                    raise ValueError(
+                        "HunyuanDiT combined img2img+controlnet does not support control timing windows"
+                    )
         return "img2img+controlnet"
     if has_controlnet:
         if not caps.supports_controlnet:

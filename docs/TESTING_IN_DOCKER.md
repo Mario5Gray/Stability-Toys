@@ -45,31 +45,51 @@ As verified on 2026-09-30, shared Concourse task checks syntax and Ruff only. It
 Task source: `../continuous/tasks/test-stability-toys.yml`, relative to repository root.
 Task selection: `../continuous/vars/stability-toys.yml`.
 
-## HunyuanDiT img2img Live Acceptance
+## HunyuanDiT img2img + ControlNet Live Acceptance
 
-Live img2img acceptance needs a real CUDA host with the HunyuanDiT model mounted.
-A laptop run gives a clean skip, not a pass.
+Live acceptance needs a real CUDA host with the HunyuanDiT base model and the
+Canny ControlNet checkpoint mounted. A laptop run gives a clean skip, not a
+pass — collection-only.
 
-Run on the NVIDIA host:
+Run on the NVIDIA host. `ACCEPTANCE_OUT_DIR` must point at a directory that
+already exists inside the container (the image only pre-creates `/app/logs`
+itself, not a named subdirectory) and `-s` is required or pytest swallows the
+`[acceptance]` print lines the next paragraph tells you to check:
 
 ```bash
 docker compose -f docker-compose.test.yml build test-cuda
-docker compose -f docker-compose.test.yml run --rm test-cuda \
-  python -m tests.run tests/test_hunyuandit_acceptance.py -- -q
+docker compose -f docker-compose.test.yml run --rm test-cuda mkdir -p /app/logs/hunyuan-acceptance
+TEST_MODELS_HOST_PATH=/media/cold1/ComfyUI/models docker compose -f docker-compose.test.yml run --rm \
+  -e ACCEPTANCE_OUT_DIR=/app/logs/hunyuan-acceptance test-cuda \
+  python -m tests.run tests/test_hunyuandit_acceptance.py -- -q -s
 ```
 
-Expect both tests to pass: the existing ControlNet txt2img acceptance, plus the
-new img2img acceptance. The img2img test runs two strengths (0.25 and 0.75)
-with the same prompt and seed.
+Expect three cases to pass: the existing ControlNet txt2img acceptance, plain
+img2img acceptance, and combined img2img+ControlNet (one Canny attachment)
+acceptance. The img2img and combined cases each run two strengths (0.25 and
+0.75) with the same prompt and seed; the combined case additionally asserts
+admission returns `img2img+controlnet` and that the output PNG carries both
+the `lcm` and `controlnet` metadata chunks. Without `ACCEPTANCE_OUT_DIR` set
+to an existing directory, artifact writes fail inside the `--rm` container and
+every case is lost with it.
 
 Check the printed output: artifact paths, elapsed seconds, peak allocated VRAM
 bytes. Check the PNG metadata: dimensions, seed, and `denoise_strength` match
-the request. Review the saved source and both output images for visible
-source influence, especially at strength 0.25. No blocked ignored-input
-warning is allowed (see `hunyuan_warning_policy.py`).
+the request. Review the saved source, control map, and output images for
+visible source influence at low strength and Canny edge influence. No blocked
+ignored-input warning is allowed (see `hunyuan_warning_policy.py`).
 
-A local skip is not a pass. Record exact versions, the command, and artifact
-paths in the task report.
+A local skip is not a pass. CPU wiring tests alone do not establish
+generated-image quality or VRAM safety for the combined path — only a passing
+live CUDA run does. Record exact versions, the command, and artifact paths in
+the task report.
+
+HunyuanDiT supports plain img2img, ControlNet text-to-image, and combined
+img2img+ControlNet (one Canny attachment, default control window), verified
+by the live CUDA run above (3/3 passing on enigma, torch 2.10.0+cu128, with
+source preservation visible at low strength and Canny-edge dominance visible
+at high strength in the reviewed output images). Depth and Pose ControlNet
+types remain registered but not live-verified for any Hunyuan route.
 
 ## Local vs CUDA Test Paths
 

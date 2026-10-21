@@ -62,6 +62,33 @@ def prepare_source_latents(pipe, image, *, width, height, timestep, generator, d
     return pipe.scheduler.add_noise(source_latent, noise, timestep)
 
 
+def prepare_control_latents(pipe, control_image, *, width, height, generator, dtype, device, do_cfg):
+    """Normalize, CFG-batch, and VAE-encode a Canny control image.
+
+    Mirrors Diffusers 0.39's ``HunyuanDiTControlNetPipeline.prepare_image`` and
+    the VAE-encode step of its ``__call__`` (steps 4/9), except this seeds the
+    VAE latent sample with ``generator``: the installed pipeline calls
+    ``sample()`` unseeded, which would make a combined request's control latent
+    irreproducible for a fixed seed.
+    """
+    import torch
+
+    if width <= 0 or height <= 0 or width % 8 != 0 or height % 8 != 0:
+        raise ValueError(
+            f"width and height must be positive and divisible by 8, got {width}x{height}"
+        )
+
+    control_tensor = pipe.image_processor.preprocess(control_image, height=height, width=width)
+    control_tensor = control_tensor.to(device=pipe.vae.device, dtype=pipe.vae.dtype)
+    if do_cfg:
+        control_tensor = torch.cat([control_tensor] * 2)
+
+    control_dist = pipe.vae.encode(control_tensor).latent_dist
+    control_latents = control_dist.sample(generator=generator)
+    control_latents = control_latents * pipe.vae.config.scaling_factor
+    return control_latents.to(device=device, dtype=dtype)
+
+
 def run_hunyuan_img2img(
     pipe,
     image,
@@ -75,6 +102,9 @@ def run_hunyuan_img2img(
     generator,
     progress=None,
     should_cancel=None,
+    controlnet=None,
+    control_image=None,
+    controlnet_conditioning_scale=1.0,
 ):
     """Run the Hunyuan-only img2img denoising loop.
 
@@ -88,12 +118,22 @@ def run_hunyuan_img2img(
     call's denoising loop (diffusers 0.39
     ``pipelines/hunyuandit/pipeline_hunyuandit.py``) since diffusers has no
     HunyuanDiT img2img pipeline to call instead.
+
+    With ``controlnet`` and ``control_image`` both given, applies the Canny
+    residual handoff from the installed Diffusers 0.39
+    ``HunyuanDiTControlNetPipeline`` (``diffusers/pipelines/controlnet_hunyuandit/``)
+    on each selected timestep. With neither given, follows the plain path
+    unchanged — the transformer is never called with the
+    ``controlnet_block_samples`` keyword at all.
     """
     import torch
     from concurrent.futures import CancelledError
 
     from diffusers.models.embeddings import get_2d_rotary_pos_embed
     from diffusers.pipelines.hunyuandit.pipeline_hunyuandit import get_resize_crop_region_for_grid
+
+    if (controlnet is None) != (control_image is None):
+        raise ValueError("controlnet and control_image must both be given or both omitted")
 
     device = pipe.transformer.device
     dtype = pipe.transformer.dtype
@@ -111,6 +151,19 @@ def run_hunyuan_img2img(
         dtype=dtype,
         device=device,
     )
+
+    control_latents = None
+    if controlnet is not None:
+        control_latents = prepare_control_latents(
+            pipe,
+            control_image,
+            width=width,
+            height=height,
+            generator=generator,
+            dtype=dtype,
+            device=device,
+            do_cfg=do_cfg,
+        )
 
     prompt = conditioning["prompt"]
     negative_prompt = conditioning.get("negative_prompt")
@@ -175,6 +228,24 @@ def run_hunyuan_img2img(
         latent_model_input = pipe.scheduler.scale_model_input(latent_model_input, t)
         t_expand = torch.tensor([t] * latent_model_input.shape[0], device=device, dtype=latent_model_input.dtype)
 
+        transformer_kwargs = {}
+        if controlnet is not None:
+            control_block_samples = controlnet(
+                latent_model_input,
+                t_expand,
+                controlnet_cond=control_latents,
+                conditioning_scale=controlnet_conditioning_scale,
+                encoder_hidden_states=prompt_embeds,
+                text_embedding_mask=prompt_attention_mask,
+                encoder_hidden_states_t5=prompt_embeds_2,
+                text_embedding_mask_t5=prompt_attention_mask_2,
+                image_meta_size=add_time_ids,
+                style=style,
+                image_rotary_emb=image_rotary_emb,
+                return_dict=False,
+            )[0]
+            transformer_kwargs["controlnet_block_samples"] = control_block_samples
+
         noise_pred = pipe.transformer(
             latent_model_input,
             t_expand,
@@ -186,6 +257,7 @@ def run_hunyuan_img2img(
             style=style,
             image_rotary_emb=image_rotary_emb,
             return_dict=False,
+            **transformer_kwargs,
         )[0]
 
         noise_pred, _ = noise_pred.chunk(2, dim=1)

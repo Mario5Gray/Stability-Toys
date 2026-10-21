@@ -931,6 +931,102 @@ class TestJobSubmit:
             app.state.worker_pool = None
             app.state.backend_provider = None
 
+    def test_generate_mode_system_rejects_hunyuan_combined_nondefault_window_before_preprocessing(self):
+        """Even with supports_img2img_and_controlnet=True on the Hunyuan family
+        cell, a combined request with a nondefault control_guidance window must
+        be rejected by the family-specific check before ControlNet preprocessing
+        or job submission."""
+        app.state.use_mode_system = True
+        pool = MagicMock()
+        pool.get_current_mode.return_value = "HunyuanDiT"
+        app.state.worker_pool = pool
+        app.state.storage = None
+
+        init_ref = get_store().write("upload", _solid_png_bytes())
+
+        fake_lcm_module = types.ModuleType("server.lcm_sr_server")
+
+        class _FakeGenerateRequest:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    if key == "controlnets" and value is not None:
+                        value = [
+                            SimpleNamespace(
+                                attachment_id=item["attachment_id"],
+                                control_type=item["control_type"],
+                                source_asset_ref=item.get("source_asset_ref"),
+                                map_asset_ref=item.get("map_asset_ref"),
+                                preprocess=item.get("preprocess"),
+                                model_id=item.get("model_id"),
+                                strength=item.get("strength"),
+                                start_percent=item.get("start_percent", 0.0),
+                                end_percent=item.get("end_percent", 1.0),
+                            )
+                            for item in value
+                        ]
+                    setattr(self, key, value)
+
+        def _fake_store_image_blob(*args, **kwargs):
+            return None
+
+        fake_lcm_module.GenerateRequest = _FakeGenerateRequest
+        fake_lcm_module._store_image_blob = _fake_store_image_blob
+        original_lcm_module = sys.modules.get("server.lcm_sr_server")
+        sys.modules["server.lcm_sr_server"] = fake_lcm_module
+
+        # Family cell supports the combined operation; the family-specific
+        # Hunyuan window check must still reject this request.
+        install_mode_backed(
+            app.state, pool,
+            SimpleNamespace(name="HunyuanDiT", default_size="1024x1024", default_steps=20,
+                            default_guidance=5.0,
+                            resolution_options=[{"size": "1024x1024", "aspect_ratio": "1:1"}]),
+            family_id="hunyuandit",
+            supports_combined=True,
+        )
+
+        try:
+            with patch("server.controlnet_preprocessing.preprocess_controlnet_attachments") as preprocess_mock:
+                with client.websocket_connect("/v1/ws") as ws:
+                    ws.receive_json()  # consume status
+                    ws.send_json({
+                        "type": "job:submit",
+                        "id": "t-hunyuan-window-reject",
+                        "jobType": "generate",
+                        "params": {
+                            "prompt": "a cat",
+                            "init_image_ref": init_ref,
+                            "controlnets": [
+                                {
+                                    "attachment_id": "cn_1",
+                                    "control_type": "canny",
+                                    "map_asset_ref": "ref1",
+                                    "start_percent": 0.1,
+                                }
+                            ],
+                        },
+                    })
+
+                    ack = ws.receive_json()
+                    assert ack["type"] == "job:ack"
+                    assert ack["id"] == "t-hunyuan-window-reject"
+
+                    err = ws.receive_json()
+                    assert err["type"] == "job:error"
+                    assert err["jobId"] == ack["jobId"]
+                    assert "control timing window" in err["error"]
+
+                pool.submit_job.assert_not_called()
+                preprocess_mock.assert_not_called()
+        finally:
+            if original_lcm_module is None:
+                sys.modules.pop("server.lcm_sr_server", None)
+            else:
+                sys.modules["server.lcm_sr_server"] = original_lcm_module
+            app.state.use_mode_system = False
+            app.state.worker_pool = None
+            app.state.backend_provider = None
+
     def test_generate_mode_system_admission_failure_reports_ack_then_job_error(self):
         """A snapshot/admission failure returns job:error after the ack without
         crashing the WS loop (the retired path was a get_mode_config lookup)."""

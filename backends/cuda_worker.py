@@ -1809,15 +1809,37 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         req = job.req
         init_image = getattr(job, "init_image", None)
         bindings = getattr(job, "controlnet_bindings", []) or []
-        if init_image is not None and bindings:
-            # Admission already rejects this combination (family-specific
-            # img2img+controlnet error); this is defense in depth against a
-            # direct run_job call that bypasses admission.
+
+        if init_image is not None and getattr(req, "controlnets", None) and not bindings:
+            # A combined request whose attachment(s) failed to resolve to a
+            # binding must fail explicitly, not silently fall into plain
+            # img2img below (which would drop the ControlNet request).
             raise RuntimeError(
-                "HunyuanDiT worker does not accept an init image combined "
-                "with ControlNet; img2img+controlnet is unsupported for "
-                "this family"
+                "HunyuanDiT combined img2img+controlnet requires a resolved "
+                "Canny binding"
             )
+
+        if init_image is not None and bindings:
+            # Admission already rejects a non-Canny control type, more than
+            # one attachment, or a nondefault control timing window for a
+            # combined Hunyuan request (server/controlnet_execution.py); this
+            # is defense in depth against a direct run_job call that bypasses
+            # admission.
+            if len(bindings) != 1:
+                raise RuntimeError(
+                    "HunyuanDiT combined img2img+controlnet accepts exactly "
+                    "one ControlNet attachment"
+                )
+            combined_binding = bindings[0]
+            if combined_binding.control_type != "canny":
+                raise RuntimeError(
+                    "HunyuanDiT combined img2img+controlnet supports Canny only"
+                )
+            if combined_binding.start_percent != 0.0 or combined_binding.end_percent != 1.0:
+                raise RuntimeError(
+                    "HunyuanDiT combined img2img+controlnet does not support "
+                    "control timing windows"
+                )
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
@@ -1857,10 +1879,13 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
             conditioning_artifact = self._conditioning_artifact_for_request(req)
 
             if init_image is not None:
-                # Plain img2img: Diffusers 0.39 has no HunyuanDiT img2img
-                # pipeline, so backends.hunyuandit_img2img owns the
-                # denoising path directly, sharing this worker's already
-                # loaded transformer/VAE/encoders/scheduler.
+                # Plain img2img, or combined img2img + one Canny ControlNet
+                # attachment when bindings is non-empty: the same
+                # backends.hunyuandit_img2img component either way, extended
+                # with the ControlNet residual handoff when bindings are
+                # present. No second pipeline — the component uses this
+                # worker's already loaded base pipe and (when combined) the
+                # cached control model directly.
                 from backends.hunyuandit_img2img import run_hunyuan_img2img
 
                 denoise_strength = float(getattr(req, "denoise_strength", None) or 0.75)
@@ -1868,6 +1893,27 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                     init_pil = Image.open(io.BytesIO(init_image)).convert("RGB")
                 except Exception as e:
                     raise RuntimeError(f"invalid init image bytes: {e!r}")
+
+                cn_kwargs: dict[str, Any] = {}
+                if bindings:
+                    try:
+                        Image.open(io.BytesIO(combined_binding.control_image_bytes))
+                    except Exception as e:
+                        raise RuntimeError(f"invalid control map bytes: {e!r}")
+
+                    _validate_control_image_aspect_ratio(init_image, bindings)
+
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids
+                    )
+                    cn_kwargs = {
+                        "controlnet": controlnet_kwargs.pop("controlnet"),
+                        "control_image": controlnet_kwargs.pop("control_image"),
+                        "controlnet_conditioning_scale": controlnet_kwargs.pop(
+                            "controlnet_conditioning_scale"
+                        ),
+                    }
+
                 init_pil = init_pil.resize((width, height))
 
                 conditioning_kwargs = self._accept_conditioning_artifact(
@@ -1888,6 +1934,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                         generator=gen,
                         progress=progress,
                         should_cancel=should_cancel,
+                        **cn_kwargs,
                     )
                 img: Image.Image = images[0]
 
@@ -1902,6 +1949,8 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                     "scheduler_id": scheduler_id,
                     "denoise_strength": denoise_strength,
                 }))
+                if bindings:
+                    pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
                 buf = io.BytesIO()
                 img.save(buf, format="PNG", pnginfo=pnginfo)
                 return buf.getvalue(), seed
