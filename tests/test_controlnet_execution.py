@@ -120,3 +120,49 @@ def test_active_model_family_from_variant_rejects_unknown_prefix():
 
     with pytest.raises(ValueError, match="unsupported active model family for ControlNet"):
         active_model_family_from_variant("flux-dev")
+
+
+def _hunyuan_combined_admission(attachment):
+    from server.controlnet_execution import admit_generation_operation
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    mode = type("Mode", (), {"name": "hunyuandit-mode"})()
+    snapshot = make_active_snapshot(mode, family_id="hunyuandit")
+    provider = make_family_provider(family_id="hunyuandit", supports_combined=True)
+    req = type("Req", (), {"controlnets": [attachment]})()
+    return admit_generation_operation(req, snapshot=snapshot, provider=provider, has_init_image=True)
+
+
+def test_admit_generation_operation_hunyuan_combined_canny_default_window_admits():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(attachment_id="cn", control_type="canny", map_asset_ref="map")
+    assert _hunyuan_combined_admission(attachment) == "img2img+controlnet"
+
+
+def test_admit_generation_operation_hunyuan_combined_rejects_non_canny():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(attachment_id="cn", control_type="depth", map_asset_ref="map")
+    with pytest.raises(ValueError, match="Canny"):
+        _hunyuan_combined_admission(attachment)
+
+
+def test_admit_generation_operation_hunyuan_combined_rejects_nondefault_start_percent():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn", control_type="canny", map_asset_ref="map", start_percent=0.1
+    )
+    with pytest.raises(ValueError, match="control timing window"):
+        _hunyuan_combined_admission(attachment)
+
+
+def test_admit_generation_operation_hunyuan_combined_rejects_nondefault_end_percent():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn", control_type="canny", map_asset_ref="map", end_percent=0.9
+    )
+    with pytest.raises(ValueError, match="control timing window"):
+        _hunyuan_combined_admission(attachment)
