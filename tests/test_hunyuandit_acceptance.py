@@ -197,10 +197,12 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
         caps = provider.family_binding("hunyuandit").execution_capabilities
         assert caps.supports_img2img is True
         assert caps.supports_controlnet is True
-        assert caps.supports_img2img_and_controlnet is False
+        assert caps.supports_img2img_and_controlnet is True
 
-        # Plain img2img is admitted; the combined operation stays rejected
-        # before any preprocessing/store activity is needed.
+        # Plain img2img is admitted; a Canny-attachment combined request is
+        # now admitted too (source+preprocess form, not just a ready-made map
+        # — admission does not distinguish the two). Full combined execution
+        # is covered by test_hunyuandit_combined_img2img_controlnet_workerpool_acceptance.
         source_control = ControlNetAttachment(
             attachment_id="cn-src",
             control_type="canny",
@@ -214,13 +216,13 @@ def test_hunyuandit_workerpool_acceptance(monkeypatch, tmp_path):
             has_init_image=True,
         )
         assert admitted_img2img == "img2img"
-        with pytest.raises(ValueError, match="img2img\\+controlnet operation"):
-            admit_generation_operation(
-                GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap.", controlnets=[source_control]),
-                snapshot=snapshot,
-                provider=provider,
-                has_init_image=True,
-            )
+        admitted_combined = admit_generation_operation(
+            GenerateRequest(prompt="Profile of a smiling man wearing a taupe color cap.", controlnets=[source_control]),
+            snapshot=snapshot,
+            provider=provider,
+            has_init_image=True,
+        )
+        assert admitted_combined == "img2img+controlnet"
 
         store = InMemoryAssetStore()
         map_ref = store.write("control_map", control_map_png())
@@ -348,7 +350,7 @@ def test_hunyuandit_img2img_workerpool_acceptance(monkeypatch, tmp_path):
         caps = provider.family_binding("hunyuandit").execution_capabilities
         assert caps.supports_img2img is True
         assert caps.supports_controlnet is True
-        assert caps.supports_img2img_and_controlnet is False
+        assert caps.supports_img2img_and_controlnet is True
 
         base_req = GenerateRequest(
             prompt="a weathered lighthouse at dusk, oil painting",
@@ -364,8 +366,9 @@ def test_hunyuandit_img2img_workerpool_acceptance(monkeypatch, tmp_path):
         )
         assert admitted == "img2img"
 
-        # Admission still rejects the combined operation even though plain
-        # img2img is now supported.
+        # Admission now admits the combined operation too (source+preprocess
+        # form, not just a ready-made map). Full combined execution is
+        # covered by test_hunyuandit_combined_img2img_controlnet_workerpool_acceptance.
         source_control = ControlNetAttachment(
             attachment_id="cn-src",
             control_type="canny",
@@ -375,10 +378,10 @@ def test_hunyuandit_img2img_workerpool_acceptance(monkeypatch, tmp_path):
         combined_req = GenerateRequest(
             prompt=base_req.prompt, size="1024x1024", controlnets=[source_control],
         )
-        with pytest.raises(ValueError, match="img2img\\+controlnet operation"):
-            admit_generation_operation(
-                combined_req, snapshot=snapshot, provider=provider, has_init_image=True,
-            )
+        admitted_combined = admit_generation_operation(
+            combined_req, snapshot=snapshot, provider=provider, has_init_image=True,
+        )
+        assert admitted_combined == "img2img+controlnet"
 
         source_bytes = _generate_img2img_source((1024, 1024))
         out_dir = Path(os.environ.get("ACCEPTANCE_OUT_DIR", tmp_path))
