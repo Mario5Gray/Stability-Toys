@@ -584,21 +584,292 @@ def test_hunyuandit_img2img_route_honors_explicit_strength():
     assert _lcm_metadata(png_bytes)["denoise_strength"] == 0.3
 
 
-def test_hunyuandit_worker_rejects_combined_init_image_and_controlnet():
+# --------------------------------------------------------------------------
+# Combined img2img + Canny ControlNet route
+# --------------------------------------------------------------------------
+
+
+def _canny_binding(**overrides):
+    defaults = dict(
+        attachment_id="canny-attachment",
+        control_type="canny",
+        model_id="hunyuandit-canny",
+        model_path="/models/hunyuandit-canny",
+        control_image_bytes=_tiny_png_bytes(),
+        strength=0.8,
+        start_percent=0.0,
+        end_percent=1.0,
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def _fake_cache():
+    cache = MagicMock()
+    cache.acquire.side_effect = lambda model_id, model_path, loader: f"loaded:{model_id}"
+    return cache
+
+
+def test_hunyuandit_combined_route_delegates_to_component_with_controlnet_kwargs():
     worker = _run_new_worker()
     worker.pipe = _FakePipelineBase()
-    binding = SimpleNamespace(
-        model_id="hunyuan-canny", attachment_id="cn_1", control_type="canny"
+    worker._controlnet_metadata = Mock(return_value=[{"attachment_id": "canny-attachment"}])
+
+    binding = _canny_binding()
+    req = _make_req()
+    job = SimpleNamespace(
+        req=req, init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
     )
+
+    control_image_sentinel = PILImage.new("RGB", (1024, 1024))
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+    captured = {}
+
+    def _fake_run_hunyuan_img2img(pipe, image, conditioning, **kwargs):
+        captured["pipe"] = pipe
+        captured["image"] = image
+        captured["conditioning"] = conditioning
+        captured["kwargs"] = kwargs
+        return [fake_output_image]
+
+    cache = _fake_cache()
+
+    with patch(
+        "backends.cuda_worker._decode_control_image", return_value=control_image_sentinel
+    ) as decode_mock, \
+         patch("backends.cuda_worker._validate_control_image_aspect_ratio") as aspect_mock, \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch(
+             "backends.hunyuandit_img2img.run_hunyuan_img2img",
+             side_effect=_fake_run_hunyuan_img2img,
+         ), \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        png_bytes, seed = worker.run_job(job)
+
+    aspect_mock.assert_called_once_with(job.init_image, [binding])
+    decode_mock.assert_called_once_with(binding.control_image_bytes, (1024, 1024))
+    cache.release.assert_called_once_with("hunyuandit-canny")
+
+    assert captured["kwargs"]["controlnet"] == "loaded:hunyuandit-canny"
+    assert captured["kwargs"]["control_image"] is control_image_sentinel
+    assert captured["kwargs"]["controlnet_conditioning_scale"] == 0.8
+    assert captured["kwargs"]["strength"] == 0.75
+    assert captured["kwargs"]["width"] == 1024
+    assert captured["kwargs"]["height"] == 1024
+    assert captured["image"].size == (1024, 1024)
+    assert captured["pipe"] is worker.pipe
+    # No from_pipe composition: the component uses the already loaded base
+    # pipe and the cached control model directly.
+    assert worker.pipe.calls == []
+
+    assert seed == 7
+    metadata = _lcm_metadata(png_bytes)
+    assert metadata["denoise_strength"] == 0.75
+    assert metadata["prompt"] == "a red panda"
+    img = PILImage.open(io.BytesIO(png_bytes))
+    controlnet_meta = json.loads(img.text["controlnet"])  # type: ignore[attr-defined]
+    assert controlnet_meta == [{"attachment_id": "canny-attachment"}]
+
+
+def test_hunyuandit_combined_route_runs_denoise_inside_inference_mode():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+    fake_output_image = PILImage.new("RGB", (1024, 1024))
+    events = []
+
+    class _RecordingInferenceMode:
+        def __enter__(self):
+            events.append("enter")
+            return self
+
+        def __exit__(self, *exc_info):
+            events.append("exit")
+            return False
+
+    def _fake_run_hunyuan_img2img(*args, **kwargs):
+        events.append("call")
+        return [fake_output_image]
+
+    cache = _fake_cache()
+    mock_torch = MagicMock(inference_mode=lambda: _RecordingInferenceMode())
+
+    with patch("backends.cuda_worker._decode_control_image", return_value=MagicMock()), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch(
+             "backends.hunyuandit_img2img.run_hunyuan_img2img",
+             side_effect=_fake_run_hunyuan_img2img,
+         ), \
+         patch("backends.cuda_worker.torch", mock_torch):
+        worker.run_job(job)
+
+    assert events == ["enter", "call", "exit"]
+
+
+def test_hunyuandit_combined_route_rejects_mismatched_aspect_ratio_before_dispatch():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding(control_image_bytes=_tiny_png_bytes(size=(103, 100)))  # ratio 1.03
+    job = SimpleNamespace(
+        req=_make_req(),
+        init_image=_tiny_png_bytes(size=(100, 100)),  # ratio 1.0, diverges 3% > 2%
+        controlnet_bindings=[binding],
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(ValueError, match="canny-attachment"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_bad_init_image_bytes():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=b"not-a-png", controlnet_bindings=[binding]
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="invalid init image bytes"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_bad_control_map_bytes():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding(control_image_bytes=b"not-a-png")
     job = SimpleNamespace(
         req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
     )
 
-    with pytest.raises(RuntimeError, match="img2img.*controlnet|controlnet.*img2img"):
-        worker.run_job(job)
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="invalid control map bytes"):
+            worker.run_job(job)
 
-    # Defense in depth: rejected before any model or image work ran.
-    worker._apply_request_scheduler.assert_not_called()
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_unresolved_controlnet_binding():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    req = _make_req()
+    req.controlnets = [SimpleNamespace(attachment_id="cn_1")]
+    job = SimpleNamespace(
+        req=req, init_image=_tiny_png_bytes(), controlnet_bindings=[]
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="resolved Canny binding"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_non_canny_binding():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding(control_type="depth")
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="Canny"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_more_than_one_binding():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    bindings = [_canny_binding(attachment_id="cn_1"), _canny_binding(attachment_id="cn_2")]
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=bindings
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="exactly one"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_rejects_nondefault_timing_window():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding(start_percent=0.1)
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+
+    with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="control timing window"):
+            worker.run_job(job)
+
+    component_mock.assert_not_called()
+
+
+def test_hunyuandit_combined_route_releases_cache_on_component_exception():
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+
+    cache = _fake_cache()
+
+    with patch("backends.cuda_worker._decode_control_image", return_value=MagicMock()), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch(
+             "backends.hunyuandit_img2img.run_hunyuan_img2img",
+             side_effect=RuntimeError("boom"),
+         ), \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(RuntimeError, match="boom"):
+            worker.run_job(job)
+
+    cache.release.assert_called_once_with("hunyuandit-canny")
+
+
+def test_hunyuandit_combined_route_releases_cache_on_cancellation():
+    import concurrent.futures
+
+    worker = _run_new_worker()
+    worker.pipe = _FakePipelineBase()
+    binding = _canny_binding()
+    job = SimpleNamespace(
+        req=_make_req(), init_image=_tiny_png_bytes(), controlnet_bindings=[binding]
+    )
+
+    cache = _fake_cache()
+
+    with patch("backends.cuda_worker._decode_control_image", return_value=MagicMock()), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
+         patch(
+             "backends.hunyuandit_img2img.run_hunyuan_img2img",
+             side_effect=concurrent.futures.CancelledError("job cancelled"),
+         ), \
+         patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(concurrent.futures.CancelledError):
+            worker.run_job(job)
+
+    cache.release.assert_called_once_with("hunyuandit-canny")
 
 
 def _memory_opt_probe_pipe():
