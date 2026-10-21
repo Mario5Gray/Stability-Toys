@@ -13,6 +13,7 @@ from diffusers.pipelines.hunyuandit.pipeline_hunyuandit import HunyuanDiTPipelin
 from PIL import Image
 
 from backends.hunyuandit_img2img import (
+    prepare_control_latents,
     prepare_source_latents,
     run_hunyuan_img2img,
     select_timesteps,
@@ -234,6 +235,211 @@ def test_prepare_source_latents_rejects_invalid_dimensions_before_vae_encode(wid
             generator=torch.Generator(device="cpu").manual_seed(0),
             dtype=torch.float32,
             device="cpu",
+        )
+    assert pipe.vae.encode_calls == []
+
+
+# --- Task 2: seeded control-image latent preparation -----------------------
+#
+# ``FakeControlLatentDist.sample`` draws real randomness from the given
+# generator (rather than returning a fixed value) so same-seed/different-seed
+# tests are meaningful, and records the generator it received so identity can
+# be asserted directly.
+
+
+class FakeControlLatentDist:
+    def __init__(self, shape):
+        self.shape = shape
+        self.received_generator = None
+
+    def sample(self, generator=None):
+        self.received_generator = generator
+        return torch.randn(self.shape, generator=generator)
+
+
+class FakeControlVaeOutput:
+    def __init__(self, latent_dist):
+        self.latent_dist = latent_dist
+
+
+class FakeControlVaeConfig:
+    scaling_factor = 0.18215
+
+
+class FakeControlVae:
+    def __init__(self):
+        self.config = FakeControlVaeConfig()
+        self.device = torch.device("cpu")
+        self.dtype = torch.float32
+        self.encode_calls = []
+        self.last_dist = None
+
+    def encode(self, tensor):
+        self.encode_calls.append(tensor)
+        shape = (tensor.shape[0], 4, tensor.shape[-2] // 8, tensor.shape[-1] // 8)
+        dist = FakeControlLatentDist(shape)
+        self.last_dist = dist
+        return FakeControlVaeOutput(dist)
+
+
+class FakeControlPipe:
+    def __init__(self):
+        self.image_processor = FakeImageProcessor()
+        self.vae = FakeControlVae()
+
+
+def test_prepare_control_latents_preprocesses_at_requested_size():
+    pipe = FakeControlPipe()
+    prepare_control_latents(
+        pipe,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(1),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+    assert pipe.image_processor.calls == [("control-image", 64, 64)]
+
+
+def test_prepare_control_latents_non_cfg_batch_is_one():
+    pipe = FakeControlPipe()
+    prepare_control_latents(
+        pipe,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(1),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+    assert pipe.vae.encode_calls[0].shape[0] == 1
+
+
+def test_prepare_control_latents_cfg_doubles_batch_before_vae_encode():
+    pipe = FakeControlPipe()
+    prepare_control_latents(
+        pipe,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(1),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=True,
+    )
+    assert pipe.vae.encode_calls[0].shape[0] == 2
+
+
+def test_prepare_control_latents_scales_by_vae_scaling_factor_and_moves_dtype_device():
+    pipe = FakeControlPipe()
+    generator = torch.Generator(device="cpu").manual_seed(99)
+
+    result = prepare_control_latents(
+        pipe,
+        "control-image",
+        width=64,
+        height=64,
+        generator=generator,
+        dtype=torch.float16,
+        device="cpu",
+        do_cfg=False,
+    )
+
+    expected_raw = torch.randn((1, 4, 8, 8), generator=torch.Generator(device="cpu").manual_seed(99))
+    expected = (expected_raw * FakeControlVaeConfig.scaling_factor).to(dtype=torch.float16, device="cpu")
+    assert torch.allclose(result.float(), expected.float(), atol=1e-4)
+    assert result.dtype == torch.float16
+    assert result.device == torch.device("cpu")
+
+
+def test_prepare_control_latents_passes_exact_generator_to_sample():
+    pipe = FakeControlPipe()
+    generator = torch.Generator(device="cpu").manual_seed(1)
+    prepare_control_latents(
+        pipe,
+        "control-image",
+        width=64,
+        height=64,
+        generator=generator,
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+    assert pipe.vae.last_dist.received_generator is generator
+
+
+def test_prepare_control_latents_same_seed_reproduces_latents():
+    pipe_a = FakeControlPipe()
+    pipe_b = FakeControlPipe()
+
+    result_a = prepare_control_latents(
+        pipe_a,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(7),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+    result_b = prepare_control_latents(
+        pipe_b,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(7),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+
+    assert torch.equal(result_a, result_b)
+
+
+def test_prepare_control_latents_different_seed_differs():
+    pipe_a = FakeControlPipe()
+    pipe_b = FakeControlPipe()
+
+    result_a = prepare_control_latents(
+        pipe_a,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(7),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+    result_b = prepare_control_latents(
+        pipe_b,
+        "control-image",
+        width=64,
+        height=64,
+        generator=torch.Generator(device="cpu").manual_seed(8),
+        dtype=torch.float32,
+        device="cpu",
+        do_cfg=False,
+    )
+
+    assert not torch.equal(result_a, result_b)
+
+
+@pytest.mark.parametrize("width, height", [(0, 64), (64, 0), (-1, 64), (65, 64), (64, 65)])
+def test_prepare_control_latents_rejects_invalid_dimensions_before_vae_encode(width, height):
+    pipe = FakeControlPipe()
+    with pytest.raises(ValueError):
+        prepare_control_latents(
+            pipe,
+            "control-image",
+            width=width,
+            height=height,
+            generator=torch.Generator(device="cpu").manual_seed(0),
+            dtype=torch.float32,
+            device="cpu",
+            do_cfg=False,
         )
     assert pipe.vae.encode_calls == []
 

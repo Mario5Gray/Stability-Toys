@@ -62,6 +62,33 @@ def prepare_source_latents(pipe, image, *, width, height, timestep, generator, d
     return pipe.scheduler.add_noise(source_latent, noise, timestep)
 
 
+def prepare_control_latents(pipe, control_image, *, width, height, generator, dtype, device, do_cfg):
+    """Normalize, CFG-batch, and VAE-encode a Canny control image.
+
+    Mirrors Diffusers 0.39's ``HunyuanDiTControlNetPipeline.prepare_image`` and
+    the VAE-encode step of its ``__call__`` (steps 4/9), except this seeds the
+    VAE latent sample with ``generator``: the installed pipeline calls
+    ``sample()`` unseeded, which would make a combined request's control latent
+    irreproducible for a fixed seed.
+    """
+    import torch
+
+    if width <= 0 or height <= 0 or width % 8 != 0 or height % 8 != 0:
+        raise ValueError(
+            f"width and height must be positive and divisible by 8, got {width}x{height}"
+        )
+
+    control_tensor = pipe.image_processor.preprocess(control_image, height=height, width=width)
+    control_tensor = control_tensor.to(device=pipe.vae.device, dtype=pipe.vae.dtype)
+    if do_cfg:
+        control_tensor = torch.cat([control_tensor] * 2)
+
+    control_dist = pipe.vae.encode(control_tensor).latent_dist
+    control_latents = control_dist.sample(generator=generator)
+    control_latents = control_latents * pipe.vae.config.scaling_factor
+    return control_latents.to(device=device, dtype=dtype)
+
+
 def run_hunyuan_img2img(
     pipe,
     image,
