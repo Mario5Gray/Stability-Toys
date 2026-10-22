@@ -44,6 +44,7 @@ def test_policy_modules_import_without_torch():
             "-c",
             "import sys; import backends.torch_policy; "
             "import backends.platforms.cuda_policy; "
+            "import backends.platforms.mps_policy; "
             "assert 'torch' not in sys.modules, 'torch imported eagerly'",
         ],
         cwd=REPO_ROOT,
