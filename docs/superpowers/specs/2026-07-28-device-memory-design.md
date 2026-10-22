@@ -170,7 +170,9 @@ The four lifecycle events, against real code:
 
 - **Singleton + selection:** `get_device_memory(uuid: str | None = None)` (like `get_worker_pool()`). Provider chosen by topology once at startup; no per-call selection. The `uuid` parameter is present from v1 as a **forward-proof**: `None` resolves to the single/default device. v1 has exactly one device, so callers pass nothing; multi-device (§6.1) resolves a specific device behind the same accessor — no v1 call site changes.
 - **Injection:** startup lifespan creates `DeviceMemory` → `ModelRegistry(device_memory)` → `Governor(registry, ...)`; the handle gets the ref too. DI constructor param, default `get_device_memory()` — same pattern as `mode_config`/`registry`.
-- **Worker consumer adapter:** `WorkerMemoryConsumer(MemoryConsumer)` wraps the worker. `pool_stats()` → `ConsumerMemory(label="worker", pid, allocated=memory_allocated(), reserved=memory_reserved(), stale=False)`; `reclaim()` → `empty_cache()` (in-proc) / reclaim frame (subprocess, later). This is what `register()` takes.
+- **Worker consumer adapter:** `WorkerMemoryConsumer(MemoryConsumer)` wraps the worker. Its execution policy reads allocated and reserved process bytes. CUDA reads `torch.cuda.memory_allocated()` and `torch.cuda.memory_reserved()`. MPS reads `torch.mps.current_allocated_memory()` and `torch.mps.driver_allocated_memory()`. `reclaim()` releases the selected allocator cache in process. CUDA still checks availability first. The subprocess consumer reads child stats through the child's worker policy. `pool_stats()` reports `stale=False` and keeps label `worker`.
+
+**DECIDED (`STABL-qpumvysu`):** The subprocess parent has no worker. `get_worker_pool()` accepts an explicit parent execution policy. Its default stays CUDA for existing callers. MPS registration in `STABL-lnlreqeh` must pass the MPS policy. In-process mode registers no separate parent consumer.
 
 ### 6.1 Multi-device composition (cchxvuhs-facing)
 

@@ -142,6 +142,10 @@ class _RecordingPolicy:
     def release_cache(self):
         self.calls.append(("release_cache",))
 
+    def memory_stats(self):
+        self.calls.append(("memory_stats",))
+        return (0, 0)
+
 
 def test_worker_delegates_device_actions_to_policy():
     from backends.cuda_worker import CudaWorkerBase

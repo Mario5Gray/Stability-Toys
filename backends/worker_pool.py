@@ -223,6 +223,7 @@ def get_worker_pool(
     registry: Optional[ModelRegistryProtocol] = None,
     device_memory=None,
     handle=None,
+    parent_execution_policy=None,
 ) -> WorkerPool:
     """
     Get global worker pool instance.
@@ -237,6 +238,7 @@ def get_worker_pool(
         registry: Optional model registry (for testing)
         device_memory: Optional DeviceMemory authority (for testing)
         handle: Optional WorkerHandle to inject (overrides env selection)
+        parent_execution_policy: Optional policy for the parent process consumer
 
     Returns:
         Global WorkerPool instance
@@ -287,7 +289,7 @@ def get_worker_pool(
             from backends.device_memory import ProcessMemoryConsumer, get_device_memory
 
             dm = device_memory or get_device_memory()
-            consumer = ProcessMemoryConsumer("server")
+            consumer = ProcessMemoryConsumer("server", parent_execution_policy)
             _worker_pool._parent_consumers = [consumer]
             _worker_pool._parent_registrations = [dm.register(consumer)]
     return _worker_pool

@@ -98,6 +98,7 @@ def test_subprocess_mode_registers_the_parent_process_separately(monkeypatch):
             "subprocess mode did not register a parent-process consumer, so superres "
             "VRAM stays in unattributed_bytes"
         )
+        assert pool._parent_consumers[0]._execution_policy.backend_id == "cuda"
     finally:
         reset_worker_pool()
 
@@ -113,5 +114,26 @@ def test_inproc_mode_does_not_add_a_second_parent_consumer(monkeypatch):
             "inproc mode registered a parent consumer alongside the in-proc worker "
             "consumer — the same process counted twice"
         )
+    finally:
+        reset_worker_pool()
+
+
+def test_subprocess_parent_uses_explicit_mps_policy(monkeypatch):
+    from backends.platforms.mps_policy import MPS_TORCH_POLICY
+    from unittest.mock import patch
+
+    monkeypatch.setenv("WORKER_ISOLATION", "subprocess")
+    reset_worker_pool()
+    try:
+        pool = get_worker_pool(
+            **_minimal_deps(), parent_execution_policy=MPS_TORCH_POLICY
+        )
+        assert len(pool._parent_consumers) == 1
+        with (
+            patch("torch.mps.current_allocated_memory", return_value=77),
+            patch("torch.mps.driver_allocated_memory", return_value=88),
+        ):
+            stats = pool._parent_consumers[0].pool_stats()
+        assert (stats.allocated_bytes, stats.reserved_bytes) == (77, 88)
     finally:
         reset_worker_pool()

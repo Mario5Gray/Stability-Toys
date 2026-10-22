@@ -27,9 +27,20 @@ class TorchExecutionSettings:
     offload: str
 
 
+def worker_execution_policy(worker):
+    policy = getattr(type(worker), "execution_policy", None)
+    if policy is not None:
+        return policy
+    return getattr(worker, "__dict__", {}).get("execution_policy")
+
+
 @runtime_checkable
 class TorchExecutionPolicy(Protocol):
     backend_id: str
+
+    def memory_stats(self) -> tuple[int, int]:
+        """Return process allocated and reserved allocator bytes."""
+        ...
 
     def resolve_settings(self, model_info: Any) -> TorchExecutionSettings:
         """Resolve settings from the environment and ``model_info.runtime_*``."""

@@ -21,6 +21,11 @@ def _bool_env(name: str, default: str = "0") -> bool:
 class CudaTorchPolicy:
     backend_id: str = "cuda"
 
+    def memory_stats(self) -> tuple[int, int]:
+        import torch
+
+        return int(torch.cuda.memory_allocated()), int(torch.cuda.memory_reserved())
+
     def resolve_settings(self, model_info: Any) -> TorchExecutionSettings:
         """Parse all CUDA_* env vars. Non-None ``model_info.runtime_*`` values win."""
         import torch

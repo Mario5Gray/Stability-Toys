@@ -283,10 +283,72 @@ def test_worker_consumer_reclaim_calls_empty_cache(monkeypatch):
     torch_mock.cuda.empty_cache.assert_called_once()
 
 
+def test_mps_worker_consumer_uses_policy_allocator():
+    import os
+    from unittest.mock import patch
+
+    from backends.platforms.mps_policy import MPS_TORCH_POLICY
+
+    class _MpsWorker:
+        execution_policy = MPS_TORCH_POLICY
+
+    worker = _MpsWorker()
+    with (
+        patch("torch.mps.current_allocated_memory", return_value=123) as allocated,
+        patch("torch.mps.driver_allocated_memory", return_value=456) as reserved,
+        patch("torch.mps.empty_cache") as empty_cache,
+        patch("torch.cuda.memory_allocated") as cuda_allocated,
+    ):
+        consumer = WorkerMemoryConsumer(worker)
+        assert consumer.pool_stats() == ConsumerMemory("worker", os.getpid(), 123, 456)
+        consumer.reclaim()
+
+    allocated.assert_called_once_with()
+    reserved.assert_called_once_with()
+    empty_cache.assert_called_once_with()
+    cuda_allocated.assert_not_called()
+
+
+def test_cuda_reclaim_skips_unavailable_device():
+    from unittest.mock import patch
+
+    with (
+        patch("torch.cuda.is_available", return_value=False),
+        patch("torch.cuda.empty_cache") as empty_cache,
+    ):
+        WorkerMemoryConsumer().reclaim()
+    empty_cache.assert_not_called()
+
+
+def test_mock_worker_without_explicit_policy_uses_cuda():
+    from unittest.mock import Mock, patch
+
+    with (
+        patch("torch.cuda.memory_allocated", return_value=11),
+        patch("torch.cuda.memory_reserved", return_value=22),
+    ):
+        stats = WorkerMemoryConsumer(Mock()).pool_stats()
+    assert (stats.allocated_bytes, stats.reserved_bytes) == (11, 22)
+
+
+def test_unavailable_nvml_uses_host_ram_for_admission(monkeypatch):
+    import backends.device_memory as device_memory
+
+    class _DeadNvml:
+        def nvmlInit(self):
+            raise RuntimeError("no NVIDIA driver")
+
+    monkeypatch.setattr(device_memory, "_import_pynvml", lambda: _DeadNvml())
+    monkeypatch.setattr(device_memory, "_import_psutil", lambda: _FakePsutil())
+    provider = device_memory._select_provider(None)
+    assert isinstance(provider, UnifiedDeviceMemory)
+    assert provider.available_for_load() == 8 * 1024**3
+
+
 # --- Per-process attribution (STABL-xtkhoidu) --------------------------------
 #
-# pool_stats() reads torch.cuda.memory_allocated()/memory_reserved(), which are
-# PROCESS-GLOBAL. Two consumers registered in one process therefore report the
+# pool_stats() reads process-global Torch allocator counters. Two consumers
+# registered in one process therefore report the
 # same bytes twice. The invariant is ONE registered consumer per process.
 
 

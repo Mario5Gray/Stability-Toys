@@ -42,6 +42,84 @@ def test_subprocess_handle_runs_a_job_end_to_end():
     assert h.health().state == "dead"
 
 
+def test_child_stats_use_worker_policy():
+    import pickle
+    from unittest.mock import patch
+
+    from backends.platforms.mps_policy import MPS_TORCH_POLICY
+    from backends.worker_handle_subprocess import _STATS, _serve_control
+
+    class _Control:
+        def __init__(self):
+            self.messages = [_STATS]
+            self.sent = []
+
+        def recv_bytes(self):
+            if not self.messages:
+                raise EOFError
+            return self.messages.pop(0)
+
+        def send_bytes(self, payload):
+            self.sent.append(pickle.loads(payload))
+
+    control = _Control()
+    with (
+        patch("torch.mps.current_allocated_memory", return_value=321),
+        patch("torch.mps.driver_allocated_memory", return_value=654),
+        patch("torch.cuda.memory_allocated") as cuda_allocated,
+    ):
+        _serve_control(control, worker_policy=MPS_TORCH_POLICY)
+
+    assert control.sent[0]["allocated_bytes"] == 321
+    assert control.sent[0]["reserved_bytes"] == 654
+    cuda_allocated.assert_not_called()
+
+
+def test_child_control_receives_built_worker_policy(monkeypatch):
+    from unittest.mock import Mock
+
+    import backends.worker_handle_subprocess as subprocess_handle
+    from backends.platforms.mps_policy import MPS_TORCH_POLICY
+
+    class _MpsWorker:
+        execution_policy = MPS_TORCH_POLICY
+
+    worker = _MpsWorker()
+    monkeypatch.setattr(subprocess_handle, "_resolve_ref", lambda _: lambda *args: worker)
+    monkeypatch.setattr(subprocess_handle, "_configure_child_logging", lambda: None)
+    monkeypatch.setattr(subprocess_handle, "configure_child_tracing", lambda: None)
+    thread = Mock()
+    monkeypatch.setattr(subprocess_handle.threading, "Thread", thread)
+    connection = Mock()
+    connection.recv_bytes.side_effect = EOFError
+    control_connection = Mock()
+
+    subprocess_handle._worker_main(
+        connection, "unused.factory", None, None, None, control_connection
+    )
+
+    assert thread.call_args.kwargs["args"][2] is MPS_TORCH_POLICY
+    connection.send_bytes.assert_called_once_with(subprocess_handle._READY)
+
+
+def test_child_without_explicit_policy_keeps_cuda_default(monkeypatch):
+    from unittest.mock import Mock
+
+    import backends.worker_handle_subprocess as subprocess_handle
+
+    monkeypatch.setattr(subprocess_handle, "_resolve_ref", lambda _: lambda *args: Mock())
+    monkeypatch.setattr(subprocess_handle, "_configure_child_logging", lambda: None)
+    monkeypatch.setattr(subprocess_handle, "configure_child_tracing", lambda: None)
+    thread = Mock()
+    monkeypatch.setattr(subprocess_handle.threading, "Thread", thread)
+    connection = Mock()
+    connection.recv_bytes.side_effect = EOFError
+
+    subprocess_handle._worker_main(connection, "unused.factory", None, None, None, Mock())
+
+    assert thread.call_args.kwargs["args"][2] is None
+
+
 def test_subprocess_handle_propagates_oom_as_oom_code():
     """An in-band OOM is captured by the bridge as BackplaneErrorCode.OOM.
 
@@ -676,9 +754,8 @@ def test_an_unresponsive_child_degrades_to_stale_not_an_exception():
 
 def test_a_cancel_that_arrives_before_the_job_starts_still_reaps_it():
     """REGRESSION. The job and the cancel travel down two DIFFERENT pipes, so the
-    cancel can reach the child first — reliably so here, because the child's
-    first job start waits on the import lock held by the control thread's
-    `import torch`.
+    cancel can reach the child first. This test sends cancel before it submits
+    the job.
 
     A bare flag cleared at job start discards exactly this cancel and the job
     runs to completion. Job-scoped state remembers it, so the reap still lands.

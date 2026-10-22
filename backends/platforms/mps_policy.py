@@ -20,6 +20,11 @@ def _bool_env(name: str) -> bool:
 class MpsTorchPolicy:
     backend_id: str = "mps"
 
+    def memory_stats(self) -> tuple[int, int]:
+        import torch
+
+        return int(torch.mps.current_allocated_memory()), int(torch.mps.driver_allocated_memory())
+
     def resolve_settings(self, model_info: Any) -> TorchExecutionSettings:
         import torch
 
