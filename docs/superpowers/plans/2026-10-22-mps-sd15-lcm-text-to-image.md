@@ -56,6 +56,8 @@ Use `waveplan-cli swim local log` for factual progress. Leave FP comments at mil
 1. Add `test_mps_worker_loads_lcm_on_mps` using a fake SD1.5 pipeline.
 2. Patch `torch.backends.mps.is_built` and `is_available` to return true.
 3. Patch `backends.mps_worker._sd_pipeline_cls` and `_lcm_scheduler_cls` with recording fakes.
+   Define or import both names as module globals in `backends/mps_worker.py`.
+   Call these module globals unqualified so those patches intercept the imports.
 4. Assert `from_pretrained` receives the local path and `torch.float16` for a Diffusers directory.
 5. Assert `pipe.to("mps")`, LCM scheduler installation, and `worker.execution_policy is MPS_TORCH_POLICY`.
 6. Add the matching `from_single_file` case for `loader_format="single_file"`.
@@ -83,10 +85,12 @@ python -m tests.run tests/test_mps_worker.py -- -q -p no:cacheprovider --no-cov
 
 8. Add `DiffusersMpsWorker(CudaWorkerBase)` in `backends/mps_worker.py`.
 9. Call `super().__init__(worker_id, model_info=model_info, family_profile=family_profile)` first.
-10. Load `StableDiffusionPipeline` through `_sd_pipeline_cls()` by `loader_format`.
+10. Load `StableDiffusionPipeline` through the module-global `_sd_pipeline_cls()` by `loader_format`.
 11. Set `pipe.scheduler = _lcm_scheduler_cls().from_config(pipe.scheduler.config)`.
+    Install LCM unconditionally. Omit CUDA's `scheduler_profile="native"` branch deliberately because this slice accepts only LCM.
 12. Call `self._setup_pipe_memory_opts(pipe)`, then store `self.pipe` and capture its scheduler.
-13. Reuse SD1.5 style loading from `DiffusersCudaWorker.__init__` without a new base class.
+13. Do not copy the inline style-LoRA load loop from `DiffusersCudaWorker.__init__`.
+    `STYLE_REGISTRY` is empty. Keep the base `_apply_style` cleanup path for this slice.
 14. Keep MPS worker logs prefixed `[mps]`. Do not change CUDA environment values.
 15. Run the worker file again. Expected GREEN: all constructor tests pass.
 
@@ -269,7 +273,8 @@ python -m tests.run tests/test_progress_bar_suppression.py tests/test_mps_regist
 1. Stop if no local `lcm-dreamshaper-v7` Diffusers directory exists.
 2. Export `MPS_SLICE_MODEL_ROOT` as the absolute parent model root.
 3. Require `$MPS_SLICE_MODEL_ROOT/diffusers/lcm-dreamshaper-v7/model_index.json`.
-4. Copy `conf/modes.yml` to `/tmp/stabl-hvvogszy-conf/modes.yml`.
+4. Copy all of `conf/` to `/tmp/stabl-hvvogszy-conf`.
+   The server reads `controlnets.yaml` from that directory even with registry validation off.
 5. Set `model_root` to the model root. Set `lora_root` to its `loras` directory.
 
 ```bash
@@ -278,7 +283,7 @@ read -r MPS_SLICE_MODEL_ROOT
 export MPS_SLICE_MODEL_ROOT
 test -f "$MPS_SLICE_MODEL_ROOT/diffusers/lcm-dreamshaper-v7/model_index.json"
 mkdir -p /tmp/stabl-hvvogszy-conf
-cp conf/modes.yml /tmp/stabl-hvvogszy-conf/modes.yml
+cp -R conf/. /tmp/stabl-hvvogszy-conf/
 python - <<'PY'
 import os
 from pathlib import Path
@@ -302,10 +307,16 @@ python -c 'import compel; from server.mode_config import ModeConfigManager; mode
 9. Commit implementation first. Require `git status --porcelain` empty before the probe.
 10. Run the two-probe repeatability sequence from `docs/MPS_BACKEND.md` outside a restricted sandbox.
 11. Require both probe exits 0 and `seeded_tensor.matches_expected: true` on run two.
-12. Start the server with `BACKEND=mps`, `MODE_CONFIG_PATH=/tmp/stabl-hvvogszy-conf`, and `WORKER_ISOLATION=inproc`.
+12. Require `DEFAULT_SIZE`, `DEFAULT_STEPS`, and `DEFAULT_GUIDANCE` to be unset in each server shell.
+    The mode-default overlay depends on these values matching its request defaults.
+    Start the server with `BACKEND=mps`, `MODE_CONFIG_PATH=/tmp/stabl-hvvogszy-conf`, and `WORKER_ISOLATION=inproc`.
 13. Switch to `lcm-general`. Confirm the loaded mode through `/api/models/status`.
 
 ```bash
+if [[ -n "${DEFAULT_SIZE+x}" || -n "${DEFAULT_STEPS+x}" || -n "${DEFAULT_GUIDANCE+x}" ]]; then
+  printf 'Unset DEFAULT_SIZE, DEFAULT_STEPS, and DEFAULT_GUIDANCE before live acceptance.\n' >&2
+  exit 1
+fi
 BACKEND=mps WORKER_ISOLATION=inproc MODE_CONFIG_PATH=/tmp/stabl-hvvogszy-conf CONTROLNET_REGISTRY_VALIDATION=off python server/lcm_sr_server.py
 ```
 
@@ -325,6 +336,10 @@ curl --fail-with-body --silent --show-error --max-time 900 \
 14. Stop that server. Repeat the same request under subprocess isolation:
 
 ```bash
+if [[ -n "${DEFAULT_SIZE+x}" || -n "${DEFAULT_STEPS+x}" || -n "${DEFAULT_GUIDANCE+x}" ]]; then
+  printf 'Unset DEFAULT_SIZE, DEFAULT_STEPS, and DEFAULT_GUIDANCE before live acceptance.\n' >&2
+  exit 1
+fi
 BACKEND=mps WORKER_ISOLATION=subprocess MODE_CONFIG_PATH=/tmp/stabl-hvvogszy-conf CONTROLNET_REGISTRY_VALIDATION=off python server/lcm_sr_server.py
 ```
 
