@@ -31,7 +31,9 @@ from backends.family_profiles import (
     SD15_PROFILE,
     SDXL_PROFILE,
 )
+from backends.platforms.cuda_policy import CUDA_TORCH_POLICY
 from backends.styles import STYLE_REGISTRY
+from backends.torch_policy import TorchExecutionPolicy
 from backends.scheduler_registry import build_scheduler, normalize_scheduler_id
 from server.log_format import JSON, resolve_log_format
 
@@ -316,8 +318,9 @@ class _ConditioningConsumerDescription:
 class CudaWorkerBase:
     """Shared base for CUDA diffusers workers.
 
-    Centralises env-var parsing, device placement, and style-LoRA application
-    so SD1.5 and SDXL workers stay in sync without code duplication.
+    Centralises execution settings, device placement, and style-LoRA application
+    so SD1.5 and SDXL workers stay in sync without code duplication. Device
+    actions go through ``execution_policy`` (``backends/torch_policy.py``).
 
     Subclass contract:
       - Call super().__init__(worker_id) first.
@@ -338,6 +341,11 @@ class CudaWorkerBase:
     # rotary positional embeddings through cross_attention_kwargs, which the
     # swapped-in xformers/sliced processors silently discard, producing noise.
     supports_attention_processor_swap: bool = True
+
+    # Device actions (settings, fp8 quantization, attention backend, placement,
+    # cache release) go through this policy. Family logic above stays shared.
+    # A non-CUDA worker overrides this attribute.
+    execution_policy: TorchExecutionPolicy = CUDA_TORCH_POLICY
 
     def __init__(
         self,
@@ -422,32 +430,15 @@ class CudaWorkerBase:
         return entries
 
     def _parse_env(self) -> None:
-        """Parse all CUDA_* env vars into instance attributes."""
-        self.device = os.environ.get("CUDA_DEVICE", "cuda:0").strip()
-        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
-        if dtype_str == "bf16":
-            self.dtype = torch.bfloat16
-        elif dtype_str == "fp32":
-            self.dtype = torch.float32
-        else:
-            self.dtype = torch.float16
-        self.dtype_str = dtype_str
-        env_enable_xformers = _bool_env("CUDA_ENABLE_XFORMERS", "0")
-        env_attention_slicing = _bool_env("CUDA_ATTENTION_SLICING", "0")
-        env_quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
-        env_offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
-
-        runtime_enable_xformers = getattr(self.model_info, "runtime_enable_xformers", None)
-        runtime_attention_slicing = getattr(self.model_info, "runtime_attention_slicing", None)
-        runtime_quantize = getattr(self.model_info, "runtime_quantize", None)
-        runtime_offload = getattr(self.model_info, "runtime_offload", None)
-
-        self._enable_xformers = env_enable_xformers if runtime_enable_xformers is None else bool(runtime_enable_xformers)
-        self._attention_slicing = (
-            env_attention_slicing if runtime_attention_slicing is None else bool(runtime_attention_slicing)
-        )
-        self._quantize = (runtime_quantize or env_quantize).lower().strip()
-        self._offload = (runtime_offload or env_offload).lower().strip()
+        """Resolve execution settings through the policy into instance attributes."""
+        settings = self.execution_policy.resolve_settings(self.model_info)
+        self.device = settings.device
+        self.dtype = settings.dtype
+        self.dtype_str = settings.dtype_str
+        self._enable_xformers = settings.enable_xformers
+        self._attention_slicing = settings.attention_slicing
+        self._quantize = settings.quantize
+        self._offload = settings.offload
         self._loader_format = getattr(self.model_info, "loader_format", "unknown")
         self._checkpoint_precision = getattr(self.model_info, "checkpoint_precision", "unknown")
         self._checkpoint_variant = getattr(self.model_info, "checkpoint_variant", "unknown")
@@ -493,12 +484,7 @@ class CudaWorkerBase:
         self._maybe_disable_progress_bar(pipe)
         should_quantize_runtime = self._quantize == "fp8" and self._checkpoint_precision != "fp8"
         if should_quantize_runtime:
-            freeze = _import_attr("optimum.quanto", "freeze")
-            quantize = _import_attr("optimum.quanto", "quantize")
-            qfloat8 = _import_attr("optimum.quanto", "qfloat8")
-            for target in self._quantization_targets(pipe):
-                quantize(target, weights=qfloat8)
-                freeze(target)
+            self.execution_policy.quantize_modules(self._quantization_targets(pipe))
             logger.info("[cuda] worker %s: fp8 quantization applied", self.worker_id)
         pipe.vae.enable_tiling()
         pipe.vae.enable_slicing()
@@ -518,19 +504,14 @@ class CudaWorkerBase:
                 pipe.enable_attention_slicing(1)
             if self._enable_xformers:
                 try:
-                    pipe.enable_xformers_memory_efficient_attention()
+                    self.execution_policy.enable_memory_efficient_attention(pipe)
                     logger.info("[cuda] worker %s: xformers enabled", self.worker_id)
                 except Exception as e:
                     logger.warning("[cuda] worker %s: xformers enable failed: %r",
                                    self.worker_id, e, exc_info=True)
-        gpu_id = self._device_index()
-        if self._offload == "sequential":
-            pipe.enable_sequential_cpu_offload(gpu_id=gpu_id)
-        elif self._offload == "model":
-            pipe.enable_model_cpu_offload(gpu_id=gpu_id)
-        else:
-            pipe = pipe.to(self.device)
-        return pipe
+        return self.execution_policy.place_pipeline(
+            pipe, device=self.device, offload=self._offload
+        )
 
     def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
         """Modules to fp8-quantize at runtime. SD quantizes only the UNet; the
@@ -544,12 +525,7 @@ class CudaWorkerBase:
 
     def _device_index(self) -> int:
         """Parse the integer device index from self.device (e.g. 'cuda:1' → 1)."""
-        if ":" in self.device:
-            try:
-                return int(self.device.split(":")[-1])
-            except ValueError:
-                return 0
-        return 0
+        return CUDA_TORCH_POLICY.device_index(self.device)
 
     def _pipeline_encode_dtype(self, pipe: Any) -> Any:
         for attr in ("text_encoder_2", "text_encoder", "unet"):
@@ -1206,7 +1182,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 cache = get_controlnet_cache()
                 for model_id in loaded_ids:
                     cache.release(model_id)
-            torch.cuda.empty_cache()
+            self.execution_policy.release_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
         """
@@ -1292,7 +1268,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         lat_nchw = latent_to_nchw(lat)
         lat_8 = downsample_to_8x8_nchw(lat_nchw).astype(np.float16)
         del lat, decoded
-        torch.cuda.empty_cache()
+        self.execution_policy.release_cache()
         return png_bytes, seed, lat_8.tobytes(order="C")
 
 
@@ -1599,7 +1575,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 cache = get_controlnet_cache()
                 for model_id in loaded_ids:
                     cache.release(model_id)
-            torch.cuda.empty_cache()
+            self.execution_policy.release_cache()
 
     def run_job_with_latents(self, job) -> Tuple[bytes, int, bytes]:
         """
@@ -1688,7 +1664,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
         lat_nchw = latent_to_nchw(lat)
         lat_8 = downsample_to_8x8_nchw(lat_nchw).astype(np.float16)
         del lat, decoded
-        torch.cuda.empty_cache()
+        self.execution_policy.release_cache()
         return png_bytes, seed, lat_8.tobytes(order="C")
 
 
@@ -2038,4 +2014,4 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                 cache = get_controlnet_cache()
                 for model_id in loaded_ids:
                     cache.release(model_id)
-            torch.cuda.empty_cache()
+            self.execution_policy.release_cache()
