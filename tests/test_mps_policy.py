@@ -40,6 +40,19 @@ def test_mps_policy_satisfies_contract_and_uses_float16(mps_ready):
     assert settings.offload == "none"
 
 
+@pytest.mark.parametrize("dtype", ["bf16", "fp32"])
+def test_mps_policy_rejects_unsupported_cuda_dtype(mps_ready, dtype):
+    with patch.dict(os.environ, {"CUDA_DTYPE": dtype}):
+        with pytest.raises(ValueError, match="CUDA_DTYPE"):
+            MPS_TORCH_POLICY.resolve_settings(None)
+
+
+def test_mps_policy_accepts_explicit_fp16(mps_ready):
+    with patch.dict(os.environ, {"CUDA_DTYPE": "FP16"}):
+        settings = MPS_TORCH_POLICY.resolve_settings(None)
+    assert settings.dtype is torch.float16
+
+
 @pytest.mark.parametrize("missing", ["is_built", "is_available"])
 def test_mps_policy_requires_runtime(mps_ready, missing):
     with patch(f"torch.backends.mps.{missing}", return_value=False):

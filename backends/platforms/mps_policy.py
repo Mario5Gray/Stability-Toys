@@ -1,4 +1,9 @@
-"""Strict MPS Torch execution policy (STABL-lhpndzru)."""
+"""Strict MPS Torch execution policy (STABL-lhpndzru).
+
+Require built, available MPS. Use float16 and MPS only. Reject CUDA-only
+offload, quantization, and xformers settings, including env values masked by
+safe model overrides. Ignore CUDA_DEVICE because device is always MPS.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,10 @@ class MpsTorchPolicy:
 
         if not torch.backends.mps.is_built() or not torch.backends.mps.is_available():
             raise RuntimeError("MPS runtime must be built and available")
+
+        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
+        if dtype_str != "fp16":
+            raise ValueError("MPS requires CUDA_DTYPE=fp16")
 
         env_offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
         env_quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
