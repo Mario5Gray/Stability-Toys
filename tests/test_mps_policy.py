@@ -67,6 +67,9 @@ def test_mps_policy_requires_runtime(mps_ready, missing):
         ("CUDA_OFFLOAD", "model", "offload"),
         ("CUDA_QUANTIZE", "fp8", "quantize"),
         ("CUDA_ENABLE_XFORMERS", "1", "xformers"),
+        ("CUDA_OFFLOAD", "", "offload"),
+        ("CUDA_QUANTIZE", "", "quantize"),
+        ("CUDA_DTYPE", "", "CUDA_DTYPE"),
     ],
 )
 def test_mps_policy_rejects_cuda_env_option(mps_ready, name, value, message):
