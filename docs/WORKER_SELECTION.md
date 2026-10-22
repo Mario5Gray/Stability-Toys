@@ -35,6 +35,9 @@ requests stay import-clean.
 Family resolution and worker selection are encapsulated in the `backends` package
 (`family_profiles`, `model_resolution`, `platforms/cuda_bindings`, `worker_factory`).
 
+`CUDAProvider` keeps the `CudaGenerationRuntime` compatibility class. Shared queue
+behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
+
 ## Configuration
 
 Models are declared per mode in `conf/modes.yml` under `model_root` + each mode's

@@ -488,9 +488,10 @@ ControlNet preprocessing. Unsupported family-cell operations therefore fail
 before generated artifacts or model loads. Legacy non-mode generation remains
 outside this snapshot path.
 
-`CudaGenerationRuntime` forwards `get_active_model_snapshot()` and changes its
-mode-backed submission path to accept the already captured snapshot and resolved
-ControlNet bindings. It no longer calls `get_current_mode()`,
+`PoolGenerationRuntime` owns queue-backed generation behavior.
+`CudaGenerationRuntime` remains its compatibility subclass. The shared runtime
+forwards `get_active_model_snapshot()` and accepts the captured snapshot and resolved
+ControlNet bindings. It does not call `get_current_mode()`,
 `get_mode_config()`, or `detect_model()` inside `submit_generate()`. The
 WebSocket path may continue to construct `GenerationJob` directly, but it must
 stamp the same captured epoch and bindings. HTTP and WebSocket therefore differ

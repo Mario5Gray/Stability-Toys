@@ -63,6 +63,16 @@ def test_cuda_provider_creates_runtime_without_server_branching():
     assert runtime.__class__.__name__ == "CudaGenerationRuntime"
 
 
+def test_cuda_runtime_uses_shared_pool_runtime():
+    from backends.platforms.cuda import CUDAProvider, CudaGenerationRuntime
+    from backends.platforms.pool_runtime import PoolGenerationRuntime
+
+    runtime = CUDAProvider().create_generation_runtime(pool=SimpleNamespace())
+
+    assert issubclass(CudaGenerationRuntime, PoolGenerationRuntime)
+    assert isinstance(runtime, PoolGenerationRuntime)
+
+
 def test_rknn_provider_creates_runtime_without_server_dependency():
     from backends.platforms.rknn import RKNNProvider
 
