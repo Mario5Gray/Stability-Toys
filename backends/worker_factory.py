@@ -79,3 +79,19 @@ def create_cuda_worker(
         backend_id="cuda",
         family_bindings=CUDA_FAMILY_BINDINGS,
     )
+
+
+def create_mps_worker(
+    worker_id: int,
+    resolved: ResolvedModel,
+    binding: LocalModelBinding,
+) -> "PipelineWorker":
+    from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
+
+    return create_bound_worker(
+        worker_id,
+        resolved,
+        binding,
+        backend_id="mps",
+        family_bindings=MPS_FAMILY_BINDINGS,
+    )

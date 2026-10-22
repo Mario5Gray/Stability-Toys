@@ -6,11 +6,16 @@ from typing import Any
 
 
 class PoolGenerationRuntime:
-    def __init__(self, *, pool: Any | None = None, **_: Any) -> None:
+    def __init__(
+        self, *, pool: Any | None = None, parent_execution_policy: Any = None, **_: Any
+    ) -> None:
         if pool is None:
             from backends.worker_pool import get_worker_pool
 
-            pool = get_worker_pool()
+            if parent_execution_policy is None:
+                pool = get_worker_pool()
+            else:
+                pool = get_worker_pool(parent_execution_policy=parent_execution_policy)
         self._pool = pool
 
     def get_active_model_snapshot(self) -> Any:

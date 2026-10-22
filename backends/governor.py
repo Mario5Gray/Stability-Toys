@@ -441,6 +441,10 @@ class Governor:
 
     @staticmethod
     def _default_worker_factory(worker_id, resolved, binding):
+        if os.environ.get("BACKEND", "").lower().strip() == "mps":
+            from backends.platform_registry import get_backend_provider
+
+            return get_backend_provider().create_worker_factory()(worker_id, resolved, binding)
         from backends.worker_factory import create_cuda_worker
         return create_cuda_worker(worker_id, resolved, binding)
 
@@ -452,6 +456,14 @@ class Governor:
         mode = deepcopy(self._mode_config.get_mode(mode_name))
         assert mode.model_path is not None
         resolved, binding = resolve_model(mode.model_path, mode)
+        if os.environ.get("BACKEND", "").lower().strip() == "mps":
+            from backends.platform_registry import get_backend_provider
+            from backends.platforms.base import UnsupportedFamilyError
+
+            if get_backend_provider().family_binding(resolved.profile.family_id) is None:
+                raise UnsupportedFamilyError(
+                    f"family {resolved.profile.family_id!r} has no MPS platform binding"
+                )
         return mode, resolved, binding
 
     def _terminal_authority(self) -> Optional[ActiveModelSnapshot]:

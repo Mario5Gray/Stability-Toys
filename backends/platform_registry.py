@@ -6,7 +6,7 @@ from backends.platforms.base import (
     BackendProvider,
 )
 
-_VALID_BACKENDS = ("cuda", "rknn", "mlx", "cpu")
+_VALID_BACKENDS = ("cuda", "rknn", "mlx", "cpu", "mps")
 
 _provider: BackendProvider | None = None
 
@@ -42,6 +42,10 @@ def get_backend_provider() -> BackendProvider:
             from backends.platforms.mlx import MLXProvider
 
             provider = MLXProvider()
+        elif backend == "mps":
+            from backends.platforms.mps import MPSProvider
+
+            provider = MPSProvider()
         else:
             raise RuntimeError(f"Unsupported BACKEND='{backend}'")
         _provider = provider

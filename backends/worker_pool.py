@@ -262,12 +262,25 @@ def get_worker_pool(
     if _worker_pool is None:
         queue_max = int(os.environ.get("QUEUE_MAX", "64"))
         queue_timeout_s = DEFAULT_QUEUE_TIMEOUT_S
+        is_mps = os.environ.get("BACKEND", "").lower().strip() == "mps"
+        if is_mps and parent_execution_policy is None:
+            from backends.platforms.mps_policy import MPS_TORCH_POLICY
+
+            parent_execution_policy = MPS_TORCH_POLICY
         # M-A: opt-in process isolation. Default stays in-proc for zero risk to
         # existing deployments; subprocess handle enables durable OOM recovery.
         isolate = os.environ.get("WORKER_ISOLATION", "inproc").lower() == "subprocess"
         if handle is None and worker_factory is None and isolate:
             from backends.worker_handle_subprocess import SubprocessWorkerHandle
-            handle = SubprocessWorkerHandle("backends.worker_factory.create_cuda_worker")
+            factory_ref = (
+                "backends.worker_factory.create_mps_worker"
+                if is_mps else "backends.worker_factory.create_cuda_worker"
+            )
+            handle = SubprocessWorkerHandle(factory_ref)
+        elif handle is None and worker_factory is None and is_mps:
+            from backends.platform_registry import get_backend_provider
+
+            worker_factory = get_backend_provider().create_worker_factory()
         _worker_pool = WorkerPool(
             queue_max=queue_max,
             queue_timeout_s=queue_timeout_s,
