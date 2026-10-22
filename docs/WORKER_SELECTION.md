@@ -20,17 +20,18 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
 2. The family is resolved from detector-owned architecture facts — `base_arch == "unet"`
    and `cross_attention_dim` (`{768, 1024}` → `sd15`, `{1280, 2048}` → `sdxl`).
    It is **not** taken from `checkpoint_variant`, which mode policy can overlay.
-3. `backends.worker_factory.create_cuda_worker(worker_id, resolved, binding)` looks up
-   the canonical CUDA cell for `resolved.profile.family_id` in
-   `backends/platforms/cuda_bindings.py::CUDA_FAMILY_BINDINGS`, imports the cell's
-   `worker_ref` lazily with `importlib` (only inside the factory), and instantiates:
+3. The backend provider supplies its family binding table to
+   `backends.worker_factory.create_bound_worker`. The factory looks up
+   `resolved.profile.family_id`, imports the selected cell's `worker_ref` lazily,
+   and instantiates:
    - `DiffusersCudaWorker` for family `sd15` (SD1.5, SD2.0, SD2.1)
    - `DiffusersSDXLCudaWorker` for family `sdxl` (SDXL Base, Refiner)
 
-A known family with no CUDA cell raises `UnsupportedFamilyError`; an unresolvable
-model raises `FamilyResolutionError`. Neither path imports Torch/Diffusers worker
-code until `create_cuda_worker` runs, so server boot, status reads, and rejected
-requests stay import-clean.
+A known family without a selected backend cell raises `UnsupportedFamilyError`.
+An unresolvable model raises `FamilyResolutionError`. Neither path imports
+Torch or Diffusers worker code before worker creation. Server boot, status reads,
+and rejected requests stay import-clean. `create_cuda_worker` remains a
+compatibility wrapper for legacy CUDA callers.
 
 Family resolution and worker selection are encapsulated in the `backends` package
 (`family_profiles`, `model_resolution`, `platforms/cuda_bindings`, `worker_factory`).

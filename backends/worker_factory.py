@@ -1,19 +1,17 @@
-"""Worker factory: dispatch by neutral family via the CUDA binding table.
+"""Worker factory: dispatch by neutral family through backend bindings.
 
-The factory consumes an already-resolved model. It looks up the canonical CUDA
-cell from ``resolved.profile.family_id``, resolves the dotted ``worker_ref`` with
-importlib *only here* (so server boot, status reads, and rejected requests never
-import Torch/Diffusers worker code), and builds the worker from the node-local
-``binding.model_path`` plus the thawed ``resolved.info``. It never re-detects.
+The factory consumes an already-resolved model and a backend binding table. It
+resolves the dotted ``worker_ref`` only during worker creation. It never
+re-detects the model family.
 """
 
 import importlib
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from backends.model_resolution import LocalModelBinding, ResolvedModel, thaw_model_info
-from backends.platforms.base import UnsupportedFamilyError
-from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+from backends.platforms.base import FamilyPlatformBinding, UnsupportedFamilyError
 
 if TYPE_CHECKING:
     from backends.base import PipelineWorker
@@ -27,27 +25,28 @@ def _resolve_worker_class(worker_ref: str):
     return getattr(module, class_name)
 
 
-def create_cuda_worker(
+def create_bound_worker(
     worker_id: int,
     resolved: ResolvedModel,
     binding: LocalModelBinding,
+    *,
+    backend_id: str,
+    family_bindings: Mapping[str, FamilyPlatformBinding],
 ) -> "PipelineWorker":
-    """Create the CUDA worker bound to ``resolved.profile.family_id``.
+    """Create one worker from the supplied backend binding table.
 
-    Raises ``UnsupportedFamilyError`` for a known family that has no CUDA cell.
+    Raise ``UnsupportedFamilyError`` when the table has no family binding.
     """
 
     family_id = resolved.profile.family_id
-    cell = CUDA_FAMILY_BINDINGS.get(family_id)
+    cell = family_bindings.get(family_id)
     if cell is None:
         raise UnsupportedFamilyError(
-            f"family {family_id!r} has no CUDA platform binding"
+            f"family {family_id!r} has no {backend_id.upper()} platform binding"
         )
 
     worker_class = _resolve_worker_class(cell.worker_ref)
     model_info = thaw_model_info(resolved.info, binding)
-    # The resolved model is the single source of truth for the family: pass its
-    # profile explicitly rather than relying on the worker subclass default.
     worker = worker_class(
         worker_id=worker_id,
         model_path=binding.model_path,
@@ -59,3 +58,20 @@ def create_cuda_worker(
         f"(worker {worker_id})"
     )
     return worker
+
+
+def create_cuda_worker(
+    worker_id: int,
+    resolved: ResolvedModel,
+    binding: LocalModelBinding,
+) -> "PipelineWorker":
+    """Create a CUDA worker through the compatibility entry point."""
+    from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+
+    return create_bound_worker(
+        worker_id,
+        resolved,
+        binding,
+        backend_id="cuda",
+        family_bindings=CUDA_FAMILY_BINDINGS,
+    )

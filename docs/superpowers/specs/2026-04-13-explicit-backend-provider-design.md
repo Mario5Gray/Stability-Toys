@@ -31,7 +31,7 @@ Related follow-up issue: `STABL-lpvbcfbd`
 ## Current State
 
 - The repo now resolves one explicit backend provider from `BACKEND` and stores provider-owned generation and super-resolution runtimes on FastAPI app state.
-- [`backends/worker_factory.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_factory.py) only creates CUDA workers.
+- [`backends/worker_factory.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_factory.py) creates workers from a provider-supplied binding table. A compatibility wrapper still creates CUDA workers.
 - [`backends/worker_pool.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_pool.py) accepts injected factories and registries, but its default path is still CUDA-specific and the module imports `torch` eagerly at import time.
 - [`backends/model_registry.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/model_registry.py) now exposes both the CUDA VRAM-aware registry and a backend-neutral placeholder registry, but the CUDA implementation still owns the real allocator accounting path.
 - [`server/superres_http.py`](/Users/darkbit1001/workspace/Stability-Toys/server/superres_http.py) and [`server/superres_service.py`](/Users/darkbit1001/workspace/Stability-Toys/server/superres_service.py) now require explicit backend selection and no longer accept `auto`.
@@ -148,8 +148,8 @@ The generation worker contract already exists in [`backends/base.py`](/Users/dar
 
 What changes:
 
-- [`backends/worker_factory.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_factory.py) stops being the implicit global CUDA factory
-- backend-specific worker factories move behind provider modules
+- [`backends/worker_factory.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_factory.py) receives the selected backend binding table
+- backend-specific factory binding moves behind provider modules
 - [`backends/worker_pool.py`](/Users/darkbit1001/workspace/Stability-Toys/backends/worker_pool.py) receives its default worker factory from the resolved provider instead of hardcoding CUDA
 
 Important scoping rule:

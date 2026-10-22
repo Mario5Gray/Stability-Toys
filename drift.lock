@@ -14,7 +14,7 @@ docs/TESTING_IN_DOCKER.md -> tests/python_env.py sig:5c440c4d5f43437d
 docs/TESTING_IN_DOCKER.md -> tests/run.py sig:06fd8c6db0d1ec6a
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:d16f886c97399e60
 docs/WORKER_SELECTION.md -> backends/platforms/pool_runtime.py sig:958b5d038bd1255a
-docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
+docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:266b15063d66dd3d
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:a351234f15bc6e73
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/worker_pool.py sig:9f737cc5971aeb81
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/AdvisorPanel.jsx sig:1f2760883985be21
@@ -53,7 +53,7 @@ docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md -> server/mod
 docs/superpowers/plans/2026-07-17-hunyuandit-family-profile.md -> docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md sig:1a7d1ce65ddf5a15
 docs/superpowers/specs/2026-04-07-chat-completions-backend-design.md -> server/ws_routes.py sig:42a0bd30c897a98d
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/model_registry.py sig:542e12f54e771191
-docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
+docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> backends/worker_factory.py sig:266b15063d66dd3d
 docs/superpowers/specs/2026-04-13-explicit-backend-provider-design.md -> server/superres_service.py sig:d76b316e48a34dab
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> conf/modes.yml sig:813c47fcdf10c943
 docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md -> server/advisor_service.py sig:500553cfaa2bb61c
@@ -98,7 +98,7 @@ docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backend
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/base.py sig:1cf48982feebd604
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/cuda.py sig:d16f886c97399e60
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/platforms/pool_runtime.py sig:958b5d038bd1255a
-docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_factory.py sig:31ff6bc3e42bd114
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_factory.py sig:266b15063d66dd3d
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> backends/worker_pool.py sig:9f737cc5971aeb81
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/controlnets.yaml sig:cd074e2ac578485f
 docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md -> conf/modes.yml sig:813c47fcdf10c943

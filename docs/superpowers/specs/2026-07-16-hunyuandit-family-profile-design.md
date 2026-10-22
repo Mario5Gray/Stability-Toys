@@ -415,9 +415,10 @@ CUDA_FAMILY_BINDINGS = {
 ```
 
 The provider exposes read-only binding lookup. Request admission reads only
-eager strings and booleans. `create_cuda_worker()` is the sole caller that
-resolves `worker_ref` with `importlib`; therefore server boot, non-CUDA hosts,
-status reads, and rejected requests never import Torch or Diffusers worker code.
+eager strings and booleans. `create_bound_worker()` resolves `worker_ref` with
+`importlib`; therefore server boot, non-CUDA hosts, status reads, and rejected
+requests never import Torch or Diffusers worker code. `create_cuda_worker()`
+remains a compatibility wrapper.
 `BackendProvider` names this operation `family_binding(family_id)`. CPU, MLX,
 and RKNN providers return no binding for unsupported families and update their
 platform-wide capability constructors when the execution fields move out.

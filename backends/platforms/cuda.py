@@ -27,9 +27,16 @@ class CUDAProvider:
         return CUDA_FAMILY_BINDINGS.get(family_id)
 
     def create_worker_factory(self, *args: Any, **kwargs: Any) -> Any:
-        from backends.worker_factory import create_cuda_worker
+        from functools import partial
 
-        return create_cuda_worker
+        from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+        from backends.worker_factory import create_bound_worker
+
+        return partial(
+            create_bound_worker,
+            backend_id=self.backend_id,
+            family_bindings=CUDA_FAMILY_BINDINGS,
+        )
 
     def create_model_registry(self) -> ModelRegistryProtocol:
         from backends.model_registry import ModelRegistry
