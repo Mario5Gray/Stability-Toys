@@ -1,8 +1,10 @@
 """Worker factory: dispatch by neutral family through backend bindings.
 
 The factory consumes an already-resolved model and a backend binding table. It
-resolves the dotted ``worker_ref`` only during worker creation. It never
-re-detects the model family.
+builds from ``binding.model_path`` and thawed ``resolved.info``. It resolves the
+dotted ``worker_ref`` only during worker creation. Thus server boot, status
+reads, and rejected requests never import worker code. It never re-detects the
+model family.
 """
 
 import importlib
@@ -47,6 +49,8 @@ def create_bound_worker(
 
     worker_class = _resolve_worker_class(cell.worker_ref)
     model_info = thaw_model_info(resolved.info, binding)
+    # The resolved model alone selects the family.
+    # Pass its profile instead of using a worker subclass default.
     worker = worker_class(
         worker_id=worker_id,
         model_path=binding.model_path,
