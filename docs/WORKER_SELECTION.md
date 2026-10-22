@@ -49,6 +49,7 @@ Mode switches return HTTP 422 with `family 'X' has no MPS platform binding`.
 In-process workers use the provider factory. Subprocess workers use the module-level
 `create_mps_worker` entry point. Both use the same empty binding table.
 MPS super-resolution remains a placeholder. MLX behavior does not change.
+For Mac setup, MPS limits, the host probe, and evidence, see [MPS_BACKEND.md](MPS_BACKEND.md).
 
 ## Configuration
 
