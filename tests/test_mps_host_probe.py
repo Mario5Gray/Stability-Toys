@@ -98,7 +98,14 @@ def test_probe_passes_on_ready_host_with_stable_schema(mps_host):
     assert report["status"] == "pass"
     assert report["exit_code"] == 0
     assert set(report) == {
-        "schema", "status", "exit_code", "commit", "dirty", "host", "torch", "checks",
+        "schema",
+        "status",
+        "exit_code",
+        "commit",
+        "dirty",
+        "host",
+        "torch",
+        "checks",
     }
     assert report["schema"] == "mps_host_probe/v1"
     assert set(report["host"]) == {"system", "release", "mac_ver", "machine", "python"}
@@ -109,15 +116,37 @@ def test_probe_passes_on_ready_host_with_stable_schema(mps_host):
     }
     checks = report["checks"]
     assert set(checks) == {
-        "policy", "seeded_tensor", "memory", "provider", "unsupported_family",
+        "policy",
+        "seeded_tensor",
+        "memory",
+        "provider",
+        "unsupported_family",
     }
-    assert set(checks["policy"]) == {"status", "error", "device", "dtype", "attention_slicing"}
+    assert set(checks["policy"]) == {
+        "status",
+        "error",
+        "device",
+        "dtype",
+        "attention_slicing",
+    }
     assert set(checks["seeded_tensor"]) == {
-        "status", "error", "seed", "shape", "dtype", "device", "values",
-        "repeatable_in_process", "matches_expected",
+        "status",
+        "error",
+        "seed",
+        "shape",
+        "dtype",
+        "device",
+        "values",
+        "repeatable_in_process",
+        "matches_expected",
     }
     assert set(checks["memory"]) == {
-        "status", "error", "alloc_bytes", "before", "after_alloc", "after_release",
+        "status",
+        "error",
+        "alloc_bytes",
+        "before",
+        "after_alloc",
+        "after_release",
     }
     assert set(checks["provider"]) == {"status", "error", "backend", "provider"}
     assert set(checks["unsupported_family"]) == {"status", "error", "family", "message"}
@@ -137,9 +166,15 @@ def test_probe_passes_on_ready_host_with_stable_schema(mps_host):
         "driver_allocated": 2000 + MIB_4,
     }
     assert checks["provider"] == {
-        "status": "pass", "error": None, "backend": "mps", "provider": "MPSProvider",
+        "status": "pass",
+        "error": None,
+        "backend": "mps",
+        "provider": "MPSProvider",
     }
-    assert checks["unsupported_family"]["message"] == "family 'sd15' has no MPS platform binding"
+    assert (
+        checks["unsupported_family"]["message"]
+        == "family 'sd15' has no MPS platform binding"
+    )
     json.dumps(report)
 
 

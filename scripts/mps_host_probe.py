@@ -65,7 +65,12 @@ def _error(exc: BaseException) -> str:
 def _git_state() -> tuple[str | None, bool | None]:
     def git(*args: str) -> str:
         return subprocess.run(
-            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True, timeout=10
+            ["git", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
         ).stdout.strip()
 
     try:
@@ -102,10 +107,14 @@ def _check_policy(torch: Any, policy: Any, out: dict[str, Any]) -> None:
 
 def _seeded_values(torch: Any) -> Any:
     generator = torch.Generator(device="mps").manual_seed(SEED)
-    return torch.rand(*TENSOR_SHAPE, generator=generator, device="mps", dtype=torch.float16)
+    return torch.rand(
+        *TENSOR_SHAPE, generator=generator, device="mps", dtype=torch.float16
+    )
 
 
-def _check_seeded_tensor(torch: Any, expected: list[float] | None, out: dict[str, Any]) -> None:
+def _check_seeded_tensor(
+    torch: Any, expected: list[float] | None, out: dict[str, Any]
+) -> None:
     tensor = _seeded_values(torch)
     values = tensor.cpu().tolist()
     repeat = _seeded_values(torch).cpu().tolist()
@@ -135,7 +144,10 @@ def _check_memory(torch: Any, policy: Any, out: dict[str, Any]) -> None:
     grew = out["after_alloc"]["current_allocated"] - out["before"]["current_allocated"]
     if grew < ALLOC_BYTES:
         raise CheckFailed(f"allocation of {ALLOC_BYTES} bytes accounted only {grew}")
-    if out["after_release"]["current_allocated"] >= out["after_alloc"]["current_allocated"]:
+    if (
+        out["after_release"]["current_allocated"]
+        >= out["after_alloc"]["current_allocated"]
+    ):
         raise CheckFailed("release did not lower current allocated memory")
 
 
@@ -169,7 +181,9 @@ def _check_unsupported_family(out: dict[str, Any]) -> None:
     except UnsupportedFamilyError as exc:
         out["message"] = str(exc)
     else:
-        raise CheckFailed(f"family {UNSUPPORTED_FAMILY!r} did not raise UnsupportedFamilyError")
+        raise CheckFailed(
+            f"family {UNSUPPORTED_FAMILY!r} did not raise UnsupportedFamilyError"
+        )
     if out["message"] != UNSUPPORTED_MESSAGE:
         raise CheckFailed(f"expected message {UNSUPPORTED_MESSAGE!r}")
 
@@ -190,19 +204,50 @@ def load_expected_values(path: str | Path) -> list[float]:
 def run_probe(expected_values: list[float] | None = None) -> tuple[int, dict[str, Any]]:
     commit, dirty = _git_state()
     checks: dict[str, dict[str, Any]] = {
-        "policy": {"status": SKIPPED, "error": None, "device": None, "dtype": None,
-                   "attention_slicing": None},
-        "seeded_tensor": {"status": SKIPPED, "error": None, "seed": SEED,
-                          "shape": list(TENSOR_SHAPE), "dtype": None, "device": None,
-                          "values": None, "repeatable_in_process": None,
-                          "matches_expected": None},
-        "memory": {"status": SKIPPED, "error": None, "alloc_bytes": ALLOC_BYTES,
-                   "before": None, "after_alloc": None, "after_release": None},
-        "provider": {"status": SKIPPED, "error": None, "backend": None, "provider": None},
-        "unsupported_family": {"status": SKIPPED, "error": None,
-                               "family": UNSUPPORTED_FAMILY, "message": None},
+        "policy": {
+            "status": SKIPPED,
+            "error": None,
+            "device": None,
+            "dtype": None,
+            "attention_slicing": None,
+        },
+        "seeded_tensor": {
+            "status": SKIPPED,
+            "error": None,
+            "seed": SEED,
+            "shape": list(TENSOR_SHAPE),
+            "dtype": None,
+            "device": None,
+            "values": None,
+            "repeatable_in_process": None,
+            "matches_expected": None,
+        },
+        "memory": {
+            "status": SKIPPED,
+            "error": None,
+            "alloc_bytes": ALLOC_BYTES,
+            "before": None,
+            "after_alloc": None,
+            "after_release": None,
+        },
+        "provider": {
+            "status": SKIPPED,
+            "error": None,
+            "backend": None,
+            "provider": None,
+        },
+        "unsupported_family": {
+            "status": SKIPPED,
+            "error": None,
+            "family": UNSUPPORTED_FAMILY,
+            "message": None,
+        },
     }
-    runtime: dict[str, Any] = {"version": None, "mps_built": None, "mps_available": None}
+    runtime: dict[str, Any] = {
+        "version": None,
+        "mps_built": None,
+        "mps_available": None,
+    }
     mps_checks = ("policy", "seeded_tensor", "memory")
 
     try:
@@ -215,7 +260,9 @@ def run_probe(expected_values: list[float] | None = None) -> tuple[int, dict[str
         )
     except Exception as exc:  # noqa: BLE001
         for name in mps_checks:
-            checks[name].update(status=FAIL, error=f"torch import failed: {_error(exc)}")
+            checks[name].update(
+                status=FAIL, error=f"torch import failed: {_error(exc)}"
+            )
         torch = None
 
     available = bool(runtime["mps_built"] and runtime["mps_available"])
