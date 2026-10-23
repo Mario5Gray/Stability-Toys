@@ -204,6 +204,20 @@ def test_every_neutral_family_has_one_cuda_binding():
         assert isinstance(binding.worker_ref, str) and "." in binding.worker_ref
 
 
+def test_cuda_bindings_carry_an_unnarrowed_controlnet_scope():
+    """The platform scope is an MPS limit. CUDA must keep every control type
+    the mode permits, and the two-argument construction must stay valid."""
+    from backends.family_profiles import family_ids
+    from backends.platforms.base import ControlNetScope
+    from backends.platforms.cuda import CUDAProvider
+
+    provider = CUDAProvider()
+    for family_id in family_ids():
+        assert provider.family_binding(family_id).controlnet_scope == ControlNetScope()
+    assert ControlNetScope().allowed_control_types is None
+    assert ControlNetScope().max_attachments is None
+
+
 def test_cuda_execution_capabilities_per_family():
     from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
 
