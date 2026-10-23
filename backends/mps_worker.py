@@ -101,6 +101,9 @@ class DiffusersMpsWorker(CudaWorkerBase):
 
         # No style-LoRA load loop here. STYLE_REGISTRY is empty, and the base
         # `_apply_style(None, 0)` cleanup path is safe with the base defaults.
+        # The CUDA style-API detection sits inside that loop, so state the
+        # result directly, as the HunyuanDiT worker does for the same reason.
+        self._style_api = "none"
 
         logger.info(
             "[mps] worker %s loaded: %s (%s) on %s dtype=%s style_api=%s",

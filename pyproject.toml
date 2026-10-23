@@ -1,6 +1,9 @@
 [tool.ruff]
 line-length = 100
 
-[lint]
+# This table must be [tool.ruff.lint]. As a top-level [lint] table ruff
+# ignored it and fell back to its default rules, which reported 1752 findings
+# across rule families nobody selected.
+[tool.ruff.lint]
 select = ["E", "F", "W"]  # errors, flakes, warnings
-ignore = ["E501"]        # ignore line length if you want
+ignore = ["E501"]         # line length is not enforced
