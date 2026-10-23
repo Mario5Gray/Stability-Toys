@@ -82,8 +82,15 @@ That is the current state for every family except `sd15`.
 - **`/status` reports 0 total memory.** MPS uses `PlaceholderModelRegistry`.
   Its totals read 0 and its `vram.device` reads `MPS placeholder`. Process
   memory accounting itself is real; see the probe's `memory` check.
-- **Super-resolution is a placeholder.** `supports_superres` and
-  `supports_generation` are both false.
+- **Super-resolution is a placeholder.** `supports_superres` is false.
+- **`supports_generation` still reads false, and that is a known
+  understatement.** The flag reaches only `/api/models/status`. The real
+  generation gate is the `sd15` cell, which is present. The flag flips to true
+  only after a live MPS render passes the validity checks below. Until then,
+  `/api/models/status` reports generation unsupported while MPS generation can
+  execute. Do not deploy or merge this state.
+  `tests/test_mps_registration.py::test_mps_supports_generation_stays_false_until_live_acceptance`
+  pins it.
 - **MLX is unchanged.** `BACKEND=mlx` is a separate backend.
 
 ## Host probe
@@ -141,31 +148,50 @@ contract, not live Metal behavior.
 |---|---|
 | Unavailable runtime errors | `tests/test_mps_policy.py::test_mps_policy_requires_runtime` |
 | Rejected `CUDA_*` options, including empty values | `tests/test_mps_policy.py::test_mps_policy_rejects_cuda_env_option` |
-| Unsupported-family errors | `tests/test_mps_registration.py` |
+| Unsupported-family errors, `sd15` binding, factory selection | `tests/test_mps_registration.py` |
+| Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
+| Operation gate on the MPS `sd15` cell | `tests/test_controlnet_execution.py` |
+| HTTP `/generate` rejects ControlNet before preprocessing | `tests/test_controlnet_dispatch.py` |
+| WebSocket rejects an init image and ControlNet after `job:ack` | `tests/test_ws_routes.py` |
+| Progress-bar failure line names the backend | `tests/test_progress_bar_suppression.py` |
 | Probe: unavailable is code 3 and never a pass, failed check is code 1, stable report schema, torch-free import | `tests/test_mps_host_probe.py` |
+
+Run `tests/test_progress_bar_suppression.py` in its own `tests.run` call. It
+imports `backends.cuda_worker` at module scope, and
+`tests/test_mps_registration.py` asserts that module is absent from
+`sys.modules`. One pytest process cannot hold both. The collision predates the
+`sd15` binding.
 
 Probe tests at commit `3a073d7`: RED before the probe existed (collection
 error: `scripts/mps_host_probe.py` not found), then GREEN, 12 passed.
 The empty-value cases in `test_mps_policy.py` (commit `a53bb88`) pin existing
 behavior, so they passed on first run. No RED step applies.
 
-Cohort runs on the Mac at commit `cb02402` (2026-10-22, Python 3.12.13,
-torch 2.10.0):
+Cohort runs on the Mac at commit `96de1ba` (2026-10-22, Python 3.12.13,
+torch 2.10.0). The earlier framework-only run at `cb02402` gave
+199 passed (real, 10 files) and 78 passed (stub, 2 files).
 
 ```bash
 python -m tests.run \
-  tests/test_mps_policy.py tests/test_mps_registration.py tests/test_mps_host_probe.py \
-  tests/test_torch_policy.py tests/test_worker_factory.py tests/test_backend_runtimes.py \
+  tests/test_mps_worker.py tests/test_mps_policy.py tests/test_mps_registration.py \
+  tests/test_mps_host_probe.py \
+  tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py \
+  tests/test_ws_routes.py tests/test_torch_policy.py \
+  tests/test_worker_factory.py tests/test_backend_runtimes.py \
   tests/test_device_memory.py tests/test_worker_isolation.py \
   tests/test_subprocess_worker_handle.py tests/test_governor.py \
   tests/test_worker_pool.py tests/test_worker_handle.py \
+  -- -q -p no:cacheprovider --no-cov
+
+python -m tests.run tests/test_progress_bar_suppression.py \
   -- -q -p no:cacheprovider --no-cov
 ```
 
 | MPS cohort | Files | Result |
 |---|---|---|
-| real | 10 | 199 passed |
+| real | 14 | 289 passed |
 | stub | 2 | 78 passed |
+| progress bar (own call) | 1 | 10 passed |
 
 ```bash
 python -m tests.run \
@@ -184,7 +210,9 @@ python -m tests.run \
 All 8 skips are in `tests/test_sdxl_worker.py`, with the reason "CUDA not
 functional - SDXL worker requires working GPU". This is contract-level CUDA
 evidence only. There is no live CUDA-host run for this commit.
-`scripts/enigma-dev-verify.sh` runs that check on a CUDA host.
+`scripts/enigma-dev-verify.sh` runs that check on a CUDA host. The CUDA cohort
+result is unchanged from `cb02402`, which is the point: the `sd15` MPS binding
+and the backend-aware progress-bar label leave CUDA behavior alone.
 
 Failures that predate this work, outside these cohorts:
 
@@ -192,6 +220,42 @@ Failures that predate this work, outside these cohorts:
 - `tests/test_entry_spans.py::test_an_UNHASHABLE_type_does_not_break_the_span` (failing since `491a91c`)
 
 ### Live host checks (Mac only)
+
+#### `sd15` binding, probe run at `96de1ba` (2026-10-22)
+
+Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
+
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64, Python 3.12.13
+- Torch: 2.10.0, `mps_built: true`, `mps_available: true`
+- Run 1 `python scripts/mps_host_probe.py` exit 0; run 2 `--expect <run 1>` exit 0
+- `seeded_tensor.matches_expected: true`, values
+  `[0.673828125, 0.6142578125, 0.052734375, 0.568359375]` — unchanged from `cb02402`
+- `unsupported_family`: `family 'sdxl' has no MPS platform binding`, status `pass`.
+  This is the moved negative check. `sd15` is bound and no longer carries it.
+
+#### Live generation: NOT RUN (blocked)
+
+No `lcm-dreamshaper-v7` Diffusers directory exists on this host.
+`conf/modes.yml` sets `model_root: /models`, which does not exist, and no copy
+was found under `$HOME`, `/Volumes`, or a Hugging Face cache. The live render,
+both isolation modes, and the PNG validity checks are therefore **not done**,
+and `supports_generation` stays false.
+
+What was verified without the model, at `96de1ba`:
+
+- `import compel` succeeds in the `stability-toys` env.
+- The served `lcm-general` mode reads `conditioning.service: compel` and
+  `fallback.native_on_failure: False`, so a Compel failure raises instead of
+  degrading to native.
+- Mode defaults are `768x768`, 8 steps, guidance 3, `default_scheduler_id: lcm`,
+  `allowed_scheduler_ids: [euler, lcm]`.
+- `DEFAULT_SIZE`, `DEFAULT_STEPS`, and `DEFAULT_GUIDANCE` are all unset, so the
+  mode-default overlay would apply.
+
+To finish acceptance, supply the model root and run Step 5 of
+`docs/superpowers/plans/2026-10-22-mps-sd15-lcm-text-to-image.md` unchanged.
+
+#### Framework-only probe at `cb02402`
 
 The probe ran on a clean checkout of commit
 `cb0240287723c693ea421cc03fe417728d47dd93` (`dirty: false`). The shell

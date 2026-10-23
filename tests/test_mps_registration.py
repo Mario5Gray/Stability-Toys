@@ -332,6 +332,13 @@ async def test_server_lifespan_boots_with_mps_and_no_model(mps_backend, monkeypa
     monkeypatch.setattr(server.MetricsSampler, "start", lambda self: None)
     monkeypatch.setattr(server.MetricsSampler, "stop", lambda self: None)
 
+    # Measure what this test means: the MPS boot must not import the CUDA
+    # worker. A bare `not in sys.modules` check also fails when an EARLIER test
+    # file in the same pytest process imported it (tests/test_mps_worker.py
+    # does, through backends.mps_worker), which says nothing about the lifespan.
+    # The absolute guarantee is covered by the subprocess tests above.
+    cuda_worker_preloaded = "backends.cuda_worker" in sys.modules
+
     async with server.lifespan(server.app):
         assert server.app.state.backend_provider.backend_id == "mps"
         assert server.app.state.use_mode_system is True
@@ -339,7 +346,8 @@ async def test_server_lifespan_boots_with_mps_and_no_model(mps_backend, monkeypa
         if isolation == "subprocess":
             consumer = server.app.state.worker_pool._parent_consumers[0]
             assert consumer._execution_policy.backend_id == "mps"
-        assert "backends.cuda_worker" not in sys.modules
+        if not cuda_worker_preloaded:
+            assert "backends.cuda_worker" not in sys.modules
 
 
 @pytest.mark.asyncio
@@ -383,3 +391,15 @@ def test_mps_registry_reports_loaded_model_but_no_device_total(mps_backend):
     assert registry.list_models() == ["lcm-general"]
     assert registry.get_total_vram() == 0
     assert provider.capabilities().supports_model_registry_stats is False
+
+
+def test_mps_supports_generation_stays_false_until_live_acceptance(mps_backend):
+    """The flag feeds `/api/models/status` only. The real generation gate is the
+    `sd15` cell, which is present. Flipping this to True is the LAST step of
+    STABL-hvvogszy, and only after a live MPS render passes the validity checks
+    in docs/MPS_BACKEND.md. Until then the status payload understates behavior,
+    and this test records that the understatement is deliberate.
+    """
+    from backends.platform_registry import get_backend_provider
+
+    assert get_backend_provider().capabilities().supports_generation is False
