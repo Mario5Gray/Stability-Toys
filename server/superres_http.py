@@ -31,9 +31,9 @@ def load_superres_runtime_settings(
 ) -> SuperResRuntimeSettings:
     env = os.environ if environ is None else environ
     backend = (env.get("BACKEND") or "").lower().strip()
-    allowed = {"cuda", "rknn", "mlx", "cpu"}
+    allowed = {"cuda", "rknn", "mlx", "cpu", "mps"}
     if not backend:
-        raise RuntimeError("BACKEND must be set explicitly to one of: cuda, rknn, mlx, cpu")
+        raise RuntimeError("BACKEND must be set explicitly to one of: cuda, rknn, mlx, cpu, mps")
     if backend not in allowed:
         raise RuntimeError(f"Unsupported BACKEND='{backend}'")
 

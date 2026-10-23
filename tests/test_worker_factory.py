@@ -15,7 +15,11 @@ from backends.model_resolution import (
     build_resolved,
     hub_ref,
 )
-from backends.platforms.base import UnsupportedFamilyError
+from backends.platforms.base import (
+    ExecutionCapabilities,
+    FamilyPlatformBinding,
+    UnsupportedFamilyError,
+)
 from utils.model_detector import ModelInfo, ModelVariant
 
 
@@ -143,13 +147,81 @@ def test_factory_never_calls_detect_model(fake_cuda_worker, monkeypatch):
     create_cuda_worker(0, _resolved(SD15_PROFILE), LocalModelBinding("/node/x"))
 
 
-def test_worker_ref_resolves_only_inside_create_cuda_worker(monkeypatch):
-    # Importing the bindings table must not import the CUDA worker module.
+def test_bound_factory_uses_supplied_family_bindings(fake_cuda_worker):
+    from backends.worker_factory import create_bound_worker
+
+    family_bindings = {
+        "sd15": FamilyPlatformBinding(
+            "backends.cuda_worker.DiffusersSDXLCudaWorker",
+            ExecutionCapabilities(True, False, False),
+        )
+    }
+
+    worker = create_bound_worker(
+        4,
+        _resolved(SD15_PROFILE),
+        LocalModelBinding("/node/mps/sd15"),
+        backend_id="mps",
+        family_bindings=family_bindings,
+    )
+
+    assert worker.cls_name == "DiffusersSDXLCudaWorker"
+    assert worker.worker_id == 4
+    assert worker.model_path == "/node/mps/sd15"
+    assert worker.family_profile is SD15_PROFILE
+
+
+def test_bound_factory_names_backend_when_family_binding_is_missing():
+    from backends.worker_factory import create_bound_worker
+
+    with pytest.raises(
+        UnsupportedFamilyError,
+        match="family 'sd15' has no MPS platform binding",
+    ):
+        create_bound_worker(
+            0,
+            _resolved(SD15_PROFILE),
+            LocalModelBinding("/node/mps/sd15"),
+            backend_id="mps",
+            family_bindings={},
+        )
+
+
+def test_cuda_provider_factory_uses_current_cuda_binding_table(
+    fake_cuda_worker,
+    monkeypatch,
+):
+    import backends.platforms.cuda_bindings as cuda_bindings
+    import backends.worker_factory
+    from backends.platforms.cuda import CUDAProvider
+
+    replacement = {
+        "sd15": FamilyPlatformBinding(
+            "backends.cuda_worker.DiffusersSDXLCudaWorker",
+            ExecutionCapabilities(True, False, False),
+        )
+    }
+    monkeypatch.setattr(cuda_bindings, "CUDA_FAMILY_BINDINGS", replacement)
+
+    factory = CUDAProvider().create_worker_factory()
+    worker = factory(
+        2,
+        _resolved(SD15_PROFILE),
+        LocalModelBinding("/node/cuda/sd15"),
+    )
+
+    assert worker.cls_name == "DiffusersSDXLCudaWorker"
+
+
+def test_worker_factory_imports_no_cuda_bindings_or_worker(monkeypatch):
+    monkeypatch.delitem(sys.modules, "backends.platforms.cuda_bindings", raising=False)
     monkeypatch.delitem(sys.modules, "backends.cuda_worker", raising=False)
     import importlib
 
-    import backends.platforms.cuda_bindings as cb
-    importlib.reload(cb)
+    import backends.worker_factory as worker_factory
+
+    importlib.reload(worker_factory)
+    assert "backends.platforms.cuda_bindings" not in sys.modules
     assert "backends.cuda_worker" not in sys.modules
 
 
@@ -165,7 +237,10 @@ def test_known_family_without_platform_binding_is_unsupported(fake_cuda_worker):
     )
     resolved = _resolved(orphan, variant=ModelVariant.UNKNOWN, cad=None,
                          checkpoint_variant="unknown")
-    with pytest.raises(UnsupportedFamilyError):
+    with pytest.raises(
+        UnsupportedFamilyError,
+        match="family 'pixart' has no CUDA platform binding",
+    ):
         create_cuda_worker(0, resolved, LocalModelBinding("/node/x"))
 
 

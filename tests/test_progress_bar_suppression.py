@@ -111,3 +111,54 @@ def test_the_shared_seam_is_wired_into_every_family():
         "_setup_pipe_memory_opts no longer suppresses the progress bar; every "
         "family's load path goes through it, so the suppression belongs there"
     )
+
+
+# --- Backend-aware failure log (STABL-hvvogszy) -----------------------------
+# The debug line fires only when disabling the bar raises, which is rare. It is
+# the one base log an MPS worker can reach, so it must not say "[cuda]".
+
+
+def _raising_pipe():
+    pipe = MagicMock()
+    pipe.set_progress_bar_config.side_effect = RuntimeError("boom")
+    return pipe
+
+
+def test_the_failure_log_keeps_the_cuda_label_by_default(monkeypatch, caplog):
+    monkeypatch.setenv("LOG_FORMAT", "json")
+    with caplog.at_level("DEBUG", logger="backends.cuda_worker"):
+        CudaWorkerBase._maybe_disable_progress_bar(_raising_pipe())
+    assert "[cuda] could not disable the progress bar" in caplog.text
+
+
+def test_the_failure_log_names_the_mps_backend(monkeypatch, caplog):
+    monkeypatch.setenv("LOG_FORMAT", "json")
+    with caplog.at_level("DEBUG", logger="backends.cuda_worker"):
+        CudaWorkerBase._maybe_disable_progress_bar(_raising_pipe(), backend_id="mps")
+    assert "[mps] could not disable the progress bar" in caplog.text
+    assert "[cuda]" not in caplog.text
+
+
+def test_the_setup_seam_passes_the_policy_backend_id():
+    """ast check: the shared seam must forward execution_policy.backend_id, or
+    an MPS worker's rare failure line silently reads [cuda]."""
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).resolve().parent.parent / "backends" / "cuda_worker.py"
+    tree = ast.parse(src.read_text(), filename=str(src))
+    fn = next(
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "_setup_pipe_memory_opts"
+    )
+    call = next(
+        n for n in ast.walk(fn)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "_maybe_disable_progress_bar"
+    )
+    keywords = {kw.arg for kw in call.keywords}
+    assert "backend_id" in keywords, (
+        "_setup_pipe_memory_opts does not pass backend_id; an MPS worker's "
+        "progress-bar failure line would read [cuda]"
+    )

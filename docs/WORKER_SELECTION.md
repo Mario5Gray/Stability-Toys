@@ -2,9 +2,9 @@
 
 This guide covers CUDA worker selection after you have already chosen `BACKEND=cuda`.
 
-Backend selection itself is explicit. The server does not infer CUDA vs RKNN vs MLX vs CPU from local hardware.
+Backend selection is explicit. The server does not infer CUDA, RKNN, MLX, CPU, or MPS from local hardware.
 
-Once `BACKEND=cuda` is selected, the correct worker (SD1.5 or SDXL) is chosen from
+Once `BACKEND=cuda` is selected, the worker is chosen from
 the model's **neutral family**, resolved from detector architecture facts.
 
 ## How It Works
@@ -12,7 +12,7 @@ the model's **neutral family**, resolved from detector architecture facts.
 Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
 `MODEL`/`MODEL_ROOT` environment variables. When the pool loads a mode:
 
-1. `WorkerPool._load_mode` calls `backends.model_resolution.resolve_model(model_path, mode)`,
+1. `Governor._load_mode` calls `backends.model_resolution.resolve_model(model_path, mode)`,
    which detects the model **once**, resolves its neutral family with
    `backends.family_profiles.resolve_family(...)`, overlays the mode's capability
    fields, and emits a portable `ResolvedModel` plus a node-local
@@ -20,20 +20,39 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
 2. The family is resolved from detector-owned architecture facts — `base_arch == "unet"`
    and `cross_attention_dim` (`{768, 1024}` → `sd15`, `{1280, 2048}` → `sdxl`).
    It is **not** taken from `checkpoint_variant`, which mode policy can overlay.
-3. `backends.worker_factory.create_cuda_worker(worker_id, resolved, binding)` looks up
-   the canonical CUDA cell for `resolved.profile.family_id` in
-   `backends/platforms/cuda_bindings.py::CUDA_FAMILY_BINDINGS`, imports the cell's
-   `worker_ref` lazily with `importlib` (only inside the factory), and instantiates:
+3. The backend provider supplies its family binding table to
+   `backends.worker_factory.create_bound_worker`. The factory looks up
+   `resolved.profile.family_id`, imports the selected cell's `worker_ref` lazily,
+   and instantiates:
    - `DiffusersCudaWorker` for family `sd15` (SD1.5, SD2.0, SD2.1)
    - `DiffusersSDXLCudaWorker` for family `sdxl` (SDXL Base, Refiner)
+   - `DiffusersHunyuanDiTCudaWorker` for family `hunyuandit`
 
-A known family with no CUDA cell raises `UnsupportedFamilyError`; an unresolvable
-model raises `FamilyResolutionError`. Neither path imports Torch/Diffusers worker
-code until `create_cuda_worker` runs, so server boot, status reads, and rejected
-requests stay import-clean.
+A known family without a selected backend cell raises `UnsupportedFamilyError`.
+An unresolvable model raises `FamilyResolutionError`. Binding reads and rejected
+requests do not import CUDA worker code. `create_cuda_worker` remains a
+compatibility wrapper for legacy CUDA callers.
 
 Family resolution and worker selection are encapsulated in the `backends` package
 (`family_profiles`, `model_resolution`, `platforms/cuda_bindings`, `worker_factory`).
+
+`CUDAProvider` keeps the `CudaGenerationRuntime` compatibility class. Shared queue
+behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
+
+## MPS Framework
+
+`BACKEND=mps` uses `MPSProvider`, the shared pool runtime, and MPS memory policy.
+`MPS_FAMILY_BINDINGS` binds `sd15` to `backends.mps_worker.DiffusersMpsWorker`
+for LCM text-to-image. Its cell claims no img2img, no ControlNet, and no
+combined operation. `sdxl` and `hunyuandit` stay unbound.
+The provider reports generation support as true after live acceptance.
+It reports super-resolution and model-registry statistics as false.
+Server startup continues without a model when the default mode has no MPS binding.
+Mode switches return HTTP 422 with `family 'X' has no MPS platform binding`.
+In-process workers use the provider factory. Subprocess workers use the module-level
+`create_mps_worker` entry point. Both read the same binding table.
+MPS super-resolution remains a placeholder. MLX behavior does not change.
+For Mac setup, MPS limits, the host probe, and evidence, see [MPS_BACKEND.md](MPS_BACKEND.md).
 
 ## Configuration
 
@@ -88,7 +107,8 @@ python -m utils.model_detector /models/your-model.safetensors
 **Problem**: the family resolved, but no CUDA cell is registered for it in
 `CUDA_FAMILY_BINDINGS`.
 
-**Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`).
+**Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
+MPS binds `sd15` for LCM text-to-image only.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`

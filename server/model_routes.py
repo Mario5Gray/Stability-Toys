@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from backends.platform_registry import get_backend_provider
+from backends.platforms.base import UnsupportedFamilyError
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
@@ -259,6 +260,8 @@ async def switch_mode(request: ModeSwitchRequest):
             "to_mode": request.mode,
             "message": f"Mode switch queued. Will switch after {pool.get_queue_size()} pending jobs.",
         }
+    except UnsupportedFamilyError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
         logger.error(f"[API] Mode switch failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -210,6 +210,9 @@ class PipelineService:
         self.num_workers = max(1, int(num_workers))
         self.q: "queue.Queue[Job]" = queue.Queue(maxsize=int(queue_max))
 
+        if BACKEND == "mps":
+            raise RuntimeError("BACKEND=mps uses the WorkerPool runtime")
+
         # decide backend
         use_cuda = False
         if BACKEND == "cuda":
@@ -426,7 +429,7 @@ async def lifespan(app: FastAPI):
         app.state.generation_runtime = runtime
         app.state.worker_pool = getattr(runtime, "_pool", None)
         app.state.service = getattr(runtime, "_service", None)
-        app.state.use_mode_system = provider.backend_id == "cuda" and app.state.worker_pool is not None
+        app.state.use_mode_system = provider.backend_id in {"cuda", "mps"} and app.state.worker_pool is not None
 
         if app.state.use_mode_system:
             try:

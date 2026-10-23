@@ -285,7 +285,7 @@ class CudaDeviceMemory:
 class ProcessMemoryConsumer:
     """A PROCESS as a DeviceMemory consumer (STABL-xtkhoidu).
 
-    torch's `memory_allocated()` / `memory_reserved()` are process-global: they cannot
+    Torch allocator memory counters are process-global: they cannot
     attribute below a process, so the process is the unit of attribution. Registering
     two consumers in one process reports the same bytes twice, driving
     `unattributed_bytes` to a clamped zero over a negative residual — worse accounting
@@ -297,33 +297,40 @@ class ProcessMemoryConsumer:
     on that lookup. Under `inproc` that process also holds superres — a limit of the
     measurement, not a modelling choice.
 
-    torch imported lazily inside methods — the module stays torch-free.
+    Policies import Torch lazily when read or reclaimed. This module stays torch-free.
     """
 
-    def __init__(self, label: str):
+    def __init__(self, label: str, execution_policy=None):
+        from backends.platforms.cuda_policy import CUDA_TORCH_POLICY
+
         self.label = label
+        self._execution_policy = execution_policy or CUDA_TORCH_POLICY
 
     def pool_stats(self) -> ConsumerMemory:
-        import torch
+        allocated_bytes, reserved_bytes = self._execution_policy.memory_stats()
         return ConsumerMemory(
             label=self.label,
             pid=os.getpid(),
-            allocated_bytes=int(torch.cuda.memory_allocated()),
-            reserved_bytes=int(torch.cuda.memory_reserved()),
+            allocated_bytes=allocated_bytes,
+            reserved_bytes=reserved_bytes,
             stale=False,  # consumers never self-declare staleness (spec §2.3)
         )
 
     def reclaim(self) -> None:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if self._execution_policy.backend_id == "cuda":
+            import torch
+
+            if not torch.cuda.is_available():
+                return
+        self._execution_policy.release_cache()
 
 
 def WorkerMemoryConsumer(worker=None, label: str = "worker") -> ProcessMemoryConsumer:
     """Back-compat shim. The old name implied the numbers were the worker's alone;
-    they were always the whole process's. `worker` was never read."""
-    del worker
-    return ProcessMemoryConsumer(label)
+    they were always the whole process's. Read worker execution policy when present."""
+    from backends.torch_policy import worker_execution_policy
+
+    return ProcessMemoryConsumer(label, worker_execution_policy(worker))
 
 
 # --- singleton ---------------------------------------------------------------

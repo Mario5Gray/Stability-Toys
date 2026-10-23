@@ -415,9 +415,11 @@ CUDA_FAMILY_BINDINGS = {
 ```
 
 The provider exposes read-only binding lookup. Request admission reads only
-eager strings and booleans. `create_cuda_worker()` is the sole caller that
-resolves `worker_ref` with `importlib`; therefore server boot, non-CUDA hosts,
-status reads, and rejected requests never import Torch or Diffusers worker code.
+eager strings and booleans. `create_bound_worker()` resolves `worker_ref` with
+`importlib`; therefore server boot, non-CUDA hosts, status reads, and rejected
+requests never import Torch or Diffusers worker code. `create_cuda_worker()`
+remains a compatibility wrapper. The CUDA provider binds `create_bound_worker()`
+to `CUDA_FAMILY_BINDINGS` when it creates a worker factory.
 `BackendProvider` names this operation `family_binding(family_id)`. CPU, MLX,
 and RKNN providers return no binding for unsupported families and update their
 platform-wide capability constructors when the execution fields move out.
@@ -488,9 +490,10 @@ ControlNet preprocessing. Unsupported family-cell operations therefore fail
 before generated artifacts or model loads. Legacy non-mode generation remains
 outside this snapshot path.
 
-`CudaGenerationRuntime` forwards `get_active_model_snapshot()` and changes its
-mode-backed submission path to accept the already captured snapshot and resolved
-ControlNet bindings. It no longer calls `get_current_mode()`,
+`PoolGenerationRuntime` owns queue-backed generation behavior.
+`CudaGenerationRuntime` remains its compatibility subclass. The shared runtime
+forwards `get_active_model_snapshot()` and accepts the captured snapshot and resolved
+ControlNet bindings. It does not call `get_current_mode()`,
 `get_mode_config()`, or `detect_model()` inside `submit_generate()`. The
 WebSocket path may continue to construct `GenerationJob` directly, but it must
 stamp the same captured epoch and bindings. HTTP and WebSocket therefore differ

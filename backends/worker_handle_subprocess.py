@@ -104,7 +104,7 @@ class _ChildCancelState:
             return job_id in self._cancelled
 
 
-def _serve_control(control_conn, cancel_state=None):
+def _serve_control(control_conn, cancel_state=None, worker_policy=None):
     """Child-side control server: VRAM stats (STABL-xtkhoidu) and job cancel
     (STABL-jredufxb).
 
@@ -119,7 +119,10 @@ def _serve_control(control_conn, cancel_state=None):
     releases the GIL across CUDA calls, so the reply lands inside the fan-out
     budget instead of queueing behind the denoise.
     """
-    import torch
+    if worker_policy is None:
+        from backends.platforms.cuda_policy import CUDA_TORCH_POLICY
+
+        worker_policy = CUDA_TORCH_POLICY
 
     while True:
         try:
@@ -132,10 +135,11 @@ def _serve_control(control_conn, cancel_state=None):
                 continue
             if msg != _STATS:
                 continue
+            allocated_bytes, reserved_bytes = worker_policy.memory_stats()
             control_conn.send_bytes(pickle.dumps({
                 "pid": os.getpid(),
-                "allocated_bytes": int(torch.cuda.memory_allocated()),
-                "reserved_bytes": int(torch.cuda.memory_reserved()),
+                "allocated_bytes": allocated_bytes,
+                "reserved_bytes": reserved_bytes,
             }))
         except (EOFError, OSError):
             break                      # parent closed the pipe: the child is going away
@@ -278,7 +282,10 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
     # half-constructed child would report numbers nobody can act on.
     cancel_state = _ChildCancelState()
     if control_conn is not None:
-        threading.Thread(target=_serve_control, args=(control_conn, cancel_state),
+        from backends.torch_policy import worker_execution_policy
+
+        threading.Thread(target=_serve_control,
+                         args=(control_conn, cancel_state, worker_execution_policy(worker)),
                          daemon=True).start()
 
     conn.send_bytes(_READY)
