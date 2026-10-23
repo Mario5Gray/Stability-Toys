@@ -4,7 +4,7 @@ Unit tests for model route serialization.
 
 import os
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -135,69 +135,6 @@ async def test_models_status_uses_provider_capabilities_and_registry_stats():
         "device": "CPU placeholder",
         "models_loaded": 0,
     }
-
-
-async def test_models_status_reports_supports_img2img_and_controlnet_when_true():
-    runtime = Mock()
-    runtime.get_current_mode.return_value = None
-    runtime.is_model_loaded.return_value = False
-    runtime.get_queue_size.return_value = 0
-
-    registry = Mock()
-    registry.get_vram_stats.return_value = {
-        "backend": "cuda",
-        "device": "cuda:0",
-        "models_loaded": 1,
-    }
-
-    provider = Mock()
-    provider.backend_id = "cuda"
-    provider.capabilities.return_value = SimpleNamespace(
-        supports_generation=True,
-        supports_modes=True,
-        supports_superres=True,
-        supports_model_registry_stats=True,
-        supports_img2img=True,
-        supports_img2img_and_controlnet=True,
-    )
-
-    with patch("server.model_routes.get_backend_provider", return_value=provider), \
-            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
-            patch("server.model_routes.get_model_registry", return_value=registry):
-        data = await model_routes.get_models_status(_status_request())
-
-    assert data["capabilities"]["supports_img2img_and_controlnet"] is True
-
-
-async def test_models_status_defaults_supports_img2img_and_controlnet_false_when_capability_omitted():
-    runtime = Mock()
-    runtime.get_current_mode.return_value = None
-    runtime.is_model_loaded.return_value = False
-    runtime.get_queue_size.return_value = 0
-
-    registry = Mock()
-    registry.get_vram_stats.return_value = {
-        "backend": "cpu",
-        "device": "CPU placeholder",
-        "models_loaded": 0,
-    }
-
-    provider = Mock()
-    provider.backend_id = "cpu"
-    provider.capabilities.return_value = SimpleNamespace(
-        supports_generation=False,
-        supports_modes=True,
-        supports_superres=False,
-        supports_model_registry_stats=False,
-        supports_img2img=False,
-    )
-
-    with patch("server.model_routes.get_backend_provider", return_value=provider), \
-            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
-            patch("server.model_routes.get_model_registry", return_value=registry):
-        data = await model_routes.get_models_status(_status_request())
-
-    assert data["capabilities"]["supports_img2img_and_controlnet"] is False
 
 
 async def test_list_modes_includes_generation_control_policy_fields_and_resolution_sets():
@@ -980,3 +917,128 @@ async def test_models_status_supports_describe_false_when_mode_lacks_profile():
         data = await model_routes.get_models_status(_status_request())
 
     assert data["capabilities"]["supports_describe"] is False
+
+
+# --- Execution capabilities: the active family cell, not the platform caps ---
+# BackendCapabilities carries platform-wide services only. The three execution
+# flags live on FamilyPlatformBinding.execution_capabilities, so the status
+# route must read the active snapshot's family cell (STABL-xuzguqyx).
+
+
+def _exec_caps_registry():
+    registry = Mock()
+    registry.get_vram_stats.return_value = {
+        "backend": "cuda",
+        "device": "cuda:0",
+        "models_loaded": 1,
+    }
+    return registry
+
+
+def _exec_caps_runtime(snapshot, *, with_snapshot_seam: bool = True):
+    """A runtime that exposes only the methods the status route calls.
+
+    The spec list is what keeps this fake honest. Drop
+    get_active_model_snapshot from it to model a runtime that predates the
+    snapshot seam.
+    """
+    methods = ["get_current_mode", "is_model_loaded", "get_queue_size"]
+    if with_snapshot_seam:
+        methods.append("get_active_model_snapshot")
+    runtime = MagicMock(spec=methods)
+    runtime.get_current_mode.return_value = None
+    runtime.is_model_loaded.return_value = snapshot is not None
+    runtime.get_queue_size.return_value = 0
+    if with_snapshot_seam:
+        runtime.get_active_model_snapshot.return_value = snapshot
+    return runtime
+
+
+async def _exec_caps_status(provider, runtime):
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=_exec_caps_registry()):
+        data = await model_routes.get_models_status(_status_request())
+    return data["capabilities"]
+
+
+async def test_models_status_reports_execution_capabilities_from_the_active_family_cell():
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(
+        family_id="sdxl",
+        supports_img2img=True,
+        supports_controlnet=True,
+        supports_combined=True,
+    )
+    snapshot = make_active_snapshot(Mock(name="sdxl-mode"), family_id="sdxl")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["supports_img2img"] is True
+    assert caps["supports_controlnet"] is True
+    assert caps["supports_img2img_and_controlnet"] is True
+
+
+async def test_models_status_reports_execution_capabilities_the_active_cell_denies():
+    """A text-to-image-only cell (the MPS sd15 shape) reports three false flags
+    while the platform still reports supports_generation true."""
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(
+        family_id="sd15",
+        supports_img2img=False,
+        supports_controlnet=False,
+        supports_combined=False,
+        backend_id="mps",
+    )
+    snapshot = make_active_snapshot(Mock(name="sd15-mode"), family_id="sd15")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["supports_generation"] is True
+    assert caps["supports_img2img"] is False
+    assert caps["supports_controlnet"] is False
+    assert caps["supports_img2img_and_controlnet"] is False
+
+
+async def test_models_status_reports_execution_capabilities_false_when_no_model_is_loaded():
+    from tests.snapshot_test_helpers import make_family_provider
+
+    provider = make_family_provider(family_id="sdxl")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(None))
+
+    assert caps["supports_img2img"] is False
+    assert caps["supports_controlnet"] is False
+    assert caps["supports_img2img_and_controlnet"] is False
+
+
+async def test_models_status_reports_execution_capabilities_false_when_family_has_no_cell():
+    """The snapshot names a family this platform does not bind. No cell, no
+    admitted operation, so every execution flag is false."""
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(family_id="sd15")
+    snapshot = make_active_snapshot(Mock(name="hunyuan-mode"), family_id="hunyuandit")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["supports_img2img"] is False
+    assert caps["supports_controlnet"] is False
+    assert caps["supports_img2img_and_controlnet"] is False
+
+
+async def test_models_status_reports_execution_capabilities_false_without_the_snapshot_seam():
+    """Non-mode-system runtimes have no snapshot accessor. Report false rather
+    than raise, the same way pending_mode reports None."""
+    from tests.snapshot_test_helpers import make_family_provider
+
+    provider = make_family_provider(family_id="sdxl")
+    runtime = _exec_caps_runtime(None, with_snapshot_seam=False)
+
+    caps = await _exec_caps_status(provider, runtime)
+
+    assert caps["supports_img2img"] is False
+    assert caps["supports_controlnet"] is False
+    assert caps["supports_img2img_and_controlnet"] is False
