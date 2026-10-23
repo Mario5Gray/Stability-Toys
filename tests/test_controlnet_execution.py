@@ -197,16 +197,39 @@ def test_admit_generation_operation_mps_sd15_admits_img2img():
     assert _mps_admission(has_init_image=True) == "img2img"
 
 
-def test_admit_generation_operation_mps_sd15_rejects_controlnet():
+def test_admit_generation_operation_mps_sd15_admits_one_canny_controlnet():
     from server.controlnet_models import ControlNetAttachment
 
     attachment = ControlNetAttachment(
         attachment_id="cn_1", control_type="canny", map_asset_ref="map"
     )
-    with pytest.raises(
-        NotImplementedError, match="family 'sd15' does not support the controlnet operation"
-    ):
+    admitted = _mps_admission(has_init_image=False, controlnets=(attachment,))
+    assert admitted == "controlnet"
+
+
+def test_admit_generation_operation_mps_sd15_rejects_a_depth_controlnet():
+    """Through the real MPSProvider, so the platform scope is the thing tested."""
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="depth", map_asset_ref="map"
+    )
+    with pytest.raises(ValueError, match="control_type 'depth'"):
         _mps_admission(has_init_image=False, controlnets=(attachment,))
+
+
+def test_admit_generation_operation_mps_sd15_rejects_two_controlnet_attachments():
+    """conf/modes.yml permits two attachments. The MPS scope permits one."""
+    from server.controlnet_models import ControlNetAttachment
+
+    attachments = tuple(
+        ControlNetAttachment(
+            attachment_id=f"cn_{index}", control_type="canny", map_asset_ref="map"
+        )
+        for index in (1, 2)
+    )
+    with pytest.raises(ValueError, match="at most 1 controlnet"):
+        _mps_admission(has_init_image=False, controlnets=attachments)
 
 
 def test_admit_generation_operation_mps_sd15_rejects_the_combined_operation():

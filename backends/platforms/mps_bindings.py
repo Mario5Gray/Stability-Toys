@@ -14,18 +14,17 @@ from backends.platforms.base import (
 )
 
 MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
-    # SD1.5 LCM text-to-image and img2img. ControlNet and the combined
-    # operation stay false, so `admit_generation_operation` rejects them before
-    # any preprocessing. The cell flips to admit ControlNet in Task 4 of
-    # docs/superpowers/plans/2026-10-23-mps-sd15-controlnet.md, after admission
-    # and execution exist.
+    # SD1.5 LCM text-to-image, img2img, and ControlNet. The combined
+    # img2img+ControlNet operation stays false, so `admit_generation_operation`
+    # rejects it before any preprocessing.
     #
     # The scope narrows ControlNet to one Canny attachment on this platform.
     # conf/modes.yml permits canny, depth, pose, and two attachments, so the
-    # narrowing cannot come from the mode policy.
+    # narrowing cannot come from the mode policy. Admission enforces the scope,
+    # and the worker repeats it.
     "sd15": FamilyPlatformBinding(
         "backends.mps_worker.DiffusersMpsWorker",
-        ExecutionCapabilities(True, False, False),
+        ExecutionCapabilities(True, True, False),
         ControlNetScope(allowed_control_types=("canny",), max_attachments=1),
     ),
 }
