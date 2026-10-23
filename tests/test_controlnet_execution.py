@@ -219,3 +219,64 @@ def test_admit_generation_operation_mps_sd15_rejects_the_combined_operation():
         ValueError, match="family 'sd15' does not support the img2img\\+controlnet operation"
     ):
         _mps_admission(has_init_image=True, controlnets=(attachment,))
+
+
+def _scoped_admission(*, controlnets, scope=None, backend_id="mps", family_id="sd15"):
+    """Admission through a fake provider, so the scope is reachable before the
+    MPS cell flips in Task 4."""
+    from server.controlnet_execution import admit_generation_operation
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    mode = type("Mode", (), {"name": "lcm-general"})()
+    snapshot = make_active_snapshot(mode, family_id=family_id)
+    provider = make_family_provider(
+        family_id=family_id,
+        supports_controlnet=True,
+        backend_id=backend_id,
+        controlnet_scope=scope,
+    )
+    req = type("Req", (), {"controlnets": list(controlnets)})()
+    return admit_generation_operation(
+        req, snapshot=snapshot, provider=provider, has_init_image=False
+    )
+
+
+def _canny_only_scope():
+    from backends.platforms.base import ControlNetScope
+
+    return ControlNetScope(allowed_control_types=("canny",), max_attachments=1)
+
+
+def _attachment(control_type, attachment_id="cn_1"):
+    from server.controlnet_models import ControlNetAttachment
+
+    return ControlNetAttachment(
+        attachment_id=attachment_id, control_type=control_type, map_asset_ref="map"
+    )
+
+
+def test_admit_generation_operation_rejects_a_control_type_outside_the_platform_scope():
+    with pytest.raises(ValueError, match="depth"):
+        _scoped_admission(controlnets=(_attachment("depth"),), scope=_canny_only_scope())
+
+
+def test_admit_generation_operation_rejects_more_attachments_than_the_platform_scope_allows():
+    """conf/modes.yml permits two attachments. The platform cap is one."""
+    attachments = (_attachment("canny", "cn_1"), _attachment("canny", "cn_2"))
+    with pytest.raises(ValueError, match="1"):
+        _scoped_admission(controlnets=attachments, scope=_canny_only_scope())
+
+
+def test_admit_generation_operation_admits_one_canny_attachment_within_the_platform_scope():
+    admitted = _scoped_admission(
+        controlnets=(_attachment("canny"),), scope=_canny_only_scope()
+    )
+    assert admitted == "controlnet"
+
+
+def test_admit_generation_operation_leaves_cuda_depth_admitted():
+    """The scope is an MPS limit. An unnarrowed CUDA binding admits depth."""
+    admitted = _scoped_admission(
+        controlnets=(_attachment("depth"),), scope=None, backend_id="cuda"
+    )
+    assert admitted == "controlnet"
