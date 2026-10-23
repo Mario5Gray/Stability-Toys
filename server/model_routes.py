@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from backends.platform_registry import get_backend_provider
-from backends.platforms.base import UnsupportedFamilyError
+from backends.platforms.base import ExecutionCapabilities, UnsupportedFamilyError
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
@@ -106,6 +106,37 @@ def scan_models(models_root: Path) -> Dict[str, List[Path]]:
 def get_generation_runtime(request: Request):
     return request.app.state.generation_runtime
 
+
+# All-false execution matrix. Reported when no family cell is in play, which is
+# the honest answer: no snapshot means no family, and no family means no
+# operation can be admitted.
+_NO_EXECUTION_CAPABILITIES = ExecutionCapabilities(False, False, False)
+
+
+def _active_execution_capabilities(runtime: Any, provider: Any) -> ExecutionCapabilities:
+    """The execution matrix of the active snapshot's family cell.
+
+    The three execution flags live on FamilyPlatformBinding, not on
+    BackendCapabilities, so the status route must resolve the active family and
+    read its cell. This is the same seam admission reads
+    (`admit_generation_operation`), so the status page and the admission gate
+    cannot disagree.
+
+    Returns the all-false matrix when no model is loaded, when the family has no
+    cell on this platform, or when the runtime predates the snapshot seam.
+    """
+    get_snapshot = getattr(runtime, "get_active_model_snapshot", None)
+    if not callable(get_snapshot):
+        return _NO_EXECUTION_CAPABILITIES
+    snapshot: Any = get_snapshot()
+    if snapshot is None:
+        return _NO_EXECUTION_CAPABILITIES
+    binding = provider.family_binding(snapshot.resolved.profile.family_id)
+    if binding is None:
+        return _NO_EXECUTION_CAPABILITIES
+    return binding.execution_capabilities
+
+
 @router.get("/models/status")
 async def get_models_status(request: Request):
     """
@@ -119,6 +150,8 @@ async def get_models_status(request: Request):
     runtime = get_generation_runtime(request)
     registry = get_model_registry()
     backend_version = os.environ.get("BACKEND_VERSION", "dev").strip() or "dev"
+
+    execution_caps = _active_execution_capabilities(runtime, provider)
 
     supports_describe = False
     current_mode = runtime.get_current_mode()
@@ -144,16 +177,12 @@ async def get_models_status(request: Request):
             "supports_modes": caps.supports_modes,
             "supports_superres": caps.supports_superres,
             "supports_model_registry_stats": caps.supports_model_registry_stats,
-            # Execution capabilities moved to per-family platform bindings.
-            # Until the active-snapshot binding lookup lands (Task 5), the status
-            # route reports them from the (now absent) platform caps, defaulting
-            # to False when no source is available.
-            "supports_img2img": getattr(caps, "supports_img2img", False),
-            "supports_img2img_and_controlnet": getattr(
-                caps,
-                "supports_img2img_and_controlnet",
-                False,
-            ),
+            # Execution capabilities live on the per-family platform binding.
+            # Read them from the active snapshot's cell (STABL-xuzguqyx), the
+            # same source admission uses.
+            "supports_img2img": execution_caps.supports_img2img,
+            "supports_controlnet": execution_caps.supports_controlnet,
+            "supports_img2img_and_controlnet": execution_caps.supports_img2img_and_controlnet,
             "supports_describe": supports_describe,
         },
         "vram": registry.get_vram_stats(),

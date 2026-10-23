@@ -182,6 +182,15 @@ Get current model status and VRAM statistics.
 }
 ```
 
+**Capabilities.** The response also carries a `capabilities` block.
+`supports_generation`, `supports_modes`, `supports_superres`, and
+`supports_model_registry_stats` are platform-wide services. The three execution
+flags — `supports_img2img`, `supports_controlnet`, and
+`supports_img2img_and_controlnet` — come from the active model family's platform
+binding, which is the same source admission reads. All three report false when
+no model is loaded. `supports_describe` reports the current mode's analysis
+profile.
+
 #### GET /api/modes
 
 List all available modes from configuration.
