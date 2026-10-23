@@ -1,6 +1,6 @@
 # MPS SD1.5 LCM ControlNet Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task in this session. `AGENTS.md` forbids sub-agent driven development on this project, so do not dispatch implementer or reviewer subagents. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Render SD1.5 LCM text-to-image with one Canny ControlNet attachment on the MPS backend, and reject Depth, Pose, and multiple attachments on that platform only.
 
@@ -9,6 +9,10 @@
 **Tech Stack:** Python 3.12, torch 2.10 MPS, diffusers 0.39, OpenCV 5.0 (`cv2`), pytest through `python -m tests.run`.
 
 **Spec:** `STABL-xomvolgw` — its description plus two comments: the VERIFIED prerequisite note and the DESIGN NOTE on the guard seam. Sigma was offline when this plan was written, so no separate design document exists. Read `fp context STABL-xomvolgw` first.
+
+**Review:** Sigma reviewed this plan on 2026-10-23. The review folded eight findings into
+the header, Task 2, Task 3, Task 4, and Task 5. The architecture and task order were
+approved unchanged.
 
 ## Global Constraints
 
@@ -30,6 +34,7 @@
 3. **A CUDA `sd15` job with Depth.** The limit must not reach CUDA. This is the regression a family-keyed guard would cause. Test in Task 2.
 4. **A ControlNet render that raises mid-pipeline.** The cache pin must be released, or the weights leak. Test in Task 3.
 5. **An unnarrowed binding built with two positional arguments.** Every existing CUDA construction site and test helper passes two arguments. The new field must default. Test in Task 1.
+6. **A test that reads the real MPS provider.** Three tests use `MPSProvider` directly, so the cell flip breaks them. Task 4 lists all three. A plan that omits them reports a clean full cohort that is not clean.
 
 ---
 
@@ -110,7 +115,14 @@ git commit -m "feat(mps): carry a platform ControlNet scope on the family bindin
 - Produces: `admit_generation_operation` raises `ValueError` when the attachment count exceeds `max_attachments`, or when an attachment's `control_type` is outside `allowed_control_types`. Each message names the backend id and the limit.
 - Produces: `make_family_provider(..., controlnet_scope: ControlNetScope | None = None)` in the test helper. `None` keeps today's unnarrowed binding.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the scope parameter to the test helper**
+
+In `tests/snapshot_test_helpers.py`, add `controlnet_scope: ControlNetScope | None = None` to
+`make_family_provider`. Pass it as the third binding field when it is not `None`. Keep the
+two-argument construction when it is `None`, so every existing caller is unchanged.
+Do this before Step 2. The new tests cannot collect without it.
+
+- [ ] **Step 2: Write the failing tests**
 
 In `tests/test_controlnet_execution.py`, beside the existing `test_admit_generation_operation_mps_sd15_*` tests:
 
@@ -146,16 +158,19 @@ def test_admit_generation_operation_leaves_cuda_depth_admitted():
 
 Use the existing fixtures and the `make_active_snapshot` helper. `_attachment(control_type)` is a local factory returning a `SimpleNamespace` with `control_type`, `start_percent=0.0`, `end_percent=1.0`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_controlnet_execution.py -- -q --no-cov -k platform_scope`
 Expected: FAIL. The two rejection tests fail because admission returns `"controlnet"`.
 
-- [ ] **Step 3: Enforce the scope in `admit_generation_operation`**
+- [ ] **Step 4: Enforce the scope in `admit_generation_operation`**
 
 Add the check in the `has_controlnet` branch, after `caps.supports_controlnet` passes and before the function returns `"controlnet"`. Read `binding.controlnet_scope`. Skip each half when its field is `None`. Raise `ValueError`, matching the HunyuanDiT Canny-only precedent at `server/controlnet_execution.py:40`; `NotImplementedError` stays reserved for a family that supports no ControlNet at all. Do not test `provider.backend_id` for the decision; read it only to name the platform in the message.
 
-- [ ] **Step 4: Add the helper parameter in `tests/snapshot_test_helpers.py`**
+These tests use `make_family_provider` with `supports_controlnet=True`. Through the real
+MPS provider the guard stays unreachable until Task 4, because the cell still reports
+`supports_controlnet=False` and `NotImplementedError` fires first. That ordering is
+deliberate. State it in a comment so the guard does not read as dead code.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -175,15 +190,30 @@ git commit -m "feat(controlnet): enforce the platform ControlNet scope at admiss
 
 **Files:**
 - Modify: `backends/mps_worker.py:119-250`
+- Add: a module-global `_sd_controlnet_pipeline_cls()` in `backends/mps_worker.py`
 - Test: `tests/test_mps_worker.py`
 
 **Interfaces:**
 - Consumes: `CudaWorkerBase._load_controlnet_model(binding)`, `_build_controlnet_kwargs(bindings, size, loaded_ids, image_kwarg=None)`, `_controlnet_model_cls()`, and `_controlnet_metadata(bindings)`. All are inherited; do not reimplement them.
-- Produces: `DiffusersMpsWorker._build_controlnet_pipe(controlnet_obj)`, returning `StableDiffusionControlNetPipeline.from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)`, mirroring `backends/cuda_worker.py:1042`.
+- Produces: `DiffusersMpsWorker._build_controlnet_pipe(controlnet_obj)`, returning
+  `_sd_controlnet_pipeline_cls().from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)`.
+- Produces: `_sd_controlnet_pipeline_cls()`, a module global beside `_sd_pipeline_cls` and
+  `_sd_img2img_pipeline_cls`. Lazy-import
+  `diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_controlnet.StableDiffusionControlNetPipeline`.
+  Call it unqualified. `backends/mps_worker.py:9-12` states the rule: tests patch the
+  helper where the call happens. Do not copy `cuda_worker.py:1042`'s `_import_attr` call,
+  because that would reach real Diffusers in tests and load real weights.
 
 - [ ] **Step 1: Write the failing tests**
 
 In `tests/test_mps_worker.py`, following the existing fake-pipeline fixtures:
+
+First extend the `fake_pipeline` fixture. Patch three more names:
+- `mps_worker._sd_controlnet_pipeline_cls`, returning a recording class whose `from_pipe` returns a fake ControlNet pipe.
+- `backends.platform_registry.get_backend_provider`, returning `MPSProvider()`. This file sets no `BACKEND`, and `get_backend_provider()` raises `RuntimeError` without it. Patch the registry module, not `backends.mps_worker`: the worker imports the function lazily inside `run_job`, so the registry module is where the lookup happens.
+- The inherited ControlNet loader path: `backends.controlnet_cache.get_controlnet_cache`, or `_load_controlnet_model` on the base. Choose one and say which in the test docstring.
+
+Then add:
 
 ```python
 def test_mps_worker_renders_one_canny_controlnet(fake_pipeline, ...):
@@ -217,6 +247,9 @@ Expected: FAIL with `NotImplementedError: MPS SD1.5 does not support ControlNet`
 
 The current single check rejects any `controlnet_bindings`. Replace it with: the combined operation (an init image together with bindings) raises `NotImplementedError`; a binding outside the platform scope raises `ValueError`. Read the scope from the worker's own family binding: `get_backend_provider().family_binding(self.family_profile.family_id).controlnet_scope`, importing `get_backend_provider` from `backends.platform_registry` inside the method, as the worker's other local imports do. One source then states the limit. State in the comment that admission rejects all three cases first.
 
+The check runs only when bindings exist. Calls without bindings must not touch the
+provider, or every existing worker test gains an environment dependency.
+
 - [ ] **Step 4: Add the ControlNet execution branch in `run_job`**
 
 Mirror `backends/cuda_worker.py:1130-1150`: build the kwargs with `_build_controlnet_kwargs(bindings, (width, height), loaded_ids)`, pop `controlnet`, build the pipe with `_build_controlnet_pipe`, and inject step progress exactly as the text-to-image branch does. Load at `self.dtype`, which the inherited loader already does — add no dtype branch here. Add the `controlnet` PNG text chunk from `_controlnet_metadata(bindings)`, as the CUDA worker does at `cuda_worker.py:1174`. Release each pin in the existing `finally` block, following `cuda_worker.py:1183-1189`.
@@ -239,11 +272,24 @@ git commit -m "feat(mps): render one Canny ControlNet on MPS SD1.5 (STABL-xomvol
 
 **Files:**
 - Modify: `backends/platforms/mps_bindings.py`
-- Test: `tests/test_mps_registration.py`, `tests/test_ws_routes.py`
+- Test: `tests/test_mps_registration.py`, `tests/test_ws_routes.py`,
+  `tests/test_controlnet_execution.py`, `tests/test_controlnet_dispatch.py`
 
 **Interfaces:**
 - Consumes: Task 2's admission guard and Task 3's execution path. Both must be merged into the branch before this task, or admission admits an operation the worker cannot run.
 - Produces: `ExecutionCapabilities(True, True, False)` on the MPS `sd15` cell.
+
+Three tests read the real `MPSProvider`, so this flip breaks them. Fix all three in this
+task. Omit them and the full cohort in Step 5 fails.
+
+- `tests/test_controlnet_execution.py:200` `test_admit_generation_operation_mps_sd15_rejects_controlnet`
+  → replace with three tests: one Canny admits, Depth rejects, two attachments reject.
+- `tests/test_controlnet_dispatch.py:229` `test_http_generate_rejects_controlnets_on_mps_sd15_cell`
+  → HTTP `/generate` cannot express img2img. Rewrite it to assert HTTP 400 for a Depth
+  attachment, with the scope message in `detail`. Add a Canny case only if it can reach
+  `resolve_controlnet_bindings` under a patch.
+- `tests/test_ws_routes.py:2146` `test_ws_generate_rejects_controlnet_on_mps_sd15_cell`
+  → replaced below.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -257,10 +303,19 @@ def test_ws_generate_rejects_two_controlnet_attachments_on_mps_sd15_cell():
 
 Keep `test_ws_generate_rejects_the_combined_operation_on_mps_sd15_cell` unchanged. Follow the fixtures already used at `tests/test_ws_routes.py:2114-2160`.
 
+The Canny admit test needs one more patch. After admission the WebSocket path calls
+`resolve_controlnet_bindings` against the real registry singleton, whose paths are
+container paths and fail strict validation on this Mac. Patch
+`server.controlnet_execution.resolve_controlnet_bindings` to return a stub binding list,
+as `tests/test_ws_routes.py:550` does. The two rejection tests need no patch: admission
+raises before resolution.
+
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `python -m tests.run tests/test_mps_registration.py tests/test_ws_routes.py -- -q --no-cov -k "mps_sd15_cell or binds_sd15"`
-Expected: FAIL. The admit test fails on the cell's `supports_controlnet` being false.
+Run: `python -m tests.run tests/test_mps_registration.py tests/test_ws_routes.py tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py -- -q --no-cov -k "mps_sd15 or binds_sd15"`
+Expected: FAIL. The admit tests fail on the cell's `supports_controlnet` being false. The
+Depth and two-attachment real-provider tests fail with `NotImplementedError` where they
+expect `ValueError`.
 
 - [ ] **Step 3: Flip the cell**
 
@@ -276,7 +331,7 @@ Expected: no new failure. Eight failures pre-exist on `main` — one in `tests/t
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backends/platforms/mps_bindings.py tests/test_mps_registration.py tests/test_ws_routes.py
+git add backends/platforms/mps_bindings.py tests/test_mps_registration.py tests/test_ws_routes.py tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py
 git commit -m "feat(mps): admit one Canny ControlNet on the sd15 cell (STABL-xomvolgw) - next: Task 5 live acceptance"
 ```
 
@@ -325,6 +380,11 @@ The inherited loader uses `self.dtype`, which MPS policy fixes at float16. If a 
 - [ ] **Step 6: Record the evidence and update the Limits section**
 
 Add the live record under the existing evidence headings: model path, seed, both isolation modes, sha256 prefixes, and the strength comparison. Update the Limits bullets: the cell now admits ControlNet; Depth, Pose, and a second attachment are rejected on MPS while the mode permits them; the combined operation stays rejected. State that the acceptance used a temporary host-path registry, and that `conf/controlnets.yaml` is unchanged.
+
+Record one consequence for `/api/models/status`. After the flip the MPS `sd15` cell
+reports `supports_controlnet: true`. The payload carries no scope field, so a client sees
+ControlNet as supported and gets HTTP 400 for Depth or a second attachment. Note it in
+Limits. Do not add a scope field to the status payload in this slice.
 
 - [ ] **Step 7: Verify provenance**
 
