@@ -1,7 +1,8 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-Today it is a **framework only**: no model family can load on MPS yet.
+It binds one family: **`sd15` LCM text-to-image**. No other family loads on MPS,
+and `sd15` accepts no img2img, no ControlNet, and no scheduler other than LCM.
 
 Docker cannot reach Metal. Do not use [`TESTING_IN_DOCKER.md`](TESTING_IN_DOCKER.md)
 for MPS. Run everything in this guide natively on the Mac.
@@ -10,7 +11,8 @@ Code:
 
 - [`backends/platforms/mps.py`](../backends/platforms/mps.py) — `MPSProvider`
 - [`backends/platforms/mps_policy.py`](../backends/platforms/mps_policy.py) — `MPS_TORCH_POLICY`
-- [`backends/platforms/mps_bindings.py`](../backends/platforms/mps_bindings.py) — `MPS_FAMILY_BINDINGS` (empty)
+- [`backends/platforms/mps_bindings.py`](../backends/platforms/mps_bindings.py) — `MPS_FAMILY_BINDINGS` (`sd15`)
+- [`backends/mps_worker.py`](../backends/mps_worker.py) — `DiffusersMpsWorker`
 - [`scripts/mps_host_probe.py`](../scripts/mps_host_probe.py) — live host probe
 
 For provider, factory, and family-binding flow, see
@@ -35,7 +37,7 @@ For provider, factory, and family-binding flow, see
    python server/lcm_sr_server.py
    ```
 
-4. Choose worker isolation. Both modes use the same empty binding table.
+4. Choose worker isolation. Both modes read the same binding table.
 
    | `WORKER_ISOLATION` | Worker factory | Parent memory consumer |
    |---|---|---|
@@ -43,13 +45,22 @@ For provider, factory, and family-binding flow, see
    | `subprocess` | `backends.worker_factory.create_mps_worker` in the child | `MPS_TORCH_POLICY` |
 
 The server starts without a model when the default mode has no MPS binding.
-That is the current state for every mode.
+That is the current state for every family except `sd15`.
 
 ## Limits
 
-- **No model families.** `MPS_FAMILY_BINDINGS` is empty. Every family
-  (`sd15`, `sdxl`, `hunyuandit`) raises `UnsupportedFamilyError`:
-  `family 'sd15' has no MPS platform binding`.
+- **One model family.** `MPS_FAMILY_BINDINGS` binds `sd15` to
+  `backends.mps_worker.DiffusersMpsWorker`. `sdxl` and `hunyuandit` raise
+  `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
+- **Text-to-image only.** The `sd15` cell carries
+  `ExecutionCapabilities(False, False, False)`, so `admit_generation_operation`
+  rejects img2img, ControlNet, and the combined operation on both HTTP and
+  WebSocket. The worker repeats both checks as defense in depth.
+- **LCM scheduler only.** `lcm-general` permits `euler` in configuration. The
+  worker raises `ValueError("MPS SD1.5 supports LCM scheduler only")` before the
+  pipeline call. HTTP returns 500 and WebSocket returns a job error. There is no
+  admission-time 400 for this case.
+- **No `run_job_with_latents`.** Production generation calls `run_job` only.
 - **Mode switch returns HTTP 422** for an unbound family, with that message
   as the detail.
 - **float16 only.** The policy always resolves `device="mps"` and `torch.float16`.
@@ -86,7 +97,7 @@ That is the current state for every mode.
 | `seeded_tensor` | `torch.Generator(device="mps")` with seed 7 gives a float16 `(4,)` tensor on `mps`; a second draw in the same process matches |
 | `memory` | `memory_stats()` before, after a 4 MiB float32 allocation, and after `release_cache()` |
 | `provider` | `BACKEND=mps` selects `MPSProvider`; the env and provider singleton are restored after |
-| `unsupported_family` | `create_mps_worker` on `sd15` raises the exact unsupported-family message |
+| `unsupported_family` | `create_mps_worker` on `sdxl` raises the exact unsupported-family message |
 
 The report also records `commit`, `dirty`, and the host (`system`, `release`,
 `mac_ver`, `machine`, `python`).
@@ -228,8 +239,8 @@ The two reports are identical except for `matches_expected`. Run 2 output:
     },
     "unsupported_family": {
       "error": null,
-      "family": "sd15",
-      "message": "family 'sd15' has no MPS platform binding",
+      "family": "sdxl",
+      "message": "family 'sdxl' has no MPS platform binding",
       "status": "pass"
     }
   },

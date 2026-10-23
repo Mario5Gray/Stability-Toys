@@ -2016,3 +2016,87 @@ def test_ws_status_reads_vram_through_the_seam_not_torch_directly():
     assert "get_vram_stats" in src, (
         "ws_routes does not read VRAM through the registry seam"
     )
+
+
+# ---------------------------------------------------------------------------
+# MPS sd15 cell: WebSocket rejects img2img and ControlNet (STABL-hvvogszy)
+# ---------------------------------------------------------------------------
+
+
+def _install_mps_sd15_cell(pool):
+    """Mode-backed wiring whose provider is the real MPSProvider.
+
+    `install_mode_backed` supplies the snapshot and the pool seams. The provider
+    it builds is then replaced, so the live MPS_FAMILY_BINDINGS table is the gate
+    under test. Unlike HTTP, the WebSocket path passes the real init-image flag.
+    """
+    from backends.platforms.mps import MPSProvider
+
+    install_mode_backed(
+        app.state, pool,
+        SimpleNamespace(name="lcm-general", default_size="768x768", default_steps=8,
+                        default_guidance=3.0,
+                        resolution_options=[{"size": "768x768", "aspect_ratio": "1:1"}]),
+        family_id="sd15",
+    )
+    app.state.backend_provider = MPSProvider()
+
+
+def _mps_ws_rejection(params, job_id):
+    app.state.use_mode_system = True
+    pool = MagicMock()
+    pool.get_current_mode.return_value = "lcm-general"
+    app.state.worker_pool = pool
+    app.state.storage = None
+    _install_mps_sd15_cell(pool)
+
+    try:
+        with patch(
+            "server.controlnet_preprocessing.preprocess_controlnet_attachments"
+        ) as preprocess_mock:
+            with client.websocket_connect("/v1/ws") as ws:
+                ws.receive_json()  # consume status
+                ws.send_json({
+                    "type": "job:submit",
+                    "id": job_id,
+                    "jobType": "generate",
+                    "params": params,
+                })
+                ack = ws.receive_json()
+                assert ack["type"] == "job:ack"
+                assert ack["id"] == job_id
+                err = ws.receive_json()
+                assert err["type"] == "job:error"
+                assert err["jobId"] == ack["jobId"]
+            pool.submit_job.assert_not_called()
+            preprocess_mock.assert_not_called()
+            return err["error"]
+    finally:
+        app.state.use_mode_system = False
+        app.state.worker_pool = None
+
+
+def test_ws_generate_rejects_init_image_on_mps_sd15_cell():
+    init_ref = get_store().write("upload", _solid_png_bytes())
+    error = _mps_ws_rejection(
+        {"prompt": "a cat", "init_image_ref": init_ref},
+        "t-mps-img2img",
+    )
+    assert "family 'sd15' does not support the img2img operation" in error
+
+
+def test_ws_generate_rejects_controlnet_on_mps_sd15_cell():
+    error = _mps_ws_rejection(
+        {
+            "prompt": "a cat",
+            "controlnets": [
+                {
+                    "attachment_id": "cn_1",
+                    "control_type": "canny",
+                    "map_asset_ref": "ref1",
+                }
+            ],
+        },
+        "t-mps-controlnet",
+    )
+    assert "family 'sd15' does not support the controlnet operation" in error

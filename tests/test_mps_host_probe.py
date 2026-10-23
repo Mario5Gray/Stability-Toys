@@ -173,7 +173,7 @@ def test_probe_passes_on_ready_host_with_stable_schema(mps_host):
     }
     assert (
         checks["unsupported_family"]["message"]
-        == "family 'sd15' has no MPS platform binding"
+        == "family 'sdxl' has no MPS platform binding"
     )
     json.dumps(report)
 
@@ -211,7 +211,7 @@ def test_failed_check_outranks_unavailable(mps_host):
 
     with (
         patch("torch.backends.mps.is_available", return_value=False),
-        patch.dict(mps_bindings.MPS_FAMILY_BINDINGS, {"sd15": object()}),
+        patch.dict(mps_bindings.MPS_FAMILY_BINDINGS, {"sdxl": object()}),
         patch("backends.worker_factory.create_bound_worker", return_value=object()),
     ):
         code, report = probe.run_probe()

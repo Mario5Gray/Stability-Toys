@@ -48,7 +48,7 @@ SEED = 7
 TENSOR_SHAPE = (4,)
 ALLOC_ELEMENTS = 1024 * 1024  # float32 -> 4 MiB
 ALLOC_BYTES = ALLOC_ELEMENTS * 4
-UNSUPPORTED_FAMILY = "sd15"
+UNSUPPORTED_FAMILY = "sdxl"  # sd15 is bound; sdxl carries the negative check
 UNSUPPORTED_MESSAGE = f"family {UNSUPPORTED_FAMILY!r} has no MPS platform binding"
 
 PASS, FAIL, SKIPPED = "pass", "fail", "skipped"

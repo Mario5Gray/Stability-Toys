@@ -35,26 +35,114 @@ def _resolved_sd15():
     return _resolved(SD15_PROFILE)
 
 
-def test_mps_provider_has_empty_bindings_and_shared_runtime(mps_backend):
+def _resolved_sdxl():
+    """SDXL is the still-unbound family on MPS, so it carries the negative tests."""
+    from backends.family_profiles import SDXL_PROFILE
+    from tests.test_worker_factory import _resolved
+    from utils.model_detector import ModelVariant
+
+    return _resolved(
+        SDXL_PROFILE,
+        variant=ModelVariant.SDXL_BASE,
+        cad=2048,
+        checkpoint_variant="sdxl",
+    )
+
+
+def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     from backends.platform_registry import get_backend_provider
+    from backends.platforms.base import ExecutionCapabilities, UnsupportedFamilyError
     from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
     from backends.platforms.pool_runtime import PoolGenerationRuntime
-    from backends.platforms.base import UnsupportedFamilyError
 
     provider = get_backend_provider()
     assert provider.backend_id == "mps"
-    assert MPS_FAMILY_BINDINGS == {}
-    assert provider.family_binding("sd15") is None
+    assert set(MPS_FAMILY_BINDINGS) == {"sd15"}
+    cell = provider.family_binding("sd15")
+    assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
+    # Text-to-image only. All three optional operations stay false, which is the
+    # real admission gate for img2img, ControlNet, and the combined operation.
+    assert cell.execution_capabilities == ExecutionCapabilities(False, False, False)
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
-    assert provider.capabilities().supports_generation is False
     assert provider.capabilities().supports_superres is False
     assert provider.create_model_registry().get_vram_stats()["backend"] == "mps"
-    with pytest.raises(UnsupportedFamilyError, match="family 'sd15' has no MPS platform binding"):
-        provider.create_worker_factory()(
-            0,
-            SimpleNamespace(profile=SimpleNamespace(family_id="sd15")),
-            None,
-        )
+    for family_id in ("sdxl", "hunyuandit"):
+        assert provider.family_binding(family_id) is None
+        with pytest.raises(
+            UnsupportedFamilyError,
+            match=f"family '{family_id}' has no MPS platform binding",
+        ):
+            provider.create_worker_factory()(
+                0,
+                SimpleNamespace(profile=SimpleNamespace(family_id=family_id)),
+                None,
+            )
+
+
+class _FakeMpsWorker:
+    """Stand-in for the real worker, so factory selection needs no Torch import.
+
+    Importing `backends.mps_worker` in-process would pull in `backends.cuda_worker`
+    and break the import-cleanliness assertions elsewhere in this file.
+    """
+
+    built: dict = {}
+
+    def __init__(self, worker_id, model_path, model_info=None, family_profile=None):
+        _FakeMpsWorker.built = {
+            "worker_id": worker_id,
+            "model_path": model_path,
+            "family_id": family_profile.family_id,
+        }
+
+
+def test_mps_factory_builds_the_bound_sd15_worker(mps_backend, monkeypatch):
+    from backends.model_resolution import LocalModelBinding
+    from backends.platforms.base import ExecutionCapabilities, FamilyPlatformBinding
+    import backends.platforms.mps_bindings as mps_bindings
+    from backends.worker_factory import create_mps_worker
+
+    _FakeMpsWorker.built = {}
+    monkeypatch.setitem(
+        mps_bindings.MPS_FAMILY_BINDINGS,
+        "sd15",
+        FamilyPlatformBinding(
+            "tests.test_mps_registration._FakeMpsWorker",
+            ExecutionCapabilities(False, False, False),
+        ),
+    )
+    worker = create_mps_worker(3, _resolved_sd15(), LocalModelBinding("/models/sd15"))
+
+    assert isinstance(worker, _FakeMpsWorker)
+    assert _FakeMpsWorker.built == {
+        "worker_id": 3,
+        "model_path": "/models/sd15",
+        "family_id": "sd15",
+    }
+
+
+def test_mps_sd15_worker_ref_resolves_in_a_fresh_interpreter():
+    """The bound dotted ref must import and subclass the shared worker base.
+
+    This runs in a subprocess because importing the worker pulls in Torch, which
+    the in-process import-cleanliness tests above forbid.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS; "
+            "from backends.worker_factory import _resolve_worker_class; "
+            "from backends.cuda_worker import CudaWorkerBase; "
+            "from backends.platforms.mps_policy import MPS_TORCH_POLICY; "
+            "cls = _resolve_worker_class(MPS_FAMILY_BINDINGS['sd15'].worker_ref); "
+            "assert issubclass(cls, CudaWorkerBase), cls; "
+            "assert cls.execution_policy is MPS_TORCH_POLICY",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_mps_provider_import_does_not_import_cuda_worker():
@@ -141,11 +229,11 @@ def test_mps_pool_selects_mps_factory_without_cuda(mps_backend, monkeypatch, iso
         assert pool._parent_consumers[0]._execution_policy.backend_id == "mps"
 
 
-def test_mps_subprocess_entry_rejects_every_family(mps_backend):
+def test_mps_subprocess_entry_rejects_unbound_families(mps_backend):
     from backends.platforms.base import UnsupportedFamilyError
     from backends.worker_factory import create_mps_worker
 
-    for family_id in ("sd15", "sdxl", "hunyuandit"):
+    for family_id in ("sdxl", "hunyuandit"):
         with pytest.raises(
             UnsupportedFamilyError,
             match=f"family '{family_id}' has no MPS platform binding",
@@ -160,15 +248,15 @@ def test_mps_pool_rejects_known_family_before_worker_start(mps_backend, monkeypa
     from backends.worker_pool import get_worker_pool
 
     monkeypatch.setenv("WORKER_ISOLATION", isolation)
-    mode = SimpleNamespace(model_path="/models/sd15", loras=[])
+    mode = SimpleNamespace(model_path="/models/sdxl", loras=[])
     dependencies = _minimal_deps()
     dependencies["device_memory"].snapshot.return_value = SimpleNamespace(consumers=())
-    dependencies["mode_config"].get_default_mode.return_value = "sd15"
+    dependencies["mode_config"].get_default_mode.return_value = "sdxl"
     dependencies["mode_config"].get_mode.side_effect = None
     dependencies["mode_config"].get_mode.return_value = mode
     monkeypatch.setattr(
         "backends.governor.resolve_model",
-        lambda path, selected_mode: (_resolved_sd15(), None),
+        lambda path, selected_mode: (_resolved_sdxl(), None),
     )
 
     pool = get_worker_pool(**dependencies)
@@ -176,9 +264,9 @@ def test_mps_pool_rejects_known_family_before_worker_start(mps_backend, monkeypa
     assert pool.get_current_mode() is None
     with pytest.raises(
         UnsupportedFamilyError,
-        match="family 'sd15' has no MPS platform binding",
+        match="family 'sdxl' has no MPS platform binding",
     ):
-        pool.switch_mode("sd15")
+        pool.switch_mode("sdxl")
     if isolation == "subprocess":
         assert pool._governor._handle._proc is None
 
@@ -191,9 +279,9 @@ def test_mps_subprocess_child_uses_mps_binding_table(mps_backend):
     try:
         with pytest.raises(
             WorkerStartError,
-            match="family 'sd15' has no MPS platform binding",
+            match="family 'sdxl' has no MPS platform binding",
         ):
-            handle.start(_resolved_sd15(), LocalModelBinding("/models/sd15"), None)
+            handle.start(_resolved_sdxl(), LocalModelBinding("/models/sdxl"), None)
     finally:
         handle.stop()
 
@@ -224,17 +312,17 @@ async def test_server_lifespan_boots_with_mps_and_no_model(mps_backend, monkeypa
     monkeypatch.setenv("CONTROLNET_REGISTRY_VALIDATION", "off")
     monkeypatch.setenv("METRICS_ENABLED", "0")
     monkeypatch.setattr(server, "BACKEND", "mps")
-    mode = SimpleNamespace(model_path="/models/sd15", loras=[])
+    mode = SimpleNamespace(model_path="/models/sdxl", loras=[])
     mode_config = Mock()
-    mode_config.get_default_mode.return_value = "sd15"
+    mode_config.get_default_mode.return_value = "sdxl"
     mode_config.get_mode.return_value = mode
-    mode_config.list_modes.return_value = ["sd15"]
+    mode_config.list_modes.return_value = ["sdxl"]
     monkeypatch.setattr(governor, "get_mode_config", lambda: mode_config)
     monkeypatch.setattr(server, "get_mode_config", lambda: mode_config)
     monkeypatch.setattr(
         governor,
         "resolve_model",
-        lambda path, selected_mode: (_resolved_sd15(), None),
+        lambda path, selected_mode: (_resolved_sdxl(), None),
     )
     monkeypatch.setattr(server, "start_config_watcher", lambda *args: None)
     monkeypatch.setattr(server, "stop_config_watcher", lambda: None)
@@ -267,11 +355,11 @@ async def test_mps_mode_switch_reports_missing_binding(mps_backend, monkeypatch)
     monkeypatch.setattr(model_routes, "get_mode_config", lambda: config)
     monkeypatch.setattr(model_routes, "get_worker_pool", lambda: pool)
     pool.switch_mode.side_effect = UnsupportedFamilyError(
-        "family 'sd15' has no MPS platform binding"
+        "family 'sdxl' has no MPS platform binding"
     )
 
     with pytest.raises(HTTPException) as error:
         await model_routes.switch_mode(model_routes.ModeSwitchRequest(mode="example"))
     assert error.value.status_code == 422
-    assert error.value.detail == "family 'sd15' has no MPS platform binding"
+    assert error.value.detail == "family 'sdxl' has no MPS platform binding"
     pool.switch_mode.assert_called_once_with("example")

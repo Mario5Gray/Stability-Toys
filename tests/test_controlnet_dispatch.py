@@ -1,4 +1,5 @@
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -223,3 +224,49 @@ def test_ws_handle_job_submit_admits_controlnets_on_loaded_controlnet_capable_fa
     assert any(m.get("type") == "job:ack" for m in sent_messages)
     errors = [m for m in sent_messages if m.get("type") == "job:error"]
     assert all("ControlNet provider not yet implemented" not in m.get("error", "") for m in errors)
+
+
+def test_http_generate_rejects_controlnets_on_mps_sd15_cell():
+    """HTTP /generate stops at the MPS family cell, before any preprocessing.
+
+    /generate cannot express img2img, so admission sees has_init_image=False and
+    the ControlNet branch is the one that fires (STABL-hvvogszy).
+    """
+    from backends.platforms.mps import MPSProvider
+    from fastapi import HTTPException
+    from server.controlnet_models import ControlNetAttachment
+    import server.lcm_sr_server as srv
+    from tests.snapshot_test_helpers import make_mode_backed_runtime
+
+    att = ControlNetAttachment(
+        attachment_id="cn_1",
+        control_type="canny",
+        map_asset_ref="asset_a",
+    )
+    # A real mode shape, not a MagicMock: finalize_mode_generate_request runs
+    # before admission and rejects a mock default_size with HTTP 400.
+    mode = SimpleNamespace(
+        name="lcm-general",
+        default_size="768x768",
+        default_steps=8,
+        default_guidance=3.0,
+        resolution_options=[{"size": "768x768", "aspect_ratio": "1:1"}],
+    )
+    mock_runtime = make_mode_backed_runtime(mode, family_id="sd15")
+    mock_app = MagicMock()
+    mock_app.state.generation_runtime = mock_runtime
+    mock_app.state.backend_provider = MPSProvider()
+
+    req = srv.GenerateRequest(prompt="a cat", controlnets=[att])
+
+    with patch.object(srv, "app", mock_app):
+        with patch(
+            "server.controlnet_preprocessing.preprocess_controlnet_attachments"
+        ) as preprocess_mock:
+            with pytest.raises(HTTPException) as exc_info:
+                srv.generate(req)
+
+    assert exc_info.value.status_code == 501
+    assert "family 'sd15' does not support the controlnet operation" in exc_info.value.detail
+    preprocess_mock.assert_not_called()
+    mock_runtime.submit_generate.assert_not_called()

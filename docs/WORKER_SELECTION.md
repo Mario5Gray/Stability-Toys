@@ -42,12 +42,14 @@ behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
 ## MPS Framework
 
 `BACKEND=mps` uses `MPSProvider`, the shared pool runtime, and MPS memory policy.
-`MPS_FAMILY_BINDINGS` is empty. No model family can load on MPS yet.
+`MPS_FAMILY_BINDINGS` binds `sd15` to `backends.mps_worker.DiffusersMpsWorker`
+for LCM text-to-image. Its cell claims no img2img, no ControlNet, and no
+combined operation. `sdxl` and `hunyuandit` stay unbound.
 The provider reports generation and super-resolution support as false.
 Server startup continues without a model when the default mode has no MPS binding.
 Mode switches return HTTP 422 with `family 'X' has no MPS platform binding`.
 In-process workers use the provider factory. Subprocess workers use the module-level
-`create_mps_worker` entry point. Both use the same empty binding table.
+`create_mps_worker` entry point. Both read the same binding table.
 MPS super-resolution remains a placeholder. MLX behavior does not change.
 For Mac setup, MPS limits, the host probe, and evidence, see [MPS_BACKEND.md](MPS_BACKEND.md).
 
@@ -105,7 +107,7 @@ python -m utils.model_detector /models/your-model.safetensors
 `CUDA_FAMILY_BINDINGS`.
 
 **Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
-MPS binds no families yet.
+MPS binds `sd15` for LCM text-to-image only.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
