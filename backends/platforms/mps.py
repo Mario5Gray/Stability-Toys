@@ -14,7 +14,7 @@ class MPSProvider:
     backend_id: str = "mps"
 
     def capabilities(self) -> BackendCapabilities:
-        return BackendCapabilities(False, True, False, False)
+        return BackendCapabilities(True, True, False, False)
 
     def family_binding(self, family_id: str) -> FamilyPlatformBinding | None:
         from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS

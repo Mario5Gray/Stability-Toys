@@ -83,14 +83,12 @@ That is the current state for every family except `sd15`.
   Its totals read 0 and its `vram.device` reads `MPS placeholder`. Process
   memory accounting itself is real; see the probe's `memory` check.
 - **Super-resolution is a placeholder.** `supports_superres` is false.
-- **`supports_generation` still reads false, and that is a known
-  understatement.** The flag reaches only `/api/models/status`. The real
-  generation gate is the `sd15` cell, which is present. The flag flips to true
-  only after a live MPS render passes the validity checks below. Until then,
-  `/api/models/status` reports generation unsupported while MPS generation can
-  execute. Do not deploy or merge this state.
-  `tests/test_mps_registration.py::test_mps_supports_generation_stays_false_until_live_acceptance`
-  pins it.
+- **`supports_generation` reads true, and it reaches only
+  `/api/models/status`.** The flag gates nothing. The real generation gate is
+  the `sd15` cell. The flag turned true after the live render below passed the
+  validity checks in both isolation modes.
+  `tests/test_mps_registration.py::test_mps_reports_generation_after_live_acceptance`
+  pins it, together with the three flags that stay false.
 - **MLX is unchanged.** `BACKEND=mlx` is a separate backend.
 
 ## Host probe
@@ -167,9 +165,11 @@ error: `scripts/mps_host_probe.py` not found), then GREEN, 12 passed.
 The empty-value cases in `test_mps_policy.py` (commit `a53bb88`) pin existing
 behavior, so they passed on first run. No RED step applies.
 
-Cohort runs on the Mac at commit `96de1ba` (2026-10-22, Python 3.12.13,
-torch 2.10.0). The earlier framework-only run at `cb02402` gave
-199 passed (real, 10 files) and 78 passed (stub, 2 files).
+Cohort runs on the Mac at commit `2b58c23` plus the one-line
+`supports_generation` change of this commit (2026-10-22, Python 3.12.13,
+torch 2.10.0). The flag change moved no cohort number. The earlier
+framework-only run at `cb02402` gave 199 passed (real, 10 files) and
+78 passed (stub, 2 files).
 
 ```bash
 python -m tests.run \
@@ -221,7 +221,7 @@ Failures that predate this work, outside these cohorts:
 
 ### Live host checks (Mac only)
 
-#### `sd15` binding, probe run at `96de1ba` (2026-10-22)
+#### `sd15` binding, probe run at `2b58c23` (2026-10-22)
 
 Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
 
@@ -233,27 +233,54 @@ Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
 - `unsupported_family`: `family 'sdxl' has no MPS platform binding`, status `pass`.
   This is the moved negative check. `sd15` is bound and no longer carries it.
 
-#### Live generation: NOT RUN (blocked)
+#### Live generation: PASS, both isolation modes (2026-10-22)
 
-No `lcm-dreamshaper-v7` Diffusers directory exists on this host.
-`conf/modes.yml` sets `model_root: /models`, which does not exist, and no copy
-was found under `$HOME`, `/Volumes`, or a Hugging Face cache. The live render,
-both isolation modes, and the PNG validity checks are therefore **not done**,
-and `supports_generation` stays false.
+Code at `2b58c23`, clean tree. The model root is a host path outside the repo.
 
-What was verified without the model, at `96de1ba`:
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0
+- Model: `<model root>/diffusers/lcm-dreamshaper-v7`,
+  `_class_name: LatentConsistencyModelPipeline`
+- Mode `lcm-general`, Compel service, prompt
+  "a bright red sailboat on a blue lake beneath a green mountain", seed 7
+- Server: `python -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200`
+  with `BACKEND=mps`, `MODE_CONFIG_PATH=<temporary conf copy>`,
+  `CONTROLNET_REGISTRY_VALIDATION=off`
+- `DEFAULT_SIZE`, `DEFAULT_STEPS`, and `DEFAULT_GUIDANCE` unset in both shells
 
-- `import compel` succeeds in the `stability-toys` env.
-- The served `lcm-general` mode reads `conditioning.service: compel` and
-  `fallback.native_on_failure: False`, so a Compel failure raises instead of
-  degrading to native.
-- Mode defaults are `768x768`, 8 steps, guidance 3, `default_scheduler_id: lcm`,
-  `allowed_scheduler_ids: [euler, lcm]`.
-- `DEFAULT_SIZE`, `DEFAULT_STEPS`, and `DEFAULT_GUIDANCE` are all unset, so the
-  mode-default overlay would apply.
+| Isolation | HTTP | Wall time | Bytes | Result |
+|---|---|---|---|---|
+| `inproc` | 200 | 17.2 s | 955786 | pass |
+| `subprocess` | 200 | 10.3 s | 955786 | pass |
 
-To finish acceptance, supply the model root and run Step 5 of
-`docs/superpowers/plans/2026-10-22-mps-sd15-lcm-text-to-image.md` unchanged.
+Both PNGs are byte-identical, `sha256` prefix `e7907d8e79439ca2`. Seed 7 gives
+the same image across the spawn boundary, so the generator is seeded inside the
+worker and not in the parent.
+
+Validity, per image: format PNG, size `768x768`, 3561 distinct RGB colors in a
+64x64 resample (limit 32), grayscale standard deviation 38.43 (limit 5). The
+`lcm` text chunk reads seed 7, steps 8, cfg 3.0, size `768x768`,
+`scheduler_id: lcm`. Visual check: a red sailboat on a blue lake below a gray
+mountain. Neither image is black, white, or corrupt.
+
+`/api/models/status` during both runs, before the flag change: `backend: mps`,
+`current_mode: lcm-general`, `is_loaded: true`, `models_loaded: 1`,
+`device: MPS placeholder`, no numeric device total, and
+`supports_generation: false` — the deliberate understatement this slice removes.
+
+After the flag change, the same check on a reloaded server reads
+`supports_generation: true` with every other field unchanged.
+
+Two deviations from Step 5 of the plan, both forced by the host:
+
+1. The plan starts the server with `python server/lcm_sr_server.py`. That file
+   uses a relative import at line 111, so script mode raises `ImportError`.
+   The container entrypoint is `uvicorn server.lcm_sr_server:app`, which is
+   what ran.
+2. The plan sets `lora_root` to `<model root>/loras`. That directory does not
+   exist on this host; the LoRA files are in `<model root>/diffusers/loras`,
+   and `ModeConfigManager` reports a missing `lora_root` as a path error. The
+   temporary config points at the directory that holds the files. The MPS
+   worker loads no LoRA, so this changes nothing in the render.
 
 #### Framework-only probe at `cb02402`
 

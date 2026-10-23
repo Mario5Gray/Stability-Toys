@@ -393,13 +393,17 @@ def test_mps_registry_reports_loaded_model_but_no_device_total(mps_backend):
     assert provider.capabilities().supports_model_registry_stats is False
 
 
-def test_mps_supports_generation_stays_false_until_live_acceptance(mps_backend):
+def test_mps_reports_generation_after_live_acceptance(mps_backend):
     """The flag feeds `/api/models/status` only. The real generation gate is the
-    `sd15` cell, which is present. Flipping this to True is the LAST step of
-    STABL-hvvogszy, and only after a live MPS render passes the validity checks
-    in docs/MPS_BACKEND.md. Until then the status payload understates behavior,
-    and this test records that the understatement is deliberate.
+    `sd15` cell. The flag turned true as the LAST step of STABL-hvvogszy, after
+    a live MPS render in both isolation modes passed the validity checks in
+    docs/MPS_BACKEND.md. The other three flags stay false: MPS binds one family
+    for text-to-image only.
     """
     from backends.platform_registry import get_backend_provider
 
-    assert get_backend_provider().capabilities().supports_generation is False
+    capabilities = get_backend_provider().capabilities()
+    assert capabilities.supports_generation is True
+    assert capabilities.supports_modes is True
+    assert capabilities.supports_superres is False
+    assert capabilities.supports_model_registry_stats is False

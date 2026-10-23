@@ -45,7 +45,8 @@ behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
 `MPS_FAMILY_BINDINGS` binds `sd15` to `backends.mps_worker.DiffusersMpsWorker`
 for LCM text-to-image. Its cell claims no img2img, no ControlNet, and no
 combined operation. `sdxl` and `hunyuandit` stay unbound.
-The provider reports generation and super-resolution support as false.
+The provider reports generation support as true after live acceptance.
+It reports super-resolution and model-registry statistics as false.
 Server startup continues without a model when the default mode has no MPS binding.
 Mode switches return HTTP 422 with `family 'X' has no MPS platform binding`.
 In-process workers use the provider factory. Subprocess workers use the module-level
