@@ -34,8 +34,12 @@ For provider, factory, and family-binding flow, see
    ```bash
    export BACKEND=mps
    export MODE_CONFIG_PATH=conf
-   python server/lcm_sr_server.py
+   python -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200
    ```
+
+   `server/lcm_sr_server.py` uses a relative import, so running it as a script
+   raises `ImportError`. The command above is the container entrypoint, and it
+   is the one the live acceptance below used.
 
 4. Choose worker isolation. Both modes read the same binding table.
 
@@ -296,6 +300,11 @@ gave the same values and bytes.
 - Run 1: `python scripts/mps_host_probe.py`, exit 0
 - Run 2: `python scripts/mps_host_probe.py --expect <run 1 report>`, exit 0, `matches_expected: true`
 
+This run names `sd15` as the unsupported family, because `cb02402` bound no
+family at all. `STABL-hvvogszy` bound `sd15` and moved the negative check to
+`sdxl`. Both results are correct for their own commit. Do not edit this record
+to match current behavior.
+
 The two reports are identical except for `matches_expected`. Run 2 output:
 
 ```json
@@ -330,8 +339,8 @@ The two reports are identical except for `matches_expected`. Run 2 output:
     },
     "unsupported_family": {
       "error": null,
-      "family": "sdxl",
-      "message": "family 'sdxl' has no MPS platform binding",
+      "family": "sd15",
+      "message": "family 'sd15' has no MPS platform binding",
       "status": "pass"
     }
   },
