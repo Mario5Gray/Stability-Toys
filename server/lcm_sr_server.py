@@ -108,7 +108,7 @@ from server.superres_http import (
     submit_superres,
 )
 
-from .mode_config import MODE_CONFIG_PATH
+from server.mode_config import MODE_CONFIG_PATH
 
 BACKEND = (os.environ.get("BACKEND") or "").lower().strip()
 COMFYUI_ENABLED = os.environ.get("COMFYUI_ENABLED", "false").lower().strip()
@@ -1055,7 +1055,7 @@ app.add_middleware(MetricsMiddleware)
 
 if __name__ == "__main__":
     import uvicorn
-    from logging_config import LOGGING_CONFIG
+    from server.logging_config import LOGGING_CONFIG
 
     uvicorn.run(
         app,
