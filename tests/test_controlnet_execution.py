@@ -168,7 +168,7 @@ def test_admit_generation_operation_hunyuan_combined_rejects_nondefault_end_perc
         _hunyuan_combined_admission(attachment)
 
 
-# --- MPS sd15 cell: text-to-image only (STABL-hvvogszy) ---------------------
+# --- MPS sd15 cell: text-to-image and img2img (STABL-tukrgrjb) --------------
 # These use the real MPSProvider, so the live MPS_FAMILY_BINDINGS table is the
 # gate under test, not a hand-built capability triple.
 
@@ -193,9 +193,8 @@ def test_admit_generation_operation_mps_sd15_admits_text_to_image():
     assert _mps_admission(has_init_image=False) == "txt2img"
 
 
-def test_admit_generation_operation_mps_sd15_rejects_img2img():
-    with pytest.raises(ValueError, match="family 'sd15' does not support the img2img operation"):
-        _mps_admission(has_init_image=True)
+def test_admit_generation_operation_mps_sd15_admits_img2img():
+    assert _mps_admission(has_init_image=True) == "img2img"
 
 
 def test_admit_generation_operation_mps_sd15_rejects_controlnet():
@@ -208,3 +207,15 @@ def test_admit_generation_operation_mps_sd15_rejects_controlnet():
         NotImplementedError, match="family 'sd15' does not support the controlnet operation"
     ):
         _mps_admission(has_init_image=False, controlnets=(attachment,))
+
+
+def test_admit_generation_operation_mps_sd15_rejects_the_combined_operation():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map"
+    )
+    with pytest.raises(
+        ValueError, match="family 'sd15' does not support the img2img\\+controlnet operation"
+    ):
+        _mps_admission(has_init_image=True, controlnets=(attachment,))

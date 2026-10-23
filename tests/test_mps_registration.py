@@ -60,9 +60,9 @@ def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     assert set(MPS_FAMILY_BINDINGS) == {"sd15"}
     cell = provider.family_binding("sd15")
     assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
-    # Text-to-image only. All three optional operations stay false, which is the
-    # real admission gate for img2img, ControlNet, and the combined operation.
-    assert cell.execution_capabilities == ExecutionCapabilities(False, False, False)
+    # Text-to-image and img2img. ControlNet and the combined operation stay
+    # false. The cell is the real admission gate for all three.
+    assert cell.execution_capabilities == ExecutionCapabilities(True, False, False)
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
     assert provider.capabilities().supports_superres is False
     assert provider.create_model_registry().get_vram_stats()["backend"] == "mps"
@@ -397,8 +397,8 @@ def test_mps_reports_generation_after_live_acceptance(mps_backend):
     """The flag feeds `/api/models/status` only. The real generation gate is the
     `sd15` cell. The flag turned true as the LAST step of STABL-hvvogszy, after
     a live MPS render in both isolation modes passed the validity checks in
-    docs/MPS_BACKEND.md. The other three flags stay false: MPS binds one family
-    for text-to-image only.
+    docs/MPS_BACKEND.md. MPS binds one family. Its cell admits text-to-image
+    and img2img. ControlNet and the combined operation stay false.
     """
     from backends.platform_registry import get_backend_provider
 

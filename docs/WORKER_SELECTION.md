@@ -43,8 +43,8 @@ behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
 
 `BACKEND=mps` uses `MPSProvider`, the shared pool runtime, and MPS memory policy.
 `MPS_FAMILY_BINDINGS` binds `sd15` to `backends.mps_worker.DiffusersMpsWorker`
-for LCM text-to-image. Its cell claims no img2img, no ControlNet, and no
-combined operation. `sdxl` and `hunyuandit` stay unbound.
+for LCM text-to-image and LCM img2img. Its cell claims img2img. It claims no
+ControlNet and no combined operation. `sdxl` and `hunyuandit` stay unbound.
 The provider reports generation support as true after live acceptance.
 It reports super-resolution and model-registry statistics as false.
 Server startup continues without a model when the default mode has no MPS binding.
@@ -108,7 +108,7 @@ python -m utils.model_detector /models/your-model.safetensors
 `CUDA_FAMILY_BINDINGS`.
 
 **Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
-MPS binds `sd15` for LCM text-to-image only.
+MPS binds `sd15` for LCM text-to-image and LCM img2img only.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
