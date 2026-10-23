@@ -445,7 +445,7 @@ class CudaWorkerBase:
         self._scheduler_profile = getattr(self.model_info, "scheduler_profile", "unknown")
 
     @staticmethod
-    def _maybe_disable_progress_bar(pipe):
+    def _maybe_disable_progress_bar(pipe, backend_id="cuda"):
         """Silence the diffusers tqdm bar when logs are being PARSED.
 
         tqdm writes to the stream directly, not through `logging`, so no logging
@@ -463,6 +463,10 @@ class CudaWorkerBase:
 
         Wrapped: suppressing a progress bar is cosmetic and must never be able to
         cost a model load.
+
+        `backend_id` labels the failure line only. It defaults to "cuda" so the
+        direct static calls and the CUDA text are unchanged. A non-CUDA subclass
+        passes its policy's backend ID through `_setup_pipe_memory_opts`.
         """
         try:
             if resolve_log_format() != JSON:
@@ -471,7 +475,7 @@ class CudaWorkerBase:
             if callable(configure):
                 configure(disable=True)
         except Exception:       # noqa: BLE001 — cosmetic; never fail a load
-            logger.debug("[cuda] could not disable the progress bar", exc_info=True)
+            logger.debug("[%s] could not disable the progress bar", backend_id, exc_info=True)
         return pipe
 
     def _setup_pipe_memory_opts(self, pipe):
@@ -481,7 +485,7 @@ class CudaWorkerBase:
         xformers must be enabled before offload hooks are registered.
         Returns the (possibly modified) pipe.
         """
-        self._maybe_disable_progress_bar(pipe)
+        self._maybe_disable_progress_bar(pipe, backend_id=self.execution_policy.backend_id)
         should_quantize_runtime = self._quantize == "fp8" and self._checkpoint_precision != "fp8"
         if should_quantize_runtime:
             self.execution_policy.quantize_modules(self._quantization_targets(pipe))

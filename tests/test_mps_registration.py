@@ -363,3 +363,23 @@ async def test_mps_mode_switch_reports_missing_binding(mps_backend, monkeypatch)
     assert error.value.status_code == 422
     assert error.value.detail == "family 'sdxl' has no MPS platform binding"
     pool.switch_mode.assert_called_once_with("example")
+
+
+def test_mps_registry_reports_loaded_model_but_no_device_total(mps_backend):
+    """Slice 1 keeps the placeholder registry. Its zero total means "no device
+    measurement", not "MPS uses no memory". The loaded name and count are real.
+    """
+    from backends.platform_registry import get_backend_provider
+
+    provider = get_backend_provider()
+    registry = provider.create_model_registry()
+    registry.register_model("lcm-general", "/models/diffusers/lcm-dreamshaper-v7")
+
+    stats = registry.get_vram_stats()
+    assert stats["backend"] == "mps"
+    assert stats["device"] == "MPS placeholder"
+    assert stats["models_loaded"] == 1
+    assert [model["name"] for model in stats["models"]] == ["lcm-general"]
+    assert registry.list_models() == ["lcm-general"]
+    assert registry.get_total_vram() == 0
+    assert provider.capabilities().supports_model_registry_stats is False
