@@ -59,10 +59,14 @@ That is the current state for every family except `sd15`.
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
 - **Text-to-image and img2img.** The `sd15` cell carries
   `ExecutionCapabilities(True, False, False)`, so `admit_generation_operation`
-  admits img2img and rejects ControlNet and the combined operation on both HTTP
-  and WebSocket. The worker repeats the ControlNet check as defense in depth.
-  That one check covers the combined operation too, because a ControlNet
-  binding is rejected with or without an init image.
+  admits img2img and rejects ControlNet and the combined operation. The worker
+  repeats the ControlNet check as defense in depth. That one check covers the
+  combined operation too, because a ControlNet binding is rejected with or
+  without an init image.
+- **img2img goes over the WebSocket only.** `POST /generate` carries no init
+  image, so its admission always reads `has_init_image=False`. An img2img job
+  needs `init_image_ref` on a `job:submit` frame. HTTP admission therefore sees
+  the ControlNet branch, never the img2img branch.
 - **img2img shares the loaded weights.** The worker builds one
   `StableDiffusionImg2ImgPipeline` from `self.pipe.components` on the first
   img2img job and keeps it. The pipeline reads the size from the init image, so
