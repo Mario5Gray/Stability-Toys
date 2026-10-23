@@ -1,8 +1,9 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-It binds one family: **`sd15` LCM text-to-image**. No other family loads on MPS,
-and `sd15` accepts no img2img, no ControlNet, and no scheduler other than LCM.
+It binds one family: **`sd15` LCM**, for text-to-image and img2img. No other
+family loads on MPS. `sd15` accepts no ControlNet, no combined
+img2img+ControlNet operation, and no scheduler other than LCM.
 
 Docker cannot reach Metal. Do not use [`TESTING_IN_DOCKER.md`](TESTING_IN_DOCKER.md)
 for MPS. Run everything in this guide natively on the Mac.
@@ -56,10 +57,18 @@ That is the current state for every family except `sd15`.
 - **One model family.** `MPS_FAMILY_BINDINGS` binds `sd15` to
   `backends.mps_worker.DiffusersMpsWorker`. `sdxl` and `hunyuandit` raise
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
-- **Text-to-image only.** The `sd15` cell carries
-  `ExecutionCapabilities(False, False, False)`, so `admit_generation_operation`
-  rejects img2img, ControlNet, and the combined operation on both HTTP and
-  WebSocket. The worker repeats both checks as defense in depth.
+- **Text-to-image and img2img.** The `sd15` cell carries
+  `ExecutionCapabilities(True, False, False)`, so `admit_generation_operation`
+  admits img2img and rejects ControlNet and the combined operation on both HTTP
+  and WebSocket. The worker repeats the ControlNet check as defense in depth.
+  That one check covers the combined operation too, because a ControlNet
+  binding is rejected with or without an init image.
+- **img2img shares the loaded weights.** The worker builds one
+  `StableDiffusionImg2ImgPipeline` from `self.pipe.components` on the first
+  img2img job and keeps it. The pipeline reads the size from the init image, so
+  the worker resizes the init image to the requested size and sends no width or
+  height. `denoise_strength` becomes the pipeline `strength`, default 0.75.
+  This mirrors the CUDA SD1.5 worker.
 - **LCM scheduler only.** `lcm-general` permits `euler` in configuration. The
   worker raises `ValueError("MPS SD1.5 supports LCM scheduler only")` before the
   pipeline call. HTTP returns 500 and WebSocket returns a job error. There is no
@@ -86,6 +95,11 @@ That is the current state for every family except `sd15`.
 - **`/status` reports 0 total memory.** MPS uses `PlaceholderModelRegistry`.
   Its totals read 0 and its `vram.device` reads `MPS placeholder`. Process
   memory accounting itself is real; see the probe's `memory` check.
+- **`/api/models/status` reports `supports_img2img` as false, and the report is
+  wrong.** The route reads the execution flags from `BackendCapabilities`,
+  which does not carry them, so the default false reaches every backend,
+  including CUDA. The real gate is the `sd15` cell. Measured during the
+  img2img live acceptance. Filed as `STABL-xuzguqyx`. Not an MPS defect.
 - **Super-resolution is a placeholder.** `supports_superres` is false.
 - **`supports_generation` reads true, and it reaches only
   `/api/models/status`.** The flag gates nothing. The real generation gate is
@@ -152,9 +166,10 @@ contract, not live Metal behavior.
 | Rejected `CUDA_*` options, including empty values | `tests/test_mps_policy.py::test_mps_policy_rejects_cuda_env_option` |
 | Unsupported-family errors, `sd15` binding, factory selection | `tests/test_mps_registration.py` |
 | Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
+| img2img pipeline reuse, init-image resize, denoise strength, VAE alignment, combined rejection | `tests/test_mps_worker.py` |
 | Operation gate on the MPS `sd15` cell | `tests/test_controlnet_execution.py` |
 | HTTP `/generate` rejects ControlNet before preprocessing | `tests/test_controlnet_dispatch.py` |
-| WebSocket rejects an init image and ControlNet after `job:ack` | `tests/test_ws_routes.py` |
+| WebSocket admits an init image, and rejects ControlNet and the combined operation after `job:ack` | `tests/test_ws_routes.py` |
 | Progress-bar failure line names the backend | `tests/test_progress_bar_suppression.py` |
 | Probe: unavailable is code 3 and never a pass, failed check is code 1, stable report schema, torch-free import | `tests/test_mps_host_probe.py` |
 
@@ -169,11 +184,15 @@ error: `scripts/mps_host_probe.py` not found), then GREEN, 12 passed.
 The empty-value cases in `test_mps_policy.py` (commit `a53bb88`) pin existing
 behavior, so they passed on first run. No RED step applies.
 
-Cohort runs on the Mac at commit `2b58c23` plus the one-line
-`supports_generation` change of this commit (2026-10-22, Python 3.12.13,
-torch 2.10.0). The flag change moved no cohort number. The earlier
-framework-only run at `cb02402` gave 199 passed (real, 10 files) and
-78 passed (stub, 2 files).
+Cohort runs on the Mac at commit `39d4c6c` (img2img, 2026-10-23, Python
+3.12.13, torch 2.10.0). The real cohort reads 297. The img2img slice added
+10 tests and removed the 3 that pinned the img2img rejection, for a net 7. The
+other 1 of the 8 came from `07692a2`, after this guide last recorded 289.
+
+Earlier runs, each for its own commit. Do not read them as current:
+`2b58c23` plus the one-line `supports_generation` change (2026-10-22) gave
+289 passed (real) and 78 passed (stub). The framework-only run at `cb02402`
+gave 199 passed (real, 10 files) and 78 passed (stub, 2 files).
 
 ```bash
 python -m tests.run \
@@ -193,7 +212,7 @@ python -m tests.run tests/test_progress_bar_suppression.py \
 
 | MPS cohort | Files | Result |
 |---|---|---|
-| real | 14 | 289 passed |
+| real | 14 | 297 passed |
 | stub | 2 | 78 passed |
 | progress bar (own call) | 1 | 10 passed |
 
@@ -210,6 +229,9 @@ python -m tests.run \
 |---|---|---|
 | real | 4 | 46 passed, 8 skipped |
 | stub | 4 | 124 passed |
+
+The CUDA cohort is unchanged from `2b58c23`, which is the point: the img2img
+cell and the MPS worker leave CUDA behavior alone.
 
 All 8 skips are in `tests/test_sdxl_worker.py`, with the reason "CUDA not
 functional - SDXL worker requires working GPU". This is contract-level CUDA
@@ -236,6 +258,67 @@ Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
   `[0.673828125, 0.6142578125, 0.052734375, 0.568359375]` — unchanged from `cb02402`
 - `unsupported_family`: `family 'sdxl' has no MPS platform binding`, status `pass`.
   This is the moved negative check. `sd15` is bound and no longer carries it.
+
+#### Live img2img: PASS, both isolation modes (2026-10-23)
+
+Code at `39d4c6c`. Only the two documentation files were uncommitted.
+`spikes/mps_img2img_acceptance.py` ran the whole check. It is a client. It
+starts no server.
+
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0
+- Model: `/Users/darkbit1001/models/diffusers/lcm-dreamshaper-v7`
+- Mode `lcm-general`, prompt
+  "a bright red sailboat on a blue lake beneath a green mountain", seed 7,
+  size 768x768, 8 steps, guidance 3.0
+- Init image: one generated 768x768 PNG, 4919 bytes,
+  `sha256 b6723b3d2774dc5b`. Green field, blue band, red circle, yellow
+  triangle. Hard shapes, so a surviving structure is visible by eye.
+- Server: `python -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200`
+  with `BACKEND=mps`, `MODE_CONFIG_PATH=<temporary conf copy>`,
+  `STORAGE_PROVIDER=MEMORY`, `CONTROLNET_REGISTRY_VALIDATION=off`
+- `DEFAULT_SIZE`, `DEFAULT_STEPS`, and `DEFAULT_GUIDANCE` unset in both shells
+- Upload: `POST /v1/upload` with `type=image` put the init image in the
+  `ref_image` bucket. The job went over the WebSocket, because `POST /generate`
+  cannot carry an init image.
+
+```bash
+conda activate stability-toys
+python spikes/mps_img2img_acceptance.py --out /tmp/mps_img2img_inproc
+# restart the server with WORKER_ISOLATION=subprocess, then:
+python spikes/mps_img2img_acceptance.py --out /tmp/mps_img2img_subprocess
+```
+
+| Run | Strength | Steps run | Bytes | `sha256` prefix | inproc | subprocess |
+|---|---|---|---|---|---|---|
+| txt2img | n/a | 8 | 955786 | `e7907d8e79439ca2` | 9.17 s | 9.89 s |
+| img2img | 0.35 | 2 | 170285 | `0fb7e55e29b92317` | 4.49 s | 4.58 s |
+| img2img | 0.90 | 7 | 724745 | `dea2a76281224a42` | 9.60 s | 9.85 s |
+
+All three renders are byte-identical across the two isolation modes. The
+text-to-image `sha256` prefix also matches the slice 1 record at `2b58c23`, so
+the img2img change moved no text-to-image byte.
+
+Four checks, all required. A valid PNG alone proves nothing, because
+text-to-image returns one too:
+
+| Check | Result |
+|---|---|
+| admitted | `job:complete`, never `job:error`. The cell admits img2img |
+| differs from txt2img | `0fb7e55e` is not `e7907d8e` |
+| valid | each render is a 768x768 PNG, over 32 distinct colors in a 64x64 resample, grayscale standard deviation over 5 |
+| strength reaches the pipeline | mean distance to the init image is 3.49 at strength 0.35 and 43.03 at strength 0.90 |
+
+Mean distance is the mean per-channel difference at 128x128, 0 to 255. The
+distance from the 0.35 render to the text-to-image render is 64.70.
+
+The step counts are the strength at work: the pipeline runs
+`int(steps * strength)` steps, so 0.35 ran 2 of 8 and 0.90 ran 7 of 8. The
+counts are the WebSocket progress frames, one per step.
+
+Visual check of the 0.90 render: the init image's red circle is a red sun in
+the same place, the blue band is a lake, the green field is sky and mountains,
+and the yellow triangle is a sail. The structure survives. The init image
+reached the pipeline.
 
 #### Live generation: PASS, both isolation modes (2026-10-22)
 
