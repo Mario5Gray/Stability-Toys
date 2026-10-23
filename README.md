@@ -111,9 +111,13 @@ modes:
 
 ```bash
 ./runner.sh
-# or
-python server/lcm_sr_server.py
+# or, from the repository root
+python -m server.lcm_sr_server
 ```
+
+Run the server as a module. Running the file as a script puts `server/` on
+`sys.path` instead of the repository root, so the first absolute import raises
+`ModuleNotFoundError: No module named 'server'`.
 
 The server automatically:
 - Loads the default mode on startup

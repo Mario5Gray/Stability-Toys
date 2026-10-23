@@ -8,7 +8,6 @@ patched, so the file runs on any host. The pipeline-class helpers are patched on
 
 import io
 import json
-from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -304,3 +303,18 @@ def test_mps_worker_releases_cache_after_pipeline_failure(
     with pytest.raises(RuntimeError, match="pipeline exploded"):
         worker.run_job(_job())
     released_cache.assert_called_once_with()
+
+
+def test_the_load_log_reports_no_style_api(fake_pipeline, caplog):
+    """The MPS worker runs no style-LoRA load loop, so it never reaches the
+    CUDA style-API detection and the field kept its `unknown` default. The
+    HunyuanDiT worker has the same shape and states `none` for the same reason.
+    `unknown` reads as a failed probe in a log line that is otherwise fact."""
+    doubles = fake_pipeline
+
+    with caplog.at_level("INFO", logger="backends.mps_worker"):
+        worker = _build_worker(doubles)
+
+    assert worker._style_api == "none"
+    assert "style_api=none" in caplog.text
+    assert "style_api=unknown" not in caplog.text

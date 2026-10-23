@@ -15,7 +15,6 @@ dev container in text mode. It is only corruption when something is parsing.
 """
 from unittest.mock import MagicMock
 
-import pytest
 
 from backends.cuda_worker import CudaWorkerBase
 
