@@ -1,4 +1,4 @@
-"""Contract tests for the MPS SD1.5 LCM worker (STABL-hvvogszy).
+"""Contract tests for the MPS SD1.5 LCM worker (STABL-hvvogszy, STABL-tukrgrjb).
 
 Torch is real, but MPS availability and the Diffusers pipeline classes are
 patched, so the file runs on any host. The pipeline-class helpers are patched on
@@ -22,6 +22,7 @@ class _FakeVae:
     def __init__(self):
         self.tiling = False
         self.slicing = False
+        self.to = Mock()
 
     def enable_tiling(self):
         self.tiling = True
@@ -50,8 +51,42 @@ class _FakePipe:
         self._image = image
         self.disable_lora = Mock()
 
+    @property
+    def components(self):
+        """Live, like the diffusers property. The worker swaps the scheduler
+        after load, so a dict frozen at construction would hand the img2img
+        pipeline the pre-LCM scheduler."""
+        return {
+            "vae": self.vae,
+            "unet": self.unet,
+            "text_encoder": self.text_encoder,
+            "scheduler": self.scheduler,
+        }
+
     # Python looks up __call__ on the type, so a per-test override must go
     # through attributes set here, not through assignment to pipe.__call__.
+    def __call__(self, *, callback_on_step_end=None, **kwargs):
+        self.calls.append({"callback_on_step_end": callback_on_step_end, **kwargs})
+        self.inference_mode_flags.append(torch.is_inference_mode_enabled())
+        if self.error is not None:
+            raise self.error
+        if callback_on_step_end is not None:
+            callback_on_step_end(self, 0, 0, {})
+        return SimpleNamespace(images=[self._image])
+
+
+class _FakeImg2ImgPipe:
+    """Stand-in for StableDiffusionImg2ImgPipeline built from shared components."""
+
+    def __init__(self, image=None, **components):
+        self.built_from = components
+        self.vae = components.get("vae")
+        self.scheduler = components.get("scheduler")
+        self.calls = []
+        self.inference_mode_flags = []
+        self.error = None
+        self._image = image
+
     def __call__(self, *, callback_on_step_end=None, **kwargs):
         self.calls.append({"callback_on_step_end": callback_on_step_end, **kwargs})
         self.inference_mode_flags.append(torch.is_inference_mode_enabled())
@@ -96,13 +131,25 @@ def fake_pipeline(monkeypatch, mps_available):
     )
     lcm_scheduler = _FakeScheduler({"scheduler": "lcm"})
     scheduler_class = SimpleNamespace(from_config=Mock(return_value=lcm_scheduler))
+
+    img2img_pipes = []
+
+    def _build_img2img(**components):
+        built = _FakeImg2ImgPipe(image=Image.new("RGB", (768, 768), "blue"), **components)
+        img2img_pipes.append(built)
+        return built
+
+    img2img_class = Mock(side_effect=_build_img2img)
     monkeypatch.setattr(mps_worker, "_sd_pipeline_cls", lambda: pipeline_class)
     monkeypatch.setattr(mps_worker, "_lcm_scheduler_cls", lambda: scheduler_class)
+    monkeypatch.setattr(mps_worker, "_sd_img2img_pipeline_cls", lambda: img2img_class)
     return SimpleNamespace(
         pipe=pipe,
         pipeline_class=pipeline_class,
         scheduler_class=scheduler_class,
         lcm_scheduler=lcm_scheduler,
+        img2img_class=img2img_class,
+        img2img_pipes=img2img_pipes,
     )
 
 
@@ -166,6 +213,7 @@ def _request(**overrides):
         guidance_scale=3.0,
         seed=7,
         style_lora=None,
+        denoise_strength=0.75,
     )
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -266,11 +314,107 @@ def test_mps_worker_rejects_non_lcm_scheduler(
     assert fake_pipeline.pipe.calls == []
 
 
-def test_mps_worker_rejects_init_image(fake_pipeline, recording_generator, released_cache):
+# --- img2img (STABL-tukrgrjb) ----------------------------------------------
+
+
+def _init_png(size=(512, 512), color="green"):
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_mps_worker_renders_img2img_from_init_image(
+    fake_pipeline, recording_generator, released_cache
+):
     worker = _build_worker(fake_pipeline)
-    with pytest.raises(ValueError, match="MPS SD1.5 does not support img2img"):
-        worker.run_job(_job(init_image=b"not-an-image"))
+    png_bytes, seed = worker.run_job(_job(init_image=_init_png()))
+
+    assert seed == 7
+    # The text-to-image pipeline stays untouched. Only the img2img pipeline ran.
     assert fake_pipeline.pipe.calls == []
+    assert len(fake_pipeline.img2img_pipes) == 1
+    img2img = fake_pipeline.img2img_pipes[0]
+    assert img2img.built_from == fake_pipeline.pipe.components
+    assert worker._img2img_pipe is img2img
+
+    call = img2img.calls[0]
+    assert call["image"].size == (768, 768)
+    assert call["strength"] == 0.75
+    assert call["num_inference_steps"] == 8
+    assert call["guidance_scale"] == 3.0
+    assert call["prompt"] == "a bright red sailboat"
+    assert call["generator"] is recording_generator.instances[-1]
+    # The img2img pipeline reads the size from the init image, not from kwargs.
+    assert "width" not in call
+    assert "height" not in call
+    assert img2img.inference_mode_flags == [True]
+
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        assert image.format == "PNG"
+        assert image.size == (768, 768)
+        metadata = json.loads(image.info["lcm"])
+    assert metadata["seed"] == 7
+    assert metadata["scheduler_id"] == "lcm"
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_reads_the_request_denoise_strength(
+    fake_pipeline, recording_generator, released_cache
+):
+    worker = _build_worker(fake_pipeline)
+    worker.run_job(_job(req=_request(denoise_strength=0.4), init_image=_init_png()))
+
+    assert fake_pipeline.img2img_pipes[0].calls[0]["strength"] == 0.4
+
+
+def test_mps_worker_builds_one_img2img_pipe_for_two_jobs(
+    fake_pipeline, recording_generator, released_cache
+):
+    """The img2img pipeline shares the loaded weights, so it is built once."""
+    worker = _build_worker(fake_pipeline)
+    worker.run_job(_job(init_image=_init_png()))
+    worker.run_job(_job(init_image=_init_png()))
+
+    assert fake_pipeline.img2img_class.call_count == 1
+    assert len(fake_pipeline.img2img_pipes[0].calls) == 2
+
+
+def test_mps_worker_aligns_the_vae_before_the_img2img_encode(
+    fake_pipeline, recording_generator, released_cache
+):
+    """A prior run can upcast the shared VAE. The encode fails if the init-image
+    tensor dtype no longer matches the VAE bias dtype."""
+    worker = _build_worker(fake_pipeline)
+    worker.run_job(_job(init_image=_init_png()))
+
+    fake_pipeline.pipe.vae.to.assert_called_with("mps", dtype=torch.float16)
+    assert fake_pipeline.img2img_pipes[0].vae is fake_pipeline.pipe.vae
+
+
+def test_mps_worker_cancels_img2img_at_step_boundary(
+    fake_pipeline, recording_generator, released_cache
+):
+    from concurrent.futures import CancelledError
+
+    worker = _build_worker(fake_pipeline)
+    with pytest.raises(CancelledError, match="job cancelled at step boundary"):
+        worker.run_job(_job(init_image=_init_png()), should_cancel=lambda: True)
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_rejects_an_init_image_with_controlnet_bindings(
+    fake_pipeline, recording_generator, released_cache
+):
+    """The combined operation stays rejected. The cell reports it as false."""
+    worker = _build_worker(fake_pipeline)
+    with pytest.raises(NotImplementedError, match="MPS SD1.5 does not support ControlNet"):
+        worker.run_job(
+            _job(
+                init_image=_init_png(),
+                controlnet_bindings=[SimpleNamespace(model_id="canny")],
+            )
+        )
+    assert fake_pipeline.img2img_pipes == []
     released_cache.assert_not_called()
 
 

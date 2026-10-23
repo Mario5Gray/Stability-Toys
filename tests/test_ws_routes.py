@@ -2019,7 +2019,7 @@ def test_ws_status_reads_vram_through_the_seam_not_torch_directly():
 
 
 # ---------------------------------------------------------------------------
-# MPS sd15 cell: WebSocket rejects img2img and ControlNet (STABL-hvvogszy)
+# MPS sd15 cell: WebSocket admits img2img, rejects ControlNet (STABL-tukrgrjb)
 # ---------------------------------------------------------------------------
 
 
@@ -2076,13 +2076,71 @@ def _mps_ws_rejection(params, job_id):
         app.state.worker_pool = None
 
 
-def test_ws_generate_rejects_init_image_on_mps_sd15_cell():
-    init_ref = get_store().write("upload", _solid_png_bytes())
-    error = _mps_ws_rejection(
-        {"prompt": "a cat", "init_image_ref": init_ref},
+def _mps_ws_submission(params, job_id):
+    """Drive one admitted submit and hand back the dispatched GenerationJob.
+
+    The future carries an exception, so the backend never runs. The assertion
+    target is admission and dispatch, not the render.
+    """
+    app.state.use_mode_system = True
+    pool = MagicMock()
+    pool.get_current_mode.return_value = "lcm-general"
+    finished_fut: concurrent.futures.Future = concurrent.futures.Future()
+    finished_fut.set_exception(RuntimeError("test stub: skip backend execution"))
+    pool.submit_job.return_value = finished_fut
+    app.state.worker_pool = pool
+    app.state.storage = None
+    _install_mps_sd15_cell(pool)
+
+    try:
+        with client.websocket_connect("/v1/ws") as ws:
+            ws.receive_json()  # consume status
+            ws.send_json({
+                "type": "job:submit",
+                "id": job_id,
+                "jobType": "generate",
+                "params": params,
+            })
+            ack = ws.receive_json()
+            assert ack["type"] == "job:ack"
+        pool.submit_job.assert_called_once()
+        return pool.submit_job.call_args.args[0]
+    finally:
+        app.state.use_mode_system = False
+        app.state.worker_pool = None
+        app.state.backend_provider = None
+
+
+def test_ws_generate_admits_init_image_on_mps_sd15_cell():
+    init_png = _solid_png_bytes()
+    init_ref = get_store().write("upload", init_png)
+    job = _mps_ws_submission(
+        {"prompt": "a cat", "init_image_ref": init_ref, "denoise_strength": 0.4},
         "t-mps-img2img",
     )
-    assert "family 'sd15' does not support the img2img operation" in error
+
+    assert job.init_image == init_png
+    assert job.req.denoise_strength == 0.4
+    assert job.controlnet_bindings == []
+
+
+def test_ws_generate_rejects_the_combined_operation_on_mps_sd15_cell():
+    init_ref = get_store().write("upload", _solid_png_bytes())
+    error = _mps_ws_rejection(
+        {
+            "prompt": "a cat",
+            "init_image_ref": init_ref,
+            "controlnets": [
+                {
+                    "attachment_id": "cn_1",
+                    "control_type": "canny",
+                    "map_asset_ref": "ref1",
+                }
+            ],
+        },
+        "t-mps-combined",
+    )
+    assert "family 'sd15' does not support the img2img+controlnet operation" in error
 
 
 def test_ws_generate_rejects_controlnet_on_mps_sd15_cell():

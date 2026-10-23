@@ -3,15 +3,16 @@
 `DiffusersMpsWorker` subclasses `CudaWorkerBase` and swaps only the execution
 policy, which is the documented non-CUDA subclass contract. The base supplies
 conditioning, scheduler, and style helpers. This module owns the SD1.5 load, the
-text-to-image job, and PNG encoding, because the base has no PNG helper.
+text-to-image and img2img jobs, and PNG encoding, because the base has no PNG
+helper.
 
 The pipeline-class helpers below are module globals on purpose. The worker calls
 them unqualified, so a test patches them here, where the call happens. A
 qualified call through `backends.cuda_worker` would miss the patch and load real
 weights.
 
-Scope: LCM text-to-image only. The worker rejects img2img, ControlNet, and any
-scheduler other than LCM.
+Scope: LCM text-to-image and LCM img2img. The worker rejects ControlNet, the
+combined img2img+ControlNet operation, and any scheduler other than LCM.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from PIL import Image, PngImagePlugin
 from backends.cuda_worker import (
     CudaWorkerBase,
     _lcm_scheduler_cls,
+    _sd_img2img_pipeline_cls,
     _sd_pipeline_cls,
 )
 from backends.family_profiles import FamilyProfile
@@ -40,7 +42,7 @@ __all__ = ["DiffusersMpsWorker"]
 
 
 class DiffusersMpsWorker(CudaWorkerBase):
-    """Apple MPS Diffusers worker for SD1.5 LCM text-to-image.
+    """Apple MPS Diffusers worker for SD1.5 LCM text-to-image and img2img.
 
     Supports two formats:
       - Single file: .safetensors or .ckpt checkpoint
@@ -115,17 +117,22 @@ class DiffusersMpsWorker(CudaWorkerBase):
     # Job execution
     # ---------------------------
     def run_job(self, job, progress=None, should_cancel=None) -> tuple[bytes, int]:
-        """Render one LCM text-to-image job and return PNG bytes with the seed.
+        """Render one LCM job and return PNG bytes with the seed.
+
+        An init image selects the img2img pipeline. Both paths share the loaded
+        weights.
 
         `run_job_with_latents` is absent on purpose. No production caller needs
         it, and HunyuanDiT already uses this narrower contract.
         """
-        # Defense in depth. `admit_generation_operation` rejects both operations
-        # earlier, from `ExecutionCapabilities(False, False, False)`.
-        if getattr(job, "init_image", None) is not None:
-            raise ValueError("MPS SD1.5 does not support img2img")
+        # Defense in depth. `admit_generation_operation` rejects ControlNet and
+        # the combined operation earlier, from
+        # `ExecutionCapabilities(True, False, False)`. One check covers both,
+        # because a ControlNet binding is rejected with or without an init image.
         if getattr(job, "controlnet_bindings", None):
             raise NotImplementedError("MPS SD1.5 does not support ControlNet")
+
+        init_image = getattr(job, "init_image", None)
 
         req = job.req
         if self._resolve_scheduler_id(req) != "lcm":
@@ -154,21 +161,43 @@ class DiffusersMpsWorker(CudaWorkerBase):
         pipe_kwargs = None
         try:
             conditioning_artifact = self._conditioning_artifact_for_request(req)
-            pipe_kwargs = {
-                "width": width,
-                "height": height,
-                "num_inference_steps": int(req.num_inference_steps),
-                "guidance_scale": float(req.guidance_scale),
-                "generator": gen,
-            }
+            if init_image is not None:
+                # img2img reuses the loaded weights, so it costs no extra memory.
+                # The pipeline reads the size from the init image, so it takes no
+                # width or height. This mirrors the CUDA SD1.5 worker.
+                init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize(
+                    (width, height)
+                )
+                if self._img2img_pipe is None:
+                    self._img2img_pipe = _sd_img2img_pipeline_cls()(**self.pipe.components)
+                # A prior run can upcast the shared VAE. Align it, or the next
+                # init-image encode fails on a dtype mismatch.
+                self._normalize_img2img_modules()
+                pipe = self._img2img_pipe
+                pipe_kwargs = {
+                    "image": init_pil,
+                    "strength": float(getattr(req, "denoise_strength", 0.75)),
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                }
+            else:
+                pipe = self.pipe
+                pipe_kwargs = {
+                    "width": width,
+                    "height": height,
+                    "num_inference_steps": int(req.num_inference_steps),
+                    "guidance_scale": float(req.guidance_scale),
+                    "generator": gen,
+                }
             conditioning_kwargs = self._accept_conditioning_artifact(
-                self.pipe, conditioning_artifact
+                pipe, conditioning_artifact
             )
             with torch.inference_mode():
-                inject_step_progress(self.pipe, pipe_kwargs, progress,
+                inject_step_progress(pipe, pipe_kwargs, progress,
                                      req.num_inference_steps,
                                      should_cancel=should_cancel)
-                out = self.pipe(**{**conditioning_kwargs, **pipe_kwargs})
+                out = pipe(**{**conditioning_kwargs, **pipe_kwargs})
 
             img: Image.Image = out.images[0]
             out = None  # release tensor reference before PNG encoding

@@ -10,11 +10,11 @@ from __future__ import annotations
 from backends.platforms.base import ExecutionCapabilities, FamilyPlatformBinding
 
 MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
-    # SD1.5 LCM text-to-image only. All three optional operations stay false, so
-    # `admit_generation_operation` rejects img2img, ControlNet, and the combined
-    # operation before any preprocessing.
+    # SD1.5 LCM text-to-image and img2img. ControlNet and the combined
+    # operation stay false, so `admit_generation_operation` rejects them before
+    # any preprocessing.
     "sd15": FamilyPlatformBinding(
         "backends.mps_worker.DiffusersMpsWorker",
-        ExecutionCapabilities(False, False, False),
+        ExecutionCapabilities(True, False, False),
     ),
 }
