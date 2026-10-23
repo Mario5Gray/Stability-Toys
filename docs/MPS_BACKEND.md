@@ -65,8 +65,9 @@ That is the current state for every family except `sd15`.
   without an init image.
 - **img2img goes over the WebSocket only.** `POST /generate` carries no init
   image, so its admission always reads `has_init_image=False`. An img2img job
-  needs `init_image_ref` on a `job:submit` frame. HTTP admission therefore sees
-  the ControlNet branch, never the img2img branch.
+  needs `init_image_ref` on a `job:submit` frame. HTTP admission with a
+  ControlNet reaches the ControlNet branch. HTTP admission without one reaches
+  text-to-image. HTTP admission never reaches the img2img branch.
 - **img2img shares the loaded weights.** The worker builds one
   `StableDiffusionImg2ImgPipeline` from `self.pipe.components` on the first
   img2img job and keeps it. The pipeline reads the size from the init image, so
@@ -99,18 +100,21 @@ That is the current state for every family except `sd15`.
 - **`/status` reports 0 total memory.** MPS uses `PlaceholderModelRegistry`.
   Its totals read 0 and its `vram.device` reads `MPS placeholder`. Process
   memory accounting itself is real; see the probe's `memory` check.
-- **`/api/models/status` reports `supports_img2img` as false, and the report is
-  wrong.** The route reads the execution flags from `BackendCapabilities`,
-  which does not carry them, so the default false reaches every backend,
-  including CUDA. The real gate is the `sd15` cell. Measured during the
-  img2img live acceptance. Filed as `STABL-xuzguqyx`. Not an MPS defect.
+- **`/api/models/status` reported `supports_img2img` as false — FIXED on
+  `main`.** The route read the execution flags from `BackendCapabilities`,
+  which does not carry them, so the default false reached every backend,
+  including CUDA. Measured during the img2img live acceptance below, which
+  still records that false. `STABL-xuzguqyx` fixed it in `e89856e`: the route
+  now reads the active snapshot's family cell, the same source admission reads.
+  The response also gained `supports_controlnet`. Not an MPS defect.
 - **Super-resolution is a placeholder.** `supports_superres` is false.
 - **`supports_generation` reads true, and it reaches only
   `/api/models/status`.** The flag gates nothing. The real generation gate is
   the `sd15` cell. The flag turned true after the live render below passed the
   validity checks in both isolation modes.
   `tests/test_mps_registration.py::test_mps_reports_generation_after_live_acceptance`
-  pins it, together with the three flags that stay false.
+  pins it. `test_mps_provider_binds_sd15_and_shares_runtime` pins the cell:
+  img2img true, ControlNet and the combined operation false.
 - **MLX is unchanged.** `BACKEND=mlx` is a separate backend.
 
 ## Host probe
