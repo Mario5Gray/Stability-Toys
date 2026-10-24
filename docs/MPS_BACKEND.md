@@ -289,8 +289,11 @@ Code at `10871a2`, clean tree except one untracked JPEG. Spike:
 
 This record is the re-run of 2026-10-23, after a PR review strengthened two
 signals: map content against map strength, and an exact scope message against
-any failure. Every figure the two runs share is identical, `sha256` prefixes
-included.
+any failure. Every DETERMINISTIC figure the two runs share is identical - byte
+counts, `sha256` prefixes, colour counts, standard deviations, and every mean
+distance. Wall times differ, because they measure the machine rather than the
+render: the first run reported 10.31 s, 14.50 s, and 13.20 s against this run's
+10.17 s, 13.44 s, and 13.51 s for the same three jobs in `inproc`.
 
 - Host: macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0, diffusers 0.39.0,
   OpenCV 5.0.0
