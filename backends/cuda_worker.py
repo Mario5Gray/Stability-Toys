@@ -78,6 +78,13 @@ def _sd_controlnet_pipeline_cls() -> Any:
     )
 
 
+def _sd_controlnet_img2img_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.controlnet.pipeline_controlnet_img2img",
+        "StableDiffusionControlNetImg2ImgPipeline",
+    )
+
+
 def _sdxl_img2img_pipeline_cls() -> Any:
     return _import_attr(
         "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img",
@@ -1094,9 +1101,9 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 )
                 controlnet_obj = controlnet_kwargs.pop("controlnet")
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize((width, height))
-                combined_pipe = _import_attr(
-                    "diffusers", "StableDiffusionControlNetImg2ImgPipeline"
-                ).from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)
+                combined_pipe = _sd_controlnet_img2img_pipeline_cls().from_pipe(
+                    self.pipe, controlnet=controlnet_obj, torch_dtype=None
+                )
                 # Combined path shares self.pipe's components via from_pipe exactly
                 # like the plain img2img path shares them via _img2img_pipe — needs
                 # the same VAE dtype/device fix-up, or a prior run's upcast breaks
