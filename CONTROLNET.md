@@ -316,7 +316,8 @@ Attachment rules:
 - exactly one of `map_asset_ref` or `source_asset_ref`
 - `source_asset_ref` requires `preprocess`
 - `map_asset_ref` must not include `preprocess`
-- `start_percent <= end_percent`
+- `start_percent < end_percent`; an equal start and end would apply ControlNet
+  for zero diffusion steps, so request validation rejects it for every backend
 - request may contain multiple attachments
 - duplicate `attachment_id` rejected
 

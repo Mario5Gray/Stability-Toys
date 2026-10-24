@@ -324,22 +324,6 @@ def test_combined_scope_allows_sd15_window():
     ) == "img2img+controlnet"
 
 
-def test_combined_scope_rejects_zero_width_window():
-    from server.controlnet_models import ControlNetAttachment
-
-    attachment = ControlNetAttachment(
-        attachment_id="cn_1", control_type="canny", map_asset_ref="map",
-        start_percent=0.5, end_percent=0.5,
-    )
-    with pytest.raises(ValueError) as exc:
-        _combined_scoped_admission(
-            controlnets=(attachment,), scope=_canny_only_scope()
-        )
-    assert str(exc.value) == (
-        "SD combined img2img+controlnet requires start_percent < end_percent"
-    )
-
-
 def test_combined_scope_keeps_cuda_depth_and_two_attachments_admitted():
     assert _combined_scoped_admission(
         controlnets=(_attachment("depth"), _attachment("canny", "cn_2")),

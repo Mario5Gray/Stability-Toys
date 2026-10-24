@@ -77,13 +77,6 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
                 f"family '{family_id}' does not support the img2img+controlnet operation"
             )
         _admit_controlnet_scope(req, binding, provider, family_id)
-        if family_id in ("sd15", "sdxl"):
-            for attachment in req.controlnets:
-                if attachment.start_percent == attachment.end_percent:
-                    raise ValueError(
-                        "SD combined img2img+controlnet requires "
-                        "start_percent < end_percent"
-                    )
         if family_id == "hunyuandit":
             for attachment in req.controlnets:
                 if attachment.control_type != "canny":

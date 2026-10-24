@@ -33,8 +33,8 @@ class ControlNetAttachment(BaseModel):
             raise ValueError("source_asset_ref requires a preprocess block")
         if has_map and self.preprocess is not None:
             raise ValueError("map_asset_ref is incompatible with a preprocess block")
-        if self.start_percent > self.end_percent:
-            raise ValueError("start_percent must be <= end_percent")
+        if self.start_percent >= self.end_percent:
+            raise ValueError("start_percent must be < end_percent")
         return self
 
 
