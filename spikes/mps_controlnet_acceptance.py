@@ -4,24 +4,32 @@ Proves on a real Mac that one Canny attachment reaches the MPS worker, that the
 worker renders through the ControlNet pipeline, and that the control map steers
 the result. Also proves that the platform scope refuses what the mode permits.
 
-SIX signals, all required. A valid PNG alone proves nothing: the server returns
-a valid PNG for text-to-image too, so a dropped control map would still pass a
-format check.
+SEVEN signals, all required. A valid PNG alone proves nothing: the server
+returns a valid PNG for text-to-image too, so a dropped control map would still
+pass a format check.
 
   1. admitted     - the WebSocket returns `job:complete` for one Canny
                     attachment. The `sd15` cell admits ControlNet.
   2. not txt2img  - the ControlNet bytes differ from a text-to-image render with
                     the same prompt and seed. The control map changed the output.
-  3. load-bearing - a strength 0.0 render differs from a strength 1.0 render. The
-                    map is steering, not decorating.
-  4. valid        - each render is a 768x768 PNG, not black, not flat, not
+  3. content      - TWO DIFFERENT maps at the SAME strength, prompt, and seed
+                    produce different renders. This is the signal that the map's
+                    CONTENT steers the output. Comparing one map at two
+                    strengths cannot prove it: a worker that passed a fixed or
+                    wrong image while honouring `strength` would pass that
+                    comparison.
+  4. strength     - a strength 0.0 render differs from a strength 1.0 render, so
+                    the request field reaches the pipeline.
+  5. valid        - each render is a 768x768 PNG, not black, not flat, not
                     corrupt. This is where float16 on MPS is settled: a NaN
                     pipeline returns a black image and fails here.
-  5. chunk        - the generation PNG carries the `controlnet` text chunk with
+  6. chunk        - the generation PNG carries the `controlnet` text chunk with
                     the attachment id, the control type, and the model id.
-  6. scope        - Depth is refused, and two attachments are refused, while
-                    conf/modes.yml permits canny, depth, pose and
-                    max_attachments 2. The refusal is the platform's.
+  7. scope        - Depth is refused, and two attachments are refused, EACH with
+                    its own platform message, while conf/modes.yml permits
+                    canny, depth, pose and max_attachments 2. A refusal that
+                    carries another message, or no `job:error` at all, fails:
+                    a timeout and a mode-policy rejection are not this signal.
 
 This script is a client. It starts no server and imports no server module.
 Start the server first, in the same shell family as the isolation mode under
@@ -75,6 +83,32 @@ ZERO_STRENGTH = 0.0
 MIN_DISTINCT_COLORS = 32
 MIN_GRAYSCALE_STDDEV = 5.0
 
+# Two renders count as different above this mean per-channel distance, 0 to 255.
+# JPEG-free PNG renders of the same seed are bit-stable, so any real difference
+# sits far above it.
+MIN_RENDER_DISTANCE = 1.0
+
+# The platform messages, copied from backends/mps_worker.py and
+# server/controlnet_execution.py. The scope signal requires THESE, not merely a
+# failure: a timeout, a dropped socket, and a mode-policy rejection are all
+# failures that prove nothing about the platform scope.
+SCOPE_MESSAGES = {
+    "depth": (
+        "backend 'mps' does not support control_type 'depth' for family 'sd15'; "
+        "allowed: canny"
+    ),
+    "two_attachments": (
+        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
+        "'sd15', got 2"
+    ),
+}
+
+
+def _to_png(image: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
+
 
 def build_source_image() -> bytes:
     """One deterministic source image. Hard edges, so Canny has something to
@@ -84,9 +118,22 @@ def build_source_image() -> bytes:
     draw.rectangle([0, 520, 768, 768], fill=(24, 60, 170))
     draw.ellipse([180, 120, 420, 360], fill=(220, 40, 40))
     draw.polygon([(540, 480), (660, 180), (700, 480)], fill=(235, 220, 90))
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    return buf.getvalue()
+    return _to_png(image)
+
+
+def build_alt_source_image() -> bytes:
+    """A second deterministic source image whose edges sit elsewhere.
+
+    Its Canny map must differ from the first one's in CONTENT, not just in edge
+    count, so a render that depends on the map cannot match both.
+    """
+    image = Image.new("RGB", (768, 768), (240, 240, 230))
+    draw = ImageDraw.Draw(image)
+    for offset in range(0, 768, 96):
+        draw.line([(offset, 0), (offset, 768)], fill=(20, 20, 20), width=6)
+        draw.line([(0, offset), (768, offset)], fill=(20, 20, 20), width=6)
+    draw.rectangle([96, 480, 672, 672], fill=(30, 30, 30))
+    return _to_png(image)
 
 
 def build_canny_map(source_png: bytes) -> bytes:
@@ -102,9 +149,7 @@ def build_canny_map(source_png: bytes) -> bytes:
         array = np.array(image.convert("RGB"))
     edges = cv2.Canny(array, 100, 200)
     stacked = np.stack([edges, edges, edges], axis=-1)
-    buf = io.BytesIO()
-    Image.fromarray(stacked).save(buf, format="PNG")
-    return buf.getvalue()
+    return _to_png(Image.fromarray(stacked))
 
 
 def post_multipart(url: str, filename: str, data: bytes, fields: dict) -> dict:
@@ -272,20 +317,40 @@ def main() -> int:
 
     source_png = build_source_image()
     canny_png = build_canny_map(source_png)
-    for name, data in (("source", source_png), ("canny_map", canny_png)):
+    alt_source_png = build_alt_source_image()
+    alt_canny_png = build_canny_map(alt_source_png)
+    assert canny_png != alt_canny_png, "the two control maps must differ"
+    for name, data in (
+        ("source", source_png),
+        ("canny_map", canny_png),
+        ("alt_source", alt_source_png),
+        ("alt_canny_map", alt_canny_png),
+    ):
         path = f"{args.out}_{name}.png"
         with open(path, "wb") as handle:
             handle.write(data)
         report[name] = {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
+    report["map_distance"] = mean_abs_difference(canny_png, alt_canny_png)
 
-    # type=canny routes the map to the durable control_map bucket (STABL-kcjkrpry).
+    # type=canny routes each map to the durable control_map bucket (STABL-kcjkrpry).
     upload = post_multipart(base_url + "/v1/upload", "canny.png", canny_png, {"type": "canny"})
+    alt_upload = post_multipart(
+        base_url + "/v1/upload", "canny_alt.png", alt_canny_png, {"type": "canny"}
+    )
     report["upload"] = upload
+    report["alt_upload"] = alt_upload
     map_ref = upload["fileRef"]
+    alt_map_ref = alt_upload["fileRef"]
+    assert map_ref != alt_map_ref, "the two maps must be separate assets"
 
     jobs = {
         "txt2img": {},
         "controlnet_full": {"controlnets": [attachment(map_ref, strength=FULL_STRENGTH)]},
+        # Same strength, same prompt, same seed. Only the map's content differs,
+        # so a difference here is the content steering the render.
+        "controlnet_alt_map": {
+            "controlnets": [attachment(alt_map_ref, strength=FULL_STRENGTH)]
+        },
         "controlnet_zero": {"controlnets": [attachment(map_ref, strength=ZERO_STRENGTH)]},
     }
     pngs: dict[str, bytes] = {}
@@ -316,31 +381,48 @@ def main() -> int:
     }
     for name, params in refusals.items():
         result = render(base_url, ws_url, params)
+        terminal = result.get("terminal") or {}
+        message = terminal.get("error", "")
+        expected = SCOPE_MESSAGES[name]
         report["scope"][name] = {
-            "refused": not result.get("ok"),
-            "terminal": result.get("terminal"),
+            "terminal_type": terminal.get("type"),
+            "message": message,
+            "expected": expected,
+            # Not "did it fail". A timeout or a mode-policy rejection also fails.
+            "refused_by_the_platform": (
+                not result.get("ok")
+                and terminal.get("type") == "job:error"
+                and expected in message
+            ),
         }
 
     full = report["renders"]["controlnet_full"]
+    report["distances"] = {
+        "full_vs_txt2img": mean_abs_difference(pngs["controlnet_full"], pngs["txt2img"]),
+        "full_vs_alt_map": mean_abs_difference(
+            pngs["controlnet_full"], pngs["controlnet_alt_map"]
+        ),
+        "full_vs_zero": mean_abs_difference(pngs["controlnet_full"], pngs["controlnet_zero"]),
+        "zero_vs_txt2img": mean_abs_difference(pngs["controlnet_zero"], pngs["txt2img"]),
+        "alt_map_vs_txt2img": mean_abs_difference(
+            pngs["controlnet_alt_map"], pngs["txt2img"]
+        ),
+    }
+    distances = report["distances"]
     checks = {
         "admitted": full["sha256"] is not None,
-        "not_txt2img": mean_abs_difference(pngs["controlnet_full"], pngs["txt2img"]) > 1.0,
-        "map_is_load_bearing": mean_abs_difference(
-            pngs["controlnet_full"], pngs["controlnet_zero"]
-        ) > 1.0,
+        "not_txt2img": distances["full_vs_txt2img"] > MIN_RENDER_DISTANCE,
+        # The content signal. Two maps, one strength, one seed.
+        "map_content_steers": distances["full_vs_alt_map"] > MIN_RENDER_DISTANCE,
+        "strength_reaches_pipeline": distances["full_vs_zero"] > MIN_RENDER_DISTANCE,
         "valid_renders": all(report["renders"][name]["valid"] for name in jobs),
         "controlnet_chunk": (
             full["controlnet_chunk"] is not None
             and full["controlnet_chunk"][0]["control_type"] == "canny"
             and full["controlnet_chunk"][0]["generation"]["model_id"] == "sd15-canny"
         ),
-        "scope_refuses_depth": report["scope"]["depth"]["refused"],
-        "scope_refuses_two": report["scope"]["two_attachments"]["refused"],
-    }
-    report["distances"] = {
-        "full_vs_txt2img": mean_abs_difference(pngs["controlnet_full"], pngs["txt2img"]),
-        "full_vs_zero": mean_abs_difference(pngs["controlnet_full"], pngs["controlnet_zero"]),
-        "zero_vs_txt2img": mean_abs_difference(pngs["controlnet_zero"], pngs["txt2img"]),
+        "scope_refuses_depth": report["scope"]["depth"]["refused_by_the_platform"],
+        "scope_refuses_two": report["scope"]["two_attachments"]["refused_by_the_platform"],
     }
     report["checks"] = checks
     report["result"] = "PASS" if all(checks.values()) else "FAIL"
@@ -349,8 +431,9 @@ def main() -> int:
         failed = [name for name, ok in checks.items() if not ok]
         print(f"FAIL: {', '.join(failed)}", file=sys.stderr)
         return 1
-    print(f"PASS: strength {FULL_STRENGTH} differs from {ZERO_STRENGTH} by "
-          f"{report['distances']['full_vs_zero']}", file=sys.stderr)
+    print(f"PASS: two maps at strength {FULL_STRENGTH} differ by "
+          f"{distances['full_vs_alt_map']}; strength {FULL_STRENGTH} differs "
+          f"from {ZERO_STRENGTH} by {distances['full_vs_zero']}", file=sys.stderr)
     return 0
 
 

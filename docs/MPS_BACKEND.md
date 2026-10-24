@@ -284,8 +284,13 @@ Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
 
 #### Live ControlNet: PASS, both isolation modes (2026-10-23)
 
-Code at `f422d16`, clean tree except one untracked JPEG. Spike:
-`spikes/mps_controlnet_acceptance.py`.
+Code at `10871a2`, clean tree except one untracked JPEG. Spike:
+`spikes/mps_controlnet_acceptance.py`, seven signals.
+
+This record is the re-run of 2026-10-23, after a PR review strengthened two
+signals: map content against map strength, and an exact scope message against
+any failure. Every figure the two runs share is identical, `sha256` prefixes
+included.
 
 - Host: macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0, diffusers 0.39.0,
   OpenCV 5.0.0
@@ -304,14 +309,23 @@ Code at `f422d16`, clean tree except one untracked JPEG. Spike:
   needs no preprocessing dependency.
 - Prompt and seed as the slice 1 record, seed 7, 8 steps, cfg 3.0
 
+Two control maps are used, both Canny, from two deterministic source images.
+The second map exists because of a review finding: comparing ONE map at two
+strengths proves that `strength` reaches the pipeline, not that the map's
+CONTENT steers the render. A worker that passed a fixed or wrong image while
+honouring `strength` would pass that comparison. The two maps sit at mean
+distance 8.26 from each other.
+
 | Render | Isolation | Wall time | Bytes | sha256 prefix | 64x64 colors | Grey stddev |
 |---|---|---|---|---|---|---|
-| text-to-image | `inproc` | 10.31 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
-| text-to-image | `subprocess` | 9.88 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
-| Canny, strength 1.0 | `inproc` | 14.50 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
-| Canny, strength 1.0 | `subprocess` | 14.04 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
-| Canny, strength 0.0 | `inproc` | 13.20 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
-| Canny, strength 0.0 | `subprocess` | 13.25 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
+| text-to-image | `inproc` | 10.17 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
+| text-to-image | `subprocess` | 10.17 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
+| map A, strength 1.0 | `inproc` | 13.44 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
+| map A, strength 1.0 | `subprocess` | 17.18 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
+| map B, strength 1.0 | `inproc` | 12.60 s | 604027 | `ca43874398d927b3` | — | — |
+| map B, strength 1.0 | `subprocess` | 13.57 s | 604027 | `ca43874398d927b3` | — | — |
+| map A, strength 0.0 | `inproc` | 13.51 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
+| map A, strength 0.0 | `subprocess` | 13.74 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
 
 Every render is byte-identical across the two isolation modes. The
 text-to-image bytes still match the slice 1 record, `sha256` prefix
@@ -319,18 +333,20 @@ text-to-image bytes still match the slice 1 record, `sha256` prefix
 
 Mean per-channel distances, 0 to 255:
 
-| Pair | Distance |
-|---|---|
-| Canny 1.0 against text-to-image | 32.31 |
-| Canny 1.0 against Canny 0.0 | 32.31 |
-| Canny 0.0 against text-to-image | 0.00 |
+| Pair | Distance | What it proves |
+|---|---|---|
+| map A 1.0 against map B 1.0 | 26.78 | the map's CONTENT steers the render |
+| map A 1.0 against text-to-image | 32.31 | the map reaches the pipeline |
+| map B 1.0 against text-to-image | 39.05 | the same, for the second map |
+| map A 1.0 against map A 0.0 | 32.31 | `strength` reaches the pipeline |
+| map A 0.0 against text-to-image | 0.00 | at strength 0 the ControlNet is inert |
 
-**The third row is the load-bearing one.** At strength 0.0 the ControlNet
-contributes nothing and the render returns to the text-to-image image, so the
-distance in row one is the control map steering rather than a different code
-path producing a different picture. The two files are not byte-identical,
-651606 against 955978 bytes, because the ControlNet pipeline's numerics differ
-slightly; the images are the same.
+**Row one is the load-bearing one.** Same strength, same prompt, same seed, two
+different maps, two different renders. Row five is the complement: at strength
+0.0 the render returns to the text-to-image image, so nothing but the map
+accounts for rows two and three. The strength-0.0 files are not byte-identical
+to text-to-image, 955978 against 955786 bytes, because the ControlNet
+pipeline's numerics differ slightly; the images are the same.
 
 **The float16 question is settled by this run.** The ControlNet weights load at
 `self.dtype`, which `MPS_TORCH_POLICY` fixes at float16, and the renders are
@@ -348,6 +364,11 @@ Platform scope, refused live in both modes:
 
 The mode permits both requests. `conf/modes.yml` gives `lcm-general` depth and
 `max_attachments: 2`, so each refusal is the platform's.
+
+The spike requires `job:error` carrying each message above, not merely a
+failure. This too came from the review: the first version accepted any failure,
+so a timeout, a dropped socket, or a mode-policy rejection would have counted
+as a platform refusal.
 
 The generation PNG carries the `controlnet` text chunk:
 `[{"attachment_id": "cn_1", "control_type": "canny", "generation":
