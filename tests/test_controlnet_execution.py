@@ -264,6 +264,89 @@ def _scoped_admission(*, controlnets, scope=None, backend_id="mps", family_id="s
     )
 
 
+def _combined_scoped_admission(*, controlnets, scope=None, backend_id="mps"):
+    from server.controlnet_execution import admit_generation_operation
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    mode = type("Mode", (), {"name": "lcm-general"})()
+    snapshot = make_active_snapshot(mode, family_id="sd15")
+    provider = make_family_provider(
+        family_id="sd15",
+        supports_combined=True,
+        backend_id=backend_id,
+        controlnet_scope=scope,
+    )
+    req = type("Req", (), {"controlnets": list(controlnets)})()
+    return admit_generation_operation(
+        req, snapshot=snapshot, provider=provider, has_init_image=True
+    )
+
+
+def test_combined_scope_admits_canny():
+    assert _combined_scoped_admission(
+        controlnets=(_attachment("canny"),), scope=_canny_only_scope()
+    ) == "img2img+controlnet"
+
+
+def test_combined_scope_rejects_depth():
+    with pytest.raises(ValueError) as exc:
+        _combined_scoped_admission(
+            controlnets=(_attachment("depth"),), scope=_canny_only_scope()
+        )
+    assert str(exc.value) == (
+        "backend 'mps' does not support control_type 'depth' for family 'sd15'; "
+        "allowed: canny"
+    )
+
+
+def test_combined_scope_rejects_two_attachments():
+    with pytest.raises(ValueError) as exc:
+        _combined_scoped_admission(
+            controlnets=(_attachment("canny", "cn_1"), _attachment("canny", "cn_2")),
+            scope=_canny_only_scope(),
+        )
+    assert str(exc.value) == (
+        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
+        "'sd15', got 2"
+    )
+
+
+def test_combined_scope_allows_sd15_window():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map",
+        start_percent=0.2, end_percent=0.8,
+    )
+    assert _combined_scoped_admission(
+        controlnets=(attachment,),
+        scope=_canny_only_scope(),
+    ) == "img2img+controlnet"
+
+
+def test_combined_scope_rejects_zero_width_window():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map",
+        start_percent=0.5, end_percent=0.5,
+    )
+    with pytest.raises(ValueError) as exc:
+        _combined_scoped_admission(
+            controlnets=(attachment,), scope=_canny_only_scope()
+        )
+    assert str(exc.value) == (
+        "SD combined img2img+controlnet requires start_percent < end_percent"
+    )
+
+
+def test_combined_scope_keeps_cuda_depth_and_two_attachments_admitted():
+    assert _combined_scoped_admission(
+        controlnets=(_attachment("depth"), _attachment("canny", "cn_2")),
+        backend_id="cuda",
+    ) == "img2img+controlnet"
+
+
 def _canny_only_scope():
     from backends.platforms.base import ControlNetScope
 
