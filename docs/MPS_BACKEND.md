@@ -497,9 +497,10 @@ server. Nine signals, all required.
 | map A, strength 0.0 | `inproc` | 13.71 s | 480803 | `d060d7bfe67053e9` | 1913 | 32.85 | 4 |
 | map A, strength 0.0 | `subprocess` | 14.13 s | 480803 | `d060d7bfe67053e9` | 1913 | 32.85 | 4 |
 
-Every render is byte-identical across the two isolation modes. An earlier run,
-interrupted before it could write its summary, produced the same four hashes.
-Repeatability therefore holds across sessions, not only within one.
+Every render is byte-identical across the two isolation modes. An earlier run on
+the same host produced the same four hashes in both modes; that session then
+stopped on a usage limit. Repeatability therefore holds across sessions, not
+only within one.
 
 Mean per-channel distances, 0 to 255:
 

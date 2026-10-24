@@ -84,7 +84,8 @@
 **Task 4 verification (2026-10-24):** Both isolation modes passed all nine
 signals. In `inproc` the wall times were 6.55 s, 15.47 s, 13.29 s, and 13.71 s.
 In `subprocess` they were 6.67 s, 15.36 s, 13.11 s, and 14.13 s. The four PNG
-hashes match across both modes and match an earlier interrupted run. The
+hashes match across both modes, and match an earlier run whose session then
+stopped on a usage limit. The
 subprocess server was confirmed by a `multiprocessing.spawn` child process.
 Contract evidence at `8fb8dbb`: MPS real 330 passed, stub 78 passed, progress
 bar 10 passed, CUDA real 46 passed and 8 skipped, CUDA stub 124 passed.
