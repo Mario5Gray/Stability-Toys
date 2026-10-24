@@ -121,9 +121,11 @@ class DiffusersMpsWorker(CudaWorkerBase):
     def _check_controlnet_scope(self, bindings: list[Any]) -> None:
         """Repeat the platform ControlNet scope the cell carries.
 
-        One source states the limit: the platform-family binding. Admission
-        reads the same field in `admit_generation_operation`, so the two layers
-        cannot drift apart.
+        One source states the LIMIT: the platform-family binding, which
+        `admit_generation_operation` reads through the same field. The checking
+        code is not shared, so the two messages can drift even though the values
+        cannot. Admission runs first on every server path, so the message a
+        client sees is admission's.
         """
         from backends.platform_registry import get_backend_provider
 
