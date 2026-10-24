@@ -51,7 +51,11 @@ def _resolved_sdxl():
 
 def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     from backends.platform_registry import get_backend_provider
-    from backends.platforms.base import ExecutionCapabilities, UnsupportedFamilyError
+    from backends.platforms.base import (
+        ControlNetScope,
+        ExecutionCapabilities,
+        UnsupportedFamilyError,
+    )
     from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
     from backends.platforms.pool_runtime import PoolGenerationRuntime
 
@@ -60,9 +64,14 @@ def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     assert set(MPS_FAMILY_BINDINGS) == {"sd15"}
     cell = provider.family_binding("sd15")
     assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
-    # Text-to-image and img2img. ControlNet and the combined operation stay
+    # Text-to-image, img2img, and ControlNet. The combined operation stays
     # false. The cell is the real admission gate for all three.
-    assert cell.execution_capabilities == ExecutionCapabilities(True, False, False)
+    assert cell.execution_capabilities == ExecutionCapabilities(True, True, False)
+    # The platform ControlNet scope. MPS admits one Canny attachment and nothing
+    # else, while conf/modes.yml permits canny, depth, pose, and two attachments.
+    assert cell.controlnet_scope == ControlNetScope(
+        allowed_control_types=("canny",), max_attachments=1
+    )
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
     assert provider.capabilities().supports_superres is False
     assert provider.create_model_registry().get_vram_stats()["backend"] == "mps"

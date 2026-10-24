@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 from backends.platforms.base import (
     BackendCapabilities,
+    ControlNetScope,
     ExecutionCapabilities,
     FamilyPlatformBinding,
 )
@@ -40,15 +41,28 @@ def make_family_provider(
     supports_controlnet: bool = True,
     supports_combined: bool = True,
     backend_id: str = "cuda",
+    controlnet_scope: ControlNetScope | None = None,
 ):
     """A provider whose family_binding(family_id) returns a cell with the given
-    execution capabilities; other families return None (unsupported)."""
-    cell = FamilyPlatformBinding(
-        worker_ref="backends.cuda_worker.DiffusersSDXLCudaWorker",
-        execution_capabilities=ExecutionCapabilities(
-            supports_img2img, supports_controlnet, supports_combined
-        ),
+    execution capabilities; other families return None (unsupported).
+
+    `controlnet_scope` stays None for an unnarrowed platform, which builds the
+    cell with two arguments exactly as every caller did before the scope
+    existed."""
+    execution_capabilities = ExecutionCapabilities(
+        supports_img2img, supports_controlnet, supports_combined
     )
+    if controlnet_scope is None:
+        cell = FamilyPlatformBinding(
+            worker_ref="backends.cuda_worker.DiffusersSDXLCudaWorker",
+            execution_capabilities=execution_capabilities,
+        )
+    else:
+        cell = FamilyPlatformBinding(
+            worker_ref="backends.cuda_worker.DiffusersSDXLCudaWorker",
+            execution_capabilities=execution_capabilities,
+            controlnet_scope=controlnet_scope,
+        )
 
     def family_binding(fid: str):
         return cell if fid == family_id else None

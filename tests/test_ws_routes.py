@@ -2023,6 +2023,28 @@ def test_ws_status_reads_vram_through_the_seam_not_torch_directly():
 # ---------------------------------------------------------------------------
 
 
+def _lcm_general_controlnet_policy():
+    """The mode policy conf/modes.yml gives lcm-general: canny, depth, and pose,
+    with max_attachments 2.
+
+    The mode layer must permit what the MPS platform scope then refuses.
+    Without it `enforce_controlnet_policy` rejects first, and these tests would
+    pass while proving nothing about the platform.
+    """
+    from server.mode_config import ControlNetControlTypePolicy, ControlNetPolicy
+
+    return ControlNetPolicy(
+        enabled=True,
+        max_attachments=2,
+        allow_reuse_emitted_maps=True,
+        allowed_control_types={
+            "canny": ControlNetControlTypePolicy(default_model_id="sd15-canny"),
+            "depth": ControlNetControlTypePolicy(default_model_id="sd15-depth"),
+            "pose": ControlNetControlTypePolicy(default_model_id="sd15-openpose"),
+        },
+    )
+
+
 def _install_mps_sd15_cell(pool):
     """Mode-backed wiring whose provider is the real MPSProvider.
 
@@ -2036,7 +2058,8 @@ def _install_mps_sd15_cell(pool):
         app.state, pool,
         SimpleNamespace(name="lcm-general", default_size="768x768", default_steps=8,
                         default_guidance=3.0,
-                        resolution_options=[{"size": "768x768", "aspect_ratio": "1:1"}]),
+                        resolution_options=[{"size": "768x768", "aspect_ratio": "1:1"}],
+                        controlnet_policy=_lcm_general_controlnet_policy()),
         family_id="sd15",
     )
     app.state.backend_provider = MPSProvider()
@@ -2143,7 +2166,50 @@ def test_ws_generate_rejects_the_combined_operation_on_mps_sd15_cell():
     assert "family 'sd15' does not support the img2img+controlnet operation" in error
 
 
-def test_ws_generate_rejects_controlnet_on_mps_sd15_cell():
+def test_ws_generate_admits_one_canny_controlnet_on_mps_sd15_cell():
+    """Admission is the assertion target, so two post-admission steps are
+    stubbed: binding resolution, whose registry carries container paths that
+    fail strict validation on this host, and preprocessing, which would resolve
+    a map asset this test never wrote."""
+    with patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]), \
+            patch("server.controlnet_preprocessing.preprocess_controlnet_attachments",
+                  return_value=[]):
+        job = _mps_ws_submission(
+            {
+                "prompt": "a cat",
+                "controlnets": [
+                    {
+                        "attachment_id": "cn_1",
+                        "control_type": "canny",
+                        "map_asset_ref": "ref1",
+                    }
+                ],
+            },
+            "t-mps-canny",
+        )
+
+    assert job.init_image is None
+
+
+def test_ws_generate_rejects_a_depth_controlnet_on_mps_sd15_cell():
+    error = _mps_ws_rejection(
+        {
+            "prompt": "a cat",
+            "controlnets": [
+                {
+                    "attachment_id": "cn_1",
+                    "control_type": "depth",
+                    "map_asset_ref": "ref1",
+                }
+            ],
+        },
+        "t-mps-depth",
+    )
+    assert "control_type 'depth'" in error
+
+
+def test_ws_generate_rejects_two_controlnet_attachments_on_mps_sd15_cell():
+    """conf/modes.yml permits two attachments. The MPS scope permits one."""
     error = _mps_ws_rejection(
         {
             "prompt": "a cat",
@@ -2152,9 +2218,14 @@ def test_ws_generate_rejects_controlnet_on_mps_sd15_cell():
                     "attachment_id": "cn_1",
                     "control_type": "canny",
                     "map_asset_ref": "ref1",
-                }
+                },
+                {
+                    "attachment_id": "cn_2",
+                    "control_type": "canny",
+                    "map_asset_ref": "ref2",
+                },
             ],
         },
-        "t-mps-controlnet",
+        "t-mps-two",
     )
-    assert "family 'sd15' does not support the controlnet operation" in error
+    assert "at most 1 controlnet" in error

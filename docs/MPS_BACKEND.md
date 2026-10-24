@@ -1,9 +1,10 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-It binds one family: **`sd15` LCM**, for text-to-image and img2img. No other
-family loads on MPS. `sd15` accepts no ControlNet, no combined
-img2img+ControlNet operation, and no scheduler other than LCM.
+It binds one family: **`sd15` LCM**, for text-to-image, img2img, and one Canny
+ControlNet attachment. No other family loads on MPS. `sd15` accepts no Depth or
+Pose ControlNet, no second attachment, no combined img2img+ControlNet
+operation, and no scheduler other than LCM.
 
 Docker cannot reach Metal. Do not use [`TESTING_IN_DOCKER.md`](TESTING_IN_DOCKER.md)
 for MPS. Run everything in this guide natively on the Mac.
@@ -57,12 +58,22 @@ That is the current state for every family except `sd15`.
 - **One model family.** `MPS_FAMILY_BINDINGS` binds `sd15` to
   `backends.mps_worker.DiffusersMpsWorker`. `sdxl` and `hunyuandit` raise
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
-- **Text-to-image and img2img.** The `sd15` cell carries
-  `ExecutionCapabilities(True, False, False)`, so `admit_generation_operation`
-  admits img2img and rejects ControlNet and the combined operation. The worker
-  repeats the ControlNet check as defense in depth. That one check covers the
-  combined operation too, because a ControlNet binding is rejected with or
-  without an init image.
+- **Text-to-image, img2img, and one Canny ControlNet.** The `sd15` cell
+  carries `ExecutionCapabilities(True, True, False)`, so
+  `admit_generation_operation` admits all three and rejects the combined
+  img2img+ControlNet operation. The worker repeats each check as defense in
+  depth.
+- **ControlNet is narrowed to one Canny attachment.** The `sd15` cell also
+  carries `ControlNetScope(allowed_control_types=("canny",),
+  max_attachments=1)`. `conf/modes.yml` gives `lcm-general` canny, depth, pose,
+  and `max_attachments: 2`, so the narrowing cannot come from the mode policy.
+  Admission enforces the scope before any preprocessing, and the worker repeats
+  it. Depth and Pose are still registered in `conf/controlnets.yaml` for
+  `sd15`; they are refused on this platform only. The live messages are
+  `backend 'mps' does not support control_type 'depth' for family 'sd15';
+  allowed: canny` and `backend 'mps' admits at most 1 controlnet
+  attachment(s) for family 'sd15', got 2`. The scope is a platform field, so
+  CUDA keeps every control type the mode permits (`STABL-xomvolgw`).
 - **img2img goes over the WebSocket only.** `POST /generate` carries no init
   image, so its admission always reads `has_init_image=False`. An img2img job
   needs `init_image_ref` on a `job:submit` frame. HTTP admission with a
@@ -101,7 +112,11 @@ That is the current state for every family except `sd15`.
   Its totals read 0 and its `vram.device` reads `MPS placeholder`. Process
   memory accounting itself is real; see the probe's `memory` check.
 - **`/api/models/status` reported `supports_img2img` as false — FIXED on
-  `main`.** The route read the execution flags from `BackendCapabilities`,
+  `main`.** Measured live on 2026-10-23 with the ControlNet
+  acceptance below: `supports_img2img: true`, `supports_controlnet: true`,
+  `supports_img2img_and_controlnet: false`. The route reports the cell. It does
+  NOT report the platform ControlNet scope, so a client reading it learns that
+  ControlNet is admitted but not that only Canny is. The route read the execution flags from `BackendCapabilities`,
   which does not carry them, so the default false reached every backend,
   including CUDA. Measured during the img2img live acceptance below, which
   still records that false. `STABL-xuzguqyx` fixed it in `e89856e`: the route
@@ -266,6 +281,110 @@ Two-probe repeatability sequence, clean tree, outside a restricted sandbox.
   `[0.673828125, 0.6142578125, 0.052734375, 0.568359375]` — unchanged from `cb02402`
 - `unsupported_family`: `family 'sdxl' has no MPS platform binding`, status `pass`.
   This is the moved negative check. `sd15` is bound and no longer carries it.
+
+#### Live ControlNet: PASS, both isolation modes (2026-10-23)
+
+Code at `10871a2`, clean tree except one untracked JPEG. Spike:
+`spikes/mps_controlnet_acceptance.py`, seven signals.
+
+This record is the re-run of 2026-10-23, after a PR review strengthened two
+signals: map content against map strength, and an exact scope message against
+any failure. Every DETERMINISTIC figure the two runs share is identical - byte
+counts, `sha256` prefixes, colour counts, standard deviations, and every mean
+distance. Wall times differ, because they measure the machine rather than the
+render: the first run reported 10.31 s, 14.50 s, and 13.20 s against this run's
+10.17 s, 13.44 s, and 13.51 s for the same three jobs in `inproc`.
+
+- Host: macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0, diffusers 0.39.0,
+  OpenCV 5.0.0
+- ControlNet: `sd15-canny` at `<model root>/controlnets/sd15-canny`
+- Registry: `CONTROLNET_REGISTRY_PATH=/tmp/controlnets-host.yaml`, a prefix swap
+  of `conf/controlnets.yaml` from `/models/controlnets` to the host path, and
+  nothing else. `CONTROLNET_REGISTRY_VALIDATION` unset, so strict path
+  validation ran and accepted all nine entries. `conf/controlnets.yaml` is
+  unchanged; its container paths are rejected by the same strict check.
+- Modes: a temporary conf copy holding `lcm-general` only. The startup
+  reference check resolves every mode's `model_path`, and this host carries one
+  model.
+- Control map: Canny from `cv2.Canny(array, 100, 200)` over a deterministic
+  source image, uploaded with `type=canny` and routed to the `control_map`
+  bucket, 768x768. The attachment carries no `preprocess` block, so the render
+  needs no preprocessing dependency.
+- Prompt and seed as the slice 1 record, seed 7, 8 steps, cfg 3.0
+
+Two control maps are used, both Canny, from two deterministic source images.
+The second map exists because of a review finding: comparing ONE map at two
+strengths proves that `strength` reaches the pipeline, not that the map's
+CONTENT steers the render. A worker that passed a fixed or wrong image while
+honouring `strength` would pass that comparison. The two maps sit at mean
+distance 8.26 from each other.
+
+| Render | Isolation | Wall time | Bytes | sha256 prefix | 64x64 colors | Grey stddev |
+|---|---|---|---|---|---|---|
+| text-to-image | `inproc` | 10.17 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
+| text-to-image | `subprocess` | 10.17 s | 955786 | `e7907d8e79439ca2` | 3561 | 38.43 |
+| map A, strength 1.0 | `inproc` | 13.44 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
+| map A, strength 1.0 | `subprocess` | 17.18 s | 651606 | `76a6052b60b2962f` | 2091 | 21.22 |
+| map B, strength 1.0 | `inproc` | 12.60 s | 604027 | `ca43874398d927b3` | — | — |
+| map B, strength 1.0 | `subprocess` | 13.57 s | 604027 | `ca43874398d927b3` | — | — |
+| map A, strength 0.0 | `inproc` | 13.51 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
+| map A, strength 0.0 | `subprocess` | 13.74 s | 955978 | `9b9c921bc594d38a` | 3561 | 38.43 |
+
+Every render is byte-identical across the two isolation modes. The
+text-to-image bytes still match the slice 1 record, `sha256` prefix
+`e7907d8e79439ca2`, so ControlNet changed nothing on the text-to-image path.
+
+Mean per-channel distances, 0 to 255:
+
+| Pair | Distance | What it proves |
+|---|---|---|
+| map A 1.0 against map B 1.0 | 26.78 | the map's CONTENT steers the render |
+| map A 1.0 against text-to-image | 32.31 | the map reaches the pipeline |
+| map B 1.0 against text-to-image | 39.05 | the same, for the second map |
+| map A 1.0 against map A 0.0 | 32.31 | `strength` reaches the pipeline |
+| map A 0.0 against text-to-image | 0.00 | at strength 0 the ControlNet is inert |
+
+**Row one is the load-bearing one.** Same strength, same prompt, same seed, two
+different maps, two different renders. Row five is the complement: at strength
+0.0 the render returns to the text-to-image image, so nothing but the map
+accounts for rows two and three. The strength-0.0 files are not byte-identical
+to text-to-image, 955978 against 955786 bytes, because the ControlNet
+pipeline's numerics differ slightly; the images are the same.
+
+**The float16 question is settled by this run.** The ControlNet weights load at
+`self.dtype`, which `MPS_TORCH_POLICY` fixes at float16, and the renders are
+valid: 2091 distinct colors in a 64x64 resample against a limit of 32, and a
+greyscale standard deviation of 21.22 against a limit of 5. A NaN pipeline
+returns a black image and fails both checks. No float32 fallback is needed, and
+none was added.
+
+Platform scope, refused live in both modes:
+
+| Request | Terminal | Message |
+|---|---|---|
+| one Depth attachment | `job:error` | `backend 'mps' does not support control_type 'depth' for family 'sd15'; allowed: canny` |
+| two Canny attachments | `job:error` | `backend 'mps' admits at most 1 controlnet attachment(s) for family 'sd15', got 2` |
+
+The mode permits both requests. `conf/modes.yml` gives `lcm-general` depth and
+`max_attachments: 2`, so each refusal is the platform's.
+
+The spike requires `job:error` carrying each message above, not merely a
+failure. This too came from the review: the first version accepted any failure,
+so a timeout, a dropped socket, or a mode-policy rejection would have counted
+as a platform refusal.
+
+The generation PNG carries the `controlnet` text chunk:
+`[{"attachment_id": "cn_1", "control_type": "canny", "generation":
+{"model_id": "sd15-canny", "strength": 1.0, "start_percent": 0.0,
+"end_percent": 1.0}, "source": null}]`
+
+Eight `job:progress` frames arrived for each ControlNet render, so step
+progress injects on this path.
+
+`/api/models/status` during both runs: `backend: mps`, `current_mode:
+lcm-general`, `is_loaded: true`, `supports_generation: true`,
+`supports_img2img: true`, `supports_controlnet: true`,
+`supports_img2img_and_controlnet: false`.
 
 #### Live img2img: PASS, both isolation modes (2026-10-23)
 

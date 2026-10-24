@@ -11,8 +11,9 @@ them unqualified, so a test patches them here, where the call happens. A
 qualified call through `backends.cuda_worker` would miss the patch and load real
 weights.
 
-Scope: LCM text-to-image and LCM img2img. The worker rejects ControlNet, the
-combined img2img+ControlNet operation, and any scheduler other than LCM.
+Scope: LCM text-to-image, LCM img2img, and one Canny ControlNet attachment.
+The worker rejects the combined img2img+ControlNet operation, a ControlNet
+attachment outside the platform scope, and any scheduler other than LCM.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from PIL import Image, PngImagePlugin
 from backends.cuda_worker import (
     CudaWorkerBase,
     _lcm_scheduler_cls,
+    _sd_controlnet_pipeline_cls,
     _sd_img2img_pipeline_cls,
     _sd_pipeline_cls,
 )
@@ -116,6 +118,45 @@ class DiffusersMpsWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
+    def _check_controlnet_scope(self, bindings: list[Any]) -> None:
+        """Repeat the platform ControlNet scope the cell carries.
+
+        One source states the LIMIT: the platform-family binding, which
+        `admit_generation_operation` reads through the same field. The checking
+        code is not shared, so the two messages can drift even though the values
+        cannot. Admission runs first on every server path, so the message a
+        client sees is admission's.
+        """
+        from backends.platform_registry import get_backend_provider
+
+        cell = get_backend_provider().family_binding(self.family_profile.family_id)
+        scope = getattr(cell, "controlnet_scope", None)
+        if scope is None:
+            return
+        if scope.max_attachments is not None and len(bindings) > scope.max_attachments:
+            raise ValueError(
+                f"MPS SD1.5 admits at most {scope.max_attachments} controlnet "
+                f"attachment(s), got {len(bindings)}"
+            )
+        if scope.allowed_control_types is None:
+            return
+        allowed = ", ".join(scope.allowed_control_types)
+        for binding in bindings:
+            if binding.control_type not in scope.allowed_control_types:
+                raise ValueError(
+                    f"MPS SD1.5 does not support control_type "
+                    f"'{binding.control_type}'; allowed: {allowed}"
+                )
+
+    def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
+        # The helper is called unqualified, so a test patches it on this module.
+        # Reaching into Diffusers here would load real weights under test.
+        return _sd_controlnet_pipeline_cls().from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+            torch_dtype=None,
+        )
+
     def run_job(self, job, progress=None, should_cancel=None) -> tuple[bytes, int]:
         """Render one LCM job and return PNG bytes with the seed.
 
@@ -125,14 +166,19 @@ class DiffusersMpsWorker(CudaWorkerBase):
         `run_job_with_latents` is absent on purpose. No production caller needs
         it, and HunyuanDiT already uses this narrower contract.
         """
-        # Defense in depth. `admit_generation_operation` rejects ControlNet and
-        # the combined operation earlier, from
-        # `ExecutionCapabilities(True, False, False)`. One check covers both,
-        # because a ControlNet binding is rejected with or without an init image.
-        if getattr(job, "controlnet_bindings", None):
-            raise NotImplementedError("MPS SD1.5 does not support ControlNet")
-
         init_image = getattr(job, "init_image", None)
+        bindings = getattr(job, "controlnet_bindings", None) or []
+
+        # Defense in depth. `admit_generation_operation` rejects both cases
+        # earlier, from the same cell and the same platform scope. The checks run
+        # only when bindings exist, so a job without them never reads the
+        # provider.
+        if bindings:
+            if init_image is not None:
+                raise NotImplementedError(
+                    "MPS SD1.5 does not support the img2img+ControlNet operation"
+                )
+            self._check_controlnet_scope(bindings)
 
         req = job.req
         if self._resolve_scheduler_id(req) != "lcm":
@@ -159,6 +205,8 @@ class DiffusersMpsWorker(CudaWorkerBase):
         out = None
         conditioning_artifact = None
         pipe_kwargs = None
+        loaded_ids: list[str] = []
+        controlnet_kwargs: dict[str, Any] = {}
         try:
             conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None:
@@ -182,6 +230,13 @@ class DiffusersMpsWorker(CudaWorkerBase):
                     "generator": gen,
                 }
             else:
+                if bindings:
+                    # The ControlNet weights load at self.dtype through the
+                    # inherited loader. MPS policy fixes that at float16, and
+                    # this path adds no dtype branch of its own.
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids
+                    )
                 pipe = self.pipe
                 pipe_kwargs = {
                     "width": width,
@@ -189,7 +244,13 @@ class DiffusersMpsWorker(CudaWorkerBase):
                     "num_inference_steps": int(req.num_inference_steps),
                     "guidance_scale": float(req.guidance_scale),
                     "generator": gen,
+                    **controlnet_kwargs,
                 }
+                controlnet_obj = pipe_kwargs.pop("controlnet", None)
+                if controlnet_obj is not None:
+                    # from_pipe shares the loaded components, so the ControlNet
+                    # render costs no second copy of the weights.
+                    pipe = self._build_controlnet_pipe(controlnet_obj)
             conditioning_kwargs = self._accept_conditioning_artifact(
                 pipe, conditioning_artifact
             )
@@ -212,6 +273,8 @@ class DiffusersMpsWorker(CudaWorkerBase):
                 "negative_prompt": getattr(req, "negative_prompt", None),
                 "scheduler_id": scheduler_id,
             }))
+            if bindings:
+                pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
             buf = io.BytesIO()
             img.save(buf, format="PNG", pnginfo=pnginfo)
             return buf.getvalue(), seed
@@ -220,4 +283,10 @@ class DiffusersMpsWorker(CudaWorkerBase):
             conditioning_artifact = None
             pipe_kwargs = None
             self._apply_style(None, 0)
+            if loaded_ids:
+                from backends.controlnet_cache import get_controlnet_cache
+
+                cache = get_controlnet_cache()
+                for model_id in loaded_ids:
+                    cache.release(model_id)
             self.execution_policy.release_cache()

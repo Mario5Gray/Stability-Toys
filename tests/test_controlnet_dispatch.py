@@ -226,11 +226,13 @@ def test_ws_handle_job_submit_admits_controlnets_on_loaded_controlnet_capable_fa
     assert all("ControlNet provider not yet implemented" not in m.get("error", "") for m in errors)
 
 
-def test_http_generate_rejects_controlnets_on_mps_sd15_cell():
-    """HTTP /generate stops at the MPS family cell, before any preprocessing.
+def test_http_generate_rejects_a_depth_controlnet_on_mps_sd15_cell():
+    """HTTP /generate stops at the MPS platform scope, before any preprocessing.
 
     /generate cannot express img2img, so admission sees has_init_image=False and
-    the ControlNet branch is the one that fires (STABL-hvvogszy).
+    the ControlNet branch is the one that fires (STABL-hvvogszy). The cell now
+    admits ControlNet, so Depth is rejected by the platform scope rather than by
+    the capability flag, and the status is 400 rather than 501 (STABL-xomvolgw).
     """
     from backends.platforms.mps import MPSProvider
     from fastapi import HTTPException
@@ -240,7 +242,7 @@ def test_http_generate_rejects_controlnets_on_mps_sd15_cell():
 
     att = ControlNetAttachment(
         attachment_id="cn_1",
-        control_type="canny",
+        control_type="depth",
         map_asset_ref="asset_a",
     )
     # A real mode shape, not a MagicMock: finalize_mode_generate_request runs
@@ -266,7 +268,7 @@ def test_http_generate_rejects_controlnets_on_mps_sd15_cell():
             with pytest.raises(HTTPException) as exc_info:
                 srv.generate(req)
 
-    assert exc_info.value.status_code == 501
-    assert "family 'sd15' does not support the controlnet operation" in exc_info.value.detail
+    assert exc_info.value.status_code == 400
+    assert "control_type 'depth'" in exc_info.value.detail
     preprocess_mock.assert_not_called()
     mock_runtime.submit_generate.assert_not_called()

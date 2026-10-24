@@ -71,6 +71,13 @@ def _sd_img2img_pipeline_cls() -> Any:
     )
 
 
+def _sd_controlnet_pipeline_cls() -> Any:
+    return _import_attr(
+        "diffusers.pipelines.controlnet.pipeline_controlnet",
+        "StableDiffusionControlNetPipeline",
+    )
+
+
 def _sdxl_img2img_pipeline_cls() -> Any:
     return _import_attr(
         "diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img",

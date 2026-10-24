@@ -14,6 +14,44 @@ def active_model_family_from_variant(variant: str) -> str:
     raise ValueError(f"unsupported active model family for ControlNet: {variant}")
 
 
+def _admit_controlnet_scope(req, binding, provider, family_id: str) -> None:
+    """Apply the PLATFORM narrowing of the ControlNet operation.
+
+    The mode policy decides which control types a mode allows; this is the
+    narrower limit a platform adds on top, and it lives on the platform-family
+    binding. The decision reads `binding.controlnet_scope` only. `backend_id` is
+    read to name the platform in the message, never to decide — a backend test
+    here would reject Depth on CUDA, which runs the same family.
+
+    Through a real provider this is reachable only once that platform's cell
+    reports `supports_controlnet=True`; otherwise the NotImplementedError above
+    fires first. On MPS that happens in Task 4 of
+    docs/superpowers/plans/2026-10-23-mps-sd15-controlnet.md, so the check is
+    not dead code.
+    """
+    scope = getattr(binding, "controlnet_scope", None)
+    if scope is None:
+        return
+    attachments = req.controlnets
+    backend_id = getattr(provider, "backend_id", "this platform")
+    if scope.max_attachments is not None and len(attachments) > scope.max_attachments:
+        raise ValueError(
+            f"backend '{backend_id}' admits at most {scope.max_attachments} "
+            f"controlnet attachment(s) for family '{family_id}', "
+            f"got {len(attachments)}"
+        )
+    if scope.allowed_control_types is None:
+        return
+    allowed = ", ".join(scope.allowed_control_types)
+    for attachment in attachments:
+        if attachment.control_type not in scope.allowed_control_types:
+            raise ValueError(
+                f"backend '{backend_id}' does not support control_type "
+                f"'{attachment.control_type}' for family '{family_id}'; "
+                f"allowed: {allowed}"
+            )
+
+
 def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool) -> str:
     """Apply the per-family execution-capability matrix before preprocessing.
 
@@ -53,6 +91,7 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
             raise NotImplementedError(
                 f"family '{family_id}' does not support the controlnet operation"
             )
+        _admit_controlnet_scope(req, binding, provider, family_id)
         return "controlnet"
     if has_init_image:
         if not caps.supports_img2img:

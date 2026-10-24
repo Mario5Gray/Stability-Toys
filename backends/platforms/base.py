@@ -27,9 +27,23 @@ class ExecutionCapabilities:
 
 
 @dataclass(frozen=True)
+class ControlNetScope:
+    """A platform's narrowing of the ControlNet operations a family admits.
+
+    `None` on a field means the platform adds no narrowing, so the mode policy
+    alone decides. This is how CUDA keeps every control type the mode permits.
+    """
+
+    allowed_control_types: Optional[tuple[str, ...]] = None
+    max_attachments: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class FamilyPlatformBinding:
     worker_ref: str
     execution_capabilities: ExecutionCapabilities
+    # Defaulted, so every two-argument construction site stays valid.
+    controlnet_scope: ControlNetScope = ControlNetScope()
 
 
 class ModelRegistryProtocol(Protocol):
