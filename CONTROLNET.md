@@ -16,7 +16,8 @@ For CLI request syntax, see [`cli/go/USAGE.md`](cli/go/USAGE.md#controlnet).
 
 Current v1 boundary:
 
-- ControlNet execution supported on CUDA backend
+- ControlNet execution supported on the CUDA backend (every family) and on the
+  MPS backend (SD1.5 only, one Canny attachment)
 - mode system required
 - HTTP `/generate` and WebSocket `job:submit` support ControlNet
 - built-in preprocessors: `canny`, `depth`
@@ -24,8 +25,9 @@ Current v1 boundary:
 - direct reusable control-map path supported via `map_asset_ref`
 - preprocess path supported via `source_asset_ref + preprocess`
 - multiple attachments supported, request order preserved
-- img2img + ControlNet in same request, WS/CLI only, CUDA backend (SD1.5 and SDXL;
-  shipped under `STABL-ztaxgbhv`) — capability-gated on
+- img2img + ControlNet in same request, WS/CLI only (CUDA for SD1.5 and SDXL;
+  MPS for SD1.5 with one Canny attachment; shipped under `STABL-ztaxgbhv` for
+  CUDA and `STABL-vkluiibn` for MPS) — capability-gated on
   `supports_img2img_and_controlnet`; non-capable backends reject fail-fast before
   preprocessing. Control-map aspect ratio must match the init image within 2%.
 
@@ -34,14 +36,17 @@ Not supported in v1:
 - CPU backend ControlNet execution
 - RKNN backend ControlNet execution
 - MLX backend ControlNet execution
-- img2img + ControlNet on non-CUDA backends (explicit non-goal, not a future v1.x item)
+- img2img + ControlNet with Depth, Pose, or a second attachment on MPS (the
+  platform scope allows one Canny attachment)
+- img2img + ControlNet on CPU, RKNN, or MLX backends (explicit non-goal, not a
+  future v1.x item)
 - img2img + ControlNet over HTTP `/generate` (WS/CLI only; HTTP has no `init_image_ref`)
 - server-side preprocessor families beyond `canny` and `depth`
 
 Important runtime rule:
 
 - server rejects ControlNet request unless backend provider reports `supports_controlnet=True`
-- in this repo, that means CUDA path
+- in this repo, that means the CUDA provider and the MPS `sd15` cell
 
 ## Possible `control_type` Values
 
@@ -332,7 +337,7 @@ Flow for valid request:
 5. attachment normalized to `map_asset_ref`
 6. registry resolves `model_id -> path`
 7. family compatibility checked
-8. CUDA worker builds ordered ControlNet bindings
+8. worker builds ordered ControlNet bindings
 9. generation runs
 10. response returns image plus emitted `controlnet_artifacts`
 
@@ -404,7 +409,7 @@ Shipped-now operator objective:
 
 Still-open or intentionally deferred as built-in/default surfaces:
 
-- non-CUDA backends
+- non-CUDA backends other than the MPS SD1.5 cell
 - img2img + ControlNet on RKNN/MLX/CPU (explicit non-goal — compounds onto the
   existing non-CUDA ControlNet deferral above, not a separate gap) and over HTTP
   `/generate` (would need a separate API decision to add `init_image_ref` there)
@@ -436,4 +441,7 @@ Still-open or intentionally deferred as built-in/default surfaces:
 
 `ControlNet provider not yet implemented on this backend`
 
-- request reached non-CUDA or non-ControlNet-capable backend path
+- request reached a backend without ControlNet support, or a family without the
+  requested operation
+- on MPS, a Depth or Pose attachment, or a second attachment, is refused with
+  the platform scope message in `docs/MPS_BACKEND.md`

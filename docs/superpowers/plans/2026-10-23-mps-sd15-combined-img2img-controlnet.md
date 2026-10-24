@@ -81,8 +81,9 @@
 - [x] Run the MPS contract cohort from `docs/MPS_BACKEND.md` through `python -m tests.run` and run `tests/test_progress_bar_suppression.py` separately as documented. Run the unchanged CUDA cohort documented there through `python -m tests.run`. Expected: no new failures; report exact pass, skip, failure, and environment-limited counts. Do not turn contract evidence into a CUDA live claim.
 - [x] Update `docs/MPS_BACKEND.md` with the capability, limits, accepted control-window rule, contract-test result, both live JSON summaries, exact scope messages, map-content comparison, progress counts, and wall times. Remove the outdated combined-rejection claim. Record the commit and environment. Stage named paths only.
 
-**Task 4 verification (2026-10-24):** Both isolation modes passed all nine
-signals. In `inproc` the wall times were 6.55 s, 15.47 s, 13.29 s, and 13.71 s.
+**Task 4 verification (2026-10-24):** Both isolation modes passed all eight
+required signals, after a review tightened the scope check to exact message
+equality. In `inproc` the wall times were 6.55 s, 15.47 s, 13.29 s, and 13.71 s.
 In `subprocess` they were 6.67 s, 15.36 s, 13.11 s, and 14.13 s. The four PNG
 hashes match across both modes, and match an earlier run whose session then
 stopped on a usage limit. The
@@ -98,6 +99,12 @@ latents, and the ControlNet residuals are exactly zero. The difference is
 inside the ControlNet UNet branch. The acceptance rests on the within-pipeline
 comparisons, which are clean. `docs/MPS_BACKEND.md` states the measured
 behaviour and does not claim the two pipelines are equivalent.
+
+**Review ruling (2026-10-24):** the task bullet above requires combined A versus
+plain img2img distance above `MIN_RENDER_DISTANCE`. The PR #131 review showed
+that check proves nothing, because the two pipeline classes differ at zero
+control. The spike now reports that distance and does not gate on it. The
+required signals are the two within-pipeline comparisons.
 
 ## Review gate
 

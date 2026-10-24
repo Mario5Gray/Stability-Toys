@@ -4,34 +4,41 @@ Proves on a real Mac that an init image and one Canny attachment reach the MPS
 worker together, that the combined pipeline renders from both, and that the
 platform scope still refuses what the mode permits.
 
-SEVEN signals, all required. A valid PNG alone proves nothing: plain img2img
+EIGHT signals, all required. A valid PNG alone proves nothing: plain img2img
 returns one too, so a dropped control map would still pass a format check.
 
   1. admitted     - the WebSocket returns `job:complete` for an init image plus
                     one Canny attachment. The `sd15` cell admits the combined
                     operation.
-  2. not img2img  - the combined bytes differ from a plain img2img render with
-                    the same prompt, seed, init image, and denoise strength. The
-                    control map changed the output.
-  3. content      - TWO DIFFERENT maps at the SAME strength, prompt, seed, and
+  2. content      - TWO DIFFERENT maps at the SAME strength, prompt, seed, and
                     init image produce different renders. This is the signal
                     that the map's CONTENT steers the output. Comparing one map
                     at two strengths cannot prove it: a worker that passed a
                     fixed or wrong image while honouring `strength` would pass
                     that comparison. The lesson comes from the PR #130 review.
-  4. strength     - a strength 0.0 combined render differs from a strength 1.0
+  3. strength     - a strength 0.0 combined render differs from a strength 1.0
                     one, so the ControlNet strength reaches the pipeline.
-  5. valid        - each render is a 768x768 PNG, not black, not flat, not
+  4. valid        - each render is a 768x768 PNG, not black, not flat, not
                     corrupt. A NaN pipeline returns a black image and fails here.
-  6. chunk        - the combined PNG carries the `controlnet` text chunk, and
-                    progress frames arrive, so step progress injects on the
+  5. chunk        - the combined PNG carries the `controlnet` text chunk.
+  6. progress     - progress frames arrive, so step progress injects on the
                     combined path.
   7. scope        - a combined Depth request and a combined two-attachment
                     request are each refused with their own platform message,
-                    while conf/modes.yml permits canny, depth, pose and
-                    max_attachments 2. A refusal carrying another message, or no
+                    EXACTLY. conf/modes.yml permits canny, depth, pose and
+                    max_attachments 2, so a mode-policy rejection would prove
+                    nothing. A refusal carrying another message, or no
                     `job:error` at all, fails: a timeout and a mode-policy
                     rejection are not this signal.
+  8. scope two    - the second refusal, with its own message.
+
+REPORTED, NOT A SIGNAL: the mean distance between the combined render and a
+plain img2img render. It is written to `distances.combined_vs_img2img` and
+never gates the result. A diagnostic proved that the combined pipeline differs
+from the plain img2img pipeline even at ControlNet strength 0.0, where the map
+is inert, so that distance cannot prove map influence. The within-pipeline
+comparisons carry the claim: signal 2 compares two maps, and signal 3 compares
+two strengths, both inside the same pipeline.
 
 This script is a client. It starts no server and imports no server module.
 Start the server first, in the same shell family as the isolation mode under
@@ -413,11 +420,12 @@ def main() -> int:
             "terminal_type": terminal.get("type"),
             "message": message,
             "expected": expected,
-            # Not "did it fail". A timeout or a mode-policy rejection also fails.
+            # Require THIS message, not a message that contains it. Equality is
+            # what separates a platform refusal from a mode-policy rejection.
             "refused_by_the_platform": (
                 not result.get("ok")
                 and terminal.get("type") == "job:error"
-                and expected in message
+                and message == expected
             ),
         }
 
@@ -434,8 +442,9 @@ def main() -> int:
     distances = report["distances"]
     checks = {
         "admitted": full["sha256"] is not None,
-        "not_plain_img2img": distances["combined_vs_img2img"] > MIN_RENDER_DISTANCE,
         # The content signal. Two maps, one strength, one init image, one seed.
+        # `distances["combined_vs_img2img"]` is reported, NOT checked: it crosses
+        # two pipeline classes, so it cannot prove the map changed the render.
         "map_content_steers": distances["combined_vs_alt_map"] > MIN_RENDER_DISTANCE,
         "strength_reaches_pipeline": distances["combined_vs_zero"] > MIN_RENDER_DISTANCE,
         "valid_renders": all(report["renders"][name]["valid"] for name in jobs),
@@ -457,8 +466,10 @@ def main() -> int:
         print(f"FAIL: {', '.join(failed)}", file=sys.stderr)
         return 1
     print(f"PASS: two maps at strength {FULL_STRENGTH} differ by "
-          f"{distances['combined_vs_alt_map']}; combined differs from plain "
-          f"img2img by {distances['combined_vs_img2img']}", file=sys.stderr)
+          f"{distances['combined_vs_alt_map']}; strength 1.0 and 0.0 differ by "
+          f"{distances['combined_vs_zero']}. Reported, not a signal: combined "
+          f"against plain img2img is {distances['combined_vs_img2img']}.",
+          file=sys.stderr)
     return 0
 
 

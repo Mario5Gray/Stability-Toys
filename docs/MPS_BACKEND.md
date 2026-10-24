@@ -469,7 +469,9 @@ reached the pipeline.
 
 Code at `8fb8dbb`, plus this documentation commit. Spike:
 `spikes/mps_combined_controlnet_acceptance.py`. It is a client. It starts no
-server. Nine signals, all required.
+server. Eight signals, all required. The combined-versus-plain-img2img distance
+is reported and does not gate the result; the acceptance rests on the
+within-pipeline comparisons.
 
 - Host: Darwin 25.0.0, macOS 26.0.1, arm64, Python 3.12.13, Torch 2.10.0
 - Model: `/Users/darkbit1001/models/diffusers/lcm-dreamshaper-v7`
@@ -508,8 +510,8 @@ Mean per-channel distances, 0 to 255:
 |---|---|---|
 | map A 1.0 against map B 1.0 | 4.77 | the map's CONTENT steers the render |
 | map A 1.0 against map A 0.0 | 3.81 | `strength` reaches the pipeline |
-| map A 1.0 against plain img2img | 10.86 | the combined path renders something else |
-| map A 0.0 against plain img2img | 13.57 | the ControlNet pipeline's UNet branch is not bit-identical |
+| map A 1.0 against plain img2img | 10.86 | reported only, not a signal |
+| map A 0.0 against plain img2img | 13.57 | reported only; the ControlNet UNet branch is not bit-identical |
 | map A 0.0 against map B 0.0 | 0.00 | at strength 0 the map has no effect, byte for byte |
 
 **Control is exactly inert at strength 0.0.** Map A and map B give the same
@@ -545,8 +547,8 @@ Platform scope, refused live in both modes:
 | combined Depth attachment | `job:error` | `backend 'mps' does not support control_type 'depth' for family 'sd15'; allowed: canny` |
 | combined two Canny attachments | `job:error` | `backend 'mps' admits at most 1 controlnet attachment(s) for family 'sd15', got 2` |
 
-The mode permits both requests. The spike requires `job:error` carrying each
-message above, so a timeout or a mode-policy rejection cannot pass.
+The mode permits both requests. The spike requires `job:error` whose message
+EQUALS the one above, so a timeout or a mode-policy rejection cannot pass.
 
 `/api/models/status` during both runs: `backend: mps`, `current_mode:
 lcm-general`, `is_loaded: true`, `supports_img2img: true`,
