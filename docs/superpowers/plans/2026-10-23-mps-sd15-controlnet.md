@@ -49,7 +49,7 @@ approved unchanged.
 - Produces: `ControlNetScope(allowed_control_types: tuple[str, ...] | None = None, max_attachments: int | None = None)`, frozen dataclass in `backends/platforms/base.py`. `None` on either field means the platform adds no narrowing.
 - Produces: `FamilyPlatformBinding.controlnet_scope: ControlNetScope = ControlNetScope()`, the third field, defaulted.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/test_mps_registration.py`, inside `test_mps_provider_binds_sd15_and_shares_runtime`:
 
@@ -76,25 +76,25 @@ def test_cuda_bindings_carry_an_unnarrowed_controlnet_scope():
     assert ControlNetScope().max_attachments is None
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_mps_registration.py tests/test_backend_runtimes.py -- -q --no-cov -k "controlnet_scope or binds_sd15"`
 Expected: FAIL with `AttributeError` or `ImportError` on `ControlNetScope`.
 
-- [ ] **Step 3: Add `ControlNetScope` and the defaulted field in `backends/platforms/base.py`**
+- [x] **Step 3: Add `ControlNetScope` and the defaulted field in `backends/platforms/base.py`**
 
 Place `ControlNetScope` above `FamilyPlatformBinding`. Both stay `@dataclass(frozen=True)`. Document that `None` means no platform narrowing, and that the field is defaulted so existing two-argument construction stays valid.
 
-- [ ] **Step 4: Set the MPS `sd15` scope in `backends/platforms/mps_bindings.py`**
+- [x] **Step 4: Set the MPS `sd15` scope in `backends/platforms/mps_bindings.py`**
 
 Keep `ExecutionCapabilities(True, False, False)` in this task. Pass `ControlNetScope(allowed_control_types=("canny",), max_attachments=1)`. State in the comment that the cell flips in Task 4, after admission and execution exist.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `python -m tests.run tests/test_mps_registration.py tests/test_backend_runtimes.py tests/test_worker_factory.py -- -q --no-cov`
 Expected: PASS. `test_worker_factory.py` proves the default keeps two-argument construction valid.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/platforms/base.py backends/platforms/mps_bindings.py tests/test_backend_runtimes.py tests/test_mps_registration.py
@@ -115,14 +115,14 @@ git commit -m "feat(mps): carry a platform ControlNet scope on the family bindin
 - Produces: `admit_generation_operation` raises `ValueError` when the attachment count exceeds `max_attachments`, or when an attachment's `control_type` is outside `allowed_control_types`. Each message names the backend id and the limit.
 - Produces: `make_family_provider(..., controlnet_scope: ControlNetScope | None = None)` in the test helper. `None` keeps today's unnarrowed binding.
 
-- [ ] **Step 1: Add the scope parameter to the test helper**
+- [x] **Step 1: Add the scope parameter to the test helper**
 
 In `tests/snapshot_test_helpers.py`, add `controlnet_scope: ControlNetScope | None = None` to
 `make_family_provider`. Pass it as the third binding field when it is not `None`. Keep the
 two-argument construction when it is `None`, so every existing caller is unchanged.
 Do this before Step 2. The new tests cannot collect without it.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 In `tests/test_controlnet_execution.py`, beside the existing `test_admit_generation_operation_mps_sd15_*` tests:
 
@@ -158,12 +158,12 @@ def test_admit_generation_operation_leaves_cuda_depth_admitted():
 
 Use the existing fixtures and the `make_active_snapshot` helper. `_attachment(control_type)` is a local factory returning a `SimpleNamespace` with `control_type`, `start_percent=0.0`, `end_percent=1.0`.
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_controlnet_execution.py -- -q --no-cov -k platform_scope`
 Expected: FAIL. The two rejection tests fail because admission returns `"controlnet"`.
 
-- [ ] **Step 4: Enforce the scope in `admit_generation_operation`**
+- [x] **Step 4: Enforce the scope in `admit_generation_operation`**
 
 Add the check in the `has_controlnet` branch, after `caps.supports_controlnet` passes and before the function returns `"controlnet"`. Read `binding.controlnet_scope`. Skip each half when its field is `None`. Raise `ValueError`, matching the HunyuanDiT Canny-only precedent at `server/controlnet_execution.py:40`; `NotImplementedError` stays reserved for a family that supports no ControlNet at all. Do not test `provider.backend_id` for the decision; read it only to name the platform in the message.
 
@@ -172,12 +172,12 @@ MPS provider the guard stays unreachable until Task 4, because the cell still re
 `supports_controlnet=False` and `NotImplementedError` fires first. That ordering is
 deliberate. State it in a comment so the guard does not read as dead code.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `python -m tests.run tests/test_controlnet_execution.py tests/test_controlnet_http_contract.py tests/test_controlnet_success_contract.py -- -q --no-cov`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/controlnet_execution.py tests/snapshot_test_helpers.py tests/test_controlnet_execution.py
@@ -210,7 +210,7 @@ git commit -m "feat(controlnet): enforce the platform ControlNet scope at admiss
   `_import_attr` call, because that would reach real Diffusers in tests and load real
   weights.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/test_mps_worker.py`, following the existing fake-pipeline fixtures:
 
@@ -244,29 +244,29 @@ def test_mps_worker_writes_the_controlnet_png_chunk(...):
 
 Keep `test_mps_worker_rejects_an_init_image_with_controlnet_bindings` passing, with `NotImplementedError` unchanged. Replace `test_mps_worker_rejects_controlnet_bindings`, whose premise this task removes.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_mps_worker.py -- -q --no-cov -k controlnet`
 Expected: FAIL. The ControlNet tests reach the current guard at
 `backends/mps_worker.py`, which rejects every binding with `NotImplementedError`.
 
-- [ ] **Step 3: Split the defense-in-depth check in `run_job`**
+- [x] **Step 3: Split the defense-in-depth check in `run_job`**
 
 The current single check rejects any `controlnet_bindings`. Replace it with: the combined operation (an init image together with bindings) raises `NotImplementedError`; a binding outside the platform scope raises `ValueError`. Read the scope from the worker's own family binding: `get_backend_provider().family_binding(self.family_profile.family_id).controlnet_scope`, importing `get_backend_provider` from `backends.platform_registry` inside the method, as the worker's other local imports do. One source then states the limit. State in the comment that admission rejects all three cases first.
 
 The check runs only when bindings exist. Calls without bindings must not touch the
 provider, or every existing worker test gains an environment dependency.
 
-- [ ] **Step 4: Add the ControlNet execution branch in `run_job`**
+- [x] **Step 4: Add the ControlNet execution branch in `run_job`**
 
 Mirror `backends/cuda_worker.py:1130-1150`: build the kwargs with `_build_controlnet_kwargs(bindings, (width, height), loaded_ids)`, pop `controlnet`, build the pipe with `_build_controlnet_pipe`, and inject step progress exactly as the text-to-image branch does. Load at `self.dtype`, which the inherited loader already does — add no dtype branch here. Add the `controlnet` PNG text chunk from `_controlnet_metadata(bindings)`, as the CUDA worker does at `cuda_worker.py:1174`. Release each pin in the existing `finally` block, following `cuda_worker.py:1183-1189`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `python -m tests.run tests/test_mps_worker.py -- -q --no-cov`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/mps_worker.py tests/test_mps_worker.py
@@ -298,7 +298,7 @@ task. Omit them and the full cohort in Step 5 fails.
 - `tests/test_ws_routes.py:2146` `test_ws_generate_rejects_controlnet_on_mps_sd15_cell`
   → replaced below.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Update `tests/test_mps_registration.py` to assert `ExecutionCapabilities(True, True, False)`. In `tests/test_ws_routes.py`, replace `test_ws_generate_rejects_controlnet_on_mps_sd15_cell` with:
 
@@ -317,25 +317,25 @@ container paths and fail strict validation on this Mac. Patch
 as `tests/test_ws_routes.py:550` does. The two rejection tests need no patch: admission
 raises before resolution.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_mps_registration.py tests/test_ws_routes.py tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py -- -q --no-cov -k "mps_sd15 or binds_sd15"`
 Expected: FAIL. The admit tests fail on the cell's `supports_controlnet` being false. The
 Depth and two-attachment real-provider tests fail with `NotImplementedError` where they
 expect `ValueError`.
 
-- [ ] **Step 3: Flip the cell**
+- [x] **Step 3: Flip the cell**
 
-- [ ] **Step 4: Prove the cell is load-bearing**
+- [x] **Step 4: Prove the cell is load-bearing**
 
 Set the cell back to `ExecutionCapabilities(True, False, False)` by hand. Run the same command. The admit test must fail. Restore the flip. Record both outcomes in the FP comment; slice 2 required this proof.
 
-- [ ] **Step 5: Run the full cohorts**
+- [x] **Step 5: Run the full cohorts**
 
 Run: `python -m tests.run tests/ -- -q --no-cov`
 Expected: no new failure. Eight failures pre-exist on `main` — one in `tests/test_entry_spans.py` and seven vector-map CAD mesh tests. Name any other failure in the report.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/platforms/mps_bindings.py tests/test_mps_registration.py tests/test_ws_routes.py tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py
@@ -355,16 +355,16 @@ git commit -m "feat(mps): admit one Canny ControlNet on the sd15 cell (STABL-xom
 - Consumes: the merged branch through Task 4.
 - Produces: recorded live evidence under the existing evidence headings in `docs/MPS_BACKEND.md`.
 
-- [ ] **Step 1: Write the temporary registry config**
+- [x] **Step 1: Write the temporary registry config**
 
 Copy `conf/controlnets.yaml` and swap the prefix `/models/controlnets` for `/Users/darkbit1001/models/controlnets`. Change nothing else. Keep it outside the repo. Do not edit `conf/controlnets.yaml`.
 
-- [ ] **Step 2: Prove strict validation accepts it**
+- [x] **Step 2: Prove strict validation accepts it**
 
 Run: `CONTROLNET_REGISTRY_PATH=/tmp/controlnets-host.yaml python -c "from server.controlnet_registry import load_controlnet_registry as l; r=l(config_path='/tmp/controlnets-host.yaml'); print(sorted(r.specs))"`
 Expected: the nine model ids print. A missing directory raises `ValueError: ControlNet model path does not exist`.
 
-- [ ] **Step 3: Write the acceptance spike**
+- [x] **Step 3: Write the acceptance spike**
 
 Model it on `spikes/mps_img2img_acceptance.py`: reuse that file's `post_multipart`, `render`, `describe`, and `mean_abs_difference` shapes. Build the source image with `build_init_image()`, derive the Canny map with `cv2.Canny`, upload it with `{"type": "canny"}` so the route stores it in the `control_map` bucket, and submit one attachment:
 
@@ -375,16 +375,16 @@ Model it on `spikes/mps_img2img_acceptance.py`: reuse that file's `post_multipar
 
 Render three jobs: text-to-image for the slice 1 byte comparison, one Canny render at strength 1.0, and one at strength 0.0. Assert the strength-0.0 render differs from the Canny render, so the control map is proven load-bearing rather than decorative.
 
-- [ ] **Step 4: Run the acceptance in both isolation modes**
+- [x] **Step 4: Run the acceptance in both isolation modes**
 
 Start the server with `CONTROLNET_REGISTRY_PATH` set and `CONTROLNET_REGISTRY_VALIDATION` unset, once with `WORKER_ISOLATION=inproc` and once with `subprocess`. Use `PYTHONPATH=/app` or the spike's own bootstrap; `python spikes/x.py` puts the spike directory on `sys.path`, not the repo root.
 Expected: every render passes the validity checks in `docs/MPS_BACKEND.md`, and each render matches across the two modes.
 
-- [ ] **Step 5: Settle the dtype question with the measurement**
+- [x] **Step 5: Settle the dtype question with the measurement**
 
 The inherited loader uses `self.dtype`, which MPS policy fixes at float16. If a render fails a validity check — a black image, or a near-zero standard deviation — load the ControlNet in float32 instead, re-run, and record both results. Do not change the dtype without a failed check to cite.
 
-- [ ] **Step 6: Record the evidence and update the Limits section**
+- [x] **Step 6: Record the evidence and update the Limits section**
 
 Add the live record under the existing evidence headings: model path, seed, both isolation modes, sha256 prefixes, and the strength comparison. Update the Limits bullets: the cell now admits ControlNet; Depth, Pose, and a second attachment are rejected on MPS while the mode permits them; the combined operation stays rejected. State that the acceptance used a temporary host-path registry, and that `conf/controlnets.yaml` is unchanged.
 
@@ -393,12 +393,12 @@ reports `supports_controlnet: true`. The payload carries no scope field, so a cl
 ControlNet as supported and gets HTTP 400 for Depth or a second attachment. Note it in
 Limits. Do not add a scope field to the status payload in this slice.
 
-- [ ] **Step 7: Verify provenance**
+- [x] **Step 7: Verify provenance**
 
 Run: `drift refs docs/MPS_BACKEND.md` then `drift check --changed docs/MPS_BACKEND.md`
 Expected: ok. Update prose before any relink.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add spikes/mps_controlnet_acceptance.py docs/MPS_BACKEND.md
