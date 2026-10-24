@@ -11,9 +11,9 @@ them unqualified, so a test patches them here, where the call happens. A
 qualified call through `backends.cuda_worker` would miss the patch and load real
 weights.
 
-Scope: LCM text-to-image, LCM img2img, and one Canny ControlNet attachment.
-The worker rejects the combined img2img+ControlNet operation, a ControlNet
-attachment outside the platform scope, and any scheduler other than LCM.
+Scope: LCM text-to-image, LCM img2img, and one Canny ControlNet attachment,
+including combined img2img+ControlNet. The worker rejects attachments outside
+the platform scope and any scheduler other than LCM.
 """
 
 from __future__ import annotations
@@ -30,9 +30,11 @@ from PIL import Image, PngImagePlugin
 from backends.cuda_worker import (
     CudaWorkerBase,
     _lcm_scheduler_cls,
+    _sd_controlnet_img2img_pipeline_cls,
     _sd_controlnet_pipeline_cls,
     _sd_img2img_pipeline_cls,
     _sd_pipeline_cls,
+    _validate_control_image_aspect_ratio,
 )
 from backends.family_profiles import FamilyProfile
 from backends.platforms.mps_policy import MPS_TORCH_POLICY
@@ -118,18 +120,31 @@ class DiffusersMpsWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def _check_controlnet_scope(self, bindings: list[Any]) -> None:
-        """Repeat the platform ControlNet scope the cell carries.
+    def _check_platform_operation(self, *, has_init_image: bool, bindings: list[Any]) -> None:
+        """Repeat the cell's operation capability and ControlNet scope.
 
-        One source states the LIMIT: the platform-family binding, which
-        `admit_generation_operation` reads through the same field. The checking
-        code is not shared, so the two messages can drift even though the values
-        cannot. Admission runs first on every server path, so the message a
-        client sees is admission's.
+        Admission runs first on every server path. This check also protects a
+        worker called directly or through a future dispatch path.
         """
         from backends.platform_registry import get_backend_provider
 
         cell = get_backend_provider().family_binding(self.family_profile.family_id)
+        caps = cell.execution_capabilities
+        family_id = self.family_profile.family_id
+        if has_init_image and bindings:
+            if not caps.supports_img2img_and_controlnet:
+                raise ValueError(
+                    f"family '{family_id}' does not support the img2img+controlnet operation"
+                )
+        elif bindings:
+            if not caps.supports_controlnet:
+                raise NotImplementedError(
+                    f"family '{family_id}' does not support the controlnet operation"
+                )
+        elif has_init_image and not caps.supports_img2img:
+            raise ValueError(f"family '{family_id}' does not support the img2img operation")
+        if not bindings:
+            return
         scope = getattr(cell, "controlnet_scope", None)
         if scope is None:
             return
@@ -157,6 +172,13 @@ class DiffusersMpsWorker(CudaWorkerBase):
             torch_dtype=None,
         )
 
+    def _build_controlnet_img2img_pipe(self, controlnet_obj: Any) -> Any:
+        return _sd_controlnet_img2img_pipeline_cls().from_pipe(
+            self.pipe,
+            controlnet=controlnet_obj,
+            torch_dtype=None,
+        )
+
     def run_job(self, job, progress=None, should_cancel=None) -> tuple[bytes, int]:
         """Render one LCM job and return PNG bytes with the seed.
 
@@ -169,16 +191,11 @@ class DiffusersMpsWorker(CudaWorkerBase):
         init_image = getattr(job, "init_image", None)
         bindings = getattr(job, "controlnet_bindings", None) or []
 
-        # Defense in depth. `admit_generation_operation` rejects both cases
-        # earlier, from the same cell and the same platform scope. The checks run
-        # only when bindings exist, so a job without them never reads the
-        # provider.
-        if bindings:
-            if init_image is not None:
-                raise NotImplementedError(
-                    "MPS SD1.5 does not support the img2img+ControlNet operation"
-                )
-            self._check_controlnet_scope(bindings)
+        # Defense in depth. Admission checks the same cell before preprocessing.
+        if init_image is not None or bindings:
+            self._check_platform_operation(
+                has_init_image=init_image is not None, bindings=bindings
+            )
 
         req = job.req
         if self._resolve_scheduler_id(req) != "lcm":
@@ -210,24 +227,34 @@ class DiffusersMpsWorker(CudaWorkerBase):
         try:
             conditioning_artifact = self._conditioning_artifact_for_request(req)
             if init_image is not None:
-                # img2img reuses the loaded weights, so it costs no extra memory.
-                # The pipeline reads the size from the init image, so it takes no
-                # width or height. This mirrors the CUDA SD1.5 worker.
+                if bindings:
+                    _validate_control_image_aspect_ratio(init_image, bindings)
+                    controlnet_kwargs = self._build_controlnet_kwargs(
+                        bindings, (width, height), loaded_ids,
+                        image_kwarg="control_image",
+                    )
+                    controlnet_obj = controlnet_kwargs.pop("controlnet")
+                    pipe = self._build_controlnet_img2img_pipe(controlnet_obj)
+                else:
+                    if self._img2img_pipe is None:
+                        self._img2img_pipe = _sd_img2img_pipeline_cls()(**self.pipe.components)
+                    pipe = self._img2img_pipe
+                # Both img2img pipes read size from the init image; neither
+                # takes width or height. The combined pipe uses `control_image`
+                # for the map, leaving `image` for this init image.
                 init_pil = Image.open(io.BytesIO(init_image)).convert("RGB").resize(
                     (width, height)
                 )
-                if self._img2img_pipe is None:
-                    self._img2img_pipe = _sd_img2img_pipeline_cls()(**self.pipe.components)
                 # A prior run can upcast the shared VAE. Align it, or the next
                 # init-image encode fails on a dtype mismatch.
                 self._normalize_img2img_modules()
-                pipe = self._img2img_pipe
                 pipe_kwargs = {
                     "image": init_pil,
                     "strength": float(getattr(req, "denoise_strength", 0.75)),
                     "num_inference_steps": int(req.num_inference_steps),
                     "guidance_scale": float(req.guidance_scale),
                     "generator": gen,
+                    **controlnet_kwargs,
                 }
             else:
                 if bindings:

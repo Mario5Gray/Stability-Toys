@@ -23,11 +23,10 @@ def _admit_controlnet_scope(req, binding, provider, family_id: str) -> None:
     read to name the platform in the message, never to decide — a backend test
     here would reject Depth on CUDA, which runs the same family.
 
-    Through a real provider this is reachable only once that platform's cell
-    reports `supports_controlnet=True`; otherwise the NotImplementedError above
-    fires first. On MPS that happens in Task 4 of
-    docs/superpowers/plans/2026-10-23-mps-sd15-controlnet.md, so the check is
-    not dead code.
+    Through a real provider this is reachable once the platform cell admits
+    the requested ControlNet operation. Plain ControlNet uses
+    `supports_controlnet`; combined img2img+ControlNet uses
+    `supports_img2img_and_controlnet`. The scope applies to both paths.
     """
     scope = getattr(binding, "controlnet_scope", None)
     if scope is None:
@@ -77,6 +76,7 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
             raise ValueError(
                 f"family '{family_id}' does not support the img2img+controlnet operation"
             )
+        _admit_controlnet_scope(req, binding, provider, family_id)
         if family_id == "hunyuandit":
             for attachment in req.controlnets:
                 if attachment.control_type != "canny":

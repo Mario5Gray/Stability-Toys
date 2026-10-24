@@ -78,6 +78,33 @@ def test_attachment_rejects_inverted_percent_range():
         )
 
 
+def test_attachment_rejects_zero_width_percent_range():
+    with pytest.raises(ValidationError, match="start_percent must be < end_percent"):
+        ControlNetAttachment(
+            attachment_id="cn_1",
+            control_type="canny",
+            map_asset_ref="asset_a",
+            start_percent=0.5,
+            end_percent=0.5,
+        )
+
+
+def test_generate_request_rejects_zero_width_controlnet_window():
+    from server.lcm_sr_server import GenerateRequest
+
+    with pytest.raises(ValidationError, match="start_percent must be < end_percent"):
+        GenerateRequest(
+            prompt="a cat",
+            controlnets=[{
+                "attachment_id": "cn_1",
+                "control_type": "canny",
+                "map_asset_ref": "asset_a",
+                "start_percent": 0.5,
+                "end_percent": 0.5,
+            }],
+        )
+
+
 def test_attachment_rejects_blank_attachment_id():
     with pytest.raises(ValidationError):
         ControlNetAttachment(

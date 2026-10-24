@@ -105,11 +105,13 @@ class _FakeControlNetPipe:
         self.controlnet = controlnet
         self.torch_dtype = torch_dtype
         self.calls = []
+        self.inference_mode_flags = []
         self.error: BaseException | None = None
         self._image = image
 
     def __call__(self, *, callback_on_step_end=None, **kwargs):
         self.calls.append({"callback_on_step_end": callback_on_step_end, **kwargs})
+        self.inference_mode_flags.append(torch.is_inference_mode_enabled())
         if self.error is not None:
             raise self.error
         if callback_on_step_end is not None:
@@ -196,6 +198,7 @@ def fake_pipeline(monkeypatch, mps_available):
     img2img_class = Mock(side_effect=_build_img2img)
 
     controlnet_pipes = []
+    combined_pipes = []
 
     class _ControlNetPipeClass:
         """Recording stand-in for StableDiffusionControlNetPipeline."""
@@ -209,6 +212,18 @@ def fake_pipeline(monkeypatch, mps_available):
                 torch_dtype=torch_dtype,
             )
             controlnet_pipes.append(built)
+            return built
+
+    class _CombinedPipeClass:
+        @staticmethod
+        def from_pipe(base_pipe, *, controlnet, torch_dtype):
+            built = _FakeControlNetPipe(
+                image=Image.new("RGB", (768, 768), "purple"),
+                base_pipe=base_pipe,
+                controlnet=controlnet,
+                torch_dtype=torch_dtype,
+            )
+            combined_pipes.append(built)
             return built
 
     # The worker reads its platform scope through the registry, and this file
@@ -233,6 +248,10 @@ def fake_pipeline(monkeypatch, mps_available):
     monkeypatch.setattr(
         mps_worker, "_sd_controlnet_pipeline_cls", lambda: _ControlNetPipeClass
     )
+    monkeypatch.setattr(
+        mps_worker, "_sd_controlnet_img2img_pipeline_cls",
+        lambda: _CombinedPipeClass,
+    )
     return SimpleNamespace(
         pipe=pipe,
         pipeline_class=pipeline_class,
@@ -241,22 +260,21 @@ def fake_pipeline(monkeypatch, mps_available):
         img2img_class=img2img_class,
         img2img_pipes=img2img_pipes,
         controlnet_pipes=controlnet_pipes,
+        combined_pipes=combined_pipes,
         controlnet_cache=cache,
     )
 
 
 def _build_worker(doubles, loader_format="diffusers_dir", family_profile=None):
-    """`family_profile` stays None for the text-to-image and img2img tests, which
-    never read it. The ControlNet path does read it, through the inherited
-    `_build_controlnet_kwargs` and the scope lookup, so those tests pass
-    SD15_PROFILE."""
+    """Every live MPS worker has the bound SD1.5 profile."""
     from backends.mps_worker import DiffusersMpsWorker
+    from backends.family_profiles import SD15_PROFILE
 
     return DiffusersMpsWorker(
         worker_id=0,
         model_path=MODEL_PATH,
         model_info=_model_info(loader_format),
-        family_profile=family_profile,
+        family_profile=family_profile or SD15_PROFILE,
     )
 
 
@@ -504,22 +522,178 @@ def test_mps_worker_cancels_img2img_at_step_boundary(
     released_cache.assert_called_once_with()
 
 
-def test_mps_worker_rejects_an_init_image_with_controlnet_bindings(
+def test_mps_worker_combined_keeps_init_and_control_images_distinct(
     fake_pipeline, recording_generator, released_cache
 ):
-    """The combined operation stays rejected. The cell reports it as false."""
-    worker = _build_worker(fake_pipeline)
-    with pytest.raises(
-        NotImplementedError,
-        match="MPS SD1.5 does not support the img2img\\+ControlNet operation",
-    ):
-        worker.run_job(
-            _job(
-                init_image=_init_png(),
-                controlnet_bindings=[SimpleNamespace(model_id="canny")],
-            )
-        )
+    worker = _build_controlnet_worker(fake_pipeline)
+    binding = _binding()
+    binding.strength = 0.6
+    binding.start_percent = 0.2
+    binding.end_percent = 0.8
+    png, seed = worker.run_job(_job(
+        req=_request(denoise_strength=0.4), init_image=_init_png(),
+        controlnet_bindings=[binding],
+    ))
+
+    assert seed == 7
+    assert png.startswith(b"\x89PNG")
+    assert fake_pipeline.pipe.calls == []
     assert fake_pipeline.img2img_pipes == []
+    assert fake_pipeline.controlnet_pipes == []
+    assert len(fake_pipeline.combined_pipes) == 1
+    built = fake_pipeline.combined_pipes[0]
+    assert built.base_pipe is fake_pipeline.pipe
+    assert built.torch_dtype is None
+    assert built.controlnet.model_id == "sd15-canny"
+    assert built.inference_mode_flags == [True]
+    call = built.calls[0]
+    assert call["image"].size == (768, 768)
+    assert call["control_image"].size == (768, 768)
+    assert call["image"] is not call["control_image"]
+    assert call["image"].getpixel((0, 0)) != call["control_image"].getpixel((0, 0))
+    assert call["strength"] == 0.4
+    assert call["controlnet_conditioning_scale"] == 0.6
+    assert call["control_guidance_start"] == 0.2
+    assert call["control_guidance_end"] == 0.8
+    assert call["generator"] is recording_generator.instances[-1]
+    assert "width" not in call and "height" not in call
+    entries = json.loads(Image.open(io.BytesIO(png)).text["controlnet"])
+    assert entries[0]["generation"]["model_id"] == "sd15-canny"
+    assert fake_pipeline.controlnet_cache.acquired == ["sd15-canny"]
+    assert fake_pipeline.controlnet_cache.released == ["sd15-canny"]
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_combined_rejects_depth_before_load(
+    fake_pipeline, recording_generator, released_cache
+):
+    worker = _build_controlnet_worker(fake_pipeline)
+    with pytest.raises(ValueError, match="control_type 'depth'"):
+        worker.run_job(_job(
+            init_image=_init_png(),
+            controlnet_bindings=[_binding(control_type="depth")],
+        ))
+    assert fake_pipeline.controlnet_cache.acquired == []
+    assert fake_pipeline.combined_pipes == []
+    released_cache.assert_not_called()
+
+
+def test_mps_worker_combined_rejects_two_bindings_before_load(
+    fake_pipeline, recording_generator, released_cache
+):
+    worker = _build_controlnet_worker(fake_pipeline)
+    with pytest.raises(ValueError, match="at most 1"):
+        worker.run_job(_job(
+            init_image=_init_png(),
+            controlnet_bindings=[_binding(), _binding(attachment_id="cn_2")],
+        ))
+    assert fake_pipeline.controlnet_cache.acquired == []
+    assert fake_pipeline.combined_pipes == []
+    released_cache.assert_not_called()
+
+
+def test_mps_worker_combined_rejects_aspect_ratio_before_load(
+    fake_pipeline, recording_generator, released_cache
+):
+    worker = _build_controlnet_worker(fake_pipeline)
+    binding = _binding()
+    binding.control_image_bytes = _init_png(size=(768, 512))
+    with pytest.raises(ValueError, match="aspect ratio .* diverges"):
+        worker.run_job(_job(init_image=_init_png(), controlnet_bindings=[binding]))
+    assert fake_pipeline.controlnet_cache.acquired == []
+    assert fake_pipeline.combined_pipes == []
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_combined_releases_pin_after_render_failure(
+    fake_pipeline, recording_generator, released_cache, monkeypatch
+):
+    import backends.mps_worker as mps_worker
+
+    worker = _build_controlnet_worker(fake_pipeline)
+
+    def exploding_from_pipe(base_pipe, *, controlnet, torch_dtype):
+        built = _FakeControlNetPipe(
+            base_pipe=base_pipe, controlnet=controlnet, torch_dtype=torch_dtype
+        )
+        built.error = RuntimeError("combined exploded")
+        fake_pipeline.combined_pipes.append(built)
+        return built
+
+    monkeypatch.setattr(mps_worker, "_sd_controlnet_img2img_pipeline_cls",
+                        lambda: SimpleNamespace(from_pipe=exploding_from_pipe))
+    with pytest.raises(RuntimeError, match="combined exploded"):
+        worker.run_job(_job(init_image=_init_png(), controlnet_bindings=[_binding()]))
+    assert fake_pipeline.controlnet_cache.acquired == ["sd15-canny"]
+    assert fake_pipeline.controlnet_cache.released == ["sd15-canny"]
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_combined_cancels_at_step_boundary(
+    fake_pipeline, recording_generator, released_cache
+):
+    from concurrent.futures import CancelledError
+
+    worker = _build_controlnet_worker(fake_pipeline)
+    with pytest.raises(CancelledError, match="job cancelled at step boundary"):
+        worker.run_job(
+            _job(init_image=_init_png(), controlnet_bindings=[_binding()]),
+            should_cancel=lambda: True,
+        )
+    assert fake_pipeline.controlnet_cache.released == ["sd15-canny"]
+    released_cache.assert_called_once_with()
+
+
+def test_mps_worker_combined_aligns_shared_vae(
+    fake_pipeline, recording_generator, released_cache, monkeypatch
+):
+    worker = _build_controlnet_worker(fake_pipeline)
+    # A previous render can upcast this shared module before from_pipe reuses it.
+    fake_pipeline.pipe.vae.dtype = torch.float32
+    fake_pipeline.pipe.vae.device = "mps"
+    original_call = _FakeControlNetPipe.__call__
+
+    def checked_call(pipe, **kwargs):
+        fake_pipeline.pipe.vae.to.assert_called_with("mps", dtype=torch.float16)
+        return original_call(pipe, **kwargs)
+
+    monkeypatch.setattr(_FakeControlNetPipe, "__call__", checked_call)
+    worker.run_job(_job(init_image=_init_png(), controlnet_bindings=[_binding()]))
+    fake_pipeline.pipe.vae.to.assert_called_with("mps", dtype=torch.float16)
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "has_init_image", "has_controlnet", "error_type", "message"),
+    [
+        ((True, True, False), True, True, ValueError, "img2img+controlnet"),
+        ((False, True, True), True, False, ValueError, "img2img operation"),
+        ((True, False, True), False, True, NotImplementedError, "controlnet operation"),
+    ],
+)
+def test_mps_worker_repeats_cell_operation_capability(
+    fake_pipeline, recording_generator, released_cache, monkeypatch,
+    capabilities, has_init_image, has_controlnet, error_type, message,
+):
+    from backends.platforms.base import ExecutionCapabilities, FamilyPlatformBinding
+    from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
+
+    cell = MPS_FAMILY_BINDINGS["sd15"]
+    monkeypatch.setitem(MPS_FAMILY_BINDINGS, "sd15", FamilyPlatformBinding(
+        cell.worker_ref, ExecutionCapabilities(*capabilities), cell.controlnet_scope,
+    ))
+    worker = _build_controlnet_worker(fake_pipeline)
+    job = _job(
+        init_image=_init_png() if has_init_image else None,
+        controlnet_bindings=[_binding()] if has_controlnet else [],
+    )
+    with pytest.raises(error_type) as exc:
+        worker.run_job(job)
+    assert message in str(exc.value)
+    assert fake_pipeline.pipe.calls == []
+    assert fake_pipeline.img2img_pipes == []
+    assert fake_pipeline.controlnet_pipes == []
+    assert fake_pipeline.combined_pipes == []
+    assert fake_pipeline.controlnet_cache.acquired == []
     released_cache.assert_not_called()
 
 

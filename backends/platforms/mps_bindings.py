@@ -14,9 +14,7 @@ from backends.platforms.base import (
 )
 
 MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
-    # SD1.5 LCM text-to-image, img2img, and ControlNet. The combined
-    # img2img+ControlNet operation stays false, so `admit_generation_operation`
-    # rejects it before any preprocessing.
+    # SD1.5 LCM text-to-image, img2img, ControlNet, and combined img2img+ControlNet.
     #
     # The scope narrows ControlNet to one Canny attachment on this platform.
     # conf/modes.yml permits canny, depth, pose, and two attachments, so the
@@ -24,7 +22,7 @@ MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
     # and the worker repeats it.
     "sd15": FamilyPlatformBinding(
         "backends.mps_worker.DiffusersMpsWorker",
-        ExecutionCapabilities(True, True, False),
+        ExecutionCapabilities(True, True, True),
         ControlNetScope(allowed_control_types=("canny",), max_attachments=1),
     ),
 }
