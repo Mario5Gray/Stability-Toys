@@ -120,18 +120,31 @@ class DiffusersMpsWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
-    def _check_controlnet_scope(self, bindings: list[Any]) -> None:
-        """Repeat the platform ControlNet scope the cell carries.
+    def _check_platform_operation(self, *, has_init_image: bool, bindings: list[Any]) -> None:
+        """Repeat the cell's operation capability and ControlNet scope.
 
-        One source states the LIMIT: the platform-family binding, which
-        `admit_generation_operation` reads through the same field. The checking
-        code is not shared, so the two messages can drift even though the values
-        cannot. Admission runs first on every server path, so the message a
-        client sees is admission's.
+        Admission runs first on every server path. This check also protects a
+        worker called directly or through a future dispatch path.
         """
         from backends.platform_registry import get_backend_provider
 
         cell = get_backend_provider().family_binding(self.family_profile.family_id)
+        caps = cell.execution_capabilities
+        family_id = self.family_profile.family_id
+        if has_init_image and bindings:
+            if not caps.supports_img2img_and_controlnet:
+                raise ValueError(
+                    f"family '{family_id}' does not support the img2img+controlnet operation"
+                )
+        elif bindings:
+            if not caps.supports_controlnet:
+                raise NotImplementedError(
+                    f"family '{family_id}' does not support the controlnet operation"
+                )
+        elif has_init_image and not caps.supports_img2img:
+            raise ValueError(f"family '{family_id}' does not support the img2img operation")
+        if not bindings:
+            return
         scope = getattr(cell, "controlnet_scope", None)
         if scope is None:
             return
@@ -178,10 +191,11 @@ class DiffusersMpsWorker(CudaWorkerBase):
         init_image = getattr(job, "init_image", None)
         bindings = getattr(job, "controlnet_bindings", None) or []
 
-        # Defense in depth. Admission applies the same platform scope before
-        # preprocessing. Jobs without bindings never read the provider.
-        if bindings:
-            self._check_controlnet_scope(bindings)
+        # Defense in depth. Admission checks the same cell before preprocessing.
+        if init_image is not None or bindings:
+            self._check_platform_operation(
+                has_init_image=init_image is not None, bindings=bindings
+            )
 
         req = job.req
         if self._resolve_scheduler_id(req) != "lcm":

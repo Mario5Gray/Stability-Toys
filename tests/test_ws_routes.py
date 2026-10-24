@@ -2019,7 +2019,7 @@ def test_ws_status_reads_vram_through_the_seam_not_torch_directly():
 
 
 # ---------------------------------------------------------------------------
-# MPS sd15 cell: WebSocket admits img2img, rejects ControlNet (STABL-tukrgrjb)
+# MPS sd15 cell: WebSocket admission and platform scope
 # ---------------------------------------------------------------------------
 
 
@@ -2147,23 +2147,56 @@ def test_ws_generate_admits_init_image_on_mps_sd15_cell():
     assert job.controlnet_bindings == []
 
 
-def test_ws_generate_rejects_the_combined_operation_on_mps_sd15_cell():
-    init_ref = get_store().write("upload", _solid_png_bytes())
-    error = _mps_ws_rejection(
-        {
-            "prompt": "a cat",
-            "init_image_ref": init_ref,
-            "controlnets": [
-                {
+def test_ws_generate_admits_combined_canny_on_mps_sd15_cell():
+    init_png = _solid_png_bytes()
+    init_ref = get_store().write("upload", init_png)
+    with patch("server.controlnet_execution.resolve_controlnet_bindings", return_value=[]), \
+            patch("server.controlnet_preprocessing.preprocess_controlnet_attachments",
+                  return_value=[]):
+        job = _mps_ws_submission(
+            {
+                "prompt": "a cat",
+                "init_image_ref": init_ref,
+                "controlnets": [{
                     "attachment_id": "cn_1",
                     "control_type": "canny",
                     "map_asset_ref": "ref1",
-                }
-            ],
-        },
-        "t-mps-combined",
+                }],
+            },
+            "t-mps-combined-canny",
+        )
+    assert job.init_image == init_png
+
+
+def test_ws_generate_rejects_combined_depth_on_mps_sd15_cell():
+    init_ref = get_store().write("upload", _solid_png_bytes())
+    error = _mps_ws_rejection({
+        "prompt": "a cat",
+        "init_image_ref": init_ref,
+        "controlnets": [{
+            "attachment_id": "cn_1", "control_type": "depth", "map_asset_ref": "ref1",
+        }],
+    }, "t-mps-combined-depth")
+    assert error == (
+        "backend 'mps' does not support control_type 'depth' for family 'sd15'; "
+        "allowed: canny"
     )
-    assert "family 'sd15' does not support the img2img+controlnet operation" in error
+
+
+def test_ws_generate_rejects_combined_two_attachments_on_mps_sd15_cell():
+    init_ref = get_store().write("upload", _solid_png_bytes())
+    error = _mps_ws_rejection({
+        "prompt": "a cat",
+        "init_image_ref": init_ref,
+        "controlnets": [
+            {"attachment_id": "cn_1", "control_type": "canny", "map_asset_ref": "ref1"},
+            {"attachment_id": "cn_2", "control_type": "canny", "map_asset_ref": "ref2"},
+        ],
+    }, "t-mps-combined-two")
+    assert error == (
+        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
+        "'sd15', got 2"
+    )
 
 
 def test_ws_generate_admits_one_canny_controlnet_on_mps_sd15_cell():

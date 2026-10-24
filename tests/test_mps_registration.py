@@ -64,9 +64,8 @@ def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     assert set(MPS_FAMILY_BINDINGS) == {"sd15"}
     cell = provider.family_binding("sd15")
     assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
-    # Text-to-image, img2img, and ControlNet. The combined operation stays
-    # false. The cell is the real admission gate for all three.
-    assert cell.execution_capabilities == ExecutionCapabilities(True, True, False)
+    # Text-to-image, img2img, ControlNet, and their combined operation.
+    assert cell.execution_capabilities == ExecutionCapabilities(True, True, True)
     # The platform ControlNet scope. MPS admits one Canny attachment and nothing
     # else, while conf/modes.yml permits canny, depth, pose, and two attachments.
     assert cell.controlnet_scope == ControlNetScope(

@@ -232,21 +232,59 @@ def test_admit_generation_operation_mps_sd15_rejects_two_controlnet_attachments(
         _mps_admission(has_init_image=False, controlnets=attachments)
 
 
-def test_admit_generation_operation_mps_sd15_rejects_the_combined_operation():
+def test_admit_generation_operation_mps_sd15_admits_combined_canny():
     from server.controlnet_models import ControlNetAttachment
 
     attachment = ControlNetAttachment(
         attachment_id="cn_1", control_type="canny", map_asset_ref="map"
     )
-    with pytest.raises(
-        ValueError, match="family 'sd15' does not support the img2img\\+controlnet operation"
-    ):
+    assert _mps_admission(
+        has_init_image=True, controlnets=(attachment,)
+    ) == "img2img+controlnet"
+
+
+def test_admit_generation_operation_mps_sd15_combined_rejects_depth():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="depth", map_asset_ref="map"
+    )
+    with pytest.raises(ValueError) as exc:
         _mps_admission(has_init_image=True, controlnets=(attachment,))
+    assert str(exc.value) == (
+        "backend 'mps' does not support control_type 'depth' for family 'sd15'; "
+        "allowed: canny"
+    )
+
+
+def test_admit_generation_operation_mps_sd15_combined_rejects_two_attachments():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachments = tuple(ControlNetAttachment(
+        attachment_id=f"cn_{index}", control_type="canny", map_asset_ref="map"
+    ) for index in (1, 2))
+    with pytest.raises(ValueError) as exc:
+        _mps_admission(has_init_image=True, controlnets=attachments)
+    assert str(exc.value) == (
+        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
+        "'sd15', got 2"
+    )
+
+
+def test_admit_generation_operation_mps_sd15_combined_allows_control_window():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map",
+        start_percent=0.2, end_percent=0.8,
+    )
+    assert _mps_admission(
+        has_init_image=True, controlnets=(attachment,)
+    ) == "img2img+controlnet"
 
 
 def _scoped_admission(*, controlnets, scope=None, backend_id="mps", family_id="sd15"):
-    """Admission through a fake provider, so the scope is reachable before the
-    MPS cell flips in Task 4."""
+    """Admission through a fake provider, independent of the MPS cell."""
     from server.controlnet_execution import admit_generation_operation
     from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
 
