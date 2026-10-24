@@ -405,8 +405,8 @@ def test_mps_reports_generation_after_live_acceptance(mps_backend):
     """The flag feeds `/api/models/status` only. The real generation gate is the
     `sd15` cell. The flag turned true as the LAST step of STABL-hvvogszy, after
     a live MPS render in both isolation modes passed the validity checks in
-    docs/MPS_BACKEND.md. MPS binds one family. Its cell admits text-to-image
-    and img2img. ControlNet and the combined operation stay false.
+    docs/MPS_BACKEND.md. MPS binds one family. Its cell admits text-to-image,
+    img2img, one Canny ControlNet, and the combined operation.
     """
     from backends.platform_registry import get_backend_provider
 

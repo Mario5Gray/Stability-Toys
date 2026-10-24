@@ -399,7 +399,8 @@ Shipped-now operator objective:
 
 - stable CUDA ControlNet operation with explicit mode policy and explicit registry wiring
 - combined img2img + ControlNet on CUDA over WS/CLI (`STABL-ztaxgbhv`), governed by
-  `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`
+  `docs/superpowers/specs/2026-07-08-img2img-controlnet-combined-design.md`, and on
+  MPS SD1.5 with one Canny attachment (`docs/MPS_BACKEND.md`)
 
 Still-open or intentionally deferred as built-in/default surfaces:
 
