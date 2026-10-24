@@ -190,19 +190,25 @@ git commit -m "feat(controlnet): enforce the platform ControlNet scope at admiss
 
 **Files:**
 - Modify: `backends/mps_worker.py:119-250`
-- Add: a module-global `_sd_controlnet_pipeline_cls()` in `backends/mps_worker.py`
+- Modify: `backends/cuda_worker.py`, which gains the module-global
+  `_sd_controlnet_pipeline_cls()` beside its siblings
 - Test: `tests/test_mps_worker.py`
 
 **Interfaces:**
 - Consumes: `CudaWorkerBase._load_controlnet_model(binding)`, `_build_controlnet_kwargs(bindings, size, loaded_ids, image_kwarg=None)`, `_controlnet_model_cls()`, and `_controlnet_metadata(bindings)`. All are inherited; do not reimplement them.
 - Produces: `DiffusersMpsWorker._build_controlnet_pipe(controlnet_obj)`, returning
   `_sd_controlnet_pipeline_cls().from_pipe(self.pipe, controlnet=controlnet_obj, torch_dtype=None)`.
-- Produces: `_sd_controlnet_pipeline_cls()`, a module global beside `_sd_pipeline_cls` and
-  `_sd_img2img_pipeline_cls`. Lazy-import
-  `diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_controlnet.StableDiffusionControlNetPipeline`.
-  Call it unqualified. `backends/mps_worker.py:9-12` states the rule: tests patch the
-  helper where the call happens. Do not copy `cuda_worker.py:1042`'s `_import_attr` call,
-  because that would reach real Diffusers in tests and load real weights.
+- Produces: `_sd_controlnet_pipeline_cls()`, defined in `backends/cuda_worker.py` beside
+  `_sd_pipeline_cls` and `_sd_img2img_pipeline_cls`, then imported into
+  `backends/mps_worker.py`. That mirrors `_sd_img2img_pipeline_cls`. The import makes it
+  a module global in `mps_worker`, so a test patches it there and the unqualified call
+  hits. Import path, measured on diffusers 0.39:
+  `diffusers.pipelines.controlnet.pipeline_controlnet`. The path
+  `diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_controlnet` raises
+  `ModuleNotFoundError`, so do not use it. `backends/mps_worker.py:9-12` states the rule:
+  tests patch the helper where the call happens. Do not copy `cuda_worker.py:1042`'s
+  `_import_attr` call, because that would reach real Diffusers in tests and load real
+  weights.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -241,7 +247,8 @@ Keep `test_mps_worker_rejects_an_init_image_with_controlnet_bindings` passing, w
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_mps_worker.py -- -q --no-cov -k controlnet`
-Expected: FAIL with `NotImplementedError: MPS SD1.5 does not support ControlNet` from `backends/mps_worker.py:132`.
+Expected: FAIL. The ControlNet tests reach the current guard at
+`backends/mps_worker.py`, which rejects every binding with `NotImplementedError`.
 
 - [ ] **Step 3: Split the defense-in-depth check in `run_job`**
 

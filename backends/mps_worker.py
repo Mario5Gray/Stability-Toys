@@ -11,8 +11,9 @@ them unqualified, so a test patches them here, where the call happens. A
 qualified call through `backends.cuda_worker` would miss the patch and load real
 weights.
 
-Scope: LCM text-to-image and LCM img2img. The worker rejects ControlNet, the
-combined img2img+ControlNet operation, and any scheduler other than LCM.
+Scope: LCM text-to-image, LCM img2img, and one Canny ControlNet attachment.
+The worker rejects the combined img2img+ControlNet operation, a ControlNet
+attachment outside the platform scope, and any scheduler other than LCM.
 """
 
 from __future__ import annotations
@@ -172,7 +173,9 @@ class DiffusersMpsWorker(CudaWorkerBase):
         # provider.
         if bindings:
             if init_image is not None:
-                raise NotImplementedError("MPS SD1.5 does not support ControlNet")
+                raise NotImplementedError(
+                    "MPS SD1.5 does not support the img2img+ControlNet operation"
+                )
             self._check_controlnet_scope(bindings)
 
         req = job.req

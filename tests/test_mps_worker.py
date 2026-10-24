@@ -105,7 +105,7 @@ class _FakeControlNetPipe:
         self.controlnet = controlnet
         self.torch_dtype = torch_dtype
         self.calls = []
-        self.error = None
+        self.error: BaseException | None = None
         self._image = image
 
     def __call__(self, *, callback_on_step_end=None, **kwargs):
@@ -509,7 +509,10 @@ def test_mps_worker_rejects_an_init_image_with_controlnet_bindings(
 ):
     """The combined operation stays rejected. The cell reports it as false."""
     worker = _build_worker(fake_pipeline)
-    with pytest.raises(NotImplementedError, match="MPS SD1.5 does not support ControlNet"):
+    with pytest.raises(
+        NotImplementedError,
+        match="MPS SD1.5 does not support the img2img\\+ControlNet operation",
+    ):
         worker.run_job(
             _job(
                 init_image=_init_png(),
