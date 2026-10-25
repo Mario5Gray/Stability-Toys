@@ -85,7 +85,8 @@ That is the current state for every family except `sd15`.
   img2img job and keeps it. The pipeline reads the size from the init image, so
   the worker resizes the init image to the requested size and sends no width or
   height. `denoise_strength` becomes the pipeline `strength`, default 0.75.
-  This mirrors the CUDA SD1.5 worker.
+  The output PNG records that value in its `lcm` metadata for
+  `st gen --recreate`. This mirrors the CUDA SD1.5 worker.
 - **The combined operation builds its pipe per job.** It calls
   `StableDiffusionControlNetImg2ImgPipeline.from_pipe`, which shares every
   loaded component, so no weights are copied. The init image goes to `image`

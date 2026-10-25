@@ -7,6 +7,7 @@ fail until the worker threads binding data into pipeline kwargs.
 """
 
 import io
+import json
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
@@ -215,6 +216,42 @@ def _make_png_bytes(width, height):
     buf = io.BytesIO()
     PILImage.new("RGB", (width, height), color=(10, 20, 30)).save(buf, format="PNG")
     return buf.getvalue()
+
+
+@pytest.mark.parametrize("worker_cls", [DiffusersCudaWorker, DiffusersSDXLCudaWorker])
+@pytest.mark.parametrize("combined", [False, True])
+def test_cuda_img2img_png_round_trips_pipeline_strength(worker_cls, combined):
+    worker = _make_worker(worker_cls)
+    req = _make_req()
+    req.denoise_strength = 0.4
+    output = SimpleNamespace(images=[PILImage.new("RGB", (8, 8), "white")])
+    img2img_pipe = Mock(return_value=output)
+    worker._img2img_pipe = img2img_pipe
+    combined_pipe = Mock(return_value=output)
+    combined_cls = SimpleNamespace(from_pipe=Mock(return_value=combined_pipe))
+    bindings = []
+    if combined:
+        binding = _make_binding("canny", 0.6, 0.0, 0.8)
+        binding.control_image_bytes = _make_png_bytes(8, 8)
+        bindings = [binding]
+    job = SimpleNamespace(
+        req=req, init_image=_make_png_bytes(8, 8), controlnet_bindings=bindings,
+    )
+    fake_generator = MagicMock()
+    fake_generator.manual_seed.return_value = fake_generator
+    with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
+         patch("backends.cuda_worker.torch.inference_mode"), \
+         patch("backends.cuda_worker.torch.cuda.empty_cache"), \
+         patch("backends.controlnet_cache.get_controlnet_cache", return_value=_fake_cache()), \
+         patch("backends.cuda_worker._sd_controlnet_img2img_pipeline_cls", return_value=combined_cls), \
+         patch("backends.cuda_worker._import_attr", return_value=combined_cls):
+        png_bytes, _ = worker.run_job(job)
+
+    pipe = combined_pipe if combined else img2img_pipe
+    with PILImage.open(io.BytesIO(png_bytes)) as image:
+        metadata = json.loads(image.text["lcm"])
+    assert pipe.call_args.kwargs["strength"] == 0.4
+    assert metadata["denoise_strength"] == pipe.call_args.kwargs["strength"]
 
 
 def test_decode_control_image_converts_rgb_and_resizes():
@@ -582,13 +619,19 @@ def test_materialized_conditioning_reaches_every_cuda_run_job_target(
     with patch("backends.cuda_worker.torch.Generator", return_value=fake_generator), \
          patch("backends.cuda_worker.torch.inference_mode") as mock_inference, \
          patch("backends.cuda_worker.torch.cuda.empty_cache"), \
-         patch("backends.cuda_worker.PngImagePlugin.PngInfo"), \
+         patch("backends.cuda_worker.PngImagePlugin.PngInfo") as mock_pnginfo, \
          patch("backends.controlnet_cache.get_controlnet_cache", return_value=cache), \
          patch("backends.cuda_worker._import_attr", return_value=fake_pipe_cls):
         mock_inference.return_value.__enter__.return_value = None
         mock_inference.return_value.__exit__.return_value = None
 
         worker.run_job(job)
+
+    lcm = json.loads(mock_pnginfo.return_value.add_text.call_args_list[0].args[1])
+    if "img2img" in branch:
+        assert lcm["denoise_strength"] == target_pipe.call_args.kwargs["strength"]
+    else:
+        assert "denoise_strength" not in lcm
 
     assert chain.requests[0][0].prompt == "an owl"
     assert chain.requests[0][0].negative_prompt == "blurry"

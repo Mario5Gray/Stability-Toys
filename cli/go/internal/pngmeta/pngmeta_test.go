@@ -154,13 +154,16 @@ func TestFindControlNetMapMalformedJSONErrors(t *testing.T) {
 }
 
 func TestBakedParamsMapsToRequestFields(t *testing.T) {
-	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl","cfg":2.5,"steps":10,"unrelated":"drop"}`)
+	pngBytes := makePNGWithText(t, "lcm", `{"prompt":"owl","cfg":2.5,"steps":10,"denoise_strength":0.4,"unrelated":"drop"}`)
 	out, err := BakedParams(pngBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out["guidance_scale"] != 2.5 || out["num_inference_steps"] != float64(10) || out["prompt"] != "owl" {
 		t.Fatalf("got %+v", out)
+	}
+	if out["denoise_strength"] != 0.4 {
+		t.Fatalf("recreated denoise strength = %v", out["denoise_strength"])
 	}
 	if _, ok := out["unrelated"]; ok {
 		t.Fatalf("only mapped keys should survive: %+v", out)
