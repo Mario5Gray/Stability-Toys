@@ -44,8 +44,10 @@ style, so the server does not use it either.
 | `max_res` | 64 to 4096 | 1024 | longest edge before inference |
 
 An unsupported `model`, an unsupported `parts` value other than `body` or
-`face`, or a `device` other than `cpu` raises `ValueError`. `hands` is not a
-supported part.
+`face`, or a `device` other than `cpu` raises `ValueError`.
+`hands` is not a supported part. A null `parts` value uses the default. Any
+`parts` value that is neither a string nor a list of strings raises
+`ValueError("parts must be a string or a list of strings ...")`.
 
 ### Execution device
 
@@ -62,11 +64,21 @@ Every produced map records its execution device. The metadata carries
   `preprocessor_id`
 - the `metadata` field of the `ControlNetArtifactRef` the request returns
 
+## Reserved metadata
+
+`preprocess_controlnet_attachments()` owns seven provenance keys:
+`attachment_id`, `control_type`, `source_asset_ref`, `preprocessor_id`,
+`width`, `height`, and `media_type`. A preprocessor may add its own metadata
+keys. A preprocessor that returns one of those seven keys raises
+`ValueError("preprocessor ... may not set reserved metadata keys: ...")`
+instead of overwriting provenance.
+
 ### Runtime requirement
 
 The server image installs `controlnet-aux==0.0.10` from `requirements.txt`. The
 import is lazy. If the package is absent, the first pose request raises
-`RuntimeError("pose preprocessing needs controlnet-aux. ...")`.
+`RuntimeError` that names the pinned install command:
+`pip install 'controlnet-aux==0.0.10'`.
 
 ### Model weights
 

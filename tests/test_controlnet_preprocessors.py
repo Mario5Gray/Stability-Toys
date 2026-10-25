@@ -414,6 +414,24 @@ def test_pose_preprocessor_rejects_empty_parts():
         preprocessor.run(_solid_rgb_png_bytes(), {"parts": " , "})
 
 
+def test_pose_preprocessor_rejects_non_string_parts_type():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="parts must be a string or a list"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"parts": 5})
+
+
+def test_pose_preprocessor_treats_null_parts_as_default():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    result = preprocessor.run(_solid_rgb_png_bytes(size=(16, 16)), {"parts": None})
+
+    assert calls[0]["include_body"] is True
+    assert calls[0]["include_face"] is True
+    assert result.metadata["parts"] == ["body", "face"]
+
+
 def test_pose_preprocessor_resizes_detector_output_to_source_size():
     class _OffSizePosePreprocessor(PosePreprocessor):
         def _get_detector(self):

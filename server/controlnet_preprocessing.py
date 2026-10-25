@@ -17,6 +17,30 @@ from server.asset_store import AssetStore
 from server.controlnet_models import ControlNetArtifactRef
 from server.controlnet_preprocessors import DEFAULT_REGISTRY, PreprocessorRegistry
 
+# Provenance keys this module owns. A preprocessor's own metadata may add keys
+# but may not claim these, because a rewrite would misdescribe the artifact.
+RESERVED_METADATA_KEYS = frozenset({
+    "attachment_id",
+    "control_type",
+    "source_asset_ref",
+    "preprocessor_id",
+    "width",
+    "height",
+    "media_type",
+})
+
+
+def _merge_preprocessor_metadata(
+    base: dict, extra: dict, preprocessor_id: str
+) -> dict:
+    claimed = RESERVED_METADATA_KEYS.intersection(extra)
+    if claimed:
+        raise ValueError(
+            f"preprocessor {preprocessor_id!r} may not set reserved metadata "
+            f"keys: {', '.join(sorted(claimed))}"
+        )
+    return {**base, **extra}
+
 
 def preprocess_controlnet_attachments(
     req,
@@ -44,16 +68,19 @@ def preprocess_controlnet_attachments(
             raise ValueError(f"unknown preprocessor {attachment.preprocess.id!r}")
 
         result = preprocessor.run(source_entry.data, attachment.preprocess.options)
-        metadata = {
-            "attachment_id": attachment.attachment_id,
-            "control_type": attachment.control_type,
-            "source_asset_ref": source_ref,
-            "preprocessor_id": result.preprocessor_id,
-            "width": result.width,
-            "height": result.height,
-            "media_type": result.media_type,
-            **result.metadata,
-        }
+        metadata = _merge_preprocessor_metadata(
+            {
+                "attachment_id": attachment.attachment_id,
+                "control_type": attachment.control_type,
+                "source_asset_ref": source_ref,
+                "preprocessor_id": result.preprocessor_id,
+                "width": result.width,
+                "height": result.height,
+                "media_type": result.media_type,
+            },
+            result.metadata,
+            result.preprocessor_id,
+        )
         new_ref = store.write("control_map", result.image_bytes, metadata)
         normalized_attachment = attachment.model_copy(
             update={

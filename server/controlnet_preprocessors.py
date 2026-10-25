@@ -185,7 +185,8 @@ class PosePreprocessor:
             except ImportError as exc:
                 raise RuntimeError(
                     "pose preprocessing needs controlnet-aux. "
-                    "Install it with: pip install 'controlnet-aux>=0.0.7'"
+                    "Install the pinned version with: "
+                    "pip install 'controlnet-aux==0.0.10'"
                 ) from exc
             self._detector = module.OpenposeDetector.from_pretrained(self._annotators_repo)
         return self._detector
@@ -209,10 +210,16 @@ class PosePreprocessor:
 
     def _parse_parts(self, options: dict[str, Any]) -> list[str]:
         raw = options.get("parts", self._DEFAULT_PARTS)
+        if raw is None:
+            raw = self._DEFAULT_PARTS
         if isinstance(raw, str):
             parts = [part.strip().lower() for part in raw.split(",")]
-        else:
+        elif isinstance(raw, (list, tuple, set, frozenset)):
             parts = [str(part).strip().lower() for part in raw]
+        else:
+            raise ValueError(
+                f"parts must be a string or a list of strings, got {type(raw).__name__}"
+            )
         parts = [part for part in parts if part]
         if not parts:
             raise ValueError("pose parts must not be empty")
