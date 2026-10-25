@@ -45,8 +45,9 @@ behavior lives in `backends/platforms/pool_runtime.py::PoolGenerationRuntime`.
 `MPS_FAMILY_BINDINGS` binds `sd15` to `backends.mps_worker.DiffusersMpsWorker`
 for LCM text-to-image, LCM img2img, one Canny ControlNet, and the combined
 img2img + ControlNet operation. Its cell claims all four. The platform
-ControlNet scope narrows ControlNet to one Canny attachment. `sdxl` and
-`hunyuandit` stay unbound.
+ControlNet scope narrows ControlNet to one Canny attachment. It also binds
+`hunyuandit` to `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker` for
+text-to-image only. `sdxl` stays unbound.
 The provider reports generation support as true after live acceptance.
 It reports super-resolution and model-registry statistics as false.
 Server startup continues without a model when the default mode has no MPS binding.
@@ -111,7 +112,7 @@ python -m utils.model_detector /models/your-model.safetensors
 
 **Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
 MPS binds `sd15` for LCM text-to-image, LCM img2img, one Canny ControlNet, and
-the combined operation.
+the combined operation. It binds `hunyuandit` for text-to-image only.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`

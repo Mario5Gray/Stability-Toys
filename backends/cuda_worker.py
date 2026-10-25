@@ -1710,6 +1710,10 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     # information and returns noise. Keep the native processor.
     supports_attention_processor_swap: bool = False
 
+    # Log prefix. A platform subclass overrides it so an MPS worker does not
+    # report itself as the CUDA worker.
+    log_tag: str = "hunyuandit-cuda"
+
     def _quantization_targets(self, pipe: Any) -> tuple[Any, ...]:
         # Quantize only the DiT transformer. The mT5 encoder is intentionally
         # excluded in the first delivery (not validated by the spike).
@@ -1731,7 +1735,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         _hunyuandit_dependency_preflight()
 
         ckpt_path = model_path
-        logger.info("[hunyuandit-cuda] ckpt_path=%s", ckpt_path)
+        logger.info("[%s] ckpt_path=%s", self.log_tag, ckpt_path)
 
         format_hint = self._loader_format
         is_diffusers_dir = format_hint == "diffusers_dir" or (
@@ -1759,7 +1763,8 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         self._style_api = "none"
 
         logger.info(
-            "[hunyuandit-cuda] worker %s loaded: %s on %s dtype=%s quantize=%s offload=%s",
+            "[%s] worker %s loaded: %s on %s dtype=%s quantize=%s offload=%s",
+            self.log_tag,
             self.worker_id, os.path.basename(ckpt_path), self.device,
             self.dtype_str, self._quantize, self._offload,
         )
@@ -1999,7 +2004,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
                     "pipe_state_at_call.json",
                     _hunyuan_pipe_state(pipe, controlnet=controlnet_obj),
                 )
-                logger.info("[hunyuandit-cuda] debug dump written to %s", debug_dir)
+                logger.info("[%s] debug dump written to %s", self.log_tag, debug_dir)
 
             with torch.inference_mode():
                 inject_step_progress(pipe, pipe_kwargs, progress,

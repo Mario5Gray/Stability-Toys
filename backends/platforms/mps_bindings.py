@@ -25,4 +25,12 @@ MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
         ExecutionCapabilities(True, True, True),
         ControlNetScope(allowed_control_types=("canny",), max_attachments=1),
     ),
+    # HunyuanDiT text-to-image only (STABL-appbjuws). Img2img, ControlNet, and
+    # combined generation are dependent slices and stay unbound here. The
+    # default controlnet_scope adds no narrowing because no ControlNet
+    # operation is admitted for this family on MPS.
+    "hunyuandit": FamilyPlatformBinding(
+        "backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker",
+        ExecutionCapabilities(False, False, False),
+    ),
 }

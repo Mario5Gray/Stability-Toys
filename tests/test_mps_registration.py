@@ -49,7 +49,7 @@ def _resolved_sdxl():
     )
 
 
-def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
+def test_mps_provider_binds_known_families_and_shares_runtime(mps_backend):
     from backends.platform_registry import get_backend_provider
     from backends.platforms.base import (
         ControlNetScope,
@@ -61,7 +61,7 @@ def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
 
     provider = get_backend_provider()
     assert provider.backend_id == "mps"
-    assert set(MPS_FAMILY_BINDINGS) == {"sd15"}
+    assert set(MPS_FAMILY_BINDINGS) == {"sd15", "hunyuandit"}
     cell = provider.family_binding("sd15")
     assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
     # Text-to-image, img2img, ControlNet, and their combined operation.
@@ -71,20 +71,24 @@ def test_mps_provider_binds_sd15_and_shares_runtime(mps_backend):
     assert cell.controlnet_scope == ControlNetScope(
         allowed_control_types=("canny",), max_attachments=1
     )
+    hunyuan = provider.family_binding("hunyuandit")
+    assert hunyuan.worker_ref == "backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker"
+    # Text-to-image only. Img2img, ControlNet, and combined are dependent slices.
+    assert hunyuan.execution_capabilities == ExecutionCapabilities(False, False, False)
+    assert hunyuan.controlnet_scope == ControlNetScope()
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
     assert provider.capabilities().supports_superres is False
     assert provider.create_model_registry().get_vram_stats()["backend"] == "mps"
-    for family_id in ("sdxl", "hunyuandit"):
-        assert provider.family_binding(family_id) is None
-        with pytest.raises(
-            UnsupportedFamilyError,
-            match=f"family '{family_id}' has no MPS platform binding",
-        ):
-            provider.create_worker_factory()(
-                0,
-                SimpleNamespace(profile=SimpleNamespace(family_id=family_id)),
-                None,
-            )
+    assert provider.family_binding("sdxl") is None
+    with pytest.raises(
+        UnsupportedFamilyError,
+        match="family 'sdxl' has no MPS platform binding",
+    ):
+        provider.create_worker_factory()(
+            0,
+            SimpleNamespace(profile=SimpleNamespace(family_id="sdxl")),
+            None,
+        )
 
 
 class _FakeMpsWorker:
@@ -241,13 +245,12 @@ def test_mps_subprocess_entry_rejects_unbound_families(mps_backend):
     from backends.platforms.base import UnsupportedFamilyError
     from backends.worker_factory import create_mps_worker
 
-    for family_id in ("sdxl", "hunyuandit"):
-        with pytest.raises(
-            UnsupportedFamilyError,
-            match=f"family '{family_id}' has no MPS platform binding",
-        ):
-            resolved = SimpleNamespace(profile=SimpleNamespace(family_id=family_id))
-            create_mps_worker(0, resolved, None)
+    with pytest.raises(
+        UnsupportedFamilyError,
+        match="family 'sdxl' has no MPS platform binding",
+    ):
+        resolved = SimpleNamespace(profile=SimpleNamespace(family_id="sdxl"))
+        create_mps_worker(0, resolved, None)
 
 
 @pytest.mark.parametrize("isolation", ["inproc", "subprocess"])

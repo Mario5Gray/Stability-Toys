@@ -1,10 +1,16 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-It binds one family: **`sd15` LCM**, for text-to-image, img2img, one Canny
-ControlNet attachment, and the combined img2img + ControlNet operation with
-that one attachment. No other family loads on MPS. `sd15` accepts no Depth or
-Pose ControlNet, no second attachment, and no scheduler other than LCM.
+It binds two families:
+
+- **`sd15` LCM**, for text-to-image, img2img, one Canny ControlNet attachment,
+  and the combined img2img + ControlNet operation with that one attachment.
+  `sd15` accepts no Depth or Pose ControlNet, no second attachment, and no
+  scheduler other than LCM.
+- **`hunyuandit`**, for text-to-image only. Img2img, ControlNet, and combined
+  generation are dependent slices and stay unbound on MPS.
+
+No other family loads on MPS. `sdxl` is unbound.
 
 Docker cannot reach Metal. Do not use [`TESTING_IN_DOCKER.md`](TESTING_IN_DOCKER.md)
 for MPS. Run everything in this guide natively on the Mac.
@@ -13,8 +19,9 @@ Code:
 
 - [`backends/platforms/mps.py`](../backends/platforms/mps.py) — `MPSProvider`
 - [`backends/platforms/mps_policy.py`](../backends/platforms/mps_policy.py) — `MPS_TORCH_POLICY`
-- [`backends/platforms/mps_bindings.py`](../backends/platforms/mps_bindings.py) — `MPS_FAMILY_BINDINGS` (`sd15`)
+- [`backends/platforms/mps_bindings.py`](../backends/platforms/mps_bindings.py) — `MPS_FAMILY_BINDINGS` (`sd15`, `hunyuandit`)
 - [`backends/mps_worker.py`](../backends/mps_worker.py) — `DiffusersMpsWorker`
+- [`backends/hunyuan_mps_worker.py`](../backends/hunyuan_mps_worker.py) — `DiffusersHunyuanDiTMpsWorker`
 - [`scripts/mps_host_probe.py`](../scripts/mps_host_probe.py) — live host probe
 
 For provider, factory, and family-binding flow, see
@@ -51,13 +58,20 @@ For provider, factory, and family-binding flow, see
    | `subprocess` | `backends.worker_factory.create_mps_worker` in the child | `MPS_TORCH_POLICY` |
 
 The server starts without a model when the default mode has no MPS binding.
-That is the current state for every family except `sd15`.
+`lcm-general` is the default mode, and it binds `sd15`.
 
 ## Limits
 
-- **One model family.** `MPS_FAMILY_BINDINGS` binds `sd15` to
-  `backends.mps_worker.DiffusersMpsWorker`. `sdxl` and `hunyuandit` raise
+- **Two model families.** `MPS_FAMILY_BINDINGS` binds `sd15` to
+  `backends.mps_worker.DiffusersMpsWorker` and `hunyuandit` to
+  `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker`. `sdxl` raises
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
+- **HunyuanDiT is text-to-image only.** The `hunyuandit` cell carries
+  `ExecutionCapabilities(False, False, False)`. Admission rejects img2img,
+  ControlNet, and combined generation for the family before preprocessing. The
+  worker repeats both rejections for a direct `run_job` call. The worker
+  subclasses the CUDA HunyuanDiT worker and swaps only the execution policy, so
+  the load, conditioning, scheduler, and text-to-image call are shared code.
 - **Text-to-image, img2img, one Canny ControlNet, and the combined operation.**
   The `sd15` cell carries `ExecutionCapabilities(True, True, True)`, so
   `admit_generation_operation` admits all four. The worker repeats each check
@@ -202,6 +216,8 @@ contract, not live Metal behavior.
 | Unsupported-family errors, `sd15` binding, factory selection | `tests/test_mps_registration.py` |
 | Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
 | img2img pipeline reuse, init-image resize, denoise strength, VAE alignment, combined pipeline, init and control images kept separate | `tests/test_mps_worker.py` |
+| HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img and ControlNet refused before the pipe call | `tests/test_hunyuan_mps_worker.py` |
+| `hunyuandit` cell: worker ref, text-to-image-only capabilities, empty ControlNet scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
 | Operation gate on the MPS `sd15` cell | `tests/test_controlnet_execution.py` |
 | HTTP `/generate` rejects a Depth ControlNet on the MPS cell before preprocessing, because the platform scope allows Canny only | `tests/test_controlnet_dispatch.py::test_http_generate_rejects_a_depth_controlnet_on_mps_sd15_cell` |
 | WebSocket admits an init image, a Canny ControlNet, and the combined operation; refuses Depth and a second attachment on the MPS cell | `tests/test_ws_routes.py` |
@@ -232,7 +248,7 @@ gave 199 passed (real, 10 files) and 78 passed (stub, 2 files).
 ```bash
 python -m tests.run \
   tests/test_mps_worker.py tests/test_mps_policy.py tests/test_mps_registration.py \
-  tests/test_mps_host_probe.py \
+  tests/test_mps_host_probe.py tests/test_hunyuan_mps_worker.py \
   tests/test_controlnet_execution.py tests/test_controlnet_dispatch.py \
   tests/test_ws_routes.py tests/test_torch_policy.py \
   tests/test_worker_factory.py tests/test_backend_runtimes.py \
@@ -256,6 +272,12 @@ interpreter): real **330 passed**, stub **78 passed**, progress bar **10
 passed**, with no failure and no skip. The 33 new real tests cover combined
 admission, the combined worker path, and the MPS WebSocket cases.
 
+The HunyuanDiT text-to-image slice ran them at `135e86c` (2026-10-25, same
+host and interpreter, plus `tests/test_hunyuan_mps_worker.py`): real **336
+passed** (15 files), stub **78 passed**, progress bar **10 passed**, no failure
+and no skip. The 6 new real tests cover the MPS load, text-to-image metadata,
+the seeded MPS generator, step-progress wiring, and both refusals.
+
 ```bash
 python -m tests.run \
   tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py \
@@ -268,7 +290,11 @@ python -m tests.run \
 | CUDA regression cohort | Files | Result |
 |---|---|---|
 | real | 4 | 46 passed, 8 skipped |
-| stub | 4 | 124 passed |
+| stub | 4 | 128 passed |
+
+The HunyuanDiT text-to-image slice re-ran this cohort at `135e86c` with the
+same real result: 46 passed, 8 skipped, and 128 stub tests. The stub count was
+124 at `8fb8dbb`; the difference came from commits between the two records.
 
 The CUDA cohort is unchanged from `2b58c23`, which is the point: the img2img
 cell and the MPS worker leave CUDA behavior alone. The combined slice re-ran it
@@ -288,6 +314,50 @@ Failures that predate this work, outside these cohorts:
 - `tests/test_entry_spans.py::test_an_UNHASHABLE_type_does_not_break_the_span` (failing since `491a91c`)
 
 ### Live host checks (Mac only)
+
+#### Live HunyuanDiT text-to-image: PASS (2026-10-25)
+
+Code at `135e86c`. Client: `spikes/mps_hunyuan_t2i_acceptance.py`. It starts no
+server.
+
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64 (M1 Max, 64 GiB), Python 3.12.13,
+  Torch 2.10.0
+- Model: `/Users/darkbit1001/models/diffusers/HunyuanDiT-v1.1-Diffusers`, fp16
+- Mode `HunyuanDiT`, prompt "a red apple on a wooden table, soft light, photo",
+  negative prompt "blurry, watermark, text, low quality", 1024x1024, 6 steps,
+  guidance 6.0, seed 4242
+- Server: `python -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200`
+  with `BACKEND=mps`, `MODE_CONFIG_PATH=<temporary conf copy with host model
+  paths>`, `STORAGE_PROVIDER=MEMORY`, `CONTROLNET_REGISTRY_VALIDATION=off`,
+  `WORKER_ISOLATION=inproc`
+- The first attempt asked for 4 steps and rendered 50.
+  `server/generation_constraints.py` replaces a request whose step count equals
+  the unset `DEFAULT_STEPS` default (4) with the mode default. Use a different
+  count in an acceptance.
+
+| Signal | Result |
+|---|---|
+| admitted | `job:complete` |
+| PNG | 1024x1024, 511783 bytes, `sha256 746a55f314b355f2d03a90f2fcabc24fa4b5c094151df574bcb92a7acbe497d6` |
+| not flat | 91115 distinct colors, greyscale standard deviation 50.77 |
+| metadata | seed 4242, steps 6, cfg 6.0, negative prompt recorded, `scheduler_id` null |
+| backend | `mps` |
+| wall time | 76.17 s, including the demand mode switch and the model load |
+| progress frames | 0 |
+
+`progress_frames` is 0 because this job performed the mode switch. A second job
+on the already-loaded mode streamed 3 of 3 frames. The loss is not specific to
+HunyuanDiT or MPS. It is tracked as `STABL-tqpfnwoj`. The pipeline callback
+itself works: a standalone two-step call on this host fired it for both steps,
+and `tests/test_hunyuan_mps_worker.py` proves the worker wires it.
+
+Only `inproc` isolation was run. The acceptance does not separate the two
+isolation modes.
+
+```bash
+conda activate stability-toys
+python spikes/mps_hunyuan_t2i_acceptance.py --out /tmp/mps_hunyuan
+```
 
 #### `sd15` binding, probe run at `2b58c23` (2026-10-22)
 
