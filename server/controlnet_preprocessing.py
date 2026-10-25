@@ -52,6 +52,7 @@ def preprocess_controlnet_attachments(
             "width": result.width,
             "height": result.height,
             "media_type": result.media_type,
+            **result.metadata,
         }
         new_ref = store.write("control_map", result.image_bytes, metadata)
         normalized_attachment = attachment.model_copy(
@@ -70,6 +71,7 @@ def preprocess_controlnet_attachments(
                 control_type=normalized_attachment.control_type,
                 preprocessor_id=result.preprocessor_id,
                 source_asset_ref=source_ref,
+                metadata=dict(result.metadata),
             )
         )
 

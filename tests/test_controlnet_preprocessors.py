@@ -6,11 +6,14 @@ import transformers
 import transformers.pipelines
 from PIL import Image
 
+import server.controlnet_preprocessors as preprocessors
 from server.controlnet_preprocessors import (
     CannyPreprocessor,
     ControlMapPreprocessor,
     ControlMapResult,
+    DEFAULT_REGISTRY,
     DepthPreprocessor,
+    PosePreprocessor,
     PreprocessorRegistry,
     pil_to_png_bytes,
     png_bytes_to_pil,
@@ -290,4 +293,181 @@ def test_depth_preprocessor_normalizes_flat_depth_map_to_black():
     decoded = png_bytes_to_pil(result.image_bytes)
     assert decoded.getpixel((0, 0)) == (0, 0, 0)
     assert decoded.getpixel((1, 1)) == (0, 0, 0)
+
+
+def _stub_pose_preprocessor(calls: list[dict] | None = None) -> PosePreprocessor:
+    recorded: list[dict] = [] if calls is None else calls
+
+    class _StubPosePreprocessor(PosePreprocessor):
+        def _get_detector(self):
+            def _detector(pil_img, **kwargs):
+                recorded.append({"size": pil_img.size, **kwargs})
+                return Image.new("RGB", pil_img.size, color=(0, 0, 0))
+
+            return _detector
+
+    return _StubPosePreprocessor()
+
+
+def test_pose_preprocessor_satisfies_protocol():
+    assert isinstance(PosePreprocessor(), ControlMapPreprocessor)
+
+
+def test_pose_preprocessor_is_registered_in_default_registry():
+    registered = DEFAULT_REGISTRY.get("pose")
+    assert isinstance(registered, PosePreprocessor)
+
+
+def test_pose_preprocessor_generates_body_and_face_map_on_cpu():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    result = preprocessor.run(_solid_rgb_png_bytes(size=(64, 48)), {})
+
+    decoded = png_bytes_to_pil(result.image_bytes)
+    assert result.preprocessor_id == "pose"
+    assert result.control_type == "pose"
+    assert result.media_type == "image/png"
+    assert result.width == 64
+    assert result.height == 48
+    assert decoded.size == (64, 48)
+    assert result.metadata == {
+        "model": "openpose",
+        "parts": ["body", "face"],
+        "device": "cpu",
+        "max_res": 1024,
+    }
+
+    assert len(calls) == 1
+    assert calls[0]["include_body"] is True
+    assert calls[0]["include_face"] is True
+    assert calls[0]["include_hand"] is False
+
+
+def test_pose_preprocessor_resizes_oversized_source_to_max_res():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    result = preprocessor.run(
+        _solid_rgb_png_bytes(size=(400, 200)),
+        {"max_res": 100},
+    )
+
+    assert calls[0]["size"] == (100, 50)
+    assert (result.width, result.height) == (100, 50)
+    assert result.metadata["max_res"] == 100
+
+
+def test_pose_preprocessor_honours_parts_option():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    result = preprocessor.run(_solid_rgb_png_bytes(size=(16, 16)), {"parts": "body"})
+
+    assert calls[0]["include_body"] is True
+    assert calls[0]["include_face"] is False
+    assert result.metadata["parts"] == ["body"]
+
+
+def test_pose_preprocessor_rejects_hands_part():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="unsupported pose part"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"parts": "body,hands"})
+
+
+def test_pose_preprocessor_rejects_unsupported_model():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="unsupported pose model"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"model": "dwpose"})
+
+
+def test_pose_preprocessor_rejects_non_cpu_device():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    with pytest.raises(ValueError, match="pose preprocessing runs on cpu"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"device": "mps"})
+
+    assert calls == []
+
+
+def test_pose_preprocessor_rejects_out_of_range_max_res():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="max_res"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"max_res": 8})
+
+
+def test_pose_preprocessor_rejects_non_integer_max_res():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="max_res must be an integer"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"max_res": "wide"})
+
+
+def test_pose_preprocessor_rejects_empty_parts():
+    preprocessor = PosePreprocessor()
+
+    with pytest.raises(ValueError, match="parts must not be empty"):
+        preprocessor.run(_solid_rgb_png_bytes(), {"parts": " , "})
+
+
+def test_pose_preprocessor_resizes_detector_output_to_source_size():
+    class _OffSizePosePreprocessor(PosePreprocessor):
+        def _get_detector(self):
+            def _detector(pil_img, **kwargs):
+                return Image.new("RGB", (128, 128), color=(0, 0, 0))
+
+            return _detector
+
+    result = _OffSizePosePreprocessor().run(_solid_rgb_png_bytes(size=(40, 30)), {})
+
+    assert (result.width, result.height) == (40, 30)
+    assert png_bytes_to_pil(result.image_bytes).size == (40, 30)
+
+
+def test_pose_preprocessor_rejects_invalid_source_bytes_before_detector_call():
+    calls: list[dict] = []
+    preprocessor = _stub_pose_preprocessor(calls)
+
+    with pytest.raises(ValueError, match="failed to decode image bytes"):
+        preprocessor.run(b"not-an-image", {})
+
+    assert calls == []
+
+
+def test_pose_preprocessor_reports_missing_runtime(monkeypatch):
+    def _missing():
+        raise ModuleNotFoundError("No module named 'controlnet_aux'", name="controlnet_aux")
+
+    monkeypatch.setattr(preprocessors, "_import_controlnet_aux", _missing)
+
+    with pytest.raises(RuntimeError, match="controlnet-aux"):
+        PosePreprocessor().run(_solid_rgb_png_bytes(), {})
+
+
+def test_pose_preprocessor_loads_detector_once_and_caches_it(monkeypatch):
+    created: list[tuple[str, object]] = []
+
+    class _FakeOpenposeDetector:
+        @classmethod
+        def from_pretrained(cls, repo):
+            detector = object()
+            created.append((repo, detector))
+            return detector
+
+    class _FakeModule:
+        OpenposeDetector = _FakeOpenposeDetector
+
+    monkeypatch.setattr(preprocessors, "_import_controlnet_aux", lambda: _FakeModule)
+
+    preprocessor = PosePreprocessor()
+
+    first = preprocessor._get_detector()
+    second = preprocessor._get_detector()
+
+    assert first is second
+    assert created == [("lllyasviel/Annotators", first)]
 

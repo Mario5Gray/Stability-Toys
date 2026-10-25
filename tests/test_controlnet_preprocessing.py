@@ -160,6 +160,41 @@ def test_map_asset_ref_attachment_is_skipped():
     assert artifacts == []
 
 
+def test_preprocess_propagates_result_metadata_to_store_and_artifact():
+    from server.controlnet_preprocessing import preprocess_controlnet_attachments
+
+    result = ControlMapResult(
+        preprocessor_id="pose",
+        control_type="pose",
+        image_bytes=b"pose-output",
+        width=8,
+        height=8,
+        metadata={"model": "openpose", "device": "cpu"},
+    )
+    fake = Mock()
+    fake.preprocessor_id = "pose"
+    fake.control_type = "pose"
+    fake.run = Mock(return_value=result)
+    registry = PreprocessorRegistry()
+    registry.register(fake)
+
+    store = InMemoryAssetStore()
+    source_ref = store.write("upload", _solid_png())
+    att = ControlNetAttachment(
+        attachment_id="cn_1",
+        control_type="pose",
+        source_asset_ref=source_ref,
+        preprocess=ControlNetPreprocessRequest(id="pose"),
+    )
+    artifacts = preprocess_controlnet_attachments(_req([att]), store, registry=registry)
+
+    entry = store.resolve(artifacts[0].asset_ref)
+    assert entry.metadata["model"] == "openpose"
+    assert entry.metadata["device"] == "cpu"
+    assert entry.metadata["preprocessor_id"] == "pose"
+    assert artifacts[0].metadata == {"model": "openpose", "device": "cpu"}
+
+
 def test_missing_source_ref_raises_value_error():
     from server.controlnet_preprocessing import preprocess_controlnet_attachments
 

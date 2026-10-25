@@ -44,3 +44,4 @@ class ControlNetArtifactRef(BaseModel):
     control_type: str = Field(..., min_length=1)
     preprocessor_id: str = Field(..., min_length=1)
     source_asset_ref: str = Field(..., min_length=1)
+    metadata: Dict[str, Any] = Field(default_factory=dict)

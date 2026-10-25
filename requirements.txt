@@ -60,3 +60,11 @@ rfc8785==0.1.4
 # Prometheus metrics (STABL-asawxgvp). Pure Python, no transitive deps.
 # Imported ONLY by server/metrics.py; runtime code goes through that facade.
 prometheus_client==0.21.1
+
+# Pose preprocessor (STABL-bsefamrj). The HunyuanDiT Pose ControlNet expects
+# OpenPose-style maps, and controlnet-aux supplies OpenposeDetector plus the
+# annotator weights. Its own dependency list has no version bounds, so this
+# pin is the only guard on the detector API the tests exercise.
+# It brings scikit-image, timm, torch and torchvision. The cuda stage later
+# replaces torch and torchvision with the cu128 pair, so this must stay first.
+controlnet-aux==0.0.10
