@@ -56,6 +56,29 @@ def test_direct_mixed_collection_rejects_before_import(sandbox):
     assert not (sandbox / 'stub-imported').exists()
 
 
+def test_each_stub_file_runs_in_its_own_interpreter(sandbox):
+    """Stub files install conflicting module objects at import time.
+
+    Capabilities sorts first, so it plants the probe. The controlnet file must
+    not see it: shared sys.modules state is the STABL-rhjokuwd failure.
+    """
+    (sandbox / 'tests/test_cuda_worker_capabilities.py').write_text(
+        'import sys\n'
+        'sys.modules["_stub_probe"] = object()\n'
+        'def test_stub():\n    pass\n'
+    )
+    (sandbox / 'tests/test_cuda_worker_controlnet.py').write_text(
+        'import sys\n'
+        'assert "_stub_probe" not in sys.modules\n'
+        'def test_stub():\n    assert "_stub_probe" not in sys.modules\n'
+    )
+    result = invoke(sandbox, '-m', 'tests.run',
+                    'tests/test_cuda_worker_capabilities.py',
+                    'tests/test_cuda_worker_controlnet.py', '--', '-q')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count('Test cohort:') == 2
+
+
 def test_marker_filter_cannot_bypass_collection_guard(sandbox):
     result = invoke(sandbox, '-m', 'pytest', 'tests', '-k', 'real', '-q')
     assert result.returncode == 4, result.stdout + result.stderr

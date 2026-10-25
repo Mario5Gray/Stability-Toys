@@ -1,4 +1,11 @@
-"""Select test files before pytest imports them."""
+"""Select test files before pytest imports them.
+
+Each stub file gets its own interpreter. Stub files install conflicting
+objects into sys.modules at import time. One file may need real Torch while
+another installs a MagicMock Torch. Grouping them in one interpreter makes
+the result depend on import order (STABL-rhjokuwd). The file is the smallest
+safe boundary: separate files, separate processes.
+"""
 
 from pathlib import Path
 
@@ -35,7 +42,7 @@ def partition(selectors):
             if file.name in LIVE_FILES:
                 cohort = f'live:{file.name}'
             elif file.name in STUB_FILES:
-                cohort = 'stub'
+                cohort = f'stub:{file.name}'
             else:
                 cohort = 'real'
             groups.setdefault(cohort, []).append(target)
