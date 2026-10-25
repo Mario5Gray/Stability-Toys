@@ -46,9 +46,15 @@ def openpose(img: Image.Image, parts: set[str]) -> Image.Image:
 
 
 def dwpose(img: Image.Image) -> Image.Image:
-    from controlnet_aux import DWposeDetector
+    try:
+        from controlnet_aux import DWposeDetector
 
-    detector = DWposeDetector()
+        detector = DWposeDetector()
+    except (ImportError, NameError) as exc:
+        raise SystemExit(
+            "st-pose-map: dwpose needs mmdet and mmpose. "
+            "Install them, or use --model openpose or mediapipe."
+        ) from exc
     return detector(img)
 
 
@@ -100,7 +106,8 @@ def main() -> None:
     parser.add_argument(
         "--device",
         default="cpu",
-        help="Compute device: cpu, cuda, mps (default: cpu)",
+        help="Compute device. Only cpu is supported: the detectors run on cpu "
+        "and this script passes no device to them (default: cpu)",
     )
     parser.add_argument(
         "--max-res",
@@ -125,6 +132,15 @@ def main() -> None:
         print(f"error: source not found: {args.source}", file=sys.stderr)
         sys.exit(1)
 
+    device = args.device.strip().lower()
+    if device != "cpu":
+        print(
+            f"error: --device {args.device}: pose detection runs on cpu. "
+            "This script passes no device to the detectors.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     args.destination.parent.mkdir(parents=True, exist_ok=True)
     parts = {p.strip().lower() for p in args.parts.split(",")}
 
@@ -146,7 +162,7 @@ def main() -> None:
         params={
             "model": args.model,
             "parts": sorted(parts),
-            "device": args.device,
+            "device": device,
             "max_res": args.max_res,
         },
     )
