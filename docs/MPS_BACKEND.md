@@ -7,9 +7,10 @@ It binds two families:
   and the combined img2img + ControlNet operation with that one attachment.
   `sd15` accepts no Depth or Pose ControlNet, no second attachment, and no
   scheduler other than LCM.
-- **`hunyuandit`**, for text-to-image, img2img, and one Canny or Depth
+- **`hunyuandit`**, for text-to-image, img2img, and one Canny, Depth or Pose
   ControlNet attachment. The combined img2img + ControlNet operation stays
-  unbound on MPS. `hunyuandit` accepts no Pose ControlNet and no timing window.
+  unbound on MPS. `hunyuandit` accepts no second attachment and no timing
+  window.
 
 No other family loads on MPS. `sdxl` is unbound.
 
@@ -67,7 +68,7 @@ The server starts without a model when the default mode has no MPS binding.
   `backends.mps_worker.DiffusersMpsWorker` and `hunyuandit` to
   `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker`. `sdxl` raises
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
-- **HunyuanDiT is text-to-image, img2img, and plain Canny or Depth
+- **HunyuanDiT is text-to-image, img2img, and plain Canny, Depth or Pose
   ControlNet.** The `hunyuandit` cell carries
   `ExecutionCapabilities(True, True, False)`. Admission rejects the combined
   img2img + ControlNet operation for the family before preprocessing. The
@@ -77,13 +78,13 @@ The server starts without a model when the default mode has no MPS binding.
   both job paths are shared code. img2img runs the repo-owned
   `backends/hunyuandit_img2img.py` loop, because Diffusers has no HunyuanDiT
   img2img pipeline. The PNG `lcm` chunk records `denoise_strength`.
-- **HunyuanDiT ControlNet is one Canny or Depth attachment, text-to-image
-  only.** The cell carries
-  `ControlNetScope(allowed_control_types=("canny", "depth"), max_attachments=1)`.
-  Admission enforces the scope before any preprocessing, and the worker repeats
-  it. The live messages are `backend 'mps' does not support control_type 'pose'
-  for family 'hunyuandit'; allowed: canny, depth` and `backend 'mps' admits at
-  most 1 controlnet attachment(s) for family 'hunyuandit', got 2`. Plain
+- **HunyuanDiT ControlNet is one Canny, Depth or Pose attachment,
+  text-to-image only.** The cell carries
+  `ControlNetScope(allowed_control_types=("canny", "depth", "pose"),
+  max_attachments=1)`. Admission enforces the scope before any preprocessing,
+  and the worker repeats it. The live messages are `backend 'mps' admits at most
+  1 controlnet attachment(s) for family 'hunyuandit', got 2` and `family
+  'hunyuandit' does not support the img2img+controlnet operation`. Plain
   text-to-image ControlNet runs the shared
   `HunyuanDiTControlNetPipeline` branch of the CUDA worker: it composes the
   pipeline with `from_pipe(..., torch_dtype=None)` and passes `control_image`
@@ -244,8 +245,8 @@ contract, not live Metal behavior.
 | Unsupported-family errors, `sd15` binding, factory selection | `tests/test_mps_registration.py` |
 | Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
 | img2img pipeline reuse, init-image resize, denoise strength, VAE alignment, combined pipeline, init and control images kept separate | `tests/test_mps_worker.py` |
-| HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img through the repo-owned loop with strength in metadata, one Canny and one Depth binding through the shared ControlNet pipeline, refusal of the combined operation, a Pose type, a second attachment, and a timing window | `tests/test_hunyuan_mps_worker.py` |
-| `hunyuandit` cell: worker ref, text-to-image, img2img, and ControlNet capabilities, one Canny or Depth scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
+| HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img through the repo-owned loop with strength in metadata, one Canny, one Depth and one Pose binding through the shared ControlNet pipeline, refusal of the combined operation, a second attachment, and a timing window | `tests/test_hunyuan_mps_worker.py` |
+| `hunyuandit` cell: worker ref, text-to-image, img2img, and ControlNet capabilities, one Canny, Depth or Pose scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
 | Operation gate on the MPS `sd15` and `hunyuandit` cells, through the real provider | `tests/test_controlnet_execution.py` |
 | HTTP `/generate` rejects a Depth ControlNet on the MPS cell before preprocessing, because the platform scope allows Canny only | `tests/test_controlnet_dispatch.py::test_http_generate_rejects_a_depth_controlnet_on_mps_sd15_cell` |
 | WebSocket admits an init image, a Canny ControlNet, and the combined operation; refuses Depth and a second attachment on the MPS cell | `tests/test_ws_routes.py` |
@@ -324,6 +325,15 @@ worker's Depth rejection became a Depth render through the shared ControlNet
 pipeline, and a Pose refusal was added to the worker file and to the admission
 file.
 
+The HunyuanDiT Pose ControlNet slice ran them on 2026-10-25 (same host and
+interpreter): real **349 passed** (15 files), stub **78 passed**, progress bar
+**10 passed**, no failure and no skip. The net change is +2 real tests. The
+worker's Pose rejection became a Pose render through the shared ControlNet
+pipeline. The admission file gained a Pose admission test, a combined-operation
+Pose refusal, and a control type outside the scope, `lineart`. The first full
+run before that change showed 1 failure, the stale Pose refusal in
+`tests/test_hunyuan_mps_worker.py`, at 348 passed.
+
 ```bash
 python -m tests.run \
   tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py \
@@ -349,6 +359,10 @@ and its behavior is identical. The Depth ControlNet slice re-ran it on
 2026-10-25 with the same counts again: 46 passed, 8 skipped, 128 stub. The
 slice changed `backends/platforms/mps_bindings.py`,
 `backends/hunyuan_mps_worker.py` (docstrings only), and three test files. It
+touched no CUDA file. The Pose ControlNet slice re-ran it on 2026-10-25 with the
+same counts again: 46 passed, 8 skipped, 128 stub. It changed
+`backends/platforms/mps_bindings.py` (one scope tuple),
+`backends/hunyuan_mps_worker.py` (docstrings only), and three test files. It
 touched no CUDA file.
 
 The CUDA cohort is unchanged from `2b58c23`, which is the point: the img2img
@@ -369,6 +383,119 @@ Failures that predate this work, outside these cohorts:
 - `tests/test_entry_spans.py::test_an_UNHASHABLE_type_does_not_break_the_span` (failing since `491a91c`)
 
 ### Live host checks (Mac only)
+
+#### Live HunyuanDiT Pose ControlNet: PASS (2026-10-25)
+
+Code at the `codex/stabl-ziorpomq` branch head. Client:
+`spikes/mps_hunyuan_pose_acceptance.py`. It starts no server. Ten signals, all
+required. The scope signal carries two refusals.
+
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64 (M1 Max, 64 GiB), Python 3.12.13,
+  Torch 2.10.0
+- Base model: `/Users/darkbit1001/models/diffusers/HunyuanDiT-v1.1-Diffusers`,
+  fp16
+- ControlNet: `hunyuandit-pose` at
+  `/Users/darkbit1001/models/controlnets/HunyuanDiT-v1.1-ControlNet-Pose`
+- Registry: `CONTROLNET_REGISTRY_PATH=/tmp/controlnets-host.yaml`, the same
+  host prefix swap of `conf/controlnets.yaml`. Strict validation ran and
+  accepted every entry.
+- Conf: the same trimmed copy, holding `lcm-general` and `HunyuanDiT` only, with
+  host model paths
+- Server: `python -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200`
+  with `BACKEND=mps`, `STORAGE_PROVIDER=MEMORY`, `WORKER_ISOLATION=inproc`
+- Mode `HunyuanDiT`, prompt "a person standing in a sunlit room, photo, full
+  body", negative prompt "blurry, watermark, text, low quality", 1024x1024,
+  6 steps, guidance 6.0, seed 4242
+- Source image: one generated 1024x1024 PNG, `30b22f8f...`, uploaded with
+  `type=image` into the `ref_image` bucket. It is a HunyuanDiT render. It holds
+  two figures, a large head at the top and a full standing body below.
+- Preprocess: the repository Pose preprocessor, `preprocessor_id: pose`,
+  `{"max_res": 1024}`, through `source_asset_ref`. It runs on CPU, with the
+  `openpose` model and `parts: ["body", "face"]`.
+- Artifacts: `/tmp/mps_hunyuan_pose_*.png` holds the four renders, the source
+  image, its mirror, and the local map re-run
+
+| Render | Wall time | Bytes | `sha256` prefix | Colors | Grey stddev | Progress frames |
+|---|---|---|---|---|---|---|
+| text-to-image | 60.13 s | 689737 | `09f2510c1449bb30` | 3332 | 68.31 | 6 |
+| preprocessed Pose | 98.20 s | 841156 | `926f20b5d451179f` | 3575 | 67.02 | 6 |
+| mirrored source | 97.95 s | 811142 | `dd850637973566be` | 3572 | 63.98 | 6 |
+| strength 0.0 | 97.02 s | 689933 | `f393ead26d8d6516` | 3332 | 68.31 | 6 |
+
+This record uses its own prompt. Its text-to-image bytes therefore do not
+compare to the Canny and Depth records, which read `746a55f3...` under the
+apple prompt. No byte claim crosses these records.
+
+| Check | Result |
+|---|---|
+| admitted | all four `job:complete`, backend `mps`, seed 4242 |
+| preprocess | artifact `preprocessor_id: pose`, `control_type: pose`, source ref `d4c4d41e...`, new map ref `af3ce22e...`, `metadata.device: cpu` |
+| not text-to-image | 38.68, mean per-channel at 128x128 |
+| map content steers | 16.64 between the source and its mirror at one strength and one seed |
+| strength reaches the pipeline | 38.68 between strength 1.0 and 0.0 |
+| valid renders | each 1024x1024 PNG, more than 32 distinct colors, grey stddev above 5 |
+| `controlnet` chunk | control type `pose`, generation `model_id hunyuandit-pose`, strength 1.0, window 0.0 to 1.0 |
+| map is a pose map | 0.9802 black fraction, 17992 colored pixels, not grayscale |
+| scope refuses two | `job:error`, `backend 'mps' admits at most 1 controlnet attachment(s) for family 'hunyuandit', got 2` |
+| scope refuses img2img plus Pose | `job:error`, `family 'hunyuandit' does not support the img2img+controlnet operation` |
+
+Cross-check: `distances.zero_vs_txt2img` is 0.0. A strength of 0.0 therefore
+removes the ControlNet contribution entirely. The two files differ in size,
+689933 against 689737 bytes. Their mean per-channel distance at 128x128 is 0.0.
+
+The map recorded here is a local re-run, because the delivered map is not
+retrievable. It read 10340 bytes, `sha256 e39a52d0...`, 1024x1024, 0.9802 black
+fraction, 17992 colored pixels, and not grayscale. Two runs on the same source
+gave the same bytes, in 5.31 s and 5.38 s. It draws one body skeleton with
+colored limbs and a face at the head. It also draws a second face at mid-torso,
+because the source holds two face-like regions.
+
+Observed conditioning, against the source, the map, and the four renders:
+
+- The preprocessed render holds one standing figure. The head sits near the top
+  of the frame. The arms hang at the sides, with the hands at hip level. The
+  legs reach the bottom edge, and the feet stand on the floor. That layout
+  follows the skeleton.
+- The map's second face sits at the abdomen, and the render carries a dark oval
+  mass at that spot. Map content beyond the first face reaches the pipeline, and
+  the preprocessor does not reduce the map to one person.
+- The mirrored-source render shows a different body, and it holds a separate
+  head floating high on the wall. Same prompt, same strength, same seed. That
+  is the content signal.
+- The strength-0.0 render reproduces the text-to-image scene.
+- These renders do not reproduce the source's person. This record claims no
+  pose fidelity and no image-quality parity. It claims that one Pose attachment
+  reaches the MPS HunyuanDiT ControlNet pipeline, that the server Pose
+  preprocessor builds the map on CPU from the uploaded source, that the map's
+  content steers the render, and that the platform scope refuses what it must.
+
+Limitations, stated rather than glossed:
+
+- The server-side control-map bytes are not retrievable. The asset store has no
+  HTTP surface. `/storage/af3ce22e...` returned 404. The delivered map was
+  therefore re-run locally. The local bytes are not a copy of the server
+  artifact.
+- The source image is itself a HunyuanDiT render with two figures. The second
+  face in the map is a source-content result, not a preprocessor defect.
+- This record does not reproduce `STABL-tqpfnwoj`. All four jobs streamed 6
+  progress frames. The first render ran after an earlier render had already
+  loaded `HunyuanDiT` in the same server, so no job performed the mode switch.
+- The ControlNet path is not bit-stable on MPS. This record makes no
+  bit-stability claim. The Canny record measures the same limit at 0.92.
+- `/api/models/status` reported `controlnet_scope` as
+  `["canny", "depth", "pose"]` with `max_attachments: 1`, and
+  `supports_img2img_and_controlnet: false`. The route reports the scope of the
+  active family only.
+- Only `inproc` isolation ran. The acceptance does not separate the two
+  isolation modes.
+
+```bash
+conda activate stability-toys
+python spikes/mps_hunyuan_pose_acceptance.py \
+  --source /tmp/mps_hunyuan_pose_source.png \
+  --map /tmp/mps_hunyuan_pose_map_local.png \
+  --out /tmp/mps_hunyuan_pose
+```
 
 #### Live HunyuanDiT Canny ControlNet: PASS (2026-10-25)
 
@@ -572,6 +699,10 @@ Limitations, stated rather than glossed:
   a `hunyuandit` mode is active.
 - Only `inproc` isolation ran. The acceptance does not separate the two
   isolation modes.
+- That spike asserts the Pose refusal above, and it now fails on that signal.
+  The Pose slice added `pose` to the MPS `hunyuandit` scope on 2026-10-25. The
+  assertion belongs to `58084f6`, where this record was taken. Re-run the Depth
+  spike only against that commit.
 
 ```bash
 conda activate stability-toys
