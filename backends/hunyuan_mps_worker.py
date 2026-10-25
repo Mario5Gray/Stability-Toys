@@ -2,7 +2,7 @@
 
 The CUDA HunyuanDiT worker already sends every device action through
 ``execution_policy``. The subclass swaps in the MPS policy and narrows the job
-contract to text-to-image.
+contract to text-to-image and img2img.
 
 Scope: HunyuanDiT text-to-image and img2img. ControlNet and combined
 img2img+ControlNet are dependent slices (STABL-xvnjfuae, STABL-wucttopg,
@@ -24,7 +24,7 @@ __all__ = ["DiffusersHunyuanDiTMpsWorker"]
 
 
 class DiffusersHunyuanDiTMpsWorker(DiffusersHunyuanDiTCudaWorker):
-    """Apple MPS HunyuanDiT worker for text-to-image."""
+    """Apple MPS HunyuanDiT worker for text-to-image and img2img."""
 
     execution_policy = MPS_TORCH_POLICY
     log_tag = "hunyuandit-mps"

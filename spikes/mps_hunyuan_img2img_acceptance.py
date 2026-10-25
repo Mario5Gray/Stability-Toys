@@ -244,9 +244,13 @@ def main() -> int:
             for r in results.values()
         ),
         "strength": low_to_init < high_to_init,
-        "metadata": (
-            (results["img2img_low"]["metadata"] or {}).get("denoise_strength") == LOW_STRENGTH
-            and (results["img2img_high"]["metadata"] or {}).get("denoise_strength") == HIGH_STRENGTH
+        "metadata": all(
+            (results[label]["metadata"] or {}).get("denoise_strength") == strength
+            and (results[label]["metadata"] or {}).get("seed") == SEED
+            for label, strength in (
+                ("img2img_low", LOW_STRENGTH),
+                ("img2img_high", HIGH_STRENGTH),
+            )
         ),
     }
 

@@ -219,7 +219,7 @@ contract, not live Metal behavior.
 | Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
 | img2img pipeline reuse, init-image resize, denoise strength, VAE alignment, combined pipeline, init and control images kept separate | `tests/test_mps_worker.py` |
 | HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img through the repo-owned loop with strength in metadata, ControlNet refused before the pipe call | `tests/test_hunyuan_mps_worker.py` |
-| `hunyuandit` cell: worker ref, text-to-image-only capabilities, empty ControlNet scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
+| `hunyuandit` cell: worker ref, text-to-image and img2img capabilities, empty ControlNet scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
 | Operation gate on the MPS `sd15` cell | `tests/test_controlnet_execution.py` |
 | HTTP `/generate` rejects a Depth ControlNet on the MPS cell before preprocessing, because the platform scope allows Canny only | `tests/test_controlnet_dispatch.py::test_http_generate_rejects_a_depth_controlnet_on_mps_sd15_cell` |
 | WebSocket admits an init image, a Canny ControlNet, and the combined operation; refuses Depth and a second attachment on the MPS cell | `tests/test_ws_routes.py` |
