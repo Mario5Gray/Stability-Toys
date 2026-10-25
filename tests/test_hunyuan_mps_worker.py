@@ -229,15 +229,45 @@ def test_hunyuan_mps_worker_seeds_an_mps_generator(
     assert generator.seed == 11
 
 
-def test_hunyuan_mps_worker_rejects_img2img_before_the_pipe_call(
-    fake_pipeline, recording_generator, released_cache
+def _init_png() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (1024, 1024), "green").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@pytest.fixture
+def fake_img2img(monkeypatch):
+    """Stand-in for the repo-owned Hunyuan img2img loop."""
+    import backends.hunyuandit_img2img as img2img
+
+    calls = []
+
+    def _run(pipe, image, conditioning, **kwargs):
+        calls.append({"pipe": pipe, "image": image, "conditioning": conditioning, **kwargs})
+        return [Image.new("RGB", (kwargs["width"], kwargs["height"]), "blue")]
+
+    monkeypatch.setattr(img2img, "run_hunyuan_img2img", _run)
+    return SimpleNamespace(calls=calls)
+
+
+def test_hunyuan_mps_worker_runs_img2img_through_the_shared_loop(
+    fake_pipeline, fake_img2img, recording_generator, released_cache
 ):
     worker = _build_worker()
+    job = _job(init_image=_init_png(), req=_request(denoise_strength=0.6))
 
-    with pytest.raises(ValueError, match="does not support the img2img operation"):
-        worker.run_job(_job(init_image=b"not-an-image"))
+    png_bytes, seed = worker.run_job(job)
 
-    assert fake_pipeline.pipe.calls == []
+    assert seed == 11
+    call = fake_img2img.calls[0]
+    assert call["strength"] == 0.6
+    assert call["steps"] == 4
+    assert (call["width"], call["height"]) == (1024, 1024)
+    assert call["image"].size == (1024, 1024)
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        metadata = json.loads(image.info["lcm"])
+    assert metadata["denoise_strength"] == 0.6
+    assert metadata["seed"] == 11
 
 
 def test_hunyuan_mps_worker_rejects_controlnet_before_the_pipe_call(
