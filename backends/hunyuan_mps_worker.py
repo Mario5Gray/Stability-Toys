@@ -1,13 +1,14 @@
-"""MPS HunyuanDiT worker (STABL-appbjuws, STABL-xvnjfuae).
+"""MPS HunyuanDiT worker (STABL-appbjuws, STABL-xvnjfuae, STABL-wucttopg, STABL-ziorpomq).
 
 The CUDA HunyuanDiT worker already sends every device action through
 ``execution_policy``. The subclass swaps in the MPS policy and narrows the job
-contract to text-to-image, img2img, and one Canny ControlNet attachment.
+contract to text-to-image, img2img, and one Canny, Depth or Pose ControlNet
+attachment.
 
 Scope: HunyuanDiT text-to-image, img2img, and plain text-to-image ControlNet
-with one Canny attachment. Combined img2img+ControlNet stays unbound on MPS
-(STABL-xvnjfuae). Admission rejects it first. The worker repeats the rejection
-for a direct ``run_job`` call that bypasses admission.
+with one Canny, Depth or Pose attachment. Combined img2img+ControlNet stays
+unbound on MPS (STABL-xvnjfuae). Admission rejects it first. The worker repeats
+the rejection for a direct ``run_job`` call that bypasses admission.
 
 The plain ControlNet path runs the shared ``HunyuanDiTControlNetPipeline``
 branch of the CUDA worker. The img2img path is the repo-owned
@@ -31,7 +32,7 @@ __all__ = ["DiffusersHunyuanDiTMpsWorker"]
 
 
 class DiffusersHunyuanDiTMpsWorker(DiffusersHunyuanDiTCudaWorker):
-    """Apple MPS HunyuanDiT worker for text-to-image, img2img, and Canny."""
+    """Apple MPS HunyuanDiT worker for text-to-image, img2img, Canny, Depth and Pose."""
 
     execution_policy = MPS_TORCH_POLICY
     log_tag = "hunyuandit-mps"

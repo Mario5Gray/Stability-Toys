@@ -425,18 +425,68 @@ def test_hunyuan_mps_worker_rejects_a_second_canny_attachment(
     assert canny_controlnet.cache.acquired == []
 
 
-def test_hunyuan_mps_worker_rejects_a_depth_control_type(
+def test_hunyuan_mps_worker_renders_text_to_image_with_one_depth_binding(
     fake_pipeline, canny_controlnet, recording_generator, released_cache
 ):
+    """Depth joins Canny in the MPS HunyuanDiT scope (STABL-wucttopg)."""
     worker = _build_worker()
-    binding = _canny_binding(control_type="depth", model_id="hunyuandit-depth")
+    binding = _canny_binding(
+        control_type="depth",
+        model_id="hunyuandit-depth",
+        model_path="/node/models/controlnets/HunyuanDiT-v1.1-ControlNet-Depth",
+    )
 
-    with pytest.raises(
-        ValueError, match="does not support control_type 'depth'; allowed: canny"
-    ):
-        worker.run_job(_job(controlnet_bindings=[binding]))
+    png_bytes, seed = worker.run_job(_job(controlnet_bindings=[binding]))
 
-    assert canny_controlnet.cache.acquired == []
+    assert seed == 11
+    assert fake_pipeline.pipe.calls == []
+    assert len(canny_controlnet.pipes) == 1
+    pipe = canny_controlnet.pipes[0]
+    assert pipe.controlnet.model_id == "hunyuandit-depth"
+    assert pipe.torch_dtype is None
+    call = pipe.calls[0]
+    assert isinstance(call["control_image"], Image.Image)
+    assert call["control_image"].size == (1024, 1024)
+    assert "control_guidance_start" not in call
+    assert "control_guidance_end" not in call
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        controlnet_chunk = json.loads(image.info["controlnet"])
+    assert controlnet_chunk[0]["control_type"] == "depth"
+    assert controlnet_chunk[0]["generation"]["model_id"] == "hunyuandit-depth"
+    assert canny_controlnet.cache.acquired == ["hunyuandit-depth"]
+    assert canny_controlnet.cache.released == ["hunyuandit-depth"]
+
+
+def test_hunyuan_mps_worker_renders_text_to_image_with_one_pose_binding(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    """Pose joins Canny and Depth in the MPS HunyuanDiT scope (STABL-ziorpomq)."""
+    worker = _build_worker()
+    binding = _canny_binding(
+        control_type="pose",
+        model_id="hunyuandit-pose",
+        model_path="/node/models/controlnets/HunyuanDiT-v1.1-ControlNet-Pose",
+    )
+
+    png_bytes, seed = worker.run_job(_job(controlnet_bindings=[binding]))
+
+    assert seed == 11
+    assert fake_pipeline.pipe.calls == []
+    assert len(canny_controlnet.pipes) == 1
+    pipe = canny_controlnet.pipes[0]
+    assert pipe.controlnet.model_id == "hunyuandit-pose"
+    assert pipe.torch_dtype is None
+    call = pipe.calls[0]
+    assert isinstance(call["control_image"], Image.Image)
+    assert call["control_image"].size == (1024, 1024)
+    assert "control_guidance_start" not in call
+    assert "control_guidance_end" not in call
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        controlnet_chunk = json.loads(image.info["controlnet"])
+    assert controlnet_chunk[0]["control_type"] == "pose"
+    assert controlnet_chunk[0]["generation"]["model_id"] == "hunyuandit-pose"
+    assert canny_controlnet.cache.acquired == ["hunyuandit-pose"]
+    assert canny_controlnet.cache.released == ["hunyuandit-pose"]
 
 
 def test_hunyuan_mps_worker_rejects_control_timing_windows(
