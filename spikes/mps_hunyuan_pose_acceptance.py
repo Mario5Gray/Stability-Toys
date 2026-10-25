@@ -251,7 +251,7 @@ def render(base_url: str, ws_url: str, params: dict, timeout_s: float = 900.0) -
     if not outputs:
         return {
             "ok": False,
-            "terminal": {"type": "job:complete", "error": "no outputs; set STORAGE_PROVIDER=MEMORY"},
+            "terminal": {"type": "job:complete", "error": "no outputs. Set STORAGE_PROVIDER=MEMORY."},
             "artifacts": artifacts,
             "wall_s": round(elapsed, 2),
         }
@@ -361,7 +361,7 @@ def main() -> int:
             handle.write(data)
         report[name] = {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
 
-    # type=image routes the source to the durable ref_image bucket; the server
+    # type=image routes the source to the durable ref_image bucket. The server
     # preprocessor reads it and writes the control map to the control_map bucket.
     source_upload = post_multipart(base_url + "/v1/upload", "source.png", source_png, {"type": "image"})
     alt_upload = post_multipart(
@@ -507,8 +507,8 @@ def main() -> int:
         print(f"FAIL: {', '.join(failed)}", file=sys.stderr)
         return 1
     print(
-        f"PASS: map content differs by {distances['full_vs_alt_source']}; "
-        f"strength {FULL_STRENGTH} differs from {ZERO_STRENGTH} by "
+        f"PASS: map content differs by {distances['full_vs_alt_source']}. "
+        f"Strength {FULL_STRENGTH} differs from {ZERO_STRENGTH} by "
         f"{distances['full_vs_zero']}",
         file=sys.stderr,
     )

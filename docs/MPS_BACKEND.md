@@ -475,8 +475,21 @@ Limitations, stated rather than glossed:
   HTTP surface. `/storage/af3ce22e...` returned 404. The delivered map was
   therefore re-run locally. The local bytes are not a copy of the server
   artifact.
-- The source image is itself a HunyuanDiT render with two figures. The second
-  face in the map is a source-content result, not a preprocessor defect.
+- The source image is itself a HunyuanDiT render with two figures. The map
+  draws two faces. This record infers that the second face follows source
+  content. It ran no control: it recorded no map for the mirrored source. A
+  mirrored source renders differently, so the second face also moved. Part of
+  the 16.64 distance can come from that face and not from the body pose.
+- Two checks in the client are weaker than their names suggest. `admitted`
+  tests `sha256 is not None`, and `describe()` always fills that field, so the
+  check passes whenever the four renders complete. The record row above
+  therefore rests on the terminal frames read during the run, not on this
+  check. `map_is_a_pose_map` reads the operator-supplied `--map`, because the
+  delivered map is not retrievable. It proves what the preprocessor builds on
+  that source, not what the server wrote.
+- The Pose map came from `controlnet-aux==0.0.10` and its OpenPose annotator
+  weights. The record does not pin the annotator weight files. A different
+  weight set draws a different skeleton from the same source.
 - This record does not reproduce `STABL-tqpfnwoj`. All four jobs streamed 6
   progress frames. The first render ran after an earlier render had already
   loaded `HunyuanDiT` in the same server, so no job performed the mode switch.
@@ -553,6 +566,13 @@ identical to the text-to-image render.
 | `controlnet` chunk | control type `canny`, generation `model_id hunyuandit-canny`, strength 1.0, window 0.0 to 1.0 |
 | scope refuses Depth | `job:error`, `backend 'mps' does not support control_type 'depth' for family 'hunyuandit'; allowed: canny` |
 | scope refuses two | `job:error`, `backend 'mps' admits at most 1 controlnet attachment(s) for family 'hunyuandit', got 2` |
+
+The `scope refuses Depth` row holds for `58084f6`, the commit this record
+measured. The Depth slice (`ef13200`) and the Pose slice (`3542bd6`) widened
+the same scope, so that message no longer exists. `mps_hunyuan_canny_acceptance.py`
+fails on that one signal at the current head. The other seven signals stay
+valid, including the two-attachment refusal. Run that spike against `58084f6`
+only. This record is not restated.
 
 Cross-check: `distances.zero_vs_txt2img` is 0.0, so a strength of 0.0 removes
 the ControlNet contribution entirely.
