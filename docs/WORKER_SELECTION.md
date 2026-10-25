@@ -47,7 +47,7 @@ for LCM text-to-image, LCM img2img, one Canny ControlNet, and the combined
 img2img + ControlNet operation. Its cell claims all four. The platform
 ControlNet scope narrows ControlNet to one Canny attachment. It also binds
 `hunyuandit` to `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker` for
-text-to-image, img2img, and one Canny or Depth ControlNet attachment. The
+text-to-image, img2img, and one Canny, Depth or Pose ControlNet attachment. The
 combined img2img + ControlNet operation stays unbound for `hunyuandit`. `sdxl`
 stays unbound.
 The provider reports generation support as true after live acceptance.
@@ -115,7 +115,7 @@ python -m utils.model_detector /models/your-model.safetensors
 **Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
 MPS binds `sd15` for LCM text-to-image, LCM img2img, one Canny ControlNet, and
 the combined operation. It binds `hunyuandit` for text-to-image, img2img, and
-one Canny or Depth ControlNet.
+one Canny, Depth or Pose ControlNet.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`

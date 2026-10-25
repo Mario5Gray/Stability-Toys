@@ -314,20 +314,45 @@ def test_admit_generation_operation_mps_hunyuan_admits_one_depth_controlnet():
     ) == "controlnet"
 
 
-def test_admit_generation_operation_mps_hunyuan_rejects_pose():
+def test_admit_generation_operation_mps_hunyuan_admits_one_pose_controlnet():
+    """Pose joins Canny and Depth in the MPS HunyuanDiT scope (STABL-ziorpomq)."""
     from server.controlnet_models import ControlNetAttachment
 
     attachment = ControlNetAttachment(
         attachment_id="cn_1", control_type="pose", map_asset_ref="map"
+    )
+    assert _mps_admission(
+        has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
+    ) == "controlnet"
+
+
+def test_admit_generation_operation_mps_hunyuan_rejects_a_control_type_outside_the_scope():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="lineart", map_asset_ref="map"
     )
     with pytest.raises(ValueError) as exc:
         _mps_admission(
             has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
         )
     assert str(exc.value) == (
-        "backend 'mps' does not support control_type 'pose' for family "
-        "'hunyuandit'; allowed: canny, depth"
+        "backend 'mps' does not support control_type 'lineart' for family "
+        "'hunyuandit'; allowed: canny, depth, pose"
     )
+
+
+def test_admit_generation_operation_mps_hunyuan_combined_rejects_pose():
+    """The scope admits Pose. The closed combined capability still refuses it."""
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="pose", map_asset_ref="map"
+    )
+    with pytest.raises(ValueError, match="does not support the img2img\\+controlnet"):
+        _mps_admission(
+            has_init_image=True, controlnets=(attachment,), family_id="hunyuandit"
+        )
 
 
 def test_admit_generation_operation_mps_hunyuan_rejects_two_attachments():
