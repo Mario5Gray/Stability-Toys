@@ -76,10 +76,11 @@ def test_mps_provider_binds_known_families_and_shares_runtime(mps_backend):
     # Text-to-image, img2img, and plain Canny ControlNet. The combined
     # img2img+ControlNet operation stays shut on MPS.
     assert hunyuan.execution_capabilities == ExecutionCapabilities(True, True, False)
-    # The platform ControlNet scope narrows the family to one Canny attachment,
-    # while conf/modes.yml permits canny, depth, pose, and one attachment.
+    # The platform ControlNet scope narrows the family to one Canny or Depth
+    # attachment, while conf/modes.yml permits canny, depth, pose, and one
+    # attachment.
     assert hunyuan.controlnet_scope == ControlNetScope(
-        allowed_control_types=("canny",), max_attachments=1
+        allowed_control_types=("canny", "depth"), max_attachments=1
     )
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
     assert provider.capabilities().supports_superres is False

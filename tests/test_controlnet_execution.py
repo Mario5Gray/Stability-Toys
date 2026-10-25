@@ -302,19 +302,31 @@ def test_admit_generation_operation_mps_hunyuan_still_admits_img2img():
     assert _mps_admission(has_init_image=True, family_id="hunyuandit") == "img2img"
 
 
-def test_admit_generation_operation_mps_hunyuan_rejects_depth():
+def test_admit_generation_operation_mps_hunyuan_admits_one_depth_controlnet():
+    """Depth joins Canny in the MPS HunyuanDiT scope (STABL-wucttopg)."""
     from server.controlnet_models import ControlNetAttachment
 
     attachment = ControlNetAttachment(
         attachment_id="cn_1", control_type="depth", map_asset_ref="map"
+    )
+    assert _mps_admission(
+        has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
+    ) == "controlnet"
+
+
+def test_admit_generation_operation_mps_hunyuan_rejects_pose():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="pose", map_asset_ref="map"
     )
     with pytest.raises(ValueError) as exc:
         _mps_admission(
             has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
         )
     assert str(exc.value) == (
-        "backend 'mps' does not support control_type 'depth' for family "
-        "'hunyuandit'; allowed: canny"
+        "backend 'mps' does not support control_type 'pose' for family "
+        "'hunyuandit'; allowed: canny, depth"
     )
 
 
