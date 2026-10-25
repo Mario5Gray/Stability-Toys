@@ -7,7 +7,7 @@ It binds two families:
   and the combined img2img + ControlNet operation with that one attachment.
   `sd15` accepts no Depth or Pose ControlNet, no second attachment, and no
   scheduler other than LCM.
-- **`hunyuandit`**, for text-to-image only. Img2img, ControlNet, and combined
+- **`hunyuandit`**, for text-to-image and img2img. ControlNet and combined
   generation are dependent slices and stay unbound on MPS.
 
 No other family loads on MPS. `sdxl` is unbound.
@@ -66,12 +66,14 @@ The server starts without a model when the default mode has no MPS binding.
   `backends.mps_worker.DiffusersMpsWorker` and `hunyuandit` to
   `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker`. `sdxl` raises
   `UnsupportedFamilyError`: `family 'sdxl' has no MPS platform binding`.
-- **HunyuanDiT is text-to-image only.** The `hunyuandit` cell carries
-  `ExecutionCapabilities(False, False, False)`. Admission rejects img2img,
-  ControlNet, and combined generation for the family before preprocessing. The
-  worker repeats both rejections for a direct `run_job` call. The worker
-  subclasses the CUDA HunyuanDiT worker and swaps only the execution policy, so
-  the load, conditioning, scheduler, and text-to-image call are shared code.
+- **HunyuanDiT is text-to-image and img2img.** The `hunyuandit` cell carries
+  `ExecutionCapabilities(True, False, False)`. Admission rejects ControlNet and
+  combined generation for the family before preprocessing. The worker repeats
+  the ControlNet rejection for a direct `run_job` call. The worker subclasses
+  the CUDA HunyuanDiT worker and swaps only the execution policy, so the load,
+  conditioning, scheduler, and both job paths are shared code. img2img runs the
+  repo-owned `backends/hunyuandit_img2img.py` loop, because Diffusers has no
+  HunyuanDiT img2img pipeline. The PNG `lcm` chunk records `denoise_strength`.
 - **Text-to-image, img2img, one Canny ControlNet, and the combined operation.**
   The `sd15` cell carries `ExecutionCapabilities(True, True, True)`, so
   `admit_generation_operation` admits all four. The worker repeats each check
@@ -216,7 +218,7 @@ contract, not live Metal behavior.
 | Unsupported-family errors, `sd15` binding, factory selection | `tests/test_mps_registration.py` |
 | Worker load, LCM scheduler, PNG metadata, seeded MPS generator, cancellation, cache release | `tests/test_mps_worker.py` |
 | img2img pipeline reuse, init-image resize, denoise strength, VAE alignment, combined pipeline, init and control images kept separate | `tests/test_mps_worker.py` |
-| HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img and ControlNet refused before the pipe call | `tests/test_hunyuan_mps_worker.py` |
+| HunyuanDiT load on MPS, text-to-image PNG metadata, seeded MPS generator, step-progress wiring, img2img through the repo-owned loop with strength in metadata, ControlNet refused before the pipe call | `tests/test_hunyuan_mps_worker.py` |
 | `hunyuandit` cell: worker ref, text-to-image-only capabilities, empty ControlNet scope, `sdxl` still unbound | `tests/test_mps_registration.py` |
 | Operation gate on the MPS `sd15` cell | `tests/test_controlnet_execution.py` |
 | HTTP `/generate` rejects a Depth ControlNet on the MPS cell before preprocessing, because the platform scope allows Canny only | `tests/test_controlnet_dispatch.py::test_http_generate_rejects_a_depth_controlnet_on_mps_sd15_cell` |
@@ -278,6 +280,10 @@ passed** (15 files), stub **78 passed**, progress bar **10 passed**, no failure
 and no skip. The 6 new real tests cover the MPS load, text-to-image metadata,
 the seeded MPS generator, step-progress wiring, and both refusals.
 
+The HunyuanDiT img2img slice re-ran them at `1a99ae6` with the same counts:
+real **336 passed**, stub **78 passed**, progress bar **10 passed**. One test
+changed rather than grew: the img2img refusal became an img2img render test.
+
 ```bash
 python -m tests.run \
   tests/test_cuda_worker_base.py tests/test_cuda_worker_capabilities.py \
@@ -294,7 +300,9 @@ python -m tests.run \
 
 The HunyuanDiT text-to-image slice re-ran this cohort at `135e86c` with the
 same real result: 46 passed, 8 skipped, and 128 stub tests. The stub count was
-124 at `8fb8dbb`; the difference came from commits between the two records.
+124 at `8fb8dbb`; the difference came from commits between the two records. The
+img2img slice re-ran it at `1a99ae6` with identical counts: 46 passed, 8
+skipped, 128 stub. No CUDA file changed.
 
 The CUDA cohort is unchanged from `2b58c23`, which is the point: the img2img
 cell and the MPS worker leave CUDA behavior alone. The combined slice re-ran it
@@ -314,6 +322,42 @@ Failures that predate this work, outside these cohorts:
 - `tests/test_entry_spans.py::test_an_UNHASHABLE_type_does_not_break_the_span` (failing since `491a91c`)
 
 ### Live host checks (Mac only)
+
+#### Live HunyuanDiT img2img: PASS (2026-10-25)
+
+Code at `1a99ae6`. Client: `spikes/mps_hunyuan_img2img_acceptance.py`. It starts
+no server. Four signals, all required.
+
+- Host: Darwin 25.0.0, macOS 26.0.1, arm64 (M1 Max, 64 GiB), Python 3.12.13,
+  Torch 2.10.0
+- Model: `/Users/darkbit1001/models/diffusers/HunyuanDiT-v1.1-Diffusers`, fp16
+- Mode `HunyuanDiT`, same prompt, size, guidance, and seed as the text-to-image
+  record, 6 steps, `WORKER_ISOLATION=inproc`
+- Init image: one generated 1024x1024 PNG, green field, blue band, red ellipse,
+  yellow triangle, uploaded with `type=image`
+- Three jobs in one server: text-to-image, img2img at strength 0.35, img2img at
+  strength 0.9
+
+| Render | Steps run | Wall time | Bytes | `sha256` prefix | Colors | Grey stddev | Progress frames |
+|---|---|---|---|---|---|---|---|
+| text-to-image | 6 | 68.34 s | 511783 | `746a55f314b355f2` | 91115 | 50.77 | 0 |
+| img2img 0.35 | 2 | 25.20 s | 701599 | `9957a28e40d8eea3` | 148108 | 18.70 | 2 |
+| img2img 0.90 | 5 | 55.08 s | 904641 | `e1439840cc40c7c8` | 291673 | 35.01 | 5 |
+
+The text-to-image render is byte-identical to the text-to-image acceptance
+record above (`746a55f3...`), so the img2img slice moved no text-to-image byte.
+Step counts are `int(steps * strength)`, read from the progress frames.
+
+| Check | Result |
+|---|---|
+| admitted | all three `job:complete` |
+| differs from text-to-image | 65.36 at 0.35 and 59.89 at 0.90, mean per-channel at 128x128 |
+| strength reaches the loop | distance to the init image is 32.21 at 0.35 and 42.99 at 0.90 |
+| metadata | `denoise_strength` 0.35 and 0.9, seed 4242 in both PNGs |
+
+Progress frames are 0 on the text-to-image job because it performs the mode
+switch. The two img2img jobs streamed 2 and 5 frames. That loss is
+`STABL-tqpfnwoj`.
 
 #### Live HunyuanDiT text-to-image: PASS (2026-10-25)
 
