@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,6 +37,59 @@ func TestBuildGenParamsFromArgs(t *testing.T) {
 	}
 	if p["init_image_ref"] != "R1" {
 		t.Fatalf("fileref not threaded: %+v", p)
+	}
+}
+
+func TestGenDenoiseStrengthSubmitted(t *testing.T) {
+	srv, captured := newScriptedGenServer(t, genReply{Seed: 1}, genReply{Seed: 1})
+	defer srv.Close()
+	cfgPath := writeTestConfig(t, t.TempDir())
+	runCmd(t, "--server", srv.URL, "--config", cfgPath, "gen", "--init-image", "fileref:R1", "--denoise-strength", "0.25", "owl")
+	runCmd(t, "--server", srv.URL, "--config", cfgPath, "gen", "--init-image", "fileref:R1", "owl")
+	if got := (*captured)[0]["denoise_strength"]; got != 0.25 {
+		t.Fatalf("submitted denoise_strength = %v", got)
+	}
+	if _, ok := (*captured)[1]["denoise_strength"]; ok {
+		t.Fatalf("unset strength should let the server choose its default: %#v", (*captured)[1])
+	}
+}
+
+func TestGenDenoiseStrengthRootPatchAndPrefix(t *testing.T) {
+	patch, err := parseRootGenPatch([]string{"--denoise-strength", "0.6", "--prompt", "owl"})
+	if err != nil || !patch.Active || patch.Args.DenoiseStrength == nil || *patch.Args.DenoiseStrength != 0.6 {
+		t.Fatalf("root patch = %+v, err = %v", patch, err)
+	}
+	srv, captured := newScriptedGenServer(t, genReply{Seed: 1})
+	defer srv.Close()
+	cfgPath := writeTestConfig(t, t.TempDir())
+	runCmd(t, "--server", srv.URL, "--config", cfgPath, "--denoise-strength", "0.6", "gen", "--init-image", "fileref:R1", "owl")
+	if got := (*captured)[0]["denoise_strength"]; got != 0.6 {
+		t.Fatalf("submitted root-prefixed strength = %v", got)
+	}
+}
+
+func TestGenDenoiseStrengthRejectsInvalidValues(t *testing.T) {
+	for _, strength := range []float64{0, 0.009, 1.001, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		_, err := buildGenParams(nil, genArgs{DenoiseStrength: &strength})
+		if err == nil || !strings.Contains(err.Error(), "denoise_strength") {
+			t.Fatalf("strength %v: expected named range error, got %v", strength, err)
+		}
+	}
+}
+
+func TestGenDenoiseStrengthFlagBeatsConflatedBaseline(t *testing.T) {
+	patch, err := parseRootGenPatch([]string{"--denoise-strength", "0.25", "--prompt", "owl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.DenoiseStrength = 0.6
+	params, err := buildGenParamsWithBaseline(cfg, patch.Args, stclient.GenParams{"denoise_strength": 0.75}, patch.Changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := params["denoise_strength"]; got != 0.25 {
+		t.Fatalf("conflated strength = %v", got)
 	}
 }
 
@@ -262,7 +316,7 @@ func resetCLIFlagState() {
 	genSeed, genScheduler, genMode, genInitImage, genRecreate = "", "", "", "", ""
 	genControlnetFile, genOutfile = "", ""
 	genSteps, genSkipStep, genSR = 0, 0, 0
-	genCfg, genControlStrength = 0, 0
+	genCfg, genControlStrength, genDenoiseStrength = 0, 0, 0
 	genStream, genQuiet = false, false
 	genControlnets, genControlRefs, genControlImages = nil, nil, nil
 	conflateInclusive, conflateExitCodes = nil, nil

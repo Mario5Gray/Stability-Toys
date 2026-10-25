@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,7 @@ var (
 	genSteps           int
 	genSkipStep        int
 	genCfg             float64
+	genDenoiseStrength float64
 	genSeed            string
 	genScheduler       string
 	genMode            string
@@ -56,6 +58,7 @@ type genArgs struct {
 	Steps           *int
 	SkipStep        *int
 	Cfg             *float64
+	DenoiseStrength *float64
 	Seed            *string
 	Scheduler       *string
 	Mode            *string
@@ -72,16 +75,17 @@ type genArgs struct {
 
 func (a genArgs) toFlags() config.Flags {
 	return config.Flags{
-		Prompt:    a.Prompt,
-		Negative:  a.Negative,
-		Genres:    a.Genres,
-		Steps:     a.Steps,
-		SkipStep:  a.SkipStep,
-		Cfg:       a.Cfg,
-		Seed:      a.Seed,
-		Scheduler: a.Scheduler,
-		Mode:      a.Mode,
-		SRLevel:   a.SR,
+		Prompt:          a.Prompt,
+		Negative:        a.Negative,
+		Genres:          a.Genres,
+		Steps:           a.Steps,
+		SkipStep:        a.SkipStep,
+		Cfg:             a.Cfg,
+		DenoiseStrength: a.DenoiseStrength,
+		Seed:            a.Seed,
+		Scheduler:       a.Scheduler,
+		Mode:            a.Mode,
+		SRLevel:         a.SR,
 	}
 }
 
@@ -98,6 +102,7 @@ type genFlagValues struct {
 	Steps           int
 	SkipStep        int
 	Cfg             float64
+	DenoiseStrength float64
 	Seed            string
 	Scheduler       string
 	Mode            string
@@ -178,6 +183,7 @@ func bindGenFlags(f *pflag.FlagSet, v *genFlagValues) {
 	f.IntVar(&v.Steps, "steps", 0, "inference steps")
 	f.IntVar(&v.SkipStep, "skip-step", 0, "number of timesteps to skip (LCM skip_step)")
 	f.Float64Var(&v.Cfg, "cfg", 0, "guidance scale")
+	f.Float64Var(&v.DenoiseStrength, "denoise-strength", 0, "img2img denoise strength (0.01-1.0; unset = server default 0.75)")
 	f.StringVar(&v.Seed, "seed", "", `seed integer or "random"`)
 	f.StringVar(&v.Scheduler, "scheduler", "", "scheduler id")
 	f.StringVar(&v.Mode, "mode", "", "model mode to switch to before generating")
@@ -225,6 +231,9 @@ func genArgsFromFlagSet(f *pflag.FlagSet, v genFlagValues, args []string) genArg
 	if f.Changed("cfg") {
 		a.Cfg = &v.Cfg
 	}
+	if f.Changed("denoise-strength") {
+		a.DenoiseStrength = &v.DenoiseStrength
+	}
 	if f.Changed("seed") {
 		a.Seed = &v.Seed
 	}
@@ -248,7 +257,7 @@ func changedGenFlags(f *pflag.FlagSet) map[string]bool {
 	// Output-only flags are intentionally gen flags: with conflation enabled,
 	// they can rerun the selected baseline while changing observation/output behavior.
 	for _, name := range []string{
-		"prompt", "negative", "size", "steps", "skip-step", "cfg", "seed",
+		"prompt", "negative", "size", "steps", "skip-step", "cfg", "denoise-strength", "seed",
 		"scheduler", "mode", "sr", "init-image", "recreate", "controlnet",
 		"controlnet-file", "control-ref", "control-image", "control-strength", "outfile", "stream", "quiet",
 	} {
@@ -320,6 +329,7 @@ func init() {
 	f.IntVar(&genSteps, "steps", 0, "inference steps")
 	f.IntVar(&genSkipStep, "skip-step", 0, "number of timesteps to skip (LCM skip_step)")
 	f.Float64Var(&genCfg, "cfg", 0, "guidance scale")
+	f.Float64Var(&genDenoiseStrength, "denoise-strength", 0, "img2img denoise strength (0.01-1.0; unset = server default 0.75)")
 	f.StringVar(&genSeed, "seed", "", `seed integer or "random"`)
 	f.StringVar(&genScheduler, "scheduler", "", "scheduler id")
 	f.StringVar(&genMode, "mode", "", "model mode to switch to before generating")
@@ -348,6 +358,7 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 		Steps:           genSteps,
 		SkipStep:        genSkipStep,
 		Cfg:             genCfg,
+		DenoiseStrength: genDenoiseStrength,
 		Seed:            genSeed,
 		Scheduler:       genScheduler,
 		Mode:            genMode,
@@ -452,6 +463,12 @@ func buildGenParamsWithBaseline(cfg *config.Config, a genArgs, baseline stclient
 		changed = map[string]bool{}
 	}
 	p := stclient.GenParams(config.ResolveParamsWithBaseline(cfg, baked, baseline, a.toFlags()))
+	if raw, ok := p["denoise_strength"]; ok {
+		strength, validType := raw.(float64)
+		if !validType || math.IsNaN(strength) || math.IsInf(strength, 0) || strength < 0.01 || strength > 1.0 {
+			return nil, fmt.Errorf("denoise_strength must be a finite number between 0.01 and 1.0")
+		}
+	}
 
 	if changed["init-image"] {
 		delete(p, "init_image_ref")

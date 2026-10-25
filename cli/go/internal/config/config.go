@@ -6,9 +6,9 @@
 package config
 
 import (
-	"fmt"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -21,12 +21,13 @@ var ErrBootstrapped = errors.New("config bootstrapped")
 // is either an integer or the string "random"; the precedence resolver treats
 // "random"/empty as "omit so the backend picks one".
 type Generation struct {
-	Mode     string  `json:"mode"`
-	Cfg      float64 `json:"cfg"`
-	Steps    int     `json:"steps"`
-	SkipStep int     `json:"skip_step,omitempty"`
-	Genres   string  `json:"genres"`
-	Seed     any     `json:"seed"` // int or "random"
+	Mode            string  `json:"mode"`
+	Cfg             float64 `json:"cfg"`
+	Steps           int     `json:"steps"`
+	SkipStep        int     `json:"skip_step,omitempty"`
+	DenoiseStrength float64 `json:"denoise_strength,omitempty"`
+	Genres          string  `json:"genres"`
+	Seed            any     `json:"seed"` // int or "random"
 }
 
 // Meta holds client-side image metadata defaults written into output PNGs.
