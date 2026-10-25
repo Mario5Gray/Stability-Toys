@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from backends.platform_registry import get_backend_provider
-from backends.platforms.base import ExecutionCapabilities, UnsupportedFamilyError
+from backends.platforms.base import ExecutionCapabilities, FamilyPlatformBinding, UnsupportedFamilyError
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
@@ -113,28 +113,19 @@ def get_generation_runtime(request: Request):
 _NO_EXECUTION_CAPABILITIES = ExecutionCapabilities(False, False, False)
 
 
-def _active_execution_capabilities(runtime: Any, provider: Any) -> ExecutionCapabilities:
-    """The execution matrix of the active snapshot's family cell.
+def _active_family_binding(runtime: Any, provider: Any) -> FamilyPlatformBinding | None:
+    """Resolve the active snapshot's cell once for this status response.
 
-    The three execution flags live on FamilyPlatformBinding, not on
-    BackendCapabilities, so the status route must resolve the active family and
-    read its cell. This is the same seam admission reads
-    (`admit_generation_operation`), so the status page and the admission gate
-    cannot disagree.
-
-    Returns the all-false matrix when no model is loaded, when the family has no
-    cell on this platform, or when the runtime predates the snapshot seam.
+    Admission reads the same binding source. A later request may see a different
+    active snapshot after a mode switch.
     """
     get_snapshot = getattr(runtime, "get_active_model_snapshot", None)
     if not callable(get_snapshot):
-        return _NO_EXECUTION_CAPABILITIES
+        return None
     snapshot: Any = get_snapshot()
     if snapshot is None:
-        return _NO_EXECUTION_CAPABILITIES
-    binding = provider.family_binding(snapshot.resolved.profile.family_id)
-    if binding is None:
-        return _NO_EXECUTION_CAPABILITIES
-    return binding.execution_capabilities
+        return None
+    return provider.family_binding(snapshot.resolved.profile.family_id)
 
 
 @router.get("/models/status")
@@ -151,7 +142,19 @@ async def get_models_status(request: Request):
     registry = get_model_registry()
     backend_version = os.environ.get("BACKEND_VERSION", "dev").strip() or "dev"
 
-    execution_caps = _active_execution_capabilities(runtime, provider)
+    binding = _active_family_binding(runtime, provider)
+    execution_caps = binding.execution_capabilities if binding else _NO_EXECUTION_CAPABILITIES
+    controlnet_scope = None
+    if binding:
+        scope = binding.controlnet_scope
+        if scope.allowed_control_types is not None or scope.max_attachments is not None:
+            controlnet_scope = {
+                "allowed_control_types": (
+                    list(scope.allowed_control_types)
+                    if scope.allowed_control_types is not None else None
+                ),
+                "max_attachments": scope.max_attachments,
+            }
 
     supports_describe = False
     current_mode = runtime.get_current_mode()
@@ -183,6 +186,7 @@ async def get_models_status(request: Request):
             "supports_img2img": execution_caps.supports_img2img,
             "supports_controlnet": execution_caps.supports_controlnet,
             "supports_img2img_and_controlnet": execution_caps.supports_img2img_and_controlnet,
+            "controlnet_scope": controlnet_scope,
             "supports_describe": supports_describe,
         },
         "vram": registry.get_vram_stats(),

@@ -188,8 +188,17 @@ Get current model status and VRAM statistics.
 flags — `supports_img2img`, `supports_controlnet`, and
 `supports_img2img_and_controlnet` — come from the active model family's platform
 binding, which is the same source admission reads. All three report false when
-no model is loaded. `supports_describe` reports the current mode's analysis
-profile.
+no model is loaded. `capabilities.controlnet_scope` reports that same cell's
+platform limits for both plain ControlNet and combined img2img plus ControlNet.
+For the MPS `sd15` cell it is
+`{"allowed_control_types": ["canny"], "max_attachments": 1}`. It is `null`
+when the cell adds no platform limit (as with CUDA), when there is no active
+snapshot, or when the family has no platform cell. If only one dimension is
+limited, the object still has both keys and uses `null` for the unrestricted
+dimension. The scope reports the cell's limits even if its
+`supports_controlnet` flag is false; clients should use the execution flags to
+decide which operations are available. Mode policy may add further limits.
+`supports_describe` reports the current mode's analysis profile.
 
 #### GET /api/modes
 

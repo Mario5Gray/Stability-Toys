@@ -18,6 +18,7 @@ def _status_request():
 
 async def test_models_status_includes_backend_version():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = "SDXL"
     runtime.is_model_loaded.return_value = True
     runtime.get_queue_size.return_value = 0
@@ -46,6 +47,7 @@ async def test_models_status_includes_backend_version():
 
 async def test_models_status_defaults_backend_version_to_dev_when_empty():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = None
     runtime.is_model_loaded.return_value = False
     runtime.get_queue_size.return_value = 0
@@ -74,6 +76,7 @@ async def test_models_status_defaults_backend_version_to_dev_when_empty():
 
 async def test_models_status_defaults_backend_version_to_dev_when_unset():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = None
     runtime.is_model_loaded.return_value = False
     runtime.get_queue_size.return_value = 0
@@ -102,6 +105,7 @@ async def test_models_status_defaults_backend_version_to_dev_when_unset():
 
 async def test_models_status_uses_provider_capabilities_and_registry_stats():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = None
     runtime.is_model_loaded.return_value = False
     runtime.get_queue_size.return_value = 0
@@ -810,6 +814,7 @@ async def test_list_modes_controlnet_policy_defaults_when_absent():
 
 async def test_models_status_supports_describe_true_when_mode_has_profile():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = "SDXL"
     runtime.is_model_loaded.return_value = True
     runtime.get_queue_size.return_value = 0
@@ -836,6 +841,7 @@ async def test_models_status_supports_describe_true_when_mode_has_profile():
 
 async def test_models_status_supports_describe_false_without_profile_or_mode():
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = None  # no active mode at all
     runtime.is_model_loaded.return_value = False
     runtime.get_queue_size.return_value = 0
@@ -862,6 +868,7 @@ async def test_models_status_current_mode_and_supports_describe_agree_on_one_rea
     # reads, the response must not name one mode while advertising another
     # mode's capability.
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.side_effect = ["SDXL", "OTHER"]  # would diverge on 2 reads
     runtime.is_model_loaded.return_value = True
     runtime.get_queue_size.return_value = 0
@@ -895,6 +902,7 @@ async def test_models_status_supports_describe_false_when_mode_lacks_profile():
     # analysis_profile must report supports_describe False (distinct entry
     # point from the endpoint's analysis_profile_not_found path).
     runtime = Mock()
+    runtime.get_active_model_snapshot.return_value = None
     runtime.get_current_mode.return_value = "SDXL"
     runtime.is_model_loaded.return_value = True
     runtime.get_queue_size.return_value = 0
@@ -978,6 +986,78 @@ async def test_models_status_reports_execution_capabilities_from_the_active_fami
     assert caps["supports_img2img"] is True
     assert caps["supports_controlnet"] is True
     assert caps["supports_img2img_and_controlnet"] is True
+    assert "controlnet_scope" in caps
+    assert caps["controlnet_scope"] is None
+
+
+async def test_models_status_reports_the_real_mps_sd15_scope():
+    from backends.platforms.mps import MPSProvider
+    from tests.snapshot_test_helpers import make_active_snapshot
+
+    provider = MPSProvider()
+    snapshot = make_active_snapshot(Mock(name="sd15-mode"), family_id="sd15")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["controlnet_scope"] == {
+        "allowed_control_types": ["canny"],
+        "max_attachments": 1,
+    }
+
+
+async def test_models_status_reads_the_active_family_cell_once():
+    from backends.platforms.base import ControlNetScope
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(
+        family_id="sd15",
+        controlnet_scope=ControlNetScope(("canny",), 1),
+    )
+    provider.family_binding = Mock(wraps=provider.family_binding)
+    snapshot = make_active_snapshot(Mock(name="sd15-mode"), family_id="sd15")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["controlnet_scope"]["allowed_control_types"] == ["canny"]
+    provider.family_binding.assert_called_once_with("sd15")
+
+
+async def test_models_status_reports_partial_scope_with_both_keys():
+    from backends.platforms.base import ControlNetScope
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(
+        family_id="sd15",
+        controlnet_scope=ControlNetScope(max_attachments=1),
+    )
+    snapshot = make_active_snapshot(Mock(name="sd15-mode"), family_id="sd15")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["controlnet_scope"] == {
+        "allowed_control_types": None,
+        "max_attachments": 1,
+    }
+
+
+async def test_models_status_reports_scope_even_when_controlnet_flag_is_false():
+    from backends.platforms.base import ControlNetScope
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    provider = make_family_provider(
+        family_id="sd15",
+        supports_controlnet=False,
+        controlnet_scope=ControlNetScope(("canny",), 1),
+    )
+    snapshot = make_active_snapshot(Mock(name="sd15-mode"), family_id="sd15")
+
+    caps = await _exec_caps_status(provider, _exec_caps_runtime(snapshot))
+
+    assert caps["supports_controlnet"] is False
+    assert caps["controlnet_scope"] == {
+        "allowed_control_types": ["canny"],
+        "max_attachments": 1,
+    }
 
 
 async def test_models_status_reports_execution_capabilities_the_active_cell_denies():
@@ -1000,6 +1080,8 @@ async def test_models_status_reports_execution_capabilities_the_active_cell_deni
     assert caps["supports_img2img"] is False
     assert caps["supports_controlnet"] is False
     assert caps["supports_img2img_and_controlnet"] is False
+    assert "controlnet_scope" in caps
+    assert caps["controlnet_scope"] is None
 
 
 async def test_models_status_reports_execution_capabilities_false_when_no_model_is_loaded():
@@ -1012,6 +1094,8 @@ async def test_models_status_reports_execution_capabilities_false_when_no_model_
     assert caps["supports_img2img"] is False
     assert caps["supports_controlnet"] is False
     assert caps["supports_img2img_and_controlnet"] is False
+    assert "controlnet_scope" in caps
+    assert caps["controlnet_scope"] is None
 
 
 async def test_models_status_reports_execution_capabilities_false_when_family_has_no_cell():
@@ -1027,6 +1111,8 @@ async def test_models_status_reports_execution_capabilities_false_when_family_ha
     assert caps["supports_img2img"] is False
     assert caps["supports_controlnet"] is False
     assert caps["supports_img2img_and_controlnet"] is False
+    assert "controlnet_scope" in caps
+    assert caps["controlnet_scope"] is None
 
 
 async def test_models_status_reports_execution_capabilities_false_without_the_snapshot_seam():
@@ -1042,3 +1128,5 @@ async def test_models_status_reports_execution_capabilities_false_without_the_sn
     assert caps["supports_img2img"] is False
     assert caps["supports_controlnet"] is False
     assert caps["supports_img2img_and_controlnet"] is False
+    assert "controlnet_scope" in caps
+    assert caps["controlnet_scope"] is None
