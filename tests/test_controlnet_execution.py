@@ -173,13 +173,13 @@ def test_admit_generation_operation_hunyuan_combined_rejects_nondefault_end_perc
 # gate under test, not a hand-built capability triple.
 
 
-def _mps_admission(*, has_init_image, controlnets=()):
+def _mps_admission(*, has_init_image, controlnets=(), family_id="sd15"):
     from backends.platforms.mps import MPSProvider
     from server.controlnet_execution import admit_generation_operation
     from tests.snapshot_test_helpers import make_active_snapshot
 
-    mode = type("Mode", (), {"name": "lcm-general"})()
-    snapshot = make_active_snapshot(mode, family_id="sd15")
+    mode = type("Mode", (), {"name": "hunyuandit" if family_id == "hunyuandit" else "lcm-general"})()
+    snapshot = make_active_snapshot(mode, family_id=family_id)
     req = type("Req", (), {"controlnets": list(controlnets)})()
     return admit_generation_operation(
         req,
@@ -281,6 +281,73 @@ def test_admit_generation_operation_mps_sd15_combined_allows_control_window():
     assert _mps_admission(
         has_init_image=True, controlnets=(attachment,)
     ) == "img2img+controlnet"
+
+
+# --- MPS hunyuandit cell: one Canny ControlNet (STABL-xvnjfuae) ------------
+# Through the real MPSProvider, so the live binding table is the thing tested.
+
+
+def test_admit_generation_operation_mps_hunyuan_admits_one_canny_controlnet():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map"
+    )
+    assert _mps_admission(
+        has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
+    ) == "controlnet"
+
+
+def test_admit_generation_operation_mps_hunyuan_still_admits_img2img():
+    assert _mps_admission(has_init_image=True, family_id="hunyuandit") == "img2img"
+
+
+def test_admit_generation_operation_mps_hunyuan_rejects_depth():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="depth", map_asset_ref="map"
+    )
+    with pytest.raises(ValueError) as exc:
+        _mps_admission(
+            has_init_image=False, controlnets=(attachment,), family_id="hunyuandit"
+        )
+    assert str(exc.value) == (
+        "backend 'mps' does not support control_type 'depth' for family "
+        "'hunyuandit'; allowed: canny"
+    )
+
+
+def test_admit_generation_operation_mps_hunyuan_rejects_two_attachments():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachments = tuple(ControlNetAttachment(
+        attachment_id=f"cn_{index}", control_type="canny", map_asset_ref="map"
+    ) for index in (1, 2))
+    with pytest.raises(ValueError) as exc:
+        _mps_admission(
+            has_init_image=False, controlnets=attachments, family_id="hunyuandit"
+        )
+    assert str(exc.value) == (
+        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
+        "'hunyuandit', got 2"
+    )
+
+
+def test_admit_generation_operation_mps_hunyuan_rejects_combined_canny():
+    """The third capability flag stays false, so the combined operation is shut.
+
+    Admission reads capabilities, not the scope, for this operation.
+    """
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn_1", control_type="canny", map_asset_ref="map"
+    )
+    with pytest.raises(ValueError, match="does not support the img2img\\+controlnet"):
+        _mps_admission(
+            has_init_image=True, controlnets=(attachment,), family_id="hunyuandit"
+        )
 
 
 def _scoped_admission(*, controlnets, scope=None, backend_id="mps", family_id="sd15"):
