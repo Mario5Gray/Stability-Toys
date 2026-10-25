@@ -31,6 +31,10 @@ from typing import Any
 
 ALLOWED_PROBE_TYPES = ("canny", "depth", "pose")
 
+# Both gates raise the same text. The probe asserts the exact text, not just
+# that some error arrived, so a change to either gate fails the probe loudly.
+EXPECTED_CANNY_REFUSAL = "HunyuanDiT combined img2img+controlnet supports Canny only"
+
 
 def stage(msg: str) -> None:
     print(f"[probe] {msg}", flush=True)
@@ -181,8 +185,11 @@ def self_check() -> int:
     if "Canny only" in after_patch_error:
         stage("SELF CHECK FAILED: patched worker gate still rejects Depth")
         return 4
-    if "Canny only" not in worker_refusal:
-        stage("SELF CHECK FAILED: unpatched worker gate did not reject Depth")
+    if admission_refusal != EXPECTED_CANNY_REFUSAL:
+        stage(f"SELF CHECK FAILED: admission refusal text changed: {admission_refusal!r}")
+        return 4
+    if worker_refusal != EXPECTED_CANNY_REFUSAL:
+        stage(f"SELF CHECK FAILED: worker refusal text changed: {worker_refusal!r}")
         return 4
 
     emit_json(
@@ -330,6 +337,9 @@ def run_probe(args: argparse.Namespace) -> int:
             refusal = f"{type(exc).__name__}: {exc}"
         stage(f"unpatched admission result: {refusal}")
         emit_json("admission_unpatched", {"control_type": args.control_type, "refusal": refusal})
+        if refusal != f"ValueError: {EXPECTED_CANNY_REFUSAL}":
+            stage("probe assertion failed: admission refusal text changed")
+            return 4
 
         import server.controlnet_execution as cne
 
@@ -394,6 +404,9 @@ def run_probe(args: argparse.Namespace) -> int:
             worker_refusal = f"{type(exc).__name__}: {exc}"
         stage(f"unpatched worker result: {worker_refusal}")
         emit_json("worker_unpatched", {"control_type": args.control_type, "refusal": worker_refusal})
+        if worker_refusal != f"RuntimeError: {EXPECTED_CANNY_REFUSAL}":
+            stage("probe assertion failed: worker refusal text changed")
+            return 4
 
         import backends.cuda_worker as cw
 
