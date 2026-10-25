@@ -199,5 +199,6 @@ func BakedParams(pngBytes []byte) (map[string]any, error) {
 	move("steps", "num_inference_steps")
 	move("size", "size")
 	move("scheduler_id", "scheduler_id")
+	move("denoise_strength", "denoise_strength")
 	return out, nil
 }

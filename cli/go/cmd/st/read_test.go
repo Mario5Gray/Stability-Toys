@@ -89,13 +89,13 @@ func TestReadErrorsWhenNoKnownChunks(t *testing.T) {
 // TestRecreateSeedsParams characterizes the --recreate baked layer wired in T12:
 // the PNG's lcm params seed generation, and explicit flags still override them.
 func TestRecreateSeedsParams(t *testing.T) {
-	path := pngWithLCM(t, `{"prompt":"base","cfg":9}`)
+	path := pngWithLCM(t, `{"prompt":"base","cfg":9,"denoise_strength":0.4}`)
 
 	p, err := buildGenParams(nil, genArgs{Recreate: path})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p["guidance_scale"] != float64(9) || p["prompt"] != "base" {
+	if p["guidance_scale"] != float64(9) || p["prompt"] != "base" || p["denoise_strength"] != 0.4 {
 		t.Fatalf("baked layer not applied: %+v", p)
 	}
 	if _, ok := p["init_image_ref"]; ok {

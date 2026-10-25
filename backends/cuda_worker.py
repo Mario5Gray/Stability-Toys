@@ -1183,6 +1183,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
                 "cfg": float(req.guidance_scale),
                 "negative_prompt": getattr(req, "negative_prompt", None),
                 "scheduler_id": scheduler_id,
+                **({"denoise_strength": pipe_kwargs["strength"]} if init_image is not None else {}),
             }))
             if bindings:
                 pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))
@@ -1576,6 +1577,7 @@ class DiffusersSDXLCudaWorker(CudaWorkerBase):
                 "cfg": float(req.guidance_scale),
                 "negative_prompt": getattr(req, "negative_prompt", None),
                 "scheduler_id": scheduler_id,
+                **({"denoise_strength": pipe_kwargs["strength"]} if init_image is not None else {}),
             }))
             if bindings:
                 pnginfo.add_text("controlnet", json.dumps(self._controlnet_metadata(bindings)))

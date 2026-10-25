@@ -18,6 +18,8 @@ _STUBS = [
     "diffusers.schedulers",
     "diffusers.schedulers.scheduling_lcm",
     "diffusers.pipelines",
+    "diffusers.pipelines.controlnet",
+    "diffusers.pipelines.controlnet.pipeline_controlnet_img2img",
     "diffusers.pipelines.stable_diffusion",
     "diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion",
     "diffusers.pipelines.stable_diffusion_xl",
@@ -82,6 +84,7 @@ sys.modules["diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_x
 sys.modules["diffusers"].StableDiffusionControlNetPipeline = _FakeStableDiffusionControlNetPipeline
 sys.modules["diffusers"].StableDiffusionXLControlNetPipeline = _FakeStableDiffusionXLControlNetPipeline
 sys.modules["diffusers"].StableDiffusionControlNetImg2ImgPipeline = _FakeStableDiffusionControlNetImg2ImgPipeline
+sys.modules["diffusers.pipelines.controlnet.pipeline_controlnet_img2img"].StableDiffusionControlNetImg2ImgPipeline = _FakeStableDiffusionControlNetImg2ImgPipeline
 sys.modules["diffusers"].ControlNetModel = MagicMock()
 sys.modules["backends.styles"].STYLE_REGISTRY = {}
 

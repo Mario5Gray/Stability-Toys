@@ -482,9 +482,13 @@ def test_mps_worker_reads_the_request_denoise_strength(
     fake_pipeline, recording_generator, released_cache
 ):
     worker = _build_worker(fake_pipeline)
-    worker.run_job(_job(req=_request(denoise_strength=0.4), init_image=_init_png()))
+    png_bytes, _ = worker.run_job(
+        _job(req=_request(denoise_strength=0.4), init_image=_init_png())
+    )
 
     assert fake_pipeline.img2img_pipes[0].calls[0]["strength"] == 0.4
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        assert json.loads(image.info["lcm"])["denoise_strength"] == 0.4
 
 
 def test_mps_worker_builds_one_img2img_pipe_for_two_jobs(
@@ -557,7 +561,9 @@ def test_mps_worker_combined_keeps_init_and_control_images_distinct(
     assert call["control_guidance_end"] == 0.8
     assert call["generator"] is recording_generator.instances[-1]
     assert "width" not in call and "height" not in call
-    entries = json.loads(Image.open(io.BytesIO(png)).text["controlnet"])
+    with Image.open(io.BytesIO(png)) as image:
+        entries = json.loads(image.text["controlnet"])
+        assert json.loads(image.text["lcm"])["denoise_strength"] == call["strength"]
     assert entries[0]["generation"]["model_id"] == "sd15-canny"
     assert fake_pipeline.controlnet_cache.acquired == ["sd15-canny"]
     assert fake_pipeline.controlnet_cache.released == ["sd15-canny"]
