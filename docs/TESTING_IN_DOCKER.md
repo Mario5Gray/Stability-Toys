@@ -14,6 +14,12 @@ Each cohort runs in a fresh Python interpreter.
 Never fork an interpreter that already imported Torch.
 Never repair contamination by removing real Torch from `sys.modules`.
 
+A stub file is its own cohort. Each stub file runs in a fresh interpreter.
+Stub files install conflicting objects into `sys.modules` at import time.
+One stub file may need real Torch. Another may install a MagicMock Torch.
+Shared `sys.modules` makes the result depend on import order (STABL-rhjokuwd).
+Do not group stub files in one interpreter.
+
 Use runner for directories or mixed file selections:
 
 ```bash

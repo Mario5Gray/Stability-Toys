@@ -14,7 +14,7 @@ docs/TESTING_IN_DOCKER.md -> conf/modes-test.yml sig:5e8a782a2194a72f
 docs/TESTING_IN_DOCKER.md -> docker-compose.test.yml sig:eeb56433132c6b03
 docs/TESTING_IN_DOCKER.md -> requirements-test.txt sig:3753706ee6445711
 docs/TESTING_IN_DOCKER.md -> tests/conftest.py sig:b6aba2380d06bf2e
-docs/TESTING_IN_DOCKER.md -> tests/isolation.py sig:94ed414b0b73bc00
+docs/TESTING_IN_DOCKER.md -> tests/isolation.py sig:f9085349f1971bf0
 docs/TESTING_IN_DOCKER.md -> tests/python_env.py sig:5c440c4d5f43437d
 docs/TESTING_IN_DOCKER.md -> tests/run.py sig:06fd8c6db0d1ec6a
 docs/WORKER_SELECTION.md -> backends/governor.py sig:658758c666641b0f
