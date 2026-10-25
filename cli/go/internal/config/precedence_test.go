@@ -23,6 +23,25 @@ func TestPrecedenceFlagsBeatBakedBeatConfig(t *testing.T) {
 	}
 }
 
+func TestDenoiseStrengthPrecedence(t *testing.T) {
+	cfg := &Config{}
+	cfg.Defaults.Generation.DenoiseStrength = 0.6
+	if got := ResolveParams(cfg, nil, Flags{})["denoise_strength"]; got != 0.6 {
+		t.Fatalf("config strength = %v", got)
+	}
+	baseline := map[string]any{"denoise_strength": 0.4}
+	if got := ResolveParamsWithBaseline(cfg, nil, baseline, Flags{})["denoise_strength"]; got != 0.4 {
+		t.Fatalf("baseline strength = %v", got)
+	}
+	strength := 0.25
+	if got := ResolveParamsWithBaseline(cfg, nil, baseline, Flags{DenoiseStrength: &strength})["denoise_strength"]; got != 0.25 {
+		t.Fatalf("flag strength = %v", got)
+	}
+	if _, ok := ResolveParams(&Config{}, nil, Flags{})["denoise_strength"]; ok {
+		t.Fatal("unset strength must be omitted")
+	}
+}
+
 // TestPrecedenceSeedAndSRFlags pins the explicit-flag branches the spine relies
 // on: a numeric seed flag is kept verbatim, and --sr maps to superres + clamped
 // magnitude.

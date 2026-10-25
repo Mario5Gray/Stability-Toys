@@ -10,13 +10,13 @@ import (
 func TestLoadReadsGenerationDefaults(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "config.json")
-	os.WriteFile(p, []byte(`{"config":{"defaults":{"generation":{"mode":"m","cfg":2.5,"steps":10,"genres":"512x512","seed":"random"},"output_format":"png","output_directory":"/tmp/out"}}}`), 0o644)
+	os.WriteFile(p, []byte(`{"config":{"defaults":{"generation":{"mode":"m","cfg":2.5,"steps":10,"genres":"512x512","seed":"random","denoise_strength":0.6},"output_format":"png","output_directory":"/tmp/out"}}}`), 0o644)
 
 	cfg, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Defaults.Generation.Mode != "m" || cfg.Defaults.Generation.Steps != 10 || cfg.Defaults.OutputDirectory != "/tmp/out" {
+	if cfg.Defaults.Generation.Mode != "m" || cfg.Defaults.Generation.Steps != 10 || cfg.Defaults.Generation.DenoiseStrength != 0.6 || cfg.Defaults.OutputDirectory != "/tmp/out" {
 		t.Fatalf("got %+v", cfg.Defaults)
 	}
 }

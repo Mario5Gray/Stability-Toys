@@ -3,16 +3,17 @@ package config
 // Flags carries the explicit CLI generation values. Pointers distinguish "unset"
 // (nil — fall through to baked/config) from a deliberate zero value.
 type Flags struct {
-	Prompt    string
-	Negative  *string
-	Genres    *string
-	Steps     *int
-	SkipStep  *int
-	Cfg       *float64
-	Seed      *string // "random" or integer text
-	Scheduler *string
-	Mode      *string
-	SRLevel   *int
+	Prompt          string
+	Negative        *string
+	Genres          *string
+	Steps           *int
+	SkipStep        *int
+	Cfg             *float64
+	DenoiseStrength *float64
+	Seed            *string // "random" or integer text
+	Scheduler       *string
+	Mode            *string
+	SRLevel         *int
 }
 
 // ResolveParams layers generation parameters by precedence — config defaults <
@@ -39,6 +40,9 @@ func resolveDefaults(cfg *Config) map[string]any {
 	}
 	if g.SkipStep != 0 {
 		p["skip_step"] = g.SkipStep
+	}
+	if g.DenoiseStrength != 0 {
+		p["denoise_strength"] = g.DenoiseStrength
 	}
 	applySeed(p, g.Seed)
 	setStr(p, "mode", g.Mode)
@@ -78,6 +82,9 @@ func applyExplicitFlags(p map[string]any, f Flags) {
 	}
 	if f.Cfg != nil {
 		p["guidance_scale"] = *f.Cfg
+	}
+	if f.DenoiseStrength != nil {
+		p["denoise_strength"] = *f.DenoiseStrength
 	}
 	if f.Negative != nil {
 		p["negative_prompt"] = *f.Negative
