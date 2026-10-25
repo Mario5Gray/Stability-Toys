@@ -25,12 +25,15 @@ MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
         ExecutionCapabilities(True, True, True),
         ControlNetScope(allowed_control_types=("canny",), max_attachments=1),
     ),
-    # HunyuanDiT text-to-image and img2img (STABL-appbjuws, STABL-sulxavyo).
-    # ControlNet and combined generation are dependent slices and stay
-    # unbound here. The default controlnet_scope adds no narrowing because no
-    # ControlNet operation is admitted for this family on MPS.
+    # HunyuanDiT text-to-image, img2img, and one Canny ControlNet attachment
+    # (STABL-appbjuws, STABL-sulxavyo, STABL-xvnjfuae). The combined
+    # img2img+ControlNet operation stays unbound on MPS: the third flag is false,
+    # so admission rejects it. The scope narrows ControlNet to one Canny
+    # attachment, while conf/modes.yml permits canny, depth, pose, and one
+    # attachment. Admission enforces the scope, and the worker repeats it.
     "hunyuandit": FamilyPlatformBinding(
         "backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker",
-        ExecutionCapabilities(True, False, False),
+        ExecutionCapabilities(True, True, False),
+        ControlNetScope(allowed_control_types=("canny",), max_attachments=1),
     ),
 }

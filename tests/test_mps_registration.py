@@ -73,9 +73,14 @@ def test_mps_provider_binds_known_families_and_shares_runtime(mps_backend):
     )
     hunyuan = provider.family_binding("hunyuandit")
     assert hunyuan.worker_ref == "backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker"
-    # Text-to-image and img2img. ControlNet and combined are dependent slices.
-    assert hunyuan.execution_capabilities == ExecutionCapabilities(True, False, False)
-    assert hunyuan.controlnet_scope == ControlNetScope()
+    # Text-to-image, img2img, and plain Canny ControlNet. The combined
+    # img2img+ControlNet operation stays shut on MPS.
+    assert hunyuan.execution_capabilities == ExecutionCapabilities(True, True, False)
+    # The platform ControlNet scope narrows the family to one Canny attachment,
+    # while conf/modes.yml permits canny, depth, pose, and one attachment.
+    assert hunyuan.controlnet_scope == ControlNetScope(
+        allowed_control_types=("canny",), max_attachments=1
+    )
     assert isinstance(provider.create_generation_runtime(pool=Mock()), PoolGenerationRuntime)
     assert provider.capabilities().supports_superres is False
     assert provider.create_model_registry().get_vram_stats()["backend"] == "mps"

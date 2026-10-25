@@ -251,7 +251,7 @@ def fake_img2img(monkeypatch):
 
 
 def test_hunyuan_mps_worker_runs_img2img_through_the_shared_loop(
-    fake_pipeline, fake_img2img, recording_generator, released_cache
+    fake_pipeline, fake_img2img, recording_generator, released_cache, mps_provider
 ):
     worker = _build_worker()
     job = _job(init_image=_init_png(), req=_request(denoise_strength=0.6))
@@ -270,22 +270,183 @@ def test_hunyuan_mps_worker_runs_img2img_through_the_shared_loop(
     assert metadata["seed"] == 11
 
 
-def test_hunyuan_mps_worker_rejects_controlnet_before_the_pipe_call(
-    fake_pipeline, recording_generator, released_cache
-):
-    worker = _build_worker()
-    binding = SimpleNamespace(
+class _FakeHunyuanControlNetPipe:
+    """Stand-in for HunyuanDiTControlNetPipeline.from_pipe()."""
+
+    def __init__(self, image=None, *, base_pipe=None, controlnet=None, torch_dtype=None):
+        self.base_pipe = base_pipe
+        self.controlnet = controlnet
+        self.torch_dtype = torch_dtype
+        self.calls = []
+        self._image = image
+
+    def __call__(self, *, callback_on_step_end=None, **kwargs):
+        self.calls.append({"callback_on_step_end": callback_on_step_end, **kwargs})
+        return SimpleNamespace(images=[self._image])
+
+
+class _FakeControlNetCache:
+    """Records pins so a test can prove the release happens."""
+
+    def __init__(self):
+        self.acquired = []
+        self.released = []
+
+    def acquire(self, model_id, model_path, *, loader):
+        self.acquired.append(model_id)
+        return SimpleNamespace(model_id=model_id, model_path=model_path)
+
+    def release(self, model_id):
+        self.released.append(model_id)
+
+
+def _control_png() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (1024, 1024), "white").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _canny_binding(**overrides):
+    fields = dict(
         attachment_id="cn_1",
         control_type="canny",
         model_id="hunyuandit-canny",
         model_path="/node/models/controlnets/HunyuanDiT-v1.1-ControlNet-Canny",
-        control_image_bytes=b"not-an-image",
+        control_image_bytes=_control_png(),
         strength=1.0,
         start_percent=0.0,
         end_percent=1.0,
     )
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
 
-    with pytest.raises(NotImplementedError, match="does not support the controlnet operation"):
+
+@pytest.fixture
+def mps_provider(monkeypatch):
+    """Resolve the MPS binding table without setting BACKEND.
+
+    The worker reads its cell through `get_backend_provider()`, and this file
+    sets no BACKEND, so the registry module is patched to the MPS provider.
+    """
+    import backends.platform_registry as platform_registry
+    from backends.platforms.mps import MPSProvider
+
+    monkeypatch.setattr(platform_registry, "get_backend_provider", MPSProvider)
+
+
+@pytest.fixture
+def canny_controlnet(monkeypatch, fake_pipeline, mps_provider):
+    """Patch the ControlNet pipeline class and its cache."""
+    import backends.cuda_worker as cuda_worker
+    import backends.controlnet_cache as controlnet_cache
+
+    built_pipes = []
+
+    class _ControlNetPipeClass:
+        @staticmethod
+        def from_pipe(base_pipe, *, controlnet, torch_dtype):
+            built = _FakeHunyuanControlNetPipe(
+                image=Image.new("RGB", (1024, 1024), "green"),
+                base_pipe=base_pipe,
+                controlnet=controlnet,
+                torch_dtype=torch_dtype,
+            )
+            built_pipes.append(built)
+            return built
+
+    cache = _FakeControlNetCache()
+    monkeypatch.setattr(controlnet_cache, "get_controlnet_cache", lambda: cache)
+    monkeypatch.setattr(
+        cuda_worker, "_hunyuandit_controlnet_pipeline_cls", lambda: _ControlNetPipeClass
+    )
+    return SimpleNamespace(pipes=built_pipes, cache=cache)
+
+
+def test_hunyuan_mps_worker_renders_text_to_image_with_one_canny_binding(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    worker = _build_worker()
+
+    png_bytes, seed = worker.run_job(_job(controlnet_bindings=[_canny_binding()]))
+
+    assert seed == 11
+    # The control-map path composes a ControlNet pipeline; it does not call the
+    # base pipe directly and it does not enter the repo-owned img2img loop.
+    assert fake_pipeline.pipe.calls == []
+    assert len(canny_controlnet.pipes) == 1
+    pipe = canny_controlnet.pipes[0]
+    assert pipe.base_pipe is fake_pipeline.pipe
+    assert pipe.controlnet.model_id == "hunyuandit-canny"
+    # torch_dtype=None skips the fp32 recast that would OOM (STABL-kfekehhc).
+    assert pipe.torch_dtype is None
+    call = pipe.calls[0]
+    assert isinstance(call["control_image"], Image.Image)
+    assert call["control_image"].size == (1024, 1024)
+    assert call["controlnet_conditioning_scale"] == 1.0
+    # HunyuanDiTControlNetPipeline has no per-step guidance window.
+    assert "control_guidance_start" not in call
+    assert "control_guidance_end" not in call
+    assert call["num_inference_steps"] == 4
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        assert image.format == "PNG"
+        controlnet_chunk = json.loads(image.info["controlnet"])
+    assert controlnet_chunk[0]["control_type"] == "canny"
+    assert controlnet_chunk[0]["generation"]["model_id"] == "hunyuandit-canny"
+    assert canny_controlnet.cache.acquired == ["hunyuandit-canny"]
+    assert canny_controlnet.cache.released == ["hunyuandit-canny"]
+
+
+def test_hunyuan_mps_worker_rejects_combined_img2img_and_canny_before_the_pipe_call(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    worker = _build_worker()
+
+    with pytest.raises(
+        ValueError, match="does not support the img2img\\+controlnet operation"
+    ):
+        worker.run_job(
+            _job(init_image=_init_png(), controlnet_bindings=[_canny_binding()])
+        )
+
+    assert canny_controlnet.cache.acquired == []
+    assert canny_controlnet.pipes == []
+    assert fake_pipeline.pipe.calls == []
+
+
+def test_hunyuan_mps_worker_rejects_a_second_canny_attachment(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    worker = _build_worker()
+    bindings = [_canny_binding(), _canny_binding(attachment_id="cn_2")]
+
+    with pytest.raises(ValueError, match="admits at most 1 controlnet attachment"):
+        worker.run_job(_job(controlnet_bindings=bindings))
+
+    assert canny_controlnet.cache.acquired == []
+
+
+def test_hunyuan_mps_worker_rejects_a_depth_control_type(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    worker = _build_worker()
+    binding = _canny_binding(control_type="depth", model_id="hunyuandit-depth")
+
+    with pytest.raises(
+        ValueError, match="does not support control_type 'depth'; allowed: canny"
+    ):
         worker.run_job(_job(controlnet_bindings=[binding]))
 
-    assert fake_pipeline.pipe.calls == []
+    assert canny_controlnet.cache.acquired == []
+
+
+def test_hunyuan_mps_worker_rejects_control_timing_windows(
+    fake_pipeline, canny_controlnet, recording_generator, released_cache
+):
+    worker = _build_worker()
+    binding = _canny_binding(start_percent=0.2, end_percent=0.8)
+
+    with pytest.raises(ValueError, match="does not support control timing windows"):
+        worker.run_job(_job(controlnet_bindings=[binding]))
+
+    assert canny_controlnet.cache.acquired == []
+    assert canny_controlnet.pipes == []

@@ -126,42 +126,14 @@ class DiffusersMpsWorker(CudaWorkerBase):
         Admission runs first on every server path. This check also protects a
         worker called directly or through a future dispatch path.
         """
-        from backends.platform_registry import get_backend_provider
+        from backends.platforms.operation_guard import check_platform_operation
 
-        cell = get_backend_provider().family_binding(self.family_profile.family_id)
-        caps = cell.execution_capabilities
-        family_id = self.family_profile.family_id
-        if has_init_image and bindings:
-            if not caps.supports_img2img_and_controlnet:
-                raise ValueError(
-                    f"family '{family_id}' does not support the img2img+controlnet operation"
-                )
-        elif bindings:
-            if not caps.supports_controlnet:
-                raise NotImplementedError(
-                    f"family '{family_id}' does not support the controlnet operation"
-                )
-        elif has_init_image and not caps.supports_img2img:
-            raise ValueError(f"family '{family_id}' does not support the img2img operation")
-        if not bindings:
-            return
-        scope = getattr(cell, "controlnet_scope", None)
-        if scope is None:
-            return
-        if scope.max_attachments is not None and len(bindings) > scope.max_attachments:
-            raise ValueError(
-                f"MPS SD1.5 admits at most {scope.max_attachments} controlnet "
-                f"attachment(s), got {len(bindings)}"
-            )
-        if scope.allowed_control_types is None:
-            return
-        allowed = ", ".join(scope.allowed_control_types)
-        for binding in bindings:
-            if binding.control_type not in scope.allowed_control_types:
-                raise ValueError(
-                    f"MPS SD1.5 does not support control_type "
-                    f"'{binding.control_type}'; allowed: {allowed}"
-                )
+        check_platform_operation(
+            family_id=self.family_profile.family_id,
+            has_init_image=has_init_image,
+            bindings=bindings,
+            label="MPS SD1.5",
+        )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
         # The helper is called unqualified, so a test patches it on this module.
