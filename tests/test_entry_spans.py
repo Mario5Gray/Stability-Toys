@@ -13,7 +13,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from server import metrics as m
-from server import ws_routes
 from server.metrics_middleware import MetricsMiddleware
 from server.ws_routes import ws_router
 

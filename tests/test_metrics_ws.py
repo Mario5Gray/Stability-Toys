@@ -163,8 +163,8 @@ def test_an_unknown_type_collapses_to_a_fixed_label():
 
 def test_an_unhashable_type_does_not_raise():
     """`raw in HANDLERS` hashes its argument, and the client controls the value.
-    Note this guard does NOT fix STABL-gzfzzsdq — HANDLERS.get() one line later
-    has the same hazard and still drops the connection."""
+    The message loop looks up handlers only for strings, so the unhashable value
+    gets the Unknown type error reply without dropping the connection."""
     assert _inbound_type({"a": 1}) == "unknown"
     assert _inbound_type(["x"]) == "unknown"
 
