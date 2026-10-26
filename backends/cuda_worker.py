@@ -191,6 +191,16 @@ def _hunyuan_debug_enabled() -> bool:
     return _bool_env("HUNYUAN_DEBUG_DUMP", "0")
 
 
+def _hunyuan_debug_tag() -> str:
+    """Log tag for the active backend.
+
+    The HunyuanDiT dump helpers are shared by the CUDA and MPS workers, so a
+    literal tag mislabels one of them (STABL-kkzxsxuu).
+    """
+    backend = os.environ.get("BACKEND", "").strip().lower()
+    return "[hunyuandit-mps]" if backend == "mps" else "[hunyuandit-cuda]"
+
+
 def _hunyuan_debug_dir(job_id: str) -> Path | None:
     """Per-job dump directory, or None when diagnostics are off.
 
@@ -204,7 +214,7 @@ def _hunyuan_debug_dir(job_id: str) -> Path | None:
         target.mkdir(parents=True, exist_ok=True)
         return target
     except Exception as e:
-        logger.warning("[hunyuandit-cuda] debug dump dir failed: %r", e)
+        logger.warning("%s debug dump dir failed: %r", _hunyuan_debug_tag(), e)
         return None
 
 
@@ -253,7 +263,7 @@ def _hunyuan_debug_write_json(target: Path | None, name: str, payload: Any) -> N
     try:
         (target / name).write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
     except Exception as e:
-        logger.warning("[hunyuandit-cuda] debug dump %s failed: %r", name, e)
+        logger.warning("%s debug dump %s failed: %r", _hunyuan_debug_tag(), name, e)
 
 
 def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> None:
@@ -262,7 +272,7 @@ def _hunyuan_debug_write_image(target: Path | None, name: str, image: Any) -> No
     try:
         image.save(target / name, format="PNG")
     except Exception as e:
-        logger.warning("[hunyuandit-cuda] debug dump %s failed: %r", name, e)
+        logger.warning("%s debug dump %s failed: %r", _hunyuan_debug_tag(), name, e)
 
 
 def _decode_control_image(data: bytes, size: tuple[int, int]) -> Image.Image:

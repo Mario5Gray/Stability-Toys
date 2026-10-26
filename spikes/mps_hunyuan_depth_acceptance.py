@@ -5,7 +5,8 @@ attachment to the MPS HunyuanDiT worker, that the repository Depth preprocessor
 builds the control map from a source image, and that the control map steers the
 render.
 
-SIX signals, all required. A valid PNG alone proves nothing: the server returns
+SEVEN signals, all required, plus one check per platform refusal that the
+active cell still makes. A valid PNG alone proves nothing: the server returns
 a valid PNG for text-to-image too, so a dropped control map would still pass a
 format check.
 
@@ -25,9 +26,11 @@ format check.
                     corrupt. This is where float16 on MPS is settled.
   7. chunk        - the generation PNG carries the `controlnet` text chunk with
                     the control type and the model id.
-  8. scope        - Pose is refused, and two attachments are refused, EACH with
-                    its own platform message, while conf/modes.yml permits
-                    canny, depth, pose and one attachment.
+  8. scope        - each control the active cell still excludes is submitted
+                    and must fail with its exact platform message. A control
+                    the cell admits is recorded `not_applicable` and is never
+                    counted as a pass. conf/modes.yml permits canny, depth,
+                    pose and one attachment.
 
 The map-format prerequisite is settled before this script runs. The Depth
 checkpoint declares `conditioning_channels: 3`. The preprocessor emits a
