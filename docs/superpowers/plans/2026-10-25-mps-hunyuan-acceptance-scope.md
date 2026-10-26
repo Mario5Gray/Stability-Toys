@@ -37,8 +37,8 @@
 
 **Files:** Create `spikes/mps_hunyuan_scope.py`; create `tests/test_mps_hunyuan_acceptance_clients.py`.
 
-1. Write failing tests for `validate_status(status, mode)`, `evaluate(scope, capability, control)`, and `expected_message(scope, control)`. Use status fixtures with `backend="mps"`, `current_mode="HunyuanDiT"`, `capabilities.controlnet_scope={"allowed_control_types":["canny","depth","pose"],"max_attachments":1}`, and `supports_img2img_and_controlnet=False`.
-2. Cover `current_mode="lcm-general"`, a missing scope, missing combined flag, wrong backend, and malformed scope with explicit errors. In particular, `lcm-general` must fail before any control can become `not_applicable`. A present `allowed_control_types: null` or `max_attachments: null` means no platform narrowing and is valid.
+1. Write failing tests for `validate_status(status, mode)`, `evaluate(scope, capability, control)`, and `expected_message(scope, control, family)`. Use status fixtures with `backend="mps"`, `current_mode="HunyuanDiT"`, `capabilities.controlnet_scope={"allowed_control_types":["canny","depth","pose"],"max_attachments":1}`, and `supports_img2img_and_controlnet=False`. Define the client-side mode mapping `FAMILY_BY_MODE = {"HunyuanDiT": "hunyuandit"}`; pass `FAMILY_BY_MODE[MODE]` as `family`. The status payload has no family id.
+2. Cover `current_mode="lcm-general"`, an unknown client mode mapping, a missing scope, missing combined flag, wrong backend, and malformed scope with explicit errors. In particular, `lcm-general` must fail before any control can become `not_applicable`. A present `allowed_control_types: null` or `max_attachments: null` means no platform narrowing and is valid.
 3. Cover these decisions:
 
    | Control | Canny-only, max 1, combined false | Canny/Depth/Pose, max 1, combined false | Canny/Depth/Pose, max 2, combined true |
@@ -49,10 +49,10 @@
    | `combined_pose` | `applies` | `applies` | `not_applicable` |
 
 4. Implement `evaluate(scope, capability, control) -> Literal["applies", "not_applicable"]`. `depth` and `pose` read ordered `allowed_control_types`; `two_attachments` reads `max_attachments`; `combined_pose` reads `supports_img2img_and_controlnet`. Do not infer combined capability from ControlNet scope. Reject unknown controls and missing fields.
-5. Implement `expected_message` using the live ordered `allowed_control_types` for `allowed: ...`, the live `max_attachments` for the attachment refusal, and the existing family capability refusal for `combined_pose`. Do not keep a copied `allowed:` literal in a client.
+5. Implement `expected_message(scope, control, family)` using the live ordered `allowed_control_types` for `allowed: ...`, the live `max_attachments` for the attachment refusal, and the supplied `family` in all three message shapes, including the combined-operation capability refusal. Test the full expected text for each shape with `family="hunyuandit"`; a changed family argument must change the family text. Do not keep a copied `allowed:` literal in a client.
 6. Run `python -m tests.run tests/test_mps_hunyuan_acceptance_clients.py -- -q --no-cov`. Expected: the new tests fail before implementation and pass afterward. Commit the helper and tests as one focused change, with `STABL-dvozpehl` in the message.
 
-**Decision contract:** The helper has no server imports. It accepts an already validated status capability payload and returns only the two strings above. Callers decide whether to submit a control request. A platform refusal counts only when the WebSocket terminal type is `job:error` and its error text equals the generated expected message. A timeout, mode-policy refusal, or generic `error` frame fails the check.
+**Decision contract:** The helper has no server imports. `evaluate` accepts an already validated status capability payload and returns only the two strings above. `expected_message` takes the family from the client's `MODE` mapping, never from `/api/models/status`. Callers decide whether to submit a control request. A platform refusal counts only when the WebSocket terminal type is `job:error` and its error text equals the generated expected message. A timeout, mode-policy refusal, or generic `error` frame fails the check.
 
 ## Task 2: Repair fixtures before making refusals conditional
 
@@ -71,7 +71,7 @@
 
 1. Add a focused orchestration test with fake `render` and `get_json` calls. The first successful HunyuanDiT render must precede the decisive status read. A startup `lcm-general` status must cause failure. An active HunyuanDiT status must be recorded in the JSON report.
 2. Move the status read from the start of each client to immediately after its first successful HunyuanDiT render. Use `validate_status` before reading the scope or combined flag. If the read fails or validation fails, print the report with the failure and exit nonzero.
-3. For each negative control, call `evaluate`. If `not_applicable`, do not submit a job; record `{ "decision": "not_applicable", "reason": "active platform cell does not exclude this control" }`. If `applies`, submit the job and require the exact generated platform error. Record the active status, expected text, terminal type, actual text, and `refused_by_the_platform` boolean. Keep a check only for a submitted refusal; calculate overall success from required positive checks and all submitted refusal checks.
+3. For each negative control, call `evaluate`. If `not_applicable`, do not submit a job; record `{ "decision": "not_applicable", "reason": "active platform cell does not exclude this control" }`. If `applies`, submit the job and require the exact platform error from `expected_message(scope, control, FAMILY_BY_MODE[MODE])`. Record the active status, expected text, terminal type, actual text, and `refused_by_the_platform` boolean. Keep a check only for a submitted refusal; calculate overall success from required positive checks and all submitted refusal checks.
 4. Add tests for Canny on current three-type scope, Depth on current three-type scope, Pose on current `max_attachments=1` and combined=false, and a simulated widened future cell. Verify `not_applicable` remains visible and is not counted as a pass. Verify a mode-policy message, wrong platform message, and timeout each fail an applicable control.
 5. Run `python -m tests.run tests/test_mps_hunyuan_acceptance_clients.py -- -q --no-cov`. Expected: all focused tests pass. Commit the three clients and focused tests with `STABL-dvozpehl`.
 
