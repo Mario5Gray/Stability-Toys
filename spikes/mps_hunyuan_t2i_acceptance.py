@@ -11,7 +11,9 @@ Start the server first:
 
 Then:
 
-    python spikes/mps_hunyuan_t2i_acceptance.py --out <dir>
+    python spikes/mps_hunyuan_t2i_acceptance.py --out <prefix>
+
+`--out` is a filename prefix. `--out /tmp/run` writes `/tmp/run.png`.
 """
 
 from __future__ import annotations

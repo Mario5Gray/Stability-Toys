@@ -472,3 +472,22 @@ def test_controlnet_model_cls_hook_imports_diffusers_controlnet_model():
     with patch.object(cw, "_import_attr", return_value="CN_CLS") as imp:
         assert worker._controlnet_model_cls() == "CN_CLS"
     imp.assert_called_once_with("diffusers", "ControlNetModel")
+
+
+# ---------------------------------------------------------------------------
+# HunyuanDiT debug dump tag (STABL-kkzxsxuu)
+# ---------------------------------------------------------------------------
+
+
+def test_the_hunyuan_debug_tag_follows_the_selected_backend(monkeypatch):
+    """The dump helpers are shared, so a hardcoded tag mislabels an MPS run."""
+    import backends.cuda_worker as cw
+
+    monkeypatch.setenv("BACKEND", "mps")
+    assert cw._hunyuan_debug_tag() == "[hunyuandit-mps]"
+
+    monkeypatch.setenv("BACKEND", "CUDA")
+    assert cw._hunyuan_debug_tag() == "[hunyuandit-cuda]"
+
+    monkeypatch.delenv("BACKEND", raising=False)
+    assert cw._hunyuan_debug_tag() == "[hunyuandit-cuda]"

@@ -581,3 +581,35 @@ def test_a_client_reports_a_non_object_status_payload(
     assert rc == 1
     assert report["models_status"]["status_error"] == "status payload is not an object"
     assert report["models_status"]["raw"] == ["not", "an", "object"]
+
+
+# --- required input files (STABL-vsypokqy) ---
+
+
+@pytest.mark.parametrize(
+    ("flag", "report_key"),
+    [("--source", "source"), ("--map", "local_map")],
+    ids=["source", "map"],
+)
+def test_the_pose_client_reports_a_missing_input_before_rendering(
+    flag, report_key, monkeypatch, tmp_path, capsys
+):
+    present = tmp_path / "present.png"
+    present.write_bytes(_noise_png())
+    missing = tmp_path / f"missing{flag}.png"
+    paths = {"--source": str(present), "--map": str(present)}
+    paths[flag] = str(missing)
+
+    rc, calls = _run_client_main(
+        monkeypatch,
+        pose_client,
+        _status(),
+        tmp_path / "out",
+        ("--source", paths["--source"], "--map", paths["--map"]),
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 1
+    assert calls == [], "no network call may run before the inputs are checked"
+    assert "error" in report[report_key]
+    assert str(missing) in report[report_key]["path"]

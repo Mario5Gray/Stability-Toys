@@ -139,7 +139,11 @@ def test_mps_factory_builds_the_bound_sd15_worker(mps_backend, monkeypatch):
     }
 
 
-def test_mps_sd15_worker_ref_resolves_in_a_fresh_interpreter():
+WORKER_REF_FAMILIES = ("sd15", "hunyuandit")
+
+
+@pytest.mark.parametrize("family_id", WORKER_REF_FAMILIES)
+def test_mps_worker_ref_resolves_in_a_fresh_interpreter(family_id):
     """The bound dotted ref must import and subclass the shared worker base.
 
     This runs in a subprocess because importing the worker pulls in Torch, which
@@ -153,7 +157,7 @@ def test_mps_sd15_worker_ref_resolves_in_a_fresh_interpreter():
             "from backends.worker_factory import _resolve_worker_class; "
             "from backends.cuda_worker import CudaWorkerBase; "
             "from backends.platforms.mps_policy import MPS_TORCH_POLICY; "
-            "cls = _resolve_worker_class(MPS_FAMILY_BINDINGS['sd15'].worker_ref); "
+            f"cls = _resolve_worker_class(MPS_FAMILY_BINDINGS['{family_id}'].worker_ref); "
             "assert issubclass(cls, CudaWorkerBase), cls; "
             "assert cls.execution_policy is MPS_TORCH_POLICY",
         ],
@@ -161,6 +165,14 @@ def test_mps_sd15_worker_ref_resolves_in_a_fresh_interpreter():
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_the_worker_ref_cases_cover_every_mps_family():
+    """Guards the coverage. A newly bound family that is not listed here would
+    pass the suite while its dotted ref is never resolved (STABL-nalgwbil)."""
+    from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
+
+    assert set(WORKER_REF_FAMILIES) == set(MPS_FAMILY_BINDINGS)
 
 
 def test_mps_provider_import_does_not_import_cuda_worker():
@@ -414,8 +426,10 @@ def test_mps_reports_generation_after_live_acceptance(mps_backend):
     """The flag feeds `/api/models/status` only. The real generation gate is the
     `sd15` cell. The flag turned true as the LAST step of STABL-hvvogszy, after
     a live MPS render in both isolation modes passed the validity checks in
-    docs/MPS_BACKEND.md. MPS binds one family. Its cell admits text-to-image,
-    img2img, one Canny ControlNet, and the combined operation.
+    docs/MPS_BACKEND.md. MPS binds two families. The `sd15` cell admits
+    text-to-image, img2img, one Canny ControlNet, and the combined operation.
+    The `hunyuandit` cell admits text-to-image, img2img, and one Canny, Depth
+    or Pose ControlNet; its combined operation stays refused.
     """
     from backends.platform_registry import get_backend_provider
 

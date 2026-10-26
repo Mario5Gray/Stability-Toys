@@ -4,14 +4,17 @@ Proves on the real M1 Max that an init image reaches the MPS HunyuanDiT worker,
 that the repo-owned `backends/hunyuandit_img2img.py` loop renders from it, and
 that `denoise_strength` controls how much of the init image survives.
 
-FOUR signals, all required:
+FIVE signals, all required:
 
-  1. admitted       - both img2img jobs return `job:complete`.
+  1. admitted       - all three jobs return `job:complete`, on backend `mps`,
+                      at the requested seed.
   2. differs        - each img2img render differs from a text-to-image render
                       at the same prompt, size, steps, and seed.
-  3. strength       - the low-strength render is closer to the init image than
+  3. valid          - each render is a 1024x1024 PNG, not black, not flat, not
+                      corrupt. This is where float16 on MPS is settled.
+  4. strength       - the low-strength render is closer to the init image than
                       the high-strength render.
-  4. metadata       - the PNG `lcm` chunk records the requested strength and
+  5. metadata       - the PNG `lcm` chunk records the requested strength and
                       seed.
 
 Start the server first:
