@@ -512,3 +512,51 @@ def test_admit_generation_operation_leaves_cuda_depth_admitted():
         controlnets=(_attachment("depth"),), scope=None, backend_id="cuda"
     )
     assert admitted == "controlnet"
+
+
+# --- HunyuanDiT plain ControlNet timing window (STABL-iwmhonnn) -------------
+# The combined path has its own check above. The plain ControlNet path had
+# none: MPS refused the window and CUDA dropped it silently.
+
+
+def _hunyuan_plain_controlnet_admission(attachment):
+    from server.controlnet_execution import admit_generation_operation
+    from tests.snapshot_test_helpers import make_active_snapshot, make_family_provider
+
+    mode = type("Mode", (), {"name": "hunyuandit-mode"})()
+    snapshot = make_active_snapshot(mode, family_id="hunyuandit")
+    provider = make_family_provider(family_id="hunyuandit", supports_combined=True)
+    req = type("Req", (), {"controlnets": [attachment]})()
+    return admit_generation_operation(
+        req, snapshot=snapshot, provider=provider, has_init_image=False
+    )
+
+
+def test_hunyuan_plain_controlnet_default_window_admits():
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn", control_type="canny", map_asset_ref="map"
+    )
+
+    assert _hunyuan_plain_controlnet_admission(attachment) == "controlnet"
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [(0.1, 1.0), (0.0, 0.9), (0.2, 0.8)],
+    ids=["start", "end", "both"],
+)
+def test_hunyuan_plain_controlnet_rejects_a_nondefault_window(start, end):
+    from server.controlnet_models import ControlNetAttachment
+
+    attachment = ControlNetAttachment(
+        attachment_id="cn",
+        control_type="canny",
+        map_asset_ref="map",
+        start_percent=start,
+        end_percent=end,
+    )
+
+    with pytest.raises(ValueError, match="control timing window"):
+        _hunyuan_plain_controlnet_admission(attachment)

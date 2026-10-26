@@ -1816,10 +1816,27 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
     # ---------------------------
     # Job execution
     # ---------------------------
+    def _check_controlnet_timing_windows(self, bindings: list[Any]) -> None:
+        """Refuse a nondefault control timing window for this family.
+
+        The HunyuanDiT ControlNet pipeline takes no start_percent/end_percent,
+        so a window would be accepted and ignored. The shared admission path
+        refuses it first; this repeats the rule for a direct run_job call
+        (STABL-iwmhonnn).
+        """
+        for binding in bindings:
+            if getattr(binding, "start_percent", 0.0) != 0.0 or getattr(
+                binding, "end_percent", 1.0
+            ) != 1.0:
+                raise ValueError(
+                    "HunyuanDiT does not support control timing windows"
+                )
+
     def run_job(self, job, progress=None, should_cancel=None) -> tuple[bytes, int]:
         req = job.req
         init_image = getattr(job, "init_image", None)
         bindings = getattr(job, "controlnet_bindings", []) or []
+        self._check_controlnet_timing_windows(bindings)
 
         if init_image is not None and getattr(req, "controlnets", None) and not bindings:
             # A combined request whose attachment(s) failed to resolve to a
@@ -1845,11 +1862,6 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
             if combined_binding.control_type != "canny":
                 raise RuntimeError(
                     "HunyuanDiT combined img2img+controlnet supports Canny only"
-                )
-            if combined_binding.start_percent != 0.0 or combined_binding.end_percent != 1.0:
-                raise RuntimeError(
-                    "HunyuanDiT combined img2img+controlnet does not support "
-                    "control timing windows"
                 )
 
         try:
