@@ -92,6 +92,17 @@ ZERO_STRENGTH = 0.0
 
 MODEL_ID = "hunyuandit-depth"
 
+# The request half of each attachment this client can build. The control type,
+# model id and preprocessor id must agree, or a widened scope would run the
+# wrong preprocessor under a real ControlNet (STABL-dvozpehl).
+CONTROLNET_FIXTURES = {
+    "depth": {"model_id": MODEL_ID, "preprocess": {"id": "depth", "options": {}}},
+    "pose": {
+        "model_id": "hunyuandit-pose",
+        "preprocess": {"id": "pose", "options": {}},
+    },
+}
+
 # Validity limits, the same ones the earlier MPS acceptances used.
 MIN_DISTINCT_COLORS = 32
 MIN_GRAYSCALE_STDDEV = 5.0
@@ -209,18 +220,20 @@ def attachment(
     control_type: str = "depth",
     strength: float = FULL_STRENGTH,
     attachment_id: str = "cn_1",
-    model_id: str = MODEL_ID,
 ) -> dict:
     """One ControlNet attachment in the server's request shape."""
+    fixture = CONTROLNET_FIXTURES.get(control_type)
+    if fixture is None:
+        raise ValueError(f"unknown control_type {control_type!r}")
     entry: dict = {
         "attachment_id": attachment_id,
         "control_type": control_type,
-        "model_id": model_id,
+        "model_id": fixture["model_id"],
         "strength": strength,
     }
     if source_ref is not None:
         entry["source_asset_ref"] = source_ref
-        entry["preprocess"] = {"id": "depth", "options": {}}
+        entry["preprocess"] = dict(fixture["preprocess"])
     return entry
 
 
@@ -426,11 +439,7 @@ def main() -> int:
     refusals = {
         "pose": {
             "controlnets": [
-                attachment(
-                    source_ref=source_ref,
-                    control_type="pose",
-                    model_id="hunyuandit-pose",
-                )
+                attachment(source_ref=source_ref, control_type="pose")
             ]
         },
         "two_attachments": {

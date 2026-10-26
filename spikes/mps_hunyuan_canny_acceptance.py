@@ -93,6 +93,23 @@ HIGH_THRESHOLD = 200
 
 MODEL_ID = "hunyuandit-canny"
 
+# The request half of each attachment this client can build. The control type,
+# model id and preprocessor id must agree, or a widened scope would run the
+# wrong preprocessor under a real ControlNet (STABL-dvozpehl).
+CONTROLNET_FIXTURES = {
+    "canny": {
+        "model_id": MODEL_ID,
+        "preprocess": {
+            "id": "canny",
+            "options": {"low_threshold": LOW_THRESHOLD, "high_threshold": HIGH_THRESHOLD},
+        },
+    },
+    "depth": {
+        "model_id": "hunyuandit-depth",
+        "preprocess": {"id": "depth", "options": {}},
+    },
+}
+
 # Validity limits, the same ones the earlier MPS acceptances used.
 MIN_DISTINCT_COLORS = 32
 MIN_GRAYSCALE_STDDEV = 5.0
@@ -210,18 +227,18 @@ def attachment(
     attachment_id: str = "cn_1",
 ) -> dict:
     """One ControlNet attachment in the server's request shape."""
+    fixture = CONTROLNET_FIXTURES.get(control_type)
+    if fixture is None:
+        raise ValueError(f"unknown control_type {control_type!r}")
     entry: dict = {
         "attachment_id": attachment_id,
         "control_type": control_type,
-        "model_id": MODEL_ID,
+        "model_id": fixture["model_id"],
         "strength": strength,
     }
     if source_ref is not None:
         entry["source_asset_ref"] = source_ref
-        entry["preprocess"] = {
-            "id": "canny",
-            "options": {"low_threshold": LOW_THRESHOLD, "high_threshold": HIGH_THRESHOLD},
-        }
+        entry["preprocess"] = dict(fixture["preprocess"])
     else:
         entry["map_asset_ref"] = map_ref
     return entry

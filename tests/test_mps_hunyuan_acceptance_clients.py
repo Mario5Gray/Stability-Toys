@@ -13,6 +13,8 @@ SPIKES = Path(__file__).resolve().parents[1] / "spikes"
 if str(SPIKES) not in sys.path:
     sys.path.insert(0, str(SPIKES))
 
+import mps_hunyuan_canny_acceptance as canny_client  # noqa: E402 - spikes/ is not a package
+import mps_hunyuan_depth_acceptance as depth_client  # noqa: E402 - spikes/ is not a package
 import mps_hunyuan_scope as scope  # noqa: E402 - spikes/ is not a package
 
 
@@ -195,3 +197,57 @@ def test_expected_message_follows_the_supplied_family():
 def test_expected_message_rejects_an_unknown_control():
     with pytest.raises(scope.StatusError, match="unknown control"):
         scope.expected_message(_scope(), "anything", "hunyuandit")
+
+
+# --- client fixtures ---
+
+
+def test_the_canny_fixture_follows_its_control_type():
+    entry = canny_client.attachment(source_ref="src", control_type="depth")
+
+    assert entry["control_type"] == "depth"
+    assert entry["model_id"] == "hunyuandit-depth"
+    assert entry["preprocess"]["id"] == "depth"
+
+
+def test_the_canny_fixture_keeps_its_default():
+    assert canny_client.attachment(source_ref="src") == {
+        "attachment_id": "cn_1",
+        "control_type": "canny",
+        "model_id": "hunyuandit-canny",
+        "strength": 1.0,
+        "source_asset_ref": "src",
+        "preprocess": {
+            "id": "canny",
+            "options": {"low_threshold": 100, "high_threshold": 200},
+        },
+    }
+
+
+def test_the_canny_fixture_rejects_an_unknown_type():
+    with pytest.raises(ValueError, match="control_type"):
+        canny_client.attachment(source_ref="src", control_type="pose")
+
+
+def test_the_depth_fixture_follows_its_control_type():
+    entry = depth_client.attachment(source_ref="src", control_type="pose")
+
+    assert entry["control_type"] == "pose"
+    assert entry["model_id"] == "hunyuandit-pose"
+    assert entry["preprocess"]["id"] == "pose"
+
+
+def test_the_depth_fixture_keeps_its_default():
+    assert depth_client.attachment(source_ref="src") == {
+        "attachment_id": "cn_1",
+        "control_type": "depth",
+        "model_id": "hunyuandit-depth",
+        "strength": 1.0,
+        "source_asset_ref": "src",
+        "preprocess": {"id": "depth", "options": {}},
+    }
+
+
+def test_the_depth_fixture_rejects_an_unknown_type():
+    with pytest.raises(ValueError, match="control_type"):
+        depth_client.attachment(source_ref="src", control_type="canny")
