@@ -115,29 +115,69 @@ def render(svg, work_dir, thickness=THICKNESS, command=None):
     return vertices, index.reshape(-1, 3), result.stderr
 
 
+def _find(parent, i):
+    while parent[i] != i:
+        parent[i] = parent[parent[i]]
+        i = parent[i]
+    return i
+
+
+def edge_triangles(triangles):
+    """Return a map of edge to triangle rows. An edge is a sorted vertex pair."""
+    found = {}
+    for row, (a, b, c) in enumerate(triangles):
+        for first, second in ((a, b), (b, c), (a, c)):
+            found.setdefault((min(first, second), max(first, second)), []).append(row)
+    return found
+
+
+def nonmanifold_edge_count(triangles):
+    """Count edges that are not shared by exactly two triangles.
+
+    A closed surface uses every edge twice. Any other count means the exported
+    mesh is not a valid 2-manifold, whatever the tool's exit code or warning.
+    """
+    return sum(1 for rows in edge_triangles(triangles).values() if len(rows) != 2)
+
+
+def _genus(triangles):
+    """Euler genus of one closed surface. Call it on a manifold sheet only."""
+    edges = {tuple(sorted(e)) for t in triangles for e in ((t[0], t[1]), (t[1], t[2]), (t[0], t[2]))}
+    euler = len(np.unique(triangles)) - len(edges) + len(triangles)
+    return (2 - euler) // 2
+
+
 def mesh_components(vertices, triangles):
-    """Return (bounds_min, bounds_max, genus) for each connected closed surface."""
-    parent = list(range(len(vertices)))
+    """Return (bounds_min, bounds_max, genus) for each connected closed surface.
 
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
+    Shells come from shared vertices, so the solid count matches the mask. The
+    genus comes from the shell's manifold sheets, because OpenSCAD 2026 exports
+    sheets that share edges. A single Euler count over the glued complex then
+    reports a negative genus for a surface with holes (STABL-eeieoujm).
+    """
+    shell_parent = list(range(len(vertices)))
     for a, b, c in triangles:
-        parent[find(b)] = find(a)
-        parent[find(c)] = find(a)
-    groups = {}
-    for tri in triangles:
-        groups.setdefault(find(tri[0]), []).append(tri)
+        shell_parent[_find(shell_parent, b)] = _find(shell_parent, a)
+        shell_parent[_find(shell_parent, c)] = _find(shell_parent, a)
+
+    sheet_parent = list(range(len(triangles)))
+    for rows in edge_triangles(triangles).values():
+        if len(rows) == 2:
+            sheet_parent[_find(sheet_parent, rows[1])] = _find(sheet_parent, rows[0])
+
+    shells = {}
+    for row, tri in enumerate(triangles):
+        shells.setdefault(_find(shell_parent, tri[0]), []).append(row)
+
     components = []
-    for tris in groups.values():
-        tris = np.array(tris)
+    for rows in shells.values():
+        tris = np.array([triangles[row] for row in rows])
         used = np.unique(tris)
-        edges = {tuple(sorted(e)) for t in tris for e in ((t[0], t[1]), (t[1], t[2]), (t[0], t[2]))}
-        euler = len(used) - len(edges) + len(tris)
-        components.append((vertices[used].min(0), vertices[used].max(0), (2 - euler) // 2))
+        sheets = {}
+        for row in rows:
+            sheets.setdefault(_find(sheet_parent, row), []).append(triangles[row])
+        genus = sum(_genus(np.array(sheet)) for sheet in sheets.values())
+        components.append((vertices[used].min(0), vertices[used].max(0), genus))
     return components
 
 
@@ -149,6 +189,53 @@ def expected_bounds(material):
         np.array([xs.min(), height - 1 - ys.max(), 0.0]) * [MM_PER_PX, MM_PER_PX, 1],
         np.array([xs.max() + 1, height - ys.min(), 0.0]) * [MM_PER_PX, MM_PER_PX, 1],
     )
+
+
+def cube_mesh(origin=(0.0, 0.0, 0.0)):
+    """A unit cube as 8 vertices and 12 triangles. Each quad splits from its first corner.
+
+    The split is fixed so two cubes placed edge to edge share one edge in four triangles.
+    """
+    corners = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
+                        [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]], dtype=float)
+    quads = ((0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4),
+             (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5))
+    triangles = []
+    for a, b, c, d in quads:
+        triangles += [[a, b, c], [a, c, d]]
+    return corners + np.asarray(origin, dtype=float), np.array(triangles)
+
+
+def pinched_pair():
+    """Two unit cubes that share the vertical edge at x=1, y=1 (STABL-eeieoujm)."""
+    left_vertices, left_triangles = cube_mesh()
+    right_vertices, right_triangles = cube_mesh((1.0, 1.0, 0.0))
+    vertices = np.vstack([left_vertices, right_vertices])
+    triangles = np.vstack([left_triangles, right_triangles + len(left_vertices)])
+    # Weld the two shared corners, as the STL reader does after rounding.
+    welded, index = np.unique(vertices.round(6), axis=0, return_inverse=True)
+    return welded, index[triangles]
+
+
+def test_a_clean_cube_is_one_solid_of_genus_zero():
+    parts = mesh_components(*cube_mesh())
+    assert [part[2] for part in parts] == [0]
+    assert nonmanifold_edge_count(cube_mesh()[1]) == 0
+
+
+def test_nonmanifold_edge_count_finds_an_edge_shared_by_four_triangles():
+    """The pinched pair shares one edge. A tool that exits zero still exported it."""
+    assert nonmanifold_edge_count(pinched_pair()[1]) == 1
+
+
+def test_a_pinched_pair_is_two_closed_surfaces_not_one_negative_genus():
+    """A single Euler count over the glued complex reports -1. The sheets report 0.
+
+    OpenSCAD 2026 exports such pins, so the genus gate must read each sheet
+    (STABL-eeieoujm).
+    """
+    parts = mesh_components(*pinched_pair())
+    assert sum(genus for *_, genus in parts) == 0
 
 
 FIXTURES = sorted(make_fixtures.EXPECTED)

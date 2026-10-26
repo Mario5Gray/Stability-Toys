@@ -9,7 +9,7 @@ Flag, JSON, and manifest details live in the [CLI reference](../scripts/USAGE.md
 |---|---|
 | Python | CPython 3.12. Proven on macOS arm64 and Fedora 44 x86_64. |
 | Install | `make install-controlnet-scripts EXTRAS=vector` |
-| OpenSCAD | 2021.01. Needed only to reproduce the committed CAD evidence. |
+| OpenSCAD | 2021.01 for the committed CAD evidence. 2026.10.11 also passes the CAD suite. |
 | Corpus | `tests/fixtures/vector_map/corpus/<case>/source.png` and `mask.png` |
 
 Support claim. Only `st-vector-map` and `st-canny-map` conversion of a real image on CPython 3.12 is proven.
@@ -24,7 +24,14 @@ export OPENSCAD=/Applications/OpenSCAD-2021.01.app/Contents/MacOS/OpenSCAD
 "$OPENSCAD" --version   # OpenSCAD version 2021.01
 ```
 
-Later OpenSCAD versions fail some committed CAD tests. Use 2021.01 to reproduce evidence.
+Use 2021.01 to reproduce the committed evidence byte for byte. Its triangles differ from later versions.
+
+The CAD tests also pass on OpenSCAD 2026.10.11, with either 3D backend. Two facts changed with that version:
+
+- The genus check reads each manifold sheet, not the glued mesh. OpenSCAD 2026 exports surface sheets that share edges. One Euler count over the glued mesh reported a negative genus (STABL-eeieoujm).
+- Manifold detection reads the exported mesh, not the tool's prose. The default Manifold backend repairs a non-manifold mesh and prints no warning.
+
+Before STABL-eeieoujm, a later OpenSCAD version failed seven CAD tests.
 
 ## 2. Choose an input kind
 

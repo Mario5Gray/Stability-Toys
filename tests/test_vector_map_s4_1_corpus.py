@@ -250,11 +250,18 @@ def work(tmp_path):
 
 @needs_openscad
 def test_a_non_manifold_mesh_that_exits_zero_is_a_cad_error(work):
-    """Two cubes that share one edge: OpenSCAD 2021.01 warns and still exits 0."""
+    """Two cubes that share one edge. The mesh is the proof, not the tool's prose.
+
+    OpenSCAD 2021.01 printed "may not be a valid 2-manifold". Both backends of
+    OpenSCAD 2026.10.11 export the same non-manifold mesh, but the default
+    Manifold backend repairs silently and prints nothing. The probe therefore
+    reads the exported mesh, so detection holds on every backend (STABL-eeieoujm).
+    """
     (work / "out.scad").write_text("cube(1);\ntranslate([1,1,0]) cube(1);\n")
     render = probe.render_scad(work, probe.open_scad.OPENSCAD)
     assert render["exit_code"] == 0
-    assert any("2-manifold" in error for error in render["errors"])
+    vertices, triangles = probe._vertices(work / "out.stl")
+    assert probe.open_scad.nonmanifold_edge_count(triangles) >= 1
 
 
 def test_the_probe_blocks_when_openscad_is_absent(tmp_path, monkeypatch, capsys):
