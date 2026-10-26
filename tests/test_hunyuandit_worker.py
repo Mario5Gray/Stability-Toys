@@ -818,7 +818,7 @@ def test_hunyuandit_combined_route_rejects_nondefault_timing_window():
 
     with patch("backends.hunyuandit_img2img.run_hunyuan_img2img") as component_mock, \
          patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
-        with pytest.raises(RuntimeError, match="control timing window"):
+        with pytest.raises(ValueError, match="control timing window"):
             worker.run_job(job)
 
     component_mock.assert_not_called()
@@ -1065,3 +1065,34 @@ def test_run_job_dumps_control_image_and_state_when_enabled(monkeypatch, tmp_pat
     cond = json.loads((target / "conditioning_keys.json").read_text())
     assert cond["conditioning_keys"] == ["prompt"]
     assert cond["seed"] == 7
+
+
+def test_hunyuan_cuda_worker_rejects_a_nondefault_control_window():
+    """MPS refused this window and CUDA dropped it silently (STABL-iwmhonnn).
+
+    The HunyuanDiT ControlNet pipeline cannot apply start_percent/end_percent,
+    so a nondefault window is refused on both backends instead of being
+    accepted and ignored.
+    """
+    worker = _run_new_worker()
+    base = _FakePipelineBase()
+    worker.pipe = base
+    worker._build_controlnet_kwargs = Mock(return_value={})
+    worker._build_controlnet_pipe = Mock(return_value=_FakePipelineBase())
+    worker._controlnet_metadata = Mock(return_value=[])
+
+    binding = SimpleNamespace(
+        model_id="hunyuan-canny",
+        attachment_id="cn_1",
+        control_type="canny",
+        start_percent=0.2,
+        end_percent=0.8,
+    )
+    job = SimpleNamespace(req=_make_req(), init_image=None, controlnet_bindings=[binding])
+
+    with patch("backends.cuda_worker.torch", MagicMock(inference_mode=MagicMock)):
+        with pytest.raises(ValueError, match="control timing window"):
+            worker.run_job(job)
+
+    worker._build_controlnet_pipe.assert_not_called()
+    assert base.calls == []

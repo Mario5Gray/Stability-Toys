@@ -51,6 +51,20 @@ def _admit_controlnet_scope(req, binding, provider, family_id: str) -> None:
             )
 
 
+def _reject_hunyuan_timing_windows(attachments, family_id: str) -> None:
+    """Refuse a nondefault control timing window for HunyuanDiT.
+
+    Neither backend's HunyuanDiT ControlNet pipeline can apply a per-step
+    guidance window, so accepting the request would render while ignoring it
+    (STABL-iwmhonnn). The default [0, 1] window stays accepted.
+    """
+    for attachment in attachments:
+        if attachment.start_percent != 0.0 or attachment.end_percent != 1.0:
+            raise ValueError(
+                f"family '{family_id}' does not support control timing windows"
+            )
+
+
 def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool) -> str:
     """Apply the per-family execution-capability matrix before preprocessing.
 
@@ -81,10 +95,7 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
             for attachment in req.controlnets:
                 if attachment.control_type != "canny":
                     raise ValueError("HunyuanDiT combined img2img+controlnet supports Canny only")
-                if attachment.start_percent != 0.0 or attachment.end_percent != 1.0:
-                    raise ValueError(
-                        "HunyuanDiT combined img2img+controlnet does not support control timing windows"
-                    )
+            _reject_hunyuan_timing_windows(req.controlnets, family_id)
         return "img2img+controlnet"
     if has_controlnet:
         if not caps.supports_controlnet:
@@ -92,6 +103,8 @@ def admit_generation_operation(req, *, snapshot, provider, has_init_image: bool)
                 f"family '{family_id}' does not support the controlnet operation"
             )
         _admit_controlnet_scope(req, binding, provider, family_id)
+        if family_id == "hunyuandit":
+            _reject_hunyuan_timing_windows(req.controlnets, family_id)
         return "controlnet"
     if has_init_image:
         if not caps.supports_img2img:

@@ -99,12 +99,15 @@ The server starts without a model when the default mode has no MPS binding.
   and `controlnet_conditioning_scale`. It does not use the img2img loop.
 - **HunyuanDiT ControlNet accepts no timing window.**
   `HunyuanDiTControlNetPipeline` has no `control_guidance_start` or
-  `control_guidance_end` argument. The shared kwarg builder drops both keys for
-  this family, so a nondefault window would be silently ignored. The MPS worker
-  refuses a nondefault window with `MPS HunyuanDiT does not support control
-  timing windows`, before any ControlNet load. The refusal is worker-side
-  because admission reads the mode policy only, and a platform test there would
-  change CUDA behavior (`STABL-xvnjfuae`).
+  `control_guidance_end` argument. `server/controlnet_execution.py` refuses a
+  nondefault `start_percent`/`end_percent` for every HunyuanDiT ControlNet
+  request, plain and combined, on both backends, before preprocessing or model
+  load. The shared HunyuanDiT worker repeats the rule with
+  `HunyuanDiT does not support control timing windows` for a direct `run_job`
+  call. The default `[0, 1]` window is accepted. Before `STABL-iwmhonnn`, MPS
+  refused at the worker and CUDA dropped the keys silently, so the same
+  request failed on one backend and rendered on the other with the window
+  ignored.
 - **The worker-side gate is shared with `sd15`.** Both MPS workers call
   `backends/platforms/operation_guard.py::check_platform_operation`. It reads
   the same platform-family cell that admission reads, and it repeats the

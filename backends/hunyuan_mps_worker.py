@@ -18,7 +18,9 @@ img2img pipeline.
 ``HunyuanDiTControlNetPipeline`` accepts no per-step guidance window. The
 shared kwarg builder drops ``control_guidance_start`` and
 ``control_guidance_end`` for this family, so a nondefault window would be
-silently ignored. The worker refuses a nondefault window instead.
+silently ignored. Shared admission refuses such a request before preprocessing,
+and the shared HunyuanDiT worker repeats the refusal for a direct ``run_job``
+call on both backends (STABL-iwmhonnn).
 """
 
 from __future__ import annotations
@@ -50,14 +52,6 @@ class DiffusersHunyuanDiTMpsWorker(DiffusersHunyuanDiTCudaWorker):
             label="MPS HunyuanDiT",
         )
 
-    def _check_controlnet_timing_windows(self, bindings: list[Any]) -> None:
-        """Refuse a nondefault window, because the pipeline cannot apply it."""
-        for binding in bindings:
-            if binding.start_percent != 0.0 or binding.end_percent != 1.0:
-                raise ValueError(
-                    "MPS HunyuanDiT does not support control timing windows"
-                )
-
     def run_job(self, job: Any, progress: Any = None, should_cancel: Any = None) -> tuple[bytes, int]:
         init_image = getattr(job, "init_image", None)
         bindings = getattr(job, "controlnet_bindings", None) or []
@@ -66,5 +60,6 @@ class DiffusersHunyuanDiTMpsWorker(DiffusersHunyuanDiTCudaWorker):
             self._check_platform_operation(
                 has_init_image=init_image is not None, bindings=bindings
             )
-            self._check_controlnet_timing_windows(bindings)
+            # The shared HunyuanDiT worker repeats the timing-window rule in
+            # run_job (STABL-iwmhonnn), so this path does not repeat it again.
         return super().run_job(job, progress=progress, should_cancel=should_cancel)
