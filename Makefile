@@ -62,6 +62,20 @@ dev-build: ## Rebuild dev image (source-only overlay, seconds)
 dev-down: ## Stop dev container
 	docker compose -f docker-compose.dev.yml down
 
+PYTHON ?= python
+
+.PHONY: mps
+mps: ## Start the MPS server natively (no container: Docker cannot expose Metal; see docs/MPS_BACKEND.md)
+	@case "$(CONDA_PREFIX)" in \
+	  */envs/stability-toys) ;; \
+	  *) echo "Activate the project env first: conda activate stability-toys"; \
+	     echo "The Miniforge base env drifts outside the project pins (STABL-zisphapv)."; \
+	     echo "The MPS path runs natively. Containers on macOS have no Metal."; \
+	     exit 2;; \
+	esac
+	set -a; . ./env.mps; set +a; \
+	  $(PYTHON) -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200
+
 define REQUIRE_DRIFT
 	@command -v drift >/dev/null 2>&1 || { \
 	  echo "drift not found on PATH. It binds markdown docs to code and lints for staleness."; \

@@ -52,6 +52,14 @@ For provider, factory, and family-binding flow, see
    raises `ImportError`. The command above is the container entrypoint, and it
    is the one the live acceptance below used.
 
+   `make mps` runs the same command and sources `env.mps`. The target refuses
+   the Miniforge base env, because that env drifts outside the project pins.
+
+   No container can run this path. Docker Desktop on macOS runs a Linux VM
+   without Metal access, so `torch.backends.mps.is_available()` is false in
+   every Linux container on a Mac. Podman has the same limit. The compose
+   files stay for CPU and CUDA (STABL-gpcsnipw).
+
 4. Choose worker isolation. Both modes read the same binding table.
 
    | `WORKER_ISOLATION` | Worker factory | Parent memory consumer |
