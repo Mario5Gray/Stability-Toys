@@ -192,7 +192,14 @@ def _median_seconds(call) -> float:
 
 
 def render_scad(directory: Path, command: list[str]) -> dict:
-    """Render out.scad to out.stl. OpenSCAD can exit 0 with a non-manifold mesh, so read stderr."""
+    """Render out.scad to out.stl and collect the tool's error prose.
+
+    Every S4.1 row is a corpus row. Corpus rows pinch at legitimate junctions
+    (corpus_gravel exports 181 edges used four times). So this gate does not
+    require closure. The ERROR and exit-code checks still fire on every backend.
+    The 2-manifold line stays as defense on CGAL and 2021.01 machines.
+    The structural closure gate covers the synthetic S3.6 rows (STABL-jbjtmecm).
+    """
     argv = [*command, "-o", str(directory / "out.stl"), str(directory / "out.scad")]
     record: dict[str, Any] = {"argv": argv}
     if issue := open_scad.sandbox_error(command, [directory / "out.scad", directory / "out.stl"]):

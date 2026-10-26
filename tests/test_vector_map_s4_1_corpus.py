@@ -262,6 +262,38 @@ def test_a_non_manifold_mesh_that_exits_zero_is_a_cad_error(work):
     assert render["exit_code"] == 0
     vertices, triangles = probe._vertices(work / "out.stl")
     assert probe.open_scad.nonmanifold_edge_count(triangles) >= 1
+    # Corpus rows do not require closure. Older backends can still report the
+    # retained 2-manifold warning for this mesh; no other error is expected.
+    assert all("2-manifold" in error for error in render["errors"])
+
+
+@needs_openscad
+def test_the_probe_records_a_real_openscad_error_from_the_default_backend(work):
+    """A broken source still fails the gate under the default backend.
+
+    An unknown module is not a defect. OpenSCAD ignores it and exports a PolySet
+    with exit zero. Use a syntax error.
+    """
+    (work / "out.scad").write_text("cube(1;\n")
+    render = probe.render_scad(work, probe.open_scad.OPENSCAD)
+    assert render["exit_code"] != 0
+    assert render["errors"][0] == f"OpenSCAD exited {render['exit_code']}."
+    assert any(line.startswith("ERROR:") for line in render["errors"])
+
+
+@needs_openscad
+def test_the_probe_collects_a_manifold_warning_when_the_backend_prints_one(work, monkeypatch):
+    """The prose half is live on CGAL and 2021.01 machines, where the warning exists."""
+    (work / "out.scad").write_text("cube(1);\n")
+
+    class Completed:
+        returncode = 0
+        stdout = ""
+        stderr = "EXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair\n"
+
+    monkeypatch.setattr(probe.subprocess, "run", lambda *args, **kwargs: Completed())
+    render = probe.render_scad(work, probe.open_scad.OPENSCAD)
+    assert render["errors"] == ["EXPORT-WARNING: Exported object may not be a valid 2-manifold and may need repair"]
 
 
 def test_the_probe_blocks_when_openscad_is_absent(tmp_path, monkeypatch, capsys):

@@ -140,6 +140,27 @@ def nonmanifold_edge_count(triangles):
     return sum(1 for rows in edge_triangles(triangles).values() if len(rows) != 2)
 
 
+def nonmanifold_errors(triangles):
+    """Return errors for a triangle set whose edges are not each used exactly twice."""
+    count = nonmanifold_edge_count(triangles)
+    return [] if count == 0 else [f"{count} mesh edges are not shared by exactly two triangles."]
+
+
+def nonmanifold_stl_errors(stl_path):
+    """Return errors for an exported STL whose edges are not each used exactly twice.
+
+    Read the mesh, not the tool's prose. OpenSCAD 2026.10.11 can exit zero, print
+    "Top level object is a 3D object (manifold)", and export a pinch
+    (STABL-jbjtmecm).
+    """
+    triples = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", Path(stl_path).read_text())
+    if not triples:
+        return [f"OpenSCAD emitted no STL triangles: {Path(stl_path).name}."]
+    corners = np.array([[float(value) for value in row] for row in triples])
+    _, index = np.unique(corners.round(6), axis=0, return_inverse=True)
+    return nonmanifold_errors(index.reshape(-1, 3))
+
+
 def _genus(triangles):
     """Euler genus of one closed surface. Call it on a manifold sheet only."""
     edges = {tuple(sorted(e)) for t in triangles for e in ((t[0], t[1]), (t[1], t[2]), (t[0], t[2]))}
@@ -226,6 +247,35 @@ def test_a_clean_cube_is_one_solid_of_genus_zero():
 def test_nonmanifold_edge_count_finds_an_edge_shared_by_four_triangles():
     """The pinched pair shares one edge. A tool that exits zero still exported it."""
     assert nonmanifold_edge_count(pinched_pair()[1]) == 1
+
+
+@needs_openscad
+def test_nonmanifold_stl_errors_refuses_a_pinch_the_default_backend_hides(tmp_path):
+    """Two cubes share one edge, and the tool exits zero.
+
+    OpenSCAD 2026.10.11 on the Manifold backend prints "Top level object is a 3D
+    object (manifold):" and "Genus: -1" for this mesh, with no 2-manifold
+    warning. The gates look for "2-manifold", so they pass. The mesh is the proof
+    on every backend (STABL-jbjtmecm).
+    """
+    work, _ = choose_work_dir(tmp_path, OPENSCAD)
+    stl = work / "pinched.stl"
+    source = work / "pinched.scad"
+    source.write_text("cube(1);\ntranslate([1, 1, 0]) cube(1);\n")
+    run = subprocess.run([*OPENSCAD, "-o", str(stl), str(source)],
+                         capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stderr
+    errors = nonmanifold_stl_errors(stl)
+    assert errors and "not shared by exactly two triangles" in errors[0]
+
+    clean, _ = choose_work_dir(tmp_path / "clean", OPENSCAD)
+    clean.mkdir(exist_ok=True)
+    clean_source = clean / "cube.scad"
+    clean_source.write_text("cube(1);\n")
+    clean_stl = clean / "cube.stl"
+    subprocess.run([*OPENSCAD, "-o", str(clean_stl), str(clean_source)],
+                   capture_output=True, text=True, timeout=300, check=True)
+    assert nonmanifold_stl_errors(clean_stl) == []
 
 
 def test_a_pinched_pair_is_two_closed_surfaces_not_one_negative_genus():
