@@ -188,11 +188,10 @@ def _inbound_type(raw_type) -> str:
     from an unrecognised type: a broken client versus a client asking for
     something that does not exist.
 
-    `raw in HANDLERS` HASHES its argument, and an unhashable client value
-    (`{"type": {}}`) raises TypeError. NOTE: this guard does not fix
-    STABL-gzfzzsdq — `HANDLERS.get(msg_type)` in the message loop has the same
-    hazard and still drops the connection. This only stops the metrics code from
-    being the first thing to raise.
+    `raw in HANDLERS` hashes its argument. An unhashable client value
+    (`{"type": {}}`) maps to "unknown" here. The message loop looks up handlers
+    only for strings, so it sends an Unknown type error reply without dropping
+    the connection.
     """
     if raw_type is _INVALID_JSON:
         return "invalid_json"

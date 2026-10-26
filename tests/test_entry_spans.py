@@ -13,7 +13,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from server import metrics as m
-from server import ws_routes
 from server.metrics_middleware import MetricsMiddleware
 from server.ws_routes import ws_router
 
@@ -253,29 +252,23 @@ def test_an_UNKNOWN_type_is_still_traced_and_bounded(ws):
 
 
 def test_an_UNHASHABLE_type_does_not_break_the_span(ws):
-    """STABL-gzfzzsdq: `HANDLERS.get(msg_type)` hashes a client-controlled value,
-    so `{"type": {}}` raises TypeError and drops the connection. That bug is not
-    fixed here — but the span must not be the thing that raises first, and the
-    dropped connection should be visible as an errored span rather than silence.
-    """
+    """An unhashable type gets an error reply and an ended, bounded message span."""
     tracer, client = ws
 
-    # Deliberately no receive after the send. The connection is dropped WITHOUT a
-    # reply, so `receive_json()` blocks forever rather than raising — the same
-    # shape that makes this bug hard to see in production. Assert after the
-    # context manager has torn the socket down.
     with client.websocket_connect("/v1/ws") as sock:
         sock.receive_json()
         sock.send_json({"type": {}, "id": "c1"})
+        assert sock.receive_json() == {
+            "type": "error",
+            "error": "Unknown type: {}",
+            "id": "c1",
+        }
 
     spans = _messages(tracer)
     assert len(spans) == 1
     assert spans[0].attributes["messaging.type"] == "unknown"
     assert spans[0].ended, "the span outlived the connection it was tracing"
-    assert spans[0].exit_exc_type is TypeError, (
-        "the dropped connection should surface as an errored span; "
-        "STABL-gzfzzsdq is otherwise silent"
-    )
+    assert spans[0].exit_exc_type is None
 
 
 def test_each_message_on_one_connection_gets_its_OWN_span(ws):
