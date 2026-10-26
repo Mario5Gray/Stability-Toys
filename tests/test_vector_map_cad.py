@@ -544,6 +544,27 @@ def _probe_row(case, tmp_path, *extra):
 
 
 @open_scad.needs_openscad
+def test_the_synthetic_row_gate_refuses_a_pinch(tmp_path):
+    """Two cubes share one edge, and the tool exits zero.
+
+    The synthetic rows must close. The corpus rows pinch at legitimate junctions,
+    so their gate must stay silent on the same mesh (STABL-jbjtmecm).
+    """
+    from tests import vector_map_s3_6_cad_probe as probe
+
+    work, _ = open_scad.choose_work_dir(tmp_path, open_scad.OPENSCAD)
+    source = work / "pinched.scad"
+    source.write_text("cube(1);\ntranslate([1, 1, 0]) cube(1);\n")
+    stl = work / "pinched.stl"
+    run = subprocess.run([*open_scad.OPENSCAD, "-o", str(stl), str(source)],
+                         capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0, run.stderr
+    _, triangles = probe._vertices(stl)
+    assert probe.row_closure_errors("raised_backed", triangles)
+    assert probe.row_closure_errors("corpus_gravel", triangles) == []
+
+
+@open_scad.needs_openscad
 @pytest.mark.parametrize("case", AFFECTED_ROWS)
 def test_native_assembled_mesh_is_closed_at_the_specified_heights(case, tmp_path):
     row, _ = _probe_row(case, tmp_path)
@@ -560,10 +581,13 @@ def test_native_each_published_layer_extrudes_to_a_closed_mesh(case, tmp_path):
         # The tiny cube forces the conversion that finds a non-closed mesh. A bare extrude does not.
         source.write_text(f'union() {{ linear_extrude(1) import("out.layers/{svg.name}");'
                           " translate([0, 0, 0.5]) cube(0.1); }\n")
-        run = subprocess.run([*open_scad.OPENSCAD, "-o", str(directory / f"extrude-{svg.stem}.stl"), str(source)],
+        stl = directory / f"extrude-{svg.stem}.stl"
+        run = subprocess.run([*open_scad.OPENSCAD, "-o", str(stl), str(source)],
                              capture_output=True, text=True, timeout=300, cwd=directory)
         assert run.returncode == 0, run.stderr
         assert not [line for line in run.stderr.splitlines() if any(w in line for w in CAD_WARNINGS)], svg.name
+        # The default backend can call a pinched mesh manifold and print no warning. Read the mesh.
+        assert open_scad.nonmanifold_stl_errors(stl) == [], svg.name
 
 
 @open_scad.needs_openscad

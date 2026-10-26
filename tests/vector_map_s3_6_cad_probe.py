@@ -174,6 +174,17 @@ def _save_scene(directory: Path, name: str, detail_mode: str = "raised") -> tupl
     return scene, ["--width-mm", "32", *extra]
 
 
+def row_closure_errors(name: str, triangles: np.ndarray) -> list[str]:
+    """Return closure errors for a row. Synthetic rows must close. Corpus rows pinch legitimately.
+
+    The 2-manifold warning is absent under the default backend. Read the mesh
+    (STABL-jbjtmecm). corpus_gravel exports 181 pinched edges at true junctions.
+    """
+    if name.startswith("corpus_"):
+        return []
+    return open_scad.nonmanifold_errors(triangles)
+
+
 def _vertices(stl_path: Path) -> tuple[np.ndarray, np.ndarray]:
     triples = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", stl_path.read_text())
     if not triples:
@@ -325,6 +336,7 @@ def _run_case(name: str, root: Path, previews: Path, command: list[str], version
                        published_volume_excess=(raw_volume - volume) / volume if volume else 0.0)
     errors = [line for line in render.stderr.splitlines()
               if line.startswith("ERROR:") or "not be a valid 2-manifold" in line]
+    errors += row_closure_errors(name, triangles)
     scale = manifest["canvas"]["mm_per_px"]
     xy_tol = scale if name.startswith("corpus_") else 1e-4
     for observed, wanted in ((measured["bounds"][0][:2], expectation["bounds_xy"][0]),
