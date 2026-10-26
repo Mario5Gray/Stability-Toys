@@ -38,6 +38,8 @@ import uuid
 
 from PIL import Image, ImageDraw, ImageStat
 
+from mps_hunyuan_scope import admitted_check
+
 PROMPT = "a red apple on a wooden table, soft light, photo"
 NEGATIVE = "blurry, watermark, text, low quality"
 MODE = "HunyuanDiT"
@@ -45,6 +47,7 @@ SIZE = "1024x1024"
 STEPS = 6
 GUIDANCE = 6.0
 SEED = 4242
+POSITIVE_RUNS = ("txt2img", "img2img_low", "img2img_high")
 LOW_STRENGTH = 0.35
 HIGH_STRENGTH = 0.9
 MIN_DISTINCT_COLORS = 32
@@ -215,6 +218,7 @@ def main() -> int:
         with open(path, "wb") as handle:
             handle.write(png)
         results[label] = {
+            "ok": result["ok"],
             "wall_s": result["wall_s"],
             "seed": result["seed"],
             "backend": result["backend"],
@@ -229,7 +233,7 @@ def main() -> int:
     high_to_init = distance(open(results["img2img_high"]["path"], "rb").read(), init_png)
 
     checks = {
-        "admitted": True,
+        "admitted": admitted_check(results, POSITIVE_RUNS, SEED),
         "differs_from_txt2img": (
             distance(open(results["img2img_low"]["path"], "rb").read(),
                      open(results["txt2img"]["path"], "rb").read()) > 0

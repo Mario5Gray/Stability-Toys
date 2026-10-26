@@ -37,8 +37,11 @@ format check.
                       capability flag on the cell stays false.
 
 The source image MUST contain at least one person. The script checks that the
-map is a pose map and reports `map_is_a_pose_map` as a failed signal when it is
-not, so a source with no detected body does not read as a pipeline defect.
+operator-supplied `--map` has pose-map shape and reports
+`local_map_is_pose_map` as a failed signal when it does not. The check makes
+no claim about the server's control map, because the asset store has no HTTP
+surface. A source with no detected body therefore does not read as a pipeline
+defect, and the local map's shape does not prove the delivered map's bytes.
 
 This script is a client. It starts no server and imports no server module.
 Start the server first:
@@ -79,7 +82,12 @@ import uuid
 
 from PIL import Image, ImageOps, ImageStat
 
-from mps_hunyuan_scope import FAMILY_BY_MODE, run_controls, validate_status
+from mps_hunyuan_scope import (
+    FAMILY_BY_MODE,
+    admitted_check,
+    run_controls,
+    validate_status,
+)
 
 PROMPT = "a person standing in a sunlit room, photo, full body"
 NEGATIVE = "blurry, watermark, text, low quality"
@@ -93,6 +101,12 @@ ZERO_STRENGTH = 0.0
 
 MODEL_ID = "hunyuandit-pose"
 CONTROL_TYPE = "pose"
+POSITIVE_RUNS = (
+    "txt2img",
+    "controlnet_preprocessed",
+    "controlnet_alt_source",
+    "controlnet_zero",
+)
 
 # Validity limits, the same ones the earlier MPS acceptances used.
 MIN_DISTINCT_COLORS = 32
@@ -474,7 +488,7 @@ def main() -> int:
     artifacts = full["artifacts"]
     local_map = report["local_map"]
     checks = {
-        "admitted": full["sha256"] is not None,
+        "admitted": admitted_check(report["renders"], POSITIVE_RUNS, SEED),
         "preprocess": (
             len(artifacts) == 1
             and artifacts[0]["preprocessor_id"] == "pose"
@@ -493,7 +507,7 @@ def main() -> int:
             and full["controlnet_chunk"][0]["control_type"] == CONTROL_TYPE
             and full["controlnet_chunk"][0]["generation"]["model_id"] == MODEL_ID
         ),
-        "map_is_a_pose_map": (
+        "local_map_is_pose_map": (
             local_map["black_fraction"] >= MIN_MAP_BLACK_FRACTION
             and local_map["colored_px"] >= MIN_MAP_COLORED_PIXELS
             and not local_map["is_grayscale"]

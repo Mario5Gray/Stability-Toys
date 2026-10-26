@@ -11,6 +11,8 @@ from typing import Any, Callable, Literal
 FAMILY_BY_MODE = {"HunyuanDiT": "hunyuandit"}
 BACKEND_ID = "mps"
 TWO_ATTACHMENTS = 2
+# Every MPS HunyuanDiT acceptance client requests this seed.
+EXPECTED_SEED = 4242
 
 CONTROLS = frozenset({"depth", "pose", "two_attachments", "combined_pose"})
 
@@ -139,6 +141,30 @@ def expected_message(cell: dict, control: str, family: str) -> str:
         )
 
     return f"family '{family}' does not support the img2img+controlnet operation"
+
+
+def admitted_check(
+    renders: dict, labels: tuple[str, ...], seed: int = EXPECTED_SEED
+) -> bool:
+    """Return whether every required positive render was admitted.
+
+    Admission means the job reached `job:complete` with an output, on the
+    expected backend, at the expected seed. A PNG hash is not admission
+    evidence: `describe()` fills the hash for any decodable image.
+    """
+    if not labels:
+        return False
+    for label in labels:
+        entry = renders.get(label)
+        if not isinstance(entry, dict):
+            return False
+        if entry.get("ok") is not True:
+            return False
+        if entry.get("backend") != BACKEND_ID:
+            return False
+        if entry.get("seed") != seed:
+            return False
+    return True
 
 
 def run_controls(

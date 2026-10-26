@@ -79,7 +79,12 @@ import uuid
 
 from PIL import Image, ImageDraw, ImageStat
 
-from mps_hunyuan_scope import FAMILY_BY_MODE, run_controls, validate_status
+from mps_hunyuan_scope import (
+    FAMILY_BY_MODE,
+    admitted_check,
+    run_controls,
+    validate_status,
+)
 
 PROMPT = "a red apple on a wooden table, soft light, photo"
 NEGATIVE = "blurry, watermark, text, low quality"
@@ -94,6 +99,13 @@ LOW_THRESHOLD = 100
 HIGH_THRESHOLD = 200
 
 MODEL_ID = "hunyuandit-canny"
+POSITIVE_RUNS = (
+    "txt2img",
+    "controlnet_preprocessed",
+    "controlnet_alt_source",
+    "controlnet_zero",
+    "controlnet_explicit_map",
+)
 
 # The request half of each attachment this client can build. The control type,
 # model id and preprocessor id must agree, or a widened scope would run the
@@ -498,7 +510,7 @@ def main() -> int:
     distances = report["distances"]
     artifacts = full["artifacts"]
     checks = {
-        "admitted": full["sha256"] is not None,
+        "admitted": admitted_check(report["renders"], POSITIVE_RUNS, SEED),
         "preprocess": (
             len(artifacts) == 1
             and artifacts[0]["preprocessor_id"] == "canny"

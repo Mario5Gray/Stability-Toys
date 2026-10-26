@@ -480,13 +480,17 @@ Limitations, stated rather than glossed:
   content. It ran no control: it recorded no map for the mirrored source. A
   mirrored source renders differently, so the second face also moved. Part of
   the 16.64 distance can come from that face and not from the body pose.
-- Two checks in the client are weaker than their names suggest. `admitted`
-  tests `sha256 is not None`, and `describe()` always fills that field, so the
-  check passes whenever the four renders complete. The record row above
-  therefore rests on the terminal frames read during the run, not on this
-  check. `map_is_a_pose_map` reads the operator-supplied `--map`, because the
-  delivered map is not retrievable. It proves what the preprocessor builds on
-  that source, not what the server wrote.
+- Two checks in the recorded client were weaker than their names suggest.
+  That `admitted` check tested `sha256 is not None`, and `describe()` always
+  fills that field, so the check passed whenever the four renders complete.
+  The record row above therefore rests on the terminal frames read during the
+  run, not on that check. The current Pose client computes `admitted` from
+  each required positive render's `ok`, `backend` and `seed`
+  (STABL-dvozpehl). The recorded row predates that change. The map check read
+  the operator-supplied `--map`, because the delivered map is not
+  retrievable. It proves the shape of the operator map, not what the server
+  wrote. The current Pose client reports this check as
+  `local_map_is_pose_map`.
 - The Pose map came from `controlnet-aux==0.0.10` and its OpenPose annotator
   weights. The record does not pin the annotator weight files. A different
   weight set draws a different skeleton from the same source.

@@ -19,6 +19,7 @@ if str(SPIKES) not in sys.path:
 
 import mps_hunyuan_canny_acceptance as canny_client  # noqa: E402 - spikes/ is not a package
 import mps_hunyuan_depth_acceptance as depth_client  # noqa: E402 - spikes/ is not a package
+import mps_hunyuan_img2img_acceptance as img2img_client  # noqa: E402 - spikes/ is not a package
 import mps_hunyuan_pose_acceptance as pose_client  # noqa: E402 - spikes/ is not a package
 import mps_hunyuan_scope as scope  # noqa: E402 - spikes/ is not a package
 
@@ -485,3 +486,45 @@ def test_each_client_control_set_follows_the_current_cell(client, applies):
         name for name, entry in report.items() if entry["decision"] == "applies"
     ] == applies
     assert submitted == applies
+
+
+# --- admission ---
+
+
+def _admitted_renders(labels, **overrides):
+    entry = {"ok": True, "backend": "mps", "seed": 4242, **overrides}
+    return {label: dict(entry) for label in labels}
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        canny_client.POSITIVE_RUNS,
+        depth_client.POSITIVE_RUNS,
+        pose_client.POSITIVE_RUNS,
+        img2img_client.POSITIVE_RUNS,
+    ],
+    ids=["canny", "depth", "pose", "img2img"],
+)
+def test_admitted_accepts_every_positive_run(labels):
+    assert scope.admitted_check(_admitted_renders(labels), labels) is True
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("ok", False), ("ok", None), ("backend", "cuda"), ("seed", 1)],
+)
+def test_admitted_rejects_a_wrong_field(field, value):
+    labels = ("a", "b")
+    renders = _admitted_renders(labels)
+    renders["b"][field] = value
+
+    assert scope.admitted_check(renders, labels) is False
+
+
+def test_admitted_rejects_a_missing_render():
+    assert scope.admitted_check(_admitted_renders(("a",)), ("a", "b")) is False
+
+
+def test_admitted_rejects_an_empty_label_set():
+    assert scope.admitted_check({}, ()) is False
