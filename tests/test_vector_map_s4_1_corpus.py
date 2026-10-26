@@ -262,9 +262,9 @@ def test_a_non_manifold_mesh_that_exits_zero_is_a_cad_error(work):
     assert render["exit_code"] == 0
     vertices, triangles = probe._vertices(work / "out.stl")
     assert probe.open_scad.nonmanifold_edge_count(triangles) >= 1
-    # Every S4.1 row is a corpus row, and corpus rows pinch at legitimate junctions.
-    # So this gate does not require closure. The mesh is recorded, not refused.
-    assert render["errors"] == []
+    # Corpus rows do not require closure. Older backends can still report the
+    # retained 2-manifold warning for this mesh; no other error is expected.
+    assert all("2-manifold" in error for error in render["errors"])
 
 
 @needs_openscad
