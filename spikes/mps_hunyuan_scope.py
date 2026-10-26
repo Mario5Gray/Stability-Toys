@@ -86,6 +86,18 @@ def validate_status(status: Any, mode: str) -> tuple[dict, bool]:
     return dict(cell), combined
 
 
+def status_error_report(payload: Any, error: Exception) -> dict:
+    """Build a JSON report record for a failed status read or validation.
+
+    A dict payload keeps its fields at the top level so a reader can still see
+    the reported mode. Any other payload is stored under `raw`, because a list
+    or scalar cannot take a `status_error` key.
+    """
+    if isinstance(payload, dict):
+        return {**payload, "status_error": str(error)}
+    return {"status_error": str(error), "raw": payload}
+
+
 def evaluate(cell: dict, supports_combined: bool, control: str) -> Decision:
     """Decide whether a negative control still exercises a platform refusal."""
     if control not in CONTROLS:

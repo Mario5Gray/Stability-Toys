@@ -401,7 +401,7 @@ def _positive_result(png):
     }
 
 
-def _run_client_main(monkeypatch, client, status, out):
+def _run_client_main(monkeypatch, client, status, out, extra=()):
     png = _noise_png()
     calls = []
 
@@ -421,7 +421,9 @@ def _run_client_main(monkeypatch, client, status, out):
     monkeypatch.setattr(
         client, "post_multipart", lambda *args, **kwargs: {"fileRef": "ref-1"}
     )
-    monkeypatch.setattr(sys, "argv", ["spike", "--url", "http://test", "--out", str(out)])
+    monkeypatch.setattr(
+        sys, "argv", ["spike", "--url", "http://test", "--out", str(out), *extra]
+    )
 
     return client.main(), calls
 
@@ -528,3 +530,54 @@ def test_admitted_rejects_a_missing_render():
 
 def test_admitted_rejects_an_empty_label_set():
     assert scope.admitted_check({}, ()) is False
+
+
+# --- status read failures ---
+
+
+def test_status_error_report_keeps_a_dict_payload_readable():
+    payload = {"backend": "mps", "current_mode": "lcm-general"}
+
+    record = scope.status_error_report(
+        payload, scope.StatusError("current_mode is 'lcm-general'")
+    )
+
+    assert record["current_mode"] == "lcm-general"
+    assert record["status_error"] == "current_mode is 'lcm-general'"
+    assert "status_error" not in payload
+
+
+@pytest.mark.parametrize("payload", [["not", "an", "object"], "not an object", 7, None])
+def test_status_error_report_wraps_a_non_object_payload(payload):
+    record = scope.status_error_report(
+        payload, scope.StatusError("status payload is not an object")
+    )
+
+    assert record["status_error"] == "status payload is not an object"
+    assert record["raw"] == payload
+
+
+@pytest.mark.parametrize(
+    ("client", "extra"),
+    [
+        (canny_client, ()),
+        (depth_client, ()),
+        (pose_client, ("--source", "PNG", "--map", "PNG")),
+    ],
+    ids=["canny", "depth", "pose"],
+)
+def test_a_client_reports_a_non_object_status_payload(
+    monkeypatch, tmp_path, capsys, client, extra
+):
+    png_path = tmp_path / "source.png"
+    png_path.write_bytes(_noise_png())
+    argv_extra = tuple(str(png_path) if part == "PNG" else part for part in extra)
+
+    rc, _calls = _run_client_main(
+        monkeypatch, client, ["not", "an", "object"], tmp_path / "out", argv_extra
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 1
+    assert report["models_status"]["status_error"] == "status payload is not an object"
+    assert report["models_status"]["raw"] == ["not", "an", "object"]
