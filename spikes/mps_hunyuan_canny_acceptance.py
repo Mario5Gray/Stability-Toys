@@ -83,6 +83,7 @@ from mps_hunyuan_scope import (
     FAMILY_BY_MODE,
     admitted_check,
     run_controls,
+    status_error_report,
     validate_status,
 )
 
@@ -458,15 +459,17 @@ def main() -> int:
         # The status route reports the ACTIVE family's scope. Read it only after
         # a HunyuanDiT render has activated that family (STABL-dvozpehl).
         if scope_cell is None:
+            status_payload = None
             try:
-                report["models_status"] = get_json(base_url + "/api/models/status")
+                status_payload = get_json(base_url + "/api/models/status")
+                report["models_status"] = status_payload
                 scope_cell, supports_combined = validate_status(
-                    report["models_status"], MODE
+                    status_payload, MODE
                 )
                 report["active_scope"] = scope_cell
                 report["supports_img2img_and_controlnet"] = supports_combined
             except Exception as exc:
-                report.setdefault("models_status", {})["status_error"] = str(exc)
+                report["models_status"] = status_error_report(status_payload, exc)
                 print(json.dumps(report, indent=2))
                 print(f"FAIL: active family status: {exc}", file=sys.stderr)
                 return 1
