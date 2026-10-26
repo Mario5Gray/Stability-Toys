@@ -80,6 +80,8 @@ import uuid
 
 from PIL import Image, ImageDraw, ImageStat
 
+from mps_hunyuan_scope import FAMILY_BY_MODE, run_controls, validate_status
+
 PROMPT = "a red apple on a wooden table, soft light, photo"
 NEGATIVE = "blurry, watermark, text, low quality"
 MODE = "HunyuanDiT"
@@ -109,18 +111,6 @@ MIN_GRAYSCALE_STDDEV = 5.0
 
 # Two renders count as different above this mean per-channel distance, 0 to 255.
 MIN_RENDER_DISTANCE = 1.0
-
-# The platform messages, copied from server/controlnet_execution.py.
-SCOPE_MESSAGES = {
-    "pose": (
-        "backend 'mps' does not support control_type 'pose' for family "
-        "'hunyuandit'; allowed: canny, depth"
-    ),
-    "two_attachments": (
-        "backend 'mps' admits at most 1 controlnet attachment(s) for family "
-        "'hunyuandit', got 2"
-    ),
-}
 
 
 def _to_png(image: Image.Image) -> bytes:
@@ -338,6 +328,21 @@ def mean_abs_difference(first: bytes, second: bytes) -> float:
     return round(statistics.fmean(deltas), 2)
 
 
+def build_refusals(source_ref: str, alt_ref: str) -> dict:
+    """The negative controls this client can build, one per platform rule."""
+    return {
+        "pose": {
+            "controlnets": [attachment(source_ref=source_ref, control_type="pose")]
+        },
+        "two_attachments": {
+            "controlnets": [
+                attachment(source_ref=source_ref, attachment_id="cn_1"),
+                attachment(source_ref=alt_ref, attachment_id="cn_2"),
+            ]
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:4200")
@@ -366,10 +371,6 @@ def main() -> int:
         "renders": {},
         "scope": {},
     }
-    try:
-        report["models_status"] = get_json(base_url + "/api/models/status")
-    except Exception as exc:
-        report["models_status"] = {"error": str(exc)}
 
     source_png = build_source_image()
     alt_source_png = build_alt_source_image()
@@ -404,6 +405,8 @@ def main() -> int:
         },
     }
     pngs: dict[str, bytes] = {}
+    scope_cell: dict | None = None
+    supports_combined = False
     for name, params in jobs.items():
         result = render(base_url, ws_url, params)
         if not result.get("ok"):
@@ -411,6 +414,21 @@ def main() -> int:
             print(json.dumps(report, indent=2))
             print(f"FAIL: render '{name}' did not complete", file=sys.stderr)
             return 1
+        # The status route reports the ACTIVE family's scope. Read it only after
+        # a HunyuanDiT render has activated that family (STABL-dvozpehl).
+        if scope_cell is None:
+            try:
+                report["models_status"] = get_json(base_url + "/api/models/status")
+                scope_cell, supports_combined = validate_status(
+                    report["models_status"], MODE
+                )
+                report["active_scope"] = scope_cell
+                report["supports_img2img_and_controlnet"] = supports_combined
+            except Exception as exc:
+                report.setdefault("models_status", {})["status_error"] = str(exc)
+                print(json.dumps(report, indent=2))
+                print(f"FAIL: active family status: {exc}", file=sys.stderr)
+                return 1
         png = result.pop("png")
         pngs[name] = png
         path = f"{args.out}_{name}.png"
@@ -436,35 +454,14 @@ def main() -> int:
             handle.write(map_png)
         report["control_maps"][asset_ref] = {"path": path, **map_stats(map_png)}
 
-    refusals = {
-        "pose": {
-            "controlnets": [
-                attachment(source_ref=source_ref, control_type="pose")
-            ]
-        },
-        "two_attachments": {
-            "controlnets": [
-                attachment(source_ref=source_ref, attachment_id="cn_1"),
-                attachment(source_ref=alt_ref, attachment_id="cn_2"),
-            ]
-        },
-    }
-    for name, params in refusals.items():
-        result = render(base_url, ws_url, params)
-        terminal = result.get("terminal") or {}
-        message = terminal.get("error", "")
-        expected = SCOPE_MESSAGES[name]
-        report["scope"][name] = {
-            "terminal_type": terminal.get("type"),
-            "message": message,
-            "expected": expected,
-            # Not "did it fail". A timeout or a mode-policy rejection also fails.
-            "refused_by_the_platform": (
-                not result.get("ok")
-                and terminal.get("type") == "job:error"
-                and expected in message
-            ),
-        }
+    refusals = build_refusals(source_ref, alt_ref)
+    report["scope"] = run_controls(
+        scope_cell=scope_cell,
+        supports_combined=supports_combined,
+        controls=refusals,
+        submit=lambda _name, params: render(base_url, ws_url, params),
+        family=FAMILY_BY_MODE[MODE],
+    )
 
     full = report["renders"]["controlnet_preprocessed"]
     report["distances"] = {
@@ -505,9 +502,15 @@ def main() -> int:
             and full["controlnet_chunk"][0]["control_type"] == "depth"
             and full["controlnet_chunk"][0]["generation"]["model_id"] == MODEL_ID
         ),
-        "scope_refuses_pose": report["scope"]["pose"]["refused_by_the_platform"],
-        "scope_refuses_two": report["scope"]["two_attachments"]["refused_by_the_platform"],
     }
+    for name, entry in report["scope"].items():
+        if entry["decision"] == "applies":
+            key = (
+                "scope_refuses_two"
+                if name == "two_attachments"
+                else f"scope_refuses_{name}"
+            )
+            checks[key] = entry["refused_by_the_platform"]
     report["checks"] = checks
     report["result"] = "PASS" if all(checks.values()) else "FAIL"
     print(json.dumps(report, indent=2))

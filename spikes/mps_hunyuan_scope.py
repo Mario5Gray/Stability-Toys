@@ -6,7 +6,7 @@ and the exact platform error text. It imports nothing from the server, so the
 rules stay testable without a live host. STABL-dvozpehl.
 """
 
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 FAMILY_BY_MODE = {"HunyuanDiT": "hunyuandit"}
 BACKEND_ID = "mps"
@@ -139,3 +139,45 @@ def expected_message(cell: dict, control: str, family: str) -> str:
         )
 
     return f"family '{family}' does not support the img2img+controlnet operation"
+
+
+def run_controls(
+    *,
+    scope_cell: dict,
+    supports_combined: bool,
+    controls: dict,
+    submit: Callable[[str, dict], dict],
+    family: str,
+) -> dict:
+    """Submit each applicable control and record a decision for every control.
+
+    A control the active cell no longer excludes is recorded as
+    `not_applicable` and is never submitted. A submitted control counts only
+    when the terminal frame is `job:error` and its text equals the exact
+    platform message.
+    """
+    report: dict = {}
+    for name, params in controls.items():
+        decision = evaluate(scope_cell, supports_combined, name)
+        if decision == "not_applicable":
+            report[name] = {
+                "decision": decision,
+                "reason": "active platform cell does not exclude this control",
+            }
+            continue
+        result = submit(name, params)
+        terminal = result.get("terminal") or {}
+        message = terminal.get("error", "")
+        expected = expected_message(scope_cell, name, family)
+        report[name] = {
+            "decision": decision,
+            "expected": expected,
+            "terminal_type": terminal.get("type"),
+            "message": message,
+            "refused_by_the_platform": (
+                not result.get("ok")
+                and terminal.get("type") == "job:error"
+                and message == expected
+            ),
+        }
+    return report
