@@ -370,7 +370,26 @@ def main() -> int:
         "scope": {},
     }
 
-    source_png = load_source(args.source)
+    # Required inputs are checked before any network call. A missing --map used
+    # to raise after four MPS renders, minutes in, with no report printed
+    # (STABL-vsypokqy).
+    try:
+        source_png = load_source(args.source)
+    except Exception as exc:
+        report["source"] = {"path": args.source, "error": str(exc)}
+        print(json.dumps(report, indent=2))
+        print(f"FAIL: --source: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        with open(args.map, "rb") as handle:
+            local_map = handle.read()
+    except OSError as exc:
+        report["local_map"] = {"path": args.map, "error": str(exc)}
+        print(json.dumps(report, indent=2))
+        print(f"FAIL: --map: {exc}", file=sys.stderr)
+        return 1
+
     alt_source_png = mirror_source(source_png)
     if source_png == alt_source_png:
         print("FAIL: the mirrored source must differ", file=sys.stderr)
@@ -448,9 +467,7 @@ def main() -> int:
             report["server_map_probe"]["status"] = "retrievable"
 
     # The format record comes from the local re-run, because the server bytes
-    # are not reachable.
-    with open(args.map, "rb") as handle:
-        local_map = handle.read()
+    # are not reachable. `local_map` was read before the render loop.
     with open(f"{args.out}_map_local.png", "wb") as handle:
         handle.write(local_map)
     report["local_map"] = {
