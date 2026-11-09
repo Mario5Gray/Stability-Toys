@@ -10,28 +10,28 @@ import (
 var modesCmd = &cobra.Command{
 	Use:   "modes",
 	Short: "List or manage model modes",
-	Args:  cobra.NoArgs,
+	Args:  noArgs,
 	RunE:  runModes,
 }
 
 var modesSwitchCmd = &cobra.Command{
 	Use:   "switch <name>",
 	Short: "Switch to a model mode",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE:  runModesSwitch,
 }
 
 var modesShowCmd = &cobra.Command{
 	Use:   "show <name>",
 	Short: "Print configuration for a mode as JSON",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE:  runModesShow,
 }
 
 var modesReloadCmd = &cobra.Command{
 	Use:   "reload",
 	Short: "Hot-reload modes.yaml on the server",
-	Args:  cobra.NoArgs,
+	Args:  noArgs,
 	RunE:  runModesReload,
 }
 
@@ -41,7 +41,11 @@ func init() {
 }
 
 func runModes(cmd *cobra.Command, args []string) error {
-	modes, err := newClient().Modes(cmd.Context())
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	modes, err := client.Modes(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -78,7 +82,11 @@ func runModes(cmd *cobra.Command, args []string) error {
 }
 
 func runModesSwitch(cmd *cobra.Command, args []string) error {
-	if err := newClient().SwitchMode(cmd.Context(), args[0]); err != nil {
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	if err := client.SwitchMode(cmd.Context(), args[0]); err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "switched to %s\n", args[0])
@@ -86,7 +94,11 @@ func runModesSwitch(cmd *cobra.Command, args []string) error {
 }
 
 func runModesShow(cmd *cobra.Command, args []string) error {
-	modes, err := newClient().Modes(cmd.Context())
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	modes, err := client.Modes(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -99,7 +111,11 @@ func runModesShow(cmd *cobra.Command, args []string) error {
 }
 
 func runModesReload(cmd *cobra.Command, args []string) error {
-	if err := newClient().ReloadModes(cmd.Context()); err != nil {
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	if err := client.ReloadModes(cmd.Context()); err != nil {
 		return err
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "modes reloaded")

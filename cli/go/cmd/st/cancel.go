@@ -9,7 +9,7 @@ import (
 var cancelCmd = &cobra.Command{
 	Use:   "cancel <jobId>",
 	Short: "Cancel a running job",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE:  runCancel,
 }
 
@@ -19,7 +19,11 @@ func init() {
 
 func runCancel(cmd *cobra.Command, args []string) error {
 	jobID := args[0]
-	if err := newClient().Cancel(cmd.Context(), jobID); err != nil {
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	if err := client.Cancel(cmd.Context(), jobID); err != nil {
 		return err
 	}
 	if flagJSON {

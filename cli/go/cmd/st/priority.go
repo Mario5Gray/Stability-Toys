@@ -10,7 +10,7 @@ import (
 var priorityCmd = &cobra.Command{
 	Use:   "priority <jobId> <level>",
 	Short: "Set a job's priority",
-	Args:  cobra.ExactArgs(2),
+	Args:  exactArgs(2),
 	RunE:  runPriority,
 }
 
@@ -24,7 +24,11 @@ func runPriority(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("level must be an integer: %w", err)
 	}
 	jobID := args[0]
-	if err := newClient().SetPriority(cmd.Context(), jobID, level); err != nil {
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	if err := client.SetPriority(cmd.Context(), jobID, level); err != nil {
 		return err
 	}
 	if flagJSON {

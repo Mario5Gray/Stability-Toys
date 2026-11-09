@@ -21,7 +21,7 @@ Optionally prefix the path with a type label to declare intent:
 
 The type label is sent as a "type" form field. Without a prefix the file
 is uploaded with no type declared.`,
-	Args: cobra.ExactArgs(1),
+	Args: exactArgs(1),
 	RunE: runUpload,
 }
 
@@ -35,7 +35,11 @@ func runUpload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	res, err := newClient().UploadFile(cmd.Context(), filepath.Base(filePath), data, typeLabel)
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	res, err := client.UploadFile(cmd.Context(), filepath.Base(filePath), data, typeLabel)
 	if err != nil {
 		return err
 	}

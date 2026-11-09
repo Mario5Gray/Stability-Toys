@@ -77,3 +77,46 @@ async def test_complete_raises_on_non_2xx():
     )
     with pytest.raises(httpx.HTTPStatusError):
         await client.complete(model="m", messages=[], max_tokens=1, temperature=0.0)
+
+
+async def test_complete_401_names_unset_env_var(monkeypatch):
+    monkeypatch.delenv("TEST_VLM_KEY", raising=False)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": "unauthorized"})
+
+    client = VLMChatClient(
+        endpoint="http://vlm.lan:8080/v1",
+        api_key_env="TEST_VLM_KEY",
+        timeout_s=30,
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(RuntimeError) as exc:
+        await client.complete(model="m", messages=[], max_tokens=1, temperature=0.0)
+
+    message = str(exc.value)
+    assert "401" in message
+    assert "TEST_VLM_KEY" in message
+    assert "unset" in message
+    assert "http://vlm.lan:8080/v1" in message
+
+
+async def test_complete_401_names_rejected_env_var(monkeypatch):
+    monkeypatch.setenv("TEST_VLM_KEY", "stale")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": "forbidden"})
+
+    client = VLMChatClient(
+        endpoint="http://vlm.lan:8080/v1",
+        api_key_env="TEST_VLM_KEY",
+        timeout_s=30,
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(RuntimeError) as exc:
+        await client.complete(model="m", messages=[], max_tokens=1, temperature=0.0)
+
+    message = str(exc.value)
+    assert "403" in message
+    assert "TEST_VLM_KEY" in message
+    assert "rejected" in message

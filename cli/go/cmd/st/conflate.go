@@ -20,7 +20,7 @@ var (
 var conflateCmd = &cobra.Command{
 	Use:   "conflate [on|off|status|history:<id>]",
 	Short: "Toggle or configure generation conflation policy",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  maxArgs(1),
 	RunE:  runConflate,
 }
 

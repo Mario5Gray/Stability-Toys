@@ -192,3 +192,24 @@ func TestGenerateCallsOnProgressForAllFrames(t *testing.T) {
 		t.Errorf("onProgress called %d times, want %d", count, n)
 	}
 }
+
+func TestJobFailureExplainsMissingDetail(t *testing.T) {
+	err := jobFailure("", GenParams{"mode": "lcm-general"})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	message := err.Error()
+	if !strings.Contains(message, "without detail") {
+		t.Fatalf("missing-detail fallback absent: %q", message)
+	}
+	if !strings.Contains(message, "lcm-general") {
+		t.Fatalf("mode should be included: %q", message)
+	}
+}
+
+func TestJobFailurePassesThroughDetail(t *testing.T) {
+	err := jobFailure("mode not loaded", nil)
+	if err == nil || err.Error() != "job error: mode not loaded" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

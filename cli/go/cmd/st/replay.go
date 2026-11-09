@@ -12,7 +12,7 @@ import (
 var replayCmd = &cobra.Command{
 	Use:   "replay <id>",
 	Short: "Replay one history-backed generation exactly",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil || id < 1 {

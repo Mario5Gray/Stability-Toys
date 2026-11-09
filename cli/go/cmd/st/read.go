@@ -13,7 +13,7 @@ import (
 var readCmd = &cobra.Command{
 	Use:   "read <image.png>",
 	Short: "Print embedded PNG metadata (lcm, controlnet, controlnet_map)",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE:  runRead,
 }
 

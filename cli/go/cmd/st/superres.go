@@ -17,7 +17,7 @@ var (
 var superresCmd = &cobra.Command{
 	Use:   "superres <file>",
 	Short: "Upscale an image via the backend super-resolution endpoint",
-	Args:  cobra.ExactArgs(1),
+	Args:  exactArgs(1),
 	RunE:  runSuperres,
 }
 
@@ -33,7 +33,11 @@ func runSuperres(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	img, err := newClient().SuperRes(cmd.Context(), data, srMagnitude)
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	img, err := client.SuperRes(cmd.Context(), data, srMagnitude)
 	if err != nil {
 		return err
 	}
@@ -41,11 +45,8 @@ func runSuperres(cmd *cobra.Command, args []string) error {
 	if dir == "" {
 		dir = "."
 	}
-	path, err := output.Resolve(srOutfile, dir, "png")
+	path, err := output.Save(srOutfile, dir, "png", img)
 	if err != nil {
-		return err
-	}
-	if err := output.Write(path, img); err != nil {
 		return err
 	}
 	if flagJSON {

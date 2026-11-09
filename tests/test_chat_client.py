@@ -226,3 +226,45 @@ async def test_chat_client_stream_logs_full_payload_when_flag_enabled(monkeypatc
     assert "payload" in message
     assert "hi there" in message
     assert "stream" in message
+
+
+@pytest.mark.asyncio
+async def test_chat_client_401_names_env_var(monkeypatch):
+    class FakeResponse:
+        status_code = 401
+
+        def raise_for_status(self):
+            raise AssertionError("auth failures must be explained before raise_for_status")
+
+        def json(self):
+            return {}
+
+    class FakeAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, json, headers, timeout):
+            return FakeResponse()
+
+    monkeypatch.setattr("backends.chat_client.httpx.AsyncClient", FakeAsyncClient)
+    monkeypatch.delenv("CHAT_TEST_KEY", raising=False)
+
+    from backends.chat_client import ChatCompletionsClient, ChatConfig
+
+    client = ChatCompletionsClient(
+        ChatConfig(
+            endpoint="http://localhost:11434/v1",
+            model="llama3.2",
+            api_key_env="CHAT_TEST_KEY",
+        )
+    )
+    with pytest.raises(RuntimeError) as exc:
+        await client.complete([{"role": "user", "content": "hi"}])
+
+    message = str(exc.value)
+    assert "401" in message
+    assert "CHAT_TEST_KEY" in message
+    assert "unset" in message

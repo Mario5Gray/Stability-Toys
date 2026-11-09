@@ -667,13 +667,83 @@ func displayParamsWithSeedIntent(params map[string]any, displaySeed *string) map
 	return displayParams
 }
 
+// outputDestination resolves and validates the configured write target. It is
+// called before submitting the job so an unusable path fails cheaply instead
+// of after a full generation.
+func outputDestination(cfg *config.Config) (dir, format string, err error) {
+	dir = strings.TrimSpace(flagOutputDir)
+	if dir == "" {
+		dir = strings.TrimSpace(cfg.Defaults.OutputDirectory)
+	}
+	if dir == "" {
+		return "", "", fmt.Errorf(
+			"output_directory is empty: set defaults.output_directory in the config file or pass -o <dir>",
+		)
+	}
+	if strings.Contains(dir, "REPLACE_ME") {
+		return "", "", fmt.Errorf(
+			"output_directory still contains the config template placeholder REPLACE_ME: %q",
+			dir,
+		)
+	}
+	format, err = outputFormat(cfg)
+	if err != nil {
+		return "", "", err
+	}
+	return dir, format, nil
+}
+
+func outputFormat(cfg *config.Config) (string, error) {
+	format := strings.ToLower(strings.TrimSpace(cfg.Defaults.OutputFormat))
+	if format == "" {
+		format = "png"
+	}
+	if format != "png" {
+		return "", fmt.Errorf(
+			"output_format %q is not supported: the backend returns PNG (set output_format to \"png\")",
+			format,
+		)
+	}
+	return format, nil
+}
+
+// preflightOutputDestination creates the destination directory before the job
+// is submitted, turning permission/ENOENT failures into an immediate error.
+func preflightOutputDestination(cfg *config.Config, a genArgs) error {
+	target := ""
+	if a.Outfile != "" && filepath.IsAbs(a.Outfile) {
+		// An explicit absolute outfile needs no output_directory; still
+		// reject an unusable format before the job runs.
+		if _, err := outputFormat(cfg); err != nil {
+			return err
+		}
+		target = filepath.Dir(a.Outfile)
+	} else {
+		dir, _, err := outputDestination(cfg)
+		if err != nil {
+			return err
+		}
+		target = dir
+	}
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return fmt.Errorf("output directory %s: %w", target, err)
+	}
+	return nil
+}
+
 func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, params stclient.GenParams, beforeSubmit func(stclient.GenParams)) error {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
+	if err := preflightOutputDestination(cfg, a); err != nil {
+		return err
+	}
 
 	ctx := cmd.Context()
-	client := newClient()
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
 
 	// --control-image type:<path>: upload each file and inject a controlnet attachment.
 	if len(a.ControlImages) > 0 {
@@ -732,19 +802,12 @@ func executeResolvedGen(cmd *cobra.Command, cfg *config.Config, a genArgs, param
 		}
 	}
 
-	dir := flagOutputDir
-	if dir == "" {
-		dir = cfg.Defaults.OutputDirectory
-	}
-	format := cfg.Defaults.OutputFormat
-	if format == "" {
-		format = "png"
-	}
-	path, err := output.Resolve(a.Outfile, dir, format)
+	dir, format, err := outputDestination(cfg)
 	if err != nil {
 		return err
 	}
-	if err := output.Write(path, img); err != nil {
+	path, err := output.Save(a.Outfile, dir, format, img)
+	if err != nil {
 		return err
 	}
 

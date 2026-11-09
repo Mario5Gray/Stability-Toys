@@ -6,9 +6,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -63,7 +66,10 @@ func init() {
 	pf.StringVar(&flagConfig, "config", "", configFlagHelp())
 	pf.StringVarP(&flagOutputDir, "output-dir", "o", "", "directory for generated images (overrides config)")
 	pf.BoolVar(&flagJSON, "json", false, "emit machine-readable JSON")
-	pf.DurationVar(&flagTimeout, "timeout", 0, "per-request timeout (0 = client default)")
+	pf.DurationVar(&flagTimeout, "timeout", 0, "HTTP request timeout (0 = client default; does not cap WS job duration)")
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return usageError{cmd: cmd, err: err}
+	})
 }
 
 // resolveConfig loads the config at path, or writes a template and reports the
@@ -107,36 +113,80 @@ func requireConfig() (*config.Config, error) {
 }
 
 // resolveServerURL returns the server base URL using precedence:
-// explicit serverFlag > config file server_url. Returns empty string
-// when neither is set; callers (stclient.New) handle the empty case.
-func resolveServerURL(serverFlag, configFlag string) string {
-	if serverFlag != "" {
-		return serverFlag
+// explicit serverFlag > config file server_url. A missing value is an error
+// that names every source, and a config that cannot be resolved or parsed is
+// reported instead of being silently treated as "no URL".
+func resolveServerURL(serverFlag, configFlag string) (string, error) {
+	if raw := strings.TrimSpace(serverFlag); raw != "" {
+		return normalizeServerURL(raw, "--server/$ST_SERVER")
 	}
+
 	path, err := config.Resolve(configFlag)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("resolve config path: %w\n  hint: pass --config, set $ST_CONFIG, or create the XDG default", err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("load config %s: %w", path, err)
 	}
-	return cfg.ServerURL
+	raw := strings.TrimSpace(cfg.ServerURL)
+	if raw == "" {
+		return "", fmt.Errorf(
+			"no backend URL: set --server, $ST_SERVER, or server_url in %s\n"+
+				"  example: export ST_SERVER=http://host:4200",
+			path,
+		)
+	}
+	return normalizeServerURL(raw, "server_url in "+path)
+}
+
+// normalizeServerURL makes a scheme-less host usable and rejects values that
+// cannot become an HTTP endpoint, naming where the value came from.
+func normalizeServerURL(raw, source string) (string, error) {
+	normalized := raw
+	if !strings.Contains(normalized, "://") {
+		normalized = "http://" + normalized
+	}
+	u, err := url.Parse(normalized)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return "", fmt.Errorf(
+			"invalid backend URL %q (from %s): expected http(s)://host[:port]",
+			raw, source,
+		)
+	}
+	return strings.TrimRight(u.String(), "/"), nil
 }
 
 // newClient builds an stclient pointed at the resolved server URL, honoring
 // --timeout when set. URL precedence: --server/$ST_SERVER > config server_url.
-func newClient() *stclient.Client {
-	var opts []stclient.Option
+func newClient(opts ...stclient.Option) (*stclient.Client, error) {
+	baseURL, err := resolveServerURL(flagServer, flagConfig)
+	if err != nil {
+		return nil, err
+	}
 	if flagTimeout > 0 {
 		opts = append(opts, stclient.WithHTTPClient(&http.Client{Timeout: flagTimeout}))
 	}
-	return stclient.New(resolveServerURL(flagServer, flagConfig), opts...)
+	return stclient.New(baseURL, opts...), nil
 }
+
+// usageError marks an error as a command-usage problem so main can point at
+// the command's help without duplicating the full usage text.
+type usageError struct {
+	cmd *cobra.Command
+	err error
+}
+
+func (e usageError) Error() string { return e.err.Error() }
+func (e usageError) Unwrap() error { return e.err }
 
 func main() {
 	if err := executeCLI(context.Background(), os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		var usage usageError
+		if errors.As(err, &usage) && usage.cmd != nil {
+			fmt.Fprintf(os.Stderr, "hint: run '%s --help'\n", usage.cmd.CommandPath())
+		}
 		os.Exit(exitCodeOf(err))
 	}
 }

@@ -42,3 +42,17 @@ func Resolve(outfile, dir, format string) (string, error) {
 func Write(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
+
+// Save resolves the destination and writes data in one step. Callers that
+// need the chosen path (to report it) get it back; the resolve-then-write
+// sequence used to be duplicated at every call site.
+func Save(outfile, dir, format string, data []byte) (string, error) {
+	path, err := Resolve(outfile, dir, format)
+	if err != nil {
+		return "", err
+	}
+	if err := Write(path, data); err != nil {
+		return "", err
+	}
+	return path, nil
+}
