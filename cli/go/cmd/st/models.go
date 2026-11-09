@@ -7,7 +7,7 @@ import (
 var modelsCmd = &cobra.Command{
 	Use:   "models",
 	Short: "Show model/backend status",
-	Args:  cobra.NoArgs,
+	Args:  noArgs,
 	RunE:  runModels,
 }
 
@@ -16,7 +16,11 @@ func init() {
 }
 
 func runModels(cmd *cobra.Command, args []string) error {
-	status, err := newClient().Models(cmd.Context())
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	status, err := client.Models(cmd.Context())
 	if err != nil {
 		return err
 	}

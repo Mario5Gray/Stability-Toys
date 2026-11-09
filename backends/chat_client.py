@@ -10,6 +10,8 @@ import os
 
 import httpx
 
+from backends.openai_compat import bearer_headers, chat_completions_url, ensure_success
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +34,6 @@ class ChatCompletionsClient:
 
     def __init__(self, config: ChatConfig):
         self.config = config
-
-    def _url(self) -> str:
-        return f"{self.config.endpoint.rstrip('/')}/chat/completions"
-
-    def _headers(self) -> Dict[str, str]:
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
-        api_key = os.environ.get(self.config.api_key_env, "")
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        return headers
 
     def _request_payload(
         self,
@@ -96,7 +88,7 @@ class ChatCompletionsClient:
         messages = payload.get("messages")
         message_summary = self._message_summary(messages)
         debug_record: Dict[str, object] = {
-            "url": self._url(),
+            "url": chat_completions_url(self.config.endpoint),
             "model": payload.get("model"),
             "stream": payload.get("stream"),
             "max_tokens": payload.get("max_tokens"),
@@ -125,12 +117,16 @@ class ChatCompletionsClient:
         self._log_outbound_request(payload)
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                self._url(),
+                chat_completions_url(self.config.endpoint),
                 json=payload,
-                headers=self._headers(),
+                headers=bearer_headers(self.config.api_key_env),
                 timeout=self.config.timeout_s,
             )
-        resp.raise_for_status()
+        ensure_success(
+            resp,
+            endpoint=self.config.endpoint,
+            api_key_env=self.config.api_key_env,
+        )
         data = resp.json()
         try:
             return data["choices"][0]["message"]["content"] or ""
@@ -154,12 +150,16 @@ class ChatCompletionsClient:
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
-                self._url(),
+                chat_completions_url(self.config.endpoint),
                 json=payload,
-                headers=self._headers(),
+                headers=bearer_headers(self.config.api_key_env),
                 timeout=self.config.timeout_s,
             ) as resp:
-                resp.raise_for_status()
+                ensure_success(
+                    resp,
+                    endpoint=self.config.endpoint,
+                    api_key_env=self.config.api_key_env,
+                )
                 async for line in resp.aiter_lines():
                     if not line:
                         continue

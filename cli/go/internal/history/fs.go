@@ -33,10 +33,13 @@ func ResolveStateRoot() (string, error) {
 
 	root := filepath.Join(base, "st")
 	if err := os.MkdirAll(root, 0o700); err != nil {
-		return "", err
+		return "", fmt.Errorf(
+			"cannot initialise state directory %s (set $XDG_STATE_HOME to a writable location): %w",
+			root, err,
+		)
 	}
 	if err := os.Chmod(root, 0o700); err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot restrict state directory %s to owner-only access: %w", root, err)
 	}
 	return root, nil
 }

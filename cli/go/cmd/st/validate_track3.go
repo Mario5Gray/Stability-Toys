@@ -23,7 +23,7 @@ var (
 var validateTrack3Cmd = &cobra.Command{
 	Use:   "validate-track3",
 	Short: "Validate ControlNet Track 3 against a live server",
-	Args:  cobra.NoArgs,
+	Args:  noArgs,
 	RunE:  runValidateTrack3,
 }
 
@@ -40,7 +40,10 @@ func runValidateTrack3(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--control-image is required")
 	}
 	ctx := cmd.Context()
-	client := newClient()
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
 	out := cmd.OutOrStdout()
 	fmt.Fprintln(out, "validate-track3:")
 
@@ -57,10 +60,10 @@ func runValidateTrack3(cmd *cobra.Command, args []string) error {
 	params := stclient.GenParams{
 		"prompt": t3Prompt,
 		"controlnets": []any{map[string]any{
-			"attachment_id":   "track3-1",
-			"control_type":    t3ControlType,
+			"attachment_id":    "track3-1",
+			"control_type":     t3ControlType,
 			"source_asset_ref": ref,
-			"preprocess":      map[string]any{"id": t3ControlType},
+			"preprocess":       map[string]any{"id": t3ControlType},
 		}},
 	}
 	_, res, err := client.Generate(ctx, params, nil, nil)

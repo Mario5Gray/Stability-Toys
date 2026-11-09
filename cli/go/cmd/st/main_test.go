@@ -46,7 +46,10 @@ func TestResolveServerURLFlagWins(t *testing.T) {
 	p := filepath.Join(dir, "config.json")
 	writeConfigWithServerURL(t, p, "http://from-config:7860")
 
-	got := resolveServerURL("http://from-flag:7860", p)
+	got, err := resolveServerURL("http://from-flag:7860", p)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "http://from-flag:7860" {
 		t.Fatalf("flag should win, got %q", got)
 	}
@@ -57,16 +60,52 @@ func TestResolveServerURLFromConfig(t *testing.T) {
 	p := filepath.Join(dir, "config.json")
 	writeConfigWithServerURL(t, p, "http://from-config:7860")
 
-	got := resolveServerURL("", p)
+	got, err := resolveServerURL("", p)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "http://from-config:7860" {
 		t.Fatalf("config server_url should be used, got %q", got)
 	}
 }
 
-func TestResolveServerURLEmptyWhenConfigMissing(t *testing.T) {
-	got := resolveServerURL("", filepath.Join(t.TempDir(), "nonexistent.json"))
-	if got != "" {
-		t.Fatalf("should return empty when config missing, got %q", got)
+func TestResolveServerURLNormalizesSchemeLessHost(t *testing.T) {
+	got, err := resolveServerURL("host.lan:4200", filepath.Join(t.TempDir(), "unused.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "http://host.lan:4200" {
+		t.Fatalf("scheme-less host should default to http, got %q", got)
+	}
+}
+
+func TestResolveServerURLRejectsInvalidHost(t *testing.T) {
+	if _, err := resolveServerURL("ftp://host", "/unused.json"); err == nil {
+		t.Fatal("expected invalid scheme to be rejected")
+	}
+}
+
+func TestResolveServerURLConfigMissingIsError(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "nonexistent.json")
+	_, err := resolveServerURL("", p)
+	if err == nil || !strings.Contains(err.Error(), p) {
+		t.Fatalf("error must name the config path, got %v", err)
+	}
+}
+
+func TestResolveServerURLMissingValueNamesSources(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	writeConfigWithServerURL(t, p, "")
+
+	_, err := resolveServerURL("", p)
+	if err == nil {
+		t.Fatal("expected an error when no URL is configured")
+	}
+	for _, want := range []string{"--server", "ST_SERVER", "server_url"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error must name %s, got %v", want, err)
+		}
 	}
 }
 

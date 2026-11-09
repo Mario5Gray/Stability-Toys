@@ -16,6 +16,28 @@ func (c *Client) wsURL() string {
 	return strings.Replace(c.baseURL, "http", "ws", 1) + "/v1/ws"
 }
 
+// dialWS opens the shared /v1/ws endpoint using the client's HTTP transport.
+func (c *Client) dialWS(ctx context.Context) (*websocket.Conn, error) {
+	conn, _, err := websocket.Dial(ctx, c.wsURL(), &websocket.DialOptions{HTTPClient: c.http})
+	return conn, err
+}
+
+// jobFailure turns a job:error frame into an error that always says
+// something. The server does not always populate the detail field; when it
+// does, the requested mode is included because that is the parameter most
+// often responsible for admission failures.
+func jobFailure(detail string, params GenParams) error {
+	if strings.TrimSpace(detail) == "" {
+		detail = "server reported failure without detail"
+	}
+	if params != nil {
+		if mode, ok := params["mode"].(string); ok && mode != "" {
+			return fmt.Errorf("job error: %s (mode %q)", detail, mode)
+		}
+	}
+	return fmt.Errorf("job error: %s", detail)
+}
+
 // corrID returns a short random correlation id for a job:submit.
 func corrID() string {
 	var b [6]byte
@@ -31,7 +53,7 @@ func corrID() string {
 // acknowledges the submission. onProgress is called synchronously for each
 // job:progress frame in the order received. Either callback may be nil.
 func (c *Client) Generate(ctx context.Context, p GenParams, onAck func(jobID string), onProgress func(delta string)) (string, *Result, error) {
-	conn, _, err := websocket.Dial(ctx, c.wsURL(), &websocket.DialOptions{HTTPClient: c.http})
+	conn, err := c.dialWS(ctx)
 	if err != nil {
 		return "", nil, err
 	}
@@ -58,7 +80,7 @@ func (c *Client) Generate(ctx context.Context, p GenParams, onAck func(jobID str
 			}
 		case "job:error":
 			conn.Close(websocket.StatusNormalClosure, "")
-			return "", nil, fmt.Errorf("job error: %s", f.Error)
+			return "", nil, jobFailure(f.Error, p)
 		case "job:complete":
 			conn.Close(websocket.StatusNormalClosure, "")
 			res := &Result{Meta: f.Meta, CNArtifacts: f.CNArts}
@@ -80,7 +102,7 @@ func (c *Client) Generate(ctx context.Context, p GenParams, onAck func(jobID str
 // generate connection.
 func (c *Client) controlFrame(ctx context.Context, send map[string]any, wantAck string) error {
 	send["id"] = corrID()
-	conn, _, err := websocket.Dial(ctx, c.wsURL(), &websocket.DialOptions{HTTPClient: c.http})
+	conn, err := c.dialWS(ctx)
 	if err != nil {
 		return err
 	}
@@ -97,7 +119,7 @@ func (c *Client) controlFrame(ctx context.Context, send map[string]any, wantAck 
 		case wantAck:
 			return nil
 		case "job:error":
-			return fmt.Errorf("job error: %s", f.Error)
+			return jobFailure(f.Error, nil)
 		}
 	}
 }

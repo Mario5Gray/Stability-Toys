@@ -80,7 +80,7 @@ Reusable transport settings, referenced by delegates.
 | Key | Required | Default | Notes |
 | --- | --- | --- | --- |
 | `endpoint` | yes | — | base URL of the analyzer host; for OpenAI-compatible hosts include the `/v1` suffix |
-| `api_key_env` | no | `OPENAI_API_KEY` | name of the environment variable holding the bearer token; the token is read at request time, and the `Authorization` header is omitted when the variable is unset or empty |
+| `api_key_env` | no | `OPENAI_API_KEY` | name of the environment variable holding the bearer token; the token is read at request time, the `Authorization` header is omitted when the variable is unset or empty, and a `401`/`403` from the endpoint is reported with the endpoint and variable name so the CLI's run error says what to set |
 
 The API key is never stored in config — only the name of the environment variable that
 holds it.

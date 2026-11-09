@@ -29,7 +29,7 @@ type histSummary struct {
 var histCmd = &cobra.Command{
 	Use:   "hist [n]",
 	Short: "Show local command history",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  maxArgs(1),
 	RunE:  runHist,
 }
 

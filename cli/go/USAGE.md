@@ -25,8 +25,8 @@ Edit the template, then re-run. Minimum useful config:
       "output_format": "png",
       "generation": {
         "genres": "512x512",
-        "num_inference_steps": 8,
-        "guidance_scale": 2.5
+        "steps": 8,
+        "cfg": 2.5
       }
     }
   }
@@ -630,10 +630,15 @@ Scripts can branch on degraded results via exit 3 without parsing output.
 
 | Flag | Env | Default | Purpose |
 | --- | --- | --- | --- |
-| `--server` | `$ST_SERVER` | config `server_url` | Backend base URL |
+| `--server` | `$ST_SERVER` | config `server_url` | Backend base URL; scheme optional (`host:4200` → `http://host:4200`) |
 | `--config` | `$ST_CONFIG` | XDG default | Config file path |
-| `-o / --output-dir` | — | config value | Output directory |
+| `-o / --output-dir` | — | config value | Output directory; preflighted before a gen job is submitted |
 | `--json` | — | false | Machine-readable output |
-| `--timeout` | — | 120s | Per-request timeout |
+| `--timeout` | — | 120s (describe: 30m) | HTTP request timeout; does not cap WebSocket job duration |
 
-Config discovery order: `--config` flag → `$ST_CONFIG` → `$XDG_CONFIG_HOME/stability-toys/config.json` → `~/.config/stability-toys/config.json`.
+If no URL is configured, `st` exits 1 with a message naming `--server`,
+`$ST_SERVER`, and the config file. `server_url` and `output_directory` are
+validated before any request; a missing credential is reported by the server
+run error as `401`/`403` naming the connection's `api_key_env`.
+
+Config discovery order: `--config` flag → `$ST_CONFIG` → `$XDG_CONFIG_HOME/st/config.json` → `~/.config/st/config.json`.

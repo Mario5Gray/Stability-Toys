@@ -452,7 +452,10 @@ async def lifespan(app: FastAPI):
                 logger.info("SIGHUP handler registered for config reload")
 
                 try:
-                    start_config_watcher(MODE_CONFIG_PATH, reload_mode_config)
+                    # MODE_CONFIG_PATH names the directory; the manager appends
+                    # modes.yml. Watch the resolved file, not the directory, or
+                    # events never match and hot reload silently never fires.
+                    start_config_watcher(str(mode_config.config_path), reload_mode_config)
                     logger.info("File watcher started for modes.yaml")
                 except Exception as e:
                     logger.warning(f"Failed to start file watcher: {e}")

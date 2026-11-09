@@ -1,18 +1,36 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/darkbit/stability-toys/cli/st/pkg/stclient"
 )
+
+// describeDefaultTimeout covers slow multimodal backends. The server's own
+// per-delegate budget can be an hour, so the 120s generic HTTP default would
+// abort valid analyses. --timeout overrides this.
+const describeDefaultTimeout = 30 * time.Minute
+
+// isTimeout reports whether err is a client-side deadline rather than a
+// server-side failure.
+func isTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var timedOut interface{ Timeout() bool }
+	return errors.As(err, &timedOut) && timedOut.Timeout()
+}
 
 type describeOptions struct {
 	caption          bool
@@ -109,7 +127,7 @@ pass through as URL targets. Task flags select what runs:
   st describe ./a.png ./b.png --caption --detect
 
 Exit codes: 0 ok, 1 transport/usage/validation error, 2 failed, 3 partial.`,
-	Args: cobra.MinimumNArgs(1),
+	Args: minArgs(1),
 	RunE: runDescribe,
 }
 
@@ -126,10 +144,17 @@ func init() {
 func runDescribe(cmd *cobra.Command, args []string) error {
 	describeOpts.minConfidenceSet = cmd.Flags().Changed("min-confidence")
 	if err := validateDescribeFlags(describeOpts); err != nil {
-		return err // usage error: exit 1 via main's default
+		return usageError{cmd: cmd, err: err} // usage error: exit 1 via main's default
 	}
 
-	client := newClient()
+	var opts []stclient.Option
+	if flagTimeout == 0 {
+		opts = append(opts, stclient.WithHTTPClient(&http.Client{Timeout: describeDefaultTimeout}))
+	}
+	client, err := newClient(opts...)
+	if err != nil {
+		return err
+	}
 	ctx := cmd.Context()
 	specs := classifyTargets(args)
 	targets := make([]stclient.DescribeTarget, len(specs))
@@ -155,6 +180,16 @@ func runDescribe(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		// *APIError prints "code: message", transport errors print their
 		// message — both via main's "error:" stderr line. Exit 1.
+		if isTimeout(err) {
+			effective := describeDefaultTimeout
+			if flagTimeout > 0 {
+				effective = flagTimeout
+			}
+			return fmt.Errorf(
+				"%w\n  hint: raise the client timeout with --timeout (currently %s)",
+				err, effective,
+			)
+		}
 		return err
 	}
 
