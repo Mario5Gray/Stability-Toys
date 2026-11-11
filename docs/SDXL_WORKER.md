@@ -179,12 +179,16 @@ For pre-quantized FP8 SDXL checkpoints, keep the same single-file loader path
 but make the runtime policy explicit:
 
 - Native FP8 checkpoints should not be re-quantized with Quanto.
-- `runtime_offload: model` is the main lever for reducing active VRAM into the
-  4-5GB range at 512x512.
+- `runtime_offload: none` keeps the whole pipeline on the GPU. The shipped
+  mode uses this value, and a 24 GB card holds the pipeline at 6.5 GB.
+- `runtime_offload: model` is the low-VRAM option. It reduces active VRAM into
+  the 4-5GB range at 512x512. The offload hook moves each component back to
+  the CPU after use, so GPU memory drops after every image and each image pays
+  the transfer cost.
 - `runtime_attention_slicing: true` and `runtime_enable_xformers: true` trade
   speed for lower working-set pressure.
 
-Example mode:
+Low-VRAM example mode:
 
 ```yaml
   SDXL:
