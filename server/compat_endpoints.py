@@ -119,13 +119,13 @@ class CompatEndpoints:
                     "config": None,
                 }
             ]
-            
+
         @r.get("/sdapi/v1/options")
         def sdapi_v1_options():
             return {
                 "sd_model_checkpoint": get_rknn_model_paths(),
                 "sd_checkpoint_hash": "",
-                "sd_model_hash": "",                
+                "sd_model_hash": "",
             }
 
         # Optional probes (some clients ask these)
@@ -133,7 +133,7 @@ class CompatEndpoints:
         def sdapi_samplers():
             # LCM scheduler only; return a minimal "sampler list"
             return [{"name": "LCM", "aliases": ["lcm"], "options": {}}]
-            
+
         @r.post("/sdapi/v1/txt2img")
         def sdapi_txt2img(req: A1111Txt2ImgRequest):
             # A1111 semantics:
