@@ -126,6 +126,7 @@ modes:
     allowed_scheduler_ids:
       - euler
       - lcm
+      - ddpm
     default_scheduler_id: lcm
     chat_delegate: sdxl_advisor
     controlnet_policy:
@@ -167,6 +168,7 @@ modes:
     allowed_scheduler_ids:
       - euler
       - lcm
+      - ddpm
     default_scheduler_id: lcm
     chat_delegate: sdxl_advisor
   SDXL:
@@ -193,6 +195,7 @@ modes:
     allow_custom_negative_prompt: true
     allowed_scheduler_ids:
       - ddim
+      - ddpm
       - dpmpp_2m
       - dpmpp_2m_karras
       - dpmpp_sde
@@ -232,6 +235,9 @@ modes:
     recommended_size: 1024x1024
     default_steps: 50
     default_guidance: 6.0
+    allowed_scheduler_ids:
+      - ddpm
+    default_scheduler_id: ddpm
     negative_prompt_templates:
       safe_photo: "blurry, watermark, text, low quality"
     default_negative_prompt_template: safe_photo
