@@ -178,7 +178,7 @@ modes:
     checkpoint_variant: sdxl-base
     scheduler_profile: native
     runtime_quantize: none
-    runtime_offload: model
+    runtime_offload: none
     runtime_attention_slicing: true
     runtime_enable_xformers: true
     resolution_set: sdxl
