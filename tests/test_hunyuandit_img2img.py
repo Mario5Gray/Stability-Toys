@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from diffusers import DPMSolverMultistepScheduler
 from diffusers.pipelines.hunyuandit.pipeline_hunyuandit import HunyuanDiTPipeline
 from PIL import Image
 
@@ -162,6 +163,31 @@ def test_prepare_source_latents_preprocesses_encodes_and_noises():
     assert noise.shape == noised_source.shape
     assert result.dtype == torch.float16
     assert result.device == torch.device("cpu")
+
+
+def test_prepare_source_latents_accepts_scalar_timestep_with_multistep_scheduler():
+    """DPM++ and Euler add_noise iterate the timestep tensor.
+
+    A 0-D timestep raises ``iteration over a 0-d tensor`` there. The denoising
+    loop passes ``timesteps[0]``, which is 0-D.
+    """
+    pipe = FakePipe()
+    pipe.scheduler = DPMSolverMultistepScheduler()
+    pipe.scheduler.set_timesteps(18, device="cpu")
+    generator = torch.Generator(device="cpu").manual_seed(42)
+
+    result = prepare_source_latents(
+        pipe,
+        "source-image",
+        width=64,
+        height=64,
+        timestep=pipe.scheduler.timesteps[0],
+        generator=generator,
+        dtype=torch.float32,
+        device="cpu",
+    )
+
+    assert result.shape == (1, 4, 8, 8)
 
 
 def test_prepare_source_latents_same_seed_reproduces_noise():

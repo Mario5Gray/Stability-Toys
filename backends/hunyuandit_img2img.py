@@ -42,7 +42,9 @@ def prepare_source_latents(pipe, image, *, width, height, timestep, generator, d
     """Encode ``image`` with ``pipe``'s loaded VAE and noise it to ``timestep``.
 
     Returns the noisy source latent, ready as the denoising loop's initial
-    latent. Dimensions are validated before the VAE is touched.
+    latent. Dimensions are validated before the VAE is touched. A scalar
+    timestep is expanded to one value per latent, because the multistep and
+    Euler schedulers iterate it inside ``add_noise``.
     """
     from diffusers.utils.torch_utils import randn_tensor
 
@@ -59,6 +61,8 @@ def prepare_source_latents(pipe, image, *, width, height, timestep, generator, d
     source_latent = source_latent.to(device=device, dtype=dtype)
 
     noise = randn_tensor(source_latent.shape, generator=generator, device=source_latent.device, dtype=dtype)
+    if timestep.dim() == 0:
+        timestep = timestep.repeat(source_latent.shape[0])
     return pipe.scheduler.add_noise(source_latent, noise, timestep)
 
 
