@@ -39,6 +39,10 @@ def test_depth_and_pose_extras_require_torch(extra):
     assert "torch>=2.1" in EXTRAS[extra]
 
 
+def test_pose_extra_pins_the_available_mediapipe_tasks_release():
+    assert "mediapipe==0.10.30" in EXTRAS["pose"]
+
+
 def test_vector_extra_pins_vtracer_opencv_and_renderer():
     assert EXTRAS["vector"] == ["vtracer==0.6.15", "opencv-python-headless>=4.5", "resvg-py==0.5.0"]
 
