@@ -2,10 +2,13 @@
 """Generate a pose map from an image for use with ControlNet."""
 
 import argparse
+import os
+import shutil
 import sys
+import urllib.request
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from cn_metadata import build_map_metadata, save_with_metadata
 
@@ -21,6 +24,12 @@ except ModuleNotFoundError as exc:
     ) from exc
 if not hasattr(torch, "float8_e8m0fnu"):
   setattr(torch, "float8_e8m0fnu", torch.float32)
+
+
+MEDIAPIPE_POSE_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
+    "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
+)
 
 
 def load_image(path: Path, max_res: int | None) -> Image.Image:
@@ -58,33 +67,90 @@ def dwpose(img: Image.Image) -> Image.Image:
     return detector(img)
 
 
+def mediapipe_model_path() -> Path:
+    configured_path = os.environ.get("ST_MEDIAPIPE_POSE_MODEL")
+    if configured_path:
+        model_path = Path(configured_path).expanduser()
+        if model_path.is_file():
+            return model_path
+        raise SystemExit(
+            f"st-pose-map: ST_MEDIAPIPE_POSE_MODEL does not name a file: {model_path}"
+        )
+
+    cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    model_path = cache_root / "st-controlnet-helpers" / "pose_landmarker_heavy.task"
+    if model_path.is_file():
+        return model_path
+
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = model_path.with_suffix(".task.download")
+    try:
+        with urllib.request.urlopen(MEDIAPIPE_POSE_MODEL_URL, timeout=60) as response:
+            with temporary_path.open("wb") as model_file:
+                shutil.copyfileobj(response, model_file)
+        temporary_path.replace(model_path)
+    except OSError as exc:
+        temporary_path.unlink(missing_ok=True)
+        raise SystemExit(
+            "st-pose-map: unable to download the MediaPipe pose model. "
+            "Set ST_MEDIAPIPE_POSE_MODEL to a local pose_landmarker_heavy.task file."
+        ) from exc
+    return model_path
+
+
+def draw_mediapipe_landmarks(
+    img: Image.Image,
+    landmarks: list[list[object]],
+    connections: list[object],
+    overlay: bool,
+    show_keypoints_only: bool,
+) -> Image.Image:
+    canvas = img.copy() if overlay else Image.new("RGB", img.size)
+    draw = ImageDraw.Draw(canvas)
+    width, height = canvas.size
+    line_width = max(2, round(min(width, height) / 256))
+    radius = max(3, line_width + 1)
+
+    def point(landmark: object) -> tuple[int, int]:
+        x = min(max(round(getattr(landmark, "x") * (width - 1)), 0), width - 1)
+        y = min(max(round(getattr(landmark, "y") * (height - 1)), 0), height - 1)
+        return x, y
+
+    for pose_landmarks in landmarks:
+        if not show_keypoints_only:
+            for connection in connections:
+                start = getattr(connection, "start")
+                end = getattr(connection, "end")
+                draw.line(
+                    (point(pose_landmarks[start]), point(pose_landmarks[end])),
+                    fill="white",
+                    width=line_width,
+                )
+        for landmark in pose_landmarks:
+            x, y = point(landmark)
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill="white")
+    return canvas
+
+
 def mediapipe(img: Image.Image, overlay: bool, show_keypoints_only: bool) -> Image.Image:
     import mediapipe as mp
     import numpy as np
 
-    mp_pose = mp.solutions.pose
-    mp_draw = mp.solutions.drawing_utils
-    mp_styles = mp.solutions.drawing_styles
-
-    arr = np.array(img)
-    with mp_pose.Pose(static_image_mode=True, model_complexity=2) as pose:
-        results = pose.process(arr)
-
-    canvas = arr.copy() if overlay else np.zeros_like(arr)
-
-    if results.pose_landmarks:
-        if show_keypoints_only:
-            spec = mp_draw.DrawingSpec(color=(255, 255, 255), thickness=2, circle_radius=3)
-            mp_draw.draw_landmarks(canvas, results.pose_landmarks, None, spec, spec)
-        else:
-            mp_draw.draw_landmarks(
-                canvas,
-                results.pose_landmarks,
-                mp_pose.POSE_CONNECTIONS,
-                mp_styles.get_default_pose_landmarks_style(),
-            )
-
-    return Image.fromarray(canvas)
+    tasks = mp.tasks
+    vision = tasks.vision
+    options = vision.PoseLandmarkerOptions(
+        base_options=tasks.BaseOptions(model_asset_path=str(mediapipe_model_path()))
+    )
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.array(img))
+    with vision.PoseLandmarker.create_from_options(options) as landmarker:
+        results = landmarker.detect(mp_image)
+    return draw_mediapipe_landmarks(
+        img,
+        results.pose_landmarks,
+        vision.PoseLandmarksConnections.POSE_LANDMARKS,
+        overlay,
+        show_keypoints_only,
+    )
 
 
 def main() -> None:
