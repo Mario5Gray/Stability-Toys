@@ -84,6 +84,17 @@ def test_scheduler_spec_extra_kwargs_are_immutable():
     assert spec.extra_kwargs == {"use_karras_sigmas": True}
 
 
+def test_build_scheduler_ddpm_returns_ddpm_scheduler():
+    """STABL-wsebfcjp: ddpm must build from a non-DDPM baseline config."""
+    from diffusers import DDPMScheduler, LCMScheduler
+
+    from backends.scheduler_registry import build_scheduler
+
+    built = build_scheduler("ddpm", LCMScheduler().config)
+
+    assert isinstance(built, DDPMScheduler)
+
+
 def test_build_scheduler_unknown_id_raises():
     from backends import scheduler_registry
 

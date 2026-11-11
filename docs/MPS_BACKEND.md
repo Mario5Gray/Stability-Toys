@@ -154,9 +154,10 @@ The server starts without a model when the default mode has no MPS binding.
   ControlNet strength becomes `controlnet_conditioning_scale`. A combined
   render costs more wall time than a plain img2img render because the ControlNet
   runs at every step; the live figures are below.
-- **LCM scheduler only.** `lcm-general` permits `euler` in configuration. The
-  worker raises `ValueError("MPS SD1.5 supports LCM scheduler only")` before the
-  pipeline call. HTTP returns 500 and WebSocket returns a job error. There is no
+- **Scheduler follows the mode allow-list.** The worker raises
+  `ValueError("scheduler_id '<id>' is not allowed for the active mode")` before
+  the pipeline call when the request names an id outside `allowed_scheduler_ids`.
+  HTTP returns 500 and WebSocket returns a job error. There is no
   admission-time 400 for this case.
 - **No `run_job_with_latents`.** Production generation calls `run_job` only.
 - **Mode switch returns HTTP 422** for an unbound family, with that message

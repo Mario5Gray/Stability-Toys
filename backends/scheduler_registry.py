@@ -20,6 +20,7 @@ class SchedulerSpec:
 
 SCHEDULER_SPECS = {
     "ddim": SchedulerSpec("diffusers.schedulers.scheduling_ddim.DDIMScheduler"),
+    "ddpm": SchedulerSpec("diffusers.schedulers.scheduling_ddpm.DDPMScheduler"),
     "euler": SchedulerSpec(
         "diffusers.schedulers.scheduling_euler_discrete.EulerDiscreteScheduler"
     ),

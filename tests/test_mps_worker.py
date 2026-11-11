@@ -153,14 +153,14 @@ def _binding(control_type="canny", attachment_id="cn_1", model_id="sd15-canny"):
     )
 
 
-def _model_info(loader_format="diffusers_dir"):
+def _model_info(loader_format="diffusers_dir", allowed_scheduler_ids=("lcm", "euler")):
     return SimpleNamespace(
         loader_format=loader_format,
         checkpoint_precision="fp16",
         checkpoint_variant="unknown",
         scheduler_profile="lcm",
         default_scheduler_id="lcm",
-        allowed_scheduler_ids=["lcm", "euler"],
+        allowed_scheduler_ids=list(allowed_scheduler_ids),
         runtime_offload=None,
         runtime_quantize=None,
         runtime_enable_xformers=None,
@@ -265,7 +265,7 @@ def fake_pipeline(monkeypatch, mps_available):
     )
 
 
-def _build_worker(doubles, loader_format="diffusers_dir", family_profile=None):
+def _build_worker(doubles, loader_format="diffusers_dir", family_profile=None, allowed_scheduler_ids=("lcm", "euler")):
     """Every live MPS worker has the bound SD1.5 profile."""
     from backends.mps_worker import DiffusersMpsWorker
     from backends.family_profiles import SD15_PROFILE
@@ -273,7 +273,7 @@ def _build_worker(doubles, loader_format="diffusers_dir", family_profile=None):
     return DiffusersMpsWorker(
         worker_id=0,
         model_path=MODEL_PATH,
-        model_info=_model_info(loader_format),
+        model_info=_model_info(loader_format, allowed_scheduler_ids),
         family_profile=family_profile or SD15_PROFILE,
     )
 
@@ -425,12 +425,26 @@ def test_mps_worker_runs_inference_under_inference_mode(
     assert fake_pipeline.pipe.inference_mode_flags == [True]
 
 
-def test_mps_worker_rejects_non_lcm_scheduler(
+def test_mps_worker_accepts_ddpm_when_mode_allows_it(
+    fake_pipeline, recording_generator, released_cache
+):
+    """STABL-wsebfcjp: the scheduler gate follows the mode allow-list."""
+    worker = _build_worker(
+        fake_pipeline, allowed_scheduler_ids=("lcm", "euler", "ddpm")
+    )
+
+    worker.run_job(_job(req=_request(scheduler_id="ddpm")))
+
+    assert type(fake_pipeline.pipe.scheduler).__name__ == "DDPMScheduler"
+
+
+def test_mps_worker_rejects_scheduler_outside_mode_allow_list(
     fake_pipeline, recording_generator, released_cache
 ):
     worker = _build_worker(fake_pipeline)
-    with pytest.raises(ValueError, match="MPS SD1.5 supports LCM scheduler only"):
-        worker.run_job(_job(req=_request(scheduler_id="euler")))
+
+    with pytest.raises(ValueError, match="not allowed for the active mode"):
+        worker.run_job(_job(req=_request(scheduler_id="ddpm")))
     assert fake_pipeline.pipe.calls == []
 
 

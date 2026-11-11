@@ -97,8 +97,9 @@ class DiffusersMpsWorker(CudaWorkerBase):
             format_name = "single-file"
 
         # Unconditional, unlike CUDA's `scheduler_profile != "native"` branch.
-        # This slice accepts the LCM scheduler only, so a native profile has
-        # nothing to select. The divergence is deliberate.
+        # The LCM baseline gives request-time scheduler builds a config to
+        # convert. The mode allow-list selects another scheduler per request.
+        # The divergence is deliberate.
         pipe.scheduler = _lcm_scheduler_cls().from_config(pipe.scheduler.config)
         pipe = self._setup_pipe_memory_opts(pipe)
 
@@ -170,8 +171,14 @@ class DiffusersMpsWorker(CudaWorkerBase):
             )
 
         req = job.req
-        if self._resolve_scheduler_id(req) != "lcm":
-            raise ValueError("MPS SD1.5 supports LCM scheduler only")
+        # Fail before preprocessing, like admission. The allow-list is the
+        # mode policy, so a mode that names ddpm accepts it here.
+        selected = self._resolve_scheduler_id(req)
+        allowed = self._allowed_scheduler_ids()
+        if selected is not None and allowed is not None and selected not in allowed:
+            raise ValueError(
+                f"scheduler_id '{selected}' is not allowed for the active mode"
+            )
 
         try:
             w_str, h_str = str(req.size).lower().split("x")
