@@ -2,17 +2,17 @@
 # image, not just CUDA — the spawn child traces on any backend.
 #
 # PINNED AT 1.27.0 BECAUSE OF requirements.txt:2 (`protobuf>=4.21.6,<=4.25.4`).
-# That ceiling is deliberate — Dockerfile:175 installs mediapipe==0.10.14 for
-# ControlNet pose, and it requires protobuf<5. Measured with pip's resolver:
+# MediaPipe 0.10.30 no longer constrains protobuf, but the server's protobuf
+# ceiling still requires an OpenTelemetry release that resolves below it.
+# Measured with pip's resolver:
 #
 #   unconstrained                  -> otel 1.44.0, protobuf 7.35.1  (BREAKS the pin)
 #   constrained, resolver's pick   -> otel 1.15.0                   (a 2023 release)
 #   constrained, 1.27.0 requested  -> otel 1.27.0, protobuf 4.25.4  (clean)
 #
 # So pip's own backslide is far more pessimistic than necessary and must not be
-# trusted to pick. Moving to current OTel means raising the protobuf ceiling AND
-# moving mediapipe, which touches the ControlNet pose path — filed separately
-# rather than done here.
+# trusted to pick. Moving to current OTel means raising the protobuf ceiling,
+# which remains a separate compatibility change.
 #
 # opentelemetry-sdk alone has NO protobuf dependency; the constraint comes
 # entirely from the OTLP/HTTP exporter via opentelemetry-proto.

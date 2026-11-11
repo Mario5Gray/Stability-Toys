@@ -8,8 +8,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import depth_map
-import pose_map
+import depth_map  # noqa: E402
+import pose_map  # noqa: E402
 
 
 def _fixture(path: Path, size=(32, 24)):
@@ -90,3 +90,28 @@ def test_pose_map_dwpose_missing_mmdet_gives_install_hint(monkeypatch):
         pose_map.dwpose(Image.new("RGB", (8, 8)))
 
     assert "mmdet" in str(exit_info.value)
+
+
+def test_mediapipe_landmarks_draw_skeleton_and_keypoints_only():
+    class Landmark:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+    class Connection:
+        start = 0
+        end = 1
+
+    landmarks = [[Landmark(0.25, 0.5), Landmark(0.75, 0.5)]]
+    image = Image.new("RGB", (40, 20), "black")
+
+    skeleton = pose_map.draw_mediapipe_landmarks(
+        image, landmarks, [Connection()], False, False
+    )
+    keypoints = pose_map.draw_mediapipe_landmarks(
+        image, landmarks, [Connection()], False, True
+    )
+
+    assert skeleton.getpixel((20, 10)) == (255, 255, 255)
+    assert keypoints.getpixel((20, 10)) == (0, 0, 0)
+    assert keypoints.getpixel((10, 10)) == (255, 255, 255)

@@ -26,7 +26,7 @@ depth = [
 pose = [
     "torch>=2.1",
     "controlnet-aux>=0.0.7",
-    "mediapipe==0.10.14",
+    "mediapipe==0.10.30",
 ]
 canny = [
     "opencv-python-headless>=4.5",

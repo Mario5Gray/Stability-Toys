@@ -179,7 +179,7 @@ RUN pip install --no-cache-dir \
     "transformers>=4.35" \
     "controlnet-aux>=0.0.7" \
     "matplotlib" \
-    "mediapipe==0.10.14" \
+    "mediapipe==0.10.30" \
     "opencv-python-headless>=4.5"
 
 COPY scripts/ /app/scripts/

@@ -39,7 +39,7 @@ python scripts/canny_map.py photo.jpg canny.png   # direct
 > The `vector` extra pins `vtracer==0.6.15`. The `all` extra does not include it.
 >
 > Proven on CPython 3.12 (macOS arm64 and Fedora 44 x86_64): `st-vector-map` and `st-canny-map` convert a real image. Vector and canny need no Torch.
-> Installed and `--help` only: the depth, pose, and all extras. Their inference is untested. On macOS arm64, `pip check` fails for pose and all (mediapipe 0.10.14 platform message).
+> Installed and `--help` only: the depth, pose, and all extras. Their inference is untested. The MediaPipe pose model downloads on its first use; set `ST_MEDIAPIPE_POSE_MODEL` to use a pre-seeded local model.
 > Untested: CPython 3.10, 3.11, and 3.13, and depth, pose, or all on CPython 3.14.
 > Evidence: `docs/superpowers/reports/2026-10-18-vector-map-s4-3-regression.md`.
 >
@@ -601,8 +601,13 @@ Generate a skeleton pose map from an image.
 **Install deps**
 ```bash
 pip install controlnet-aux   # openpose + dwpose
-pip install mediapipe==0.10.14. # mediapipe only
+pip install mediapipe==0.10.30  # mediapipe only
 ```
+
+MediaPipe uses the Tasks API and downloads `pose_landmarker_heavy.task` on its
+first run into `$XDG_CACHE_HOME/st-controlnet-helpers` (or
+`~/.cache/st-controlnet-helpers`). For an offline or pre-seeded setup, set
+`ST_MEDIAPIPE_POSE_MODEL` to the model file path.
 
 **Parameters**
 
