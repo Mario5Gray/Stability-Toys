@@ -56,7 +56,7 @@ class WorkflowConfigManager:
             self.config_path = raw_path
         else:
             self.config_path = raw_path / "workflows.yml"
-        
+
         self.config: WorkflowsYAML = None  # type: ignore[assignment]
         self._load_config()
 

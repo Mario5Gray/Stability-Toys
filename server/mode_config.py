@@ -214,7 +214,7 @@ class ModeConfigManager:
             raise ValueError(
                 "Couldnt find a modes.yml to configure models with! current CONFIG_PATH is empty"
             )
-        
+
         self.config_path = Path(os.path.join(Path(config_path), "modes.yml"))
 
         self.config: ModesYAML = None  # type: ignore[assignment]
@@ -1153,7 +1153,7 @@ def get_mode_config(confPath: Optional[str] = None) -> ModeConfigManager:
         if confPath is None:
             _config_manager = ModeConfigManager(MODE_CONFIG_PATH)
         else:
-            _config_manager = ModeConfigManager(confPath) 
+            _config_manager = ModeConfigManager(confPath)
 
     return _config_manager
 
