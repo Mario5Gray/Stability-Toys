@@ -100,3 +100,23 @@ def test_build_scheduler_unknown_id_raises():
 
     with pytest.raises(ValueError, match="Unknown scheduler_id"):
         scheduler_registry.build_scheduler("not-a-scheduler", {})
+
+
+def test_flow_match_euler_is_registered():
+    from backends.scheduler_registry import get_scheduler_class, list_scheduler_ids
+
+    assert "flow_match_euler" in list_scheduler_ids()
+    assert get_scheduler_class("flow_match_euler").__name__ == "FlowMatchEulerDiscreteScheduler"
+
+
+@pytest.mark.parametrize("shift", [3.0, 6.0])
+def test_flow_match_euler_keeps_checkpoint_shift(shift):
+    from diffusers import FlowMatchEulerDiscreteScheduler
+    from backends.scheduler_registry import build_scheduler
+
+    baseline = FlowMatchEulerDiscreteScheduler(
+        num_train_timesteps=1000, shift=shift, use_dynamic_shifting=False
+    )
+    rebuilt = build_scheduler("flow_match_euler", baseline.config)
+    assert rebuilt.config.shift == shift
+    assert rebuilt.config.use_dynamic_shifting is False
