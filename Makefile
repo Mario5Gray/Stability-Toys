@@ -75,7 +75,7 @@ mps: ## Start the MPS server natively (no container: Docker cannot expose Metal;
 	esac
 	set -a; . ./env.mps; set +a; \
 	  $(PYTHON) scripts/check_mps_paths.py && \
-	  $(PYTHON) -m uvicorn server.lcm_sr_server:app --host 127.0.0.1 --port 4200
+	  $(PYTHON) -m uvicorn server.lcm_sr_server:app --host 0.0.0.0 --port 4200
 
 define REQUIRE_DRIFT
 	@command -v drift >/dev/null 2>&1 || { \

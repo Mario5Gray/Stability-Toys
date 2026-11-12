@@ -1,5 +1,5 @@
-model_root: /models
-lora_root: /models/loras
+model_root: /Users/darkbit1001/models
+lora_root: /Users/darkbit1001/models/loras
 default_mode: lcm-general
 
 resolution_sets:

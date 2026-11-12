@@ -92,6 +92,7 @@ st-vector-map $C/source.png $W/relief.svg --input-kind image --mask $C/mask.png 
   `--no-export-scad` overrides a recipe export request. It validates values and writes no source.
 - **Replay.** `--debug-bundle` saves the prepared masks and `<stem>.debug/recipe.json`. Replay with
   `st-vector-map $W/replay.svg --recipe $W/relief.debug/recipe.json`.
+- **Worked recipe.** [Rose Heart](vector-map-recipes/rose-heart/README.md) records one input, its hash, the commands, the settings, and the measured results.
 
 A run publishes `<stem>.svg`, `<stem>.vector.json`, and `<stem>.layers/<role>.svg`. It adds `<stem>.scad`, the preview,
 and the debug directory when requested. The manifest lists every other published artifact with a hash. It cannot list or hash itself.

@@ -8,6 +8,7 @@ MODE_CONFIG_PATH=${MODE_CONFIG_PATH:-conf}
 WORKER_ISOLATION=inproc
 FS_STORAGE_DIR=${FS_STORAGE_DIR:-./store}
 STORAGE_PROVIDER=${STORAGE_PROVIDER:-FILESYSTEM}
+DEFAULT_TIMEOUT=900
 
 # --- Private CA trust (node2.lan / agentgateway) ---------------------------
 # certs/ is machine-local and gitignored. conda's Python ships its own CA
