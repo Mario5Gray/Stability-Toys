@@ -90,7 +90,7 @@ Added after the plan review of 2026-11-12, each with tests in its task: two load
 
 `backends/family_profiles.py`, `backends/scheduler_registry.py`, `backends/model_resolution.py`, and `backends/platforms/cuda_bindings.py` have no binding.
 
-- [ ] **Step 1: Create the worktree**
+- [x] **Step 1: Create the worktree**
 
 ```bash
 git worktree add .worktrees/zimage-cuda -b feat/stabl-kbzlfbts-zimage-cuda main
@@ -99,7 +99,7 @@ cd .worktrees/zimage-cuda
 
 `conf/modes.yml` on `main` has user changes that are not committed. The worktree does not have them. Tell the user before the merge.
 
-- [ ] **Step 2: Commit the spec, this plan, and the spike script on the branch**
+- [x] **Step 2: Commit the spec, this plan, and the spike script on the branch**
 
 Copy the three untracked files from the main checkout: the spec, this plan, `spikes/zimage_encoder_placement.py`. Add one line for the spike to `spikes/README.md`.
 
