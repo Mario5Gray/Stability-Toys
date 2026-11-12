@@ -91,6 +91,16 @@ HUNYUANDIT_PROFILE = FamilyProfile(
     control_image_kwarg="control_image",
 )
 
+# Z-Image carries one Qwen3 text encoder. No pooled requirement. Its control-map
+# kwarg is `control_image`.
+ZIMAGE_PROFILE = FamilyProfile(
+    family_id="zimage",
+    encoder_roles=("text_encoder",),
+    pooled_required=False,
+    pooled_projection_role=None,
+    control_image_kwarg="control_image",
+)
+
 
 # --- Predicates --------------------------------------------------------------
 # Predicates read only detector-owned architecture facts. `checkpoint_variant`
@@ -112,10 +122,15 @@ def _is_hunyuandit(info: ModelInfo) -> bool:
     return info.transformer_kind == "hunyuandit"
 
 
+def _is_zimage(info: ModelInfo) -> bool:
+    return info.transformer_kind == "zimage"
+
+
 FAMILY_REGISTRY: tuple[FamilyRegistration, ...] = (
     FamilyRegistration(SD15_PROFILE, _is_sd15),
     FamilyRegistration(SDXL_PROFILE, _is_sdxl),
     FamilyRegistration(HUNYUANDIT_PROFILE, _is_hunyuandit),
+    FamilyRegistration(ZIMAGE_PROFILE, _is_zimage),
 )
 
 

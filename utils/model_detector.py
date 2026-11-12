@@ -367,8 +367,11 @@ class DiffusersDetector(BaseDetector):
                     transformer_config = json.load(f)
                 # Transformer attention dims stay on the transformer; they must
                 # never populate the UNet cross_attention_dim field.
-                if transformer_config.get("_class_name") == "HunyuanDiT2DModel":
+                transformer_class = transformer_config.get("_class_name")
+                if transformer_class == "HunyuanDiT2DModel":
                     info.transformer_kind = "hunyuandit"
+                elif transformer_class == "ZImageTransformer2DModel":
+                    info.transformer_kind = "zimage"
 
         # Read UNet config
         unet_config_path = path_obj / "unet" / "config.json"
