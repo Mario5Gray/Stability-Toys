@@ -129,6 +129,8 @@ If the target text carries an anchor or symbol id, the pair keeps it, because th
 
 Stop and report when: the exit code is not 0 or 1, the log has no document line, or the log has a line that starts with `error`. Such a result is a command failure, not a baseline.
 
+Result on 2026-11-12, branch base `81cd3df`: `exit=1`, 34 pairs, 23 documents. The 37 pairs above came from the `main` checkout at a later state. That set is a superset: two `Makefile` pairs from `main` commit `c43ccce` and one `conf/controlnets.yaml` pair from uncommitted `main` state. The branch baseline is 34. It is stored in `docs/superpowers/plans/2026-11-12-zimage-cuda-drift/baseline.pairs`. Later steps read that file, not `/tmp`.
+
 - [ ] **Step 4: Review each bound doc for the four files in the table**
 
 For each file: run `drift refs <path>`. For each doc it prints, read the section that names the file. Sort the doc into one class:
@@ -143,7 +145,16 @@ For each file: run `drift refs <path>`. For each doc it prints, read the section
 
 `fp comment STABL-kbzlfbts "<one line for each bound doc: path, class, action>"`. The comment must also state the baseline count and the next step, Task 1.
 
-**Pass rule for the whole plan:** at the end, `drift check` gives no (document, target) pair that is absent from the baseline pairs, and the command does not fail.
+**Pass rule for the whole plan:** at the end, `drift check` does not fail. Each (document, target) pair that is absent from the baseline must be in the historical exception list.
+
+**Historical exceptions (added after the Task 3 review).** A code edit makes each historical doc bound to that file stale. This plan does not edit or relink historical docs. Thus the original "no new pair" rule cannot pass. The seven accepted pairs are in `docs/superpowers/plans/2026-11-12-zimage-cuda-drift/historical-exceptions.pairs`:
+
+- Six historical docs against `server/mode_config.py` (Task 3): the 2026-04-11, 2026-04-16, and 2026-07-10 plans, the 2026-04-16, 2026-07-09, and 2026-07-16 specs.
+- The 2026-07-16 HunyuanDiT spec against `utils/model_detector.py` (Task 1).
+
+The list is closed. A new pair that is not in it fails the gate. Do not add a pair to the list without a review.
+
+`docs/WORKER_SELECTION.md` against `backends/worker_factory.py` (Task 3) is not an exception. It is a living doc. Task 7 updates its prose and relinks it, so the pair must be absent at the end.
 
 ---
 
@@ -873,8 +884,10 @@ docker compose -f docker-compose.test.yml build test
 docker compose -f docker-compose.test.yml run --rm test > /tmp/zimage-test-full.log 2>&1; echo "exit=$?"; tail -5 /tmp/zimage-test-full.log
 drift check > /tmp/zimage-drift-after.log 2>&1; echo "exit=$?"
 drift_pairs /tmp/zimage-drift-after.log > /tmp/zimage-drift-after.pairs     # function from Task 0 step 3
-comm -13 /tmp/zimage-drift-baseline.pairs /tmp/zimage-drift-after.pairs      # new pairs
-comm -23 /tmp/zimage-drift-baseline.pairs /tmp/zimage-drift-after.pairs      # resolved pairs
+D=docs/superpowers/plans/2026-11-12-zimage-cuda-drift
+comm -13 $D/baseline.pairs /tmp/zimage-drift-after.pairs | comm -23 - $D/historical-exceptions.pairs   # new pairs outside the exceptions
+comm -13 $D/baseline.pairs /tmp/zimage-drift-after.pairs | comm -12 - $D/historical-exceptions.pairs   # exceptions present
+comm -23 $D/baseline.pairs /tmp/zimage-drift-after.pairs                                             # resolved pairs
 ```
 
 Expected: pytest passes. The container suite exits 0. Do not read a full log into the session. Filter it.
@@ -883,8 +896,9 @@ Drift pass rule:
 
 - The `drift check` exit code is 0 or 1. Another code is a command failure.
 - The after log has at least one document line and no line that starts with `error`.
-- The first `comm` prints nothing: no new (document, target) pair.
-- The second `comm` prints only pairs for `docs/WORKER_SELECTION.md`, or nothing. Another resolved pair means an unplanned relink. Find the cause.
+- The first `comm` prints nothing: no new pair outside the historical exceptions. A `docs/WORKER_SELECTION.md` pair here means the relink did not happen.
+- The second `comm` prints only pairs from the exception list. Report them in the review request.
+- The third `comm` prints only pairs for `docs/WORKER_SELECTION.md`, or nothing. Another resolved pair means an unplanned relink. Find the cause.
 
 - [ ] **Step 6: Commit and request review**
 
