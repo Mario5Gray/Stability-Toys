@@ -24,4 +24,9 @@ CUDA_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
         "backends.cuda_worker.DiffusersHunyuanDiTCudaWorker",
         ExecutionCapabilities(True, True, True),
     ),
+    # Z-Image: txt2img and plain img2img. ControlNet is slice 2.
+    "zimage": FamilyPlatformBinding(
+        "backends.zimage_cuda_worker.DiffusersZImageCudaWorker",
+        ExecutionCapabilities(True, False, False),
+    ),
 }

@@ -19,6 +19,9 @@ class SchedulerSpec:
 
 
 SCHEDULER_SPECS = {
+    "flow_match_euler": SchedulerSpec(
+        "diffusers.schedulers.scheduling_flow_match_euler_discrete.FlowMatchEulerDiscreteScheduler"
+    ),
     "ddim": SchedulerSpec("diffusers.schedulers.scheduling_ddim.DDIMScheduler"),
     "ddpm": SchedulerSpec("diffusers.schedulers.scheduling_ddpm.DDPMScheduler"),
     "euler": SchedulerSpec(

@@ -20,6 +20,7 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
 2. The family is resolved from detector-owned architecture facts — `base_arch == "unet"`
    and `cross_attention_dim` (`{768, 1024}` → `sd15`, `{1280, 2048}` → `sdxl`).
    It is **not** taken from `checkpoint_variant`, which mode policy can overlay.
+   Family `zimage` resolves from `transformer_kind == "zimage"`.
 3. The backend provider supplies its family binding table to
    `backends.worker_factory.create_bound_worker`. The factory looks up
    `resolved.profile.family_id`, imports the selected cell's `worker_ref` lazily,
@@ -27,6 +28,8 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
    - `DiffusersCudaWorker` for family `sd15` (SD1.5, SD2.0, SD2.1)
    - `DiffusersSDXLCudaWorker` for family `sdxl` (SDXL Base, Refiner)
    - `DiffusersHunyuanDiTCudaWorker` for family `hunyuandit`
+   - `DiffusersZImageCudaWorker` for family `zimage` (Z-Image-Turbo, Z-Image base),
+     module `backends.zimage_cuda_worker`
 
 A known family without a selected backend cell raises `UnsupportedFamilyError`.
 An unresolvable model raises `FamilyResolutionError`. Binding reads and rejected
@@ -49,7 +52,7 @@ ControlNet scope narrows ControlNet to one Canny attachment. It also binds
 `hunyuandit` to `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker` for
 text-to-image, img2img, and one Canny, Depth or Pose ControlNet attachment. The
 combined img2img + ControlNet operation stays unbound for `hunyuandit`. `sdxl`
-stays unbound.
+stays unbound. `zimage` has no MPS binding.
 The provider reports generation support as true after live acceptance.
 It reports super-resolution and model-registry statistics as false.
 Server startup continues without a model when the default mode has no MPS binding.
@@ -100,7 +103,8 @@ The server logs show the resolved family and selected worker on mode load:
 **Problem**: the model's detector facts do not match exactly one neutral family
 (e.g. a transformer/DiT checkpoint, or an ambiguous cross-attention dim).
 
-**Solution**: confirm the model is a supported SD1.5/SD2.x/SDXL UNet checkpoint.
+**Solution**: confirm the model is a supported SD1.5/SD2.x/SDXL UNet checkpoint,
+a HunyuanDiT folder, or a Z-Image Diffusers folder.
 Inspect detector facts directly:
 
 ```bash
@@ -112,10 +116,11 @@ python -m utils.model_detector /models/your-model.safetensors
 **Problem**: the family resolved, but no CUDA cell is registered for it in
 `CUDA_FAMILY_BINDINGS`.
 
-**Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`, `hunyuandit`).
+**Solution**: verify the family is one the CUDA platform binds (`sd15`, `sdxl`,
+`hunyuandit`, `zimage`).
 MPS binds `sd15` for LCM text-to-image, LCM img2img, one Canny ControlNet, and
 the combined operation. It binds `hunyuandit` for text-to-image, img2img, and
-one Canny, Depth or Pose ControlNet.
+one Canny, Depth or Pose ControlNet. It does not bind `zimage`.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`

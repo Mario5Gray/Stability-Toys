@@ -161,6 +161,7 @@ class ModeConfig:
     runtime_offload: Optional[str] = None
     runtime_attention_slicing: Optional[bool] = None
     runtime_enable_xformers: Optional[bool] = None
+    text_encoder_quantize: Optional[str] = None
     negative_prompt_templates: Dict[str, str] = field(default_factory=dict)
     default_negative_prompt_template: Optional[str] = None
     allow_custom_negative_prompt: bool = False
@@ -363,6 +364,13 @@ class ModeConfigManager:
                     f"Mode '{mode_name}' references unknown analysis_profile '{analysis_profile}'"
                 )
 
+            text_encoder_quantize = mode_data.get("text_encoder_quantize")
+            if text_encoder_quantize is not None and text_encoder_quantize not in ("int8", "none"):
+                raise ValueError(
+                    f"Mode '{mode_name}' has invalid text_encoder_quantize "
+                    f"'{text_encoder_quantize}'. Use int8 or none."
+                )
+
             # Parse LoRAs
             loras = []
             for lora_def in mode_data.get("loras", []):
@@ -394,6 +402,7 @@ class ModeConfigManager:
                 runtime_offload=mode_data.get("runtime_offload"),
                 runtime_attention_slicing=mode_data.get("runtime_attention_slicing"),
                 runtime_enable_xformers=mode_data.get("runtime_enable_xformers"),
+                text_encoder_quantize=text_encoder_quantize,
                 negative_prompt_templates=mode_data.get("negative_prompt_templates", {}) or {},
                 default_negative_prompt_template=mode_data.get("default_negative_prompt_template"),
                 allow_custom_negative_prompt=bool(mode_data.get("allow_custom_negative_prompt", False)),
@@ -852,6 +861,7 @@ class ModeConfigManager:
                 "runtime_offload",
                 "runtime_attention_slicing",
                 "runtime_enable_xformers",
+                "text_encoder_quantize",
             ):
                 val = mode_data.get(cap_field)
                 if val is not None:
@@ -1111,6 +1121,7 @@ class ModeConfigManager:
                     "runtime_offload": mode.runtime_offload,
                     "runtime_attention_slicing": mode.runtime_attention_slicing,
                     "runtime_enable_xformers": mode.runtime_enable_xformers,
+                    "text_encoder_quantize": mode.text_encoder_quantize,
                     "negative_prompt_templates": mode.negative_prompt_templates,
                     "default_negative_prompt_template": mode.default_negative_prompt_template,
                     "allow_custom_negative_prompt": mode.allow_custom_negative_prompt,

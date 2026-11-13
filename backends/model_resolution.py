@@ -102,6 +102,7 @@ class ModelInfoSnapshot:
     runtime_offload: str | None
     runtime_attention_slicing: bool | None
     runtime_enable_xformers: bool | None
+    text_encoder_quantize: str | None
     negative_prompt_templates: MappingProxyType
     default_negative_prompt_template: str | None
     allow_custom_negative_prompt: bool
@@ -133,6 +134,7 @@ _SCALAR_SNAPSHOT_FIELDS = (
     "runtime_offload",
     "runtime_attention_slicing",
     "runtime_enable_xformers",
+    "text_encoder_quantize",
     "default_negative_prompt_template",
     "allow_custom_negative_prompt",
     "default_scheduler_id",
@@ -517,6 +519,7 @@ def merge_mode_capabilities(model_info: ModelInfo, mode: ModeConfig) -> ModelInf
         "runtime_offload",
         "runtime_attention_slicing",
         "runtime_enable_xformers",
+        "text_encoder_quantize",
         "negative_prompt_templates",
         "default_negative_prompt_template",
         "allow_custom_negative_prompt",

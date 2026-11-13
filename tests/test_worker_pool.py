@@ -67,6 +67,7 @@ def mock_mode_config():
     mode_sdxl.runtime_offload = "model"
     mode_sdxl.runtime_attention_slicing = True
     mode_sdxl.runtime_enable_xformers = True
+    mode_sdxl.text_encoder_quantize = None
     mode_sdxl.negative_prompt_templates = {"safe_photo": "blurry, watermark"}
     mode_sdxl.default_negative_prompt_template = "safe_photo"
     mode_sdxl.allow_custom_negative_prompt = True
@@ -92,6 +93,7 @@ def mock_mode_config():
     mode_sd15.runtime_offload = None
     mode_sd15.runtime_attention_slicing = None
     mode_sd15.runtime_enable_xformers = None
+    mode_sd15.text_encoder_quantize = None
     mode_sd15.negative_prompt_templates = {}
     mode_sd15.default_negative_prompt_template = None
     mode_sd15.allow_custom_negative_prompt = False

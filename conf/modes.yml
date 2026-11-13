@@ -258,3 +258,31 @@ modes:
           default_strength: 1.0
           min_strength: 0.0
           max_strength: 2.0
+  ZImage-Turbo:
+    model: diffusers/Z-Image-Turbo-BF16
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 9
+    default_guidance: 0.0
+    allowed_scheduler_ids:
+      - flow_match_euler
+    default_scheduler_id: flow_match_euler
+    text_encoder_quantize: int8
+  ZImage-Base:
+    model: diffusers/Z-Image-Base
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    recommended_size: 1024x1024
+    default_steps: 30
+    default_guidance: 4.0
+    allowed_scheduler_ids:
+      - flow_match_euler
+    default_scheduler_id: flow_match_euler
+    negative_prompt_templates:
+      default: "blurry, low quality, watermark"
+    default_negative_prompt_template: default
+    allow_custom_negative_prompt: true
+    text_encoder_quantize: int8

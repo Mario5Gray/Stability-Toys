@@ -19,6 +19,7 @@ STUB_FILES = frozenset({
     'test_worker_controlnet_metadata.py',
     'test_worker_handle.py',
     'test_worker_pool.py',
+    'test_zimage_worker.py',
 })
 LIVE_FILES = frozenset({'test_hunyuandit_acceptance.py'})
 

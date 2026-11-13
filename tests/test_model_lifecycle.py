@@ -84,6 +84,7 @@ def mock_mode_config():
             "loader_format", "checkpoint_precision", "checkpoint_variant",
             "scheduler_profile", "recommended_size", "runtime_quantize",
             "runtime_offload", "runtime_attention_slicing", "runtime_enable_xformers",
+            "text_encoder_quantize",
             "default_negative_prompt_template", "allowed_scheduler_ids",
             "default_scheduler_id",
         ):

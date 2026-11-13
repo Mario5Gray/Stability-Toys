@@ -98,6 +98,7 @@ class ModelInfo:
     runtime_offload: Optional[str] = None
     runtime_attention_slicing: Optional[bool] = None
     runtime_enable_xformers: Optional[bool] = None
+    text_encoder_quantize: Optional[str] = None
     negative_prompt_templates: Dict[str, str] = field(default_factory=dict)
     default_negative_prompt_template: Optional[str] = None
     allow_custom_negative_prompt: bool = False
@@ -140,6 +141,7 @@ class ModelInfo:
             "runtime_offload": self.runtime_offload,
             "runtime_attention_slicing": self.runtime_attention_slicing,
             "runtime_enable_xformers": self.runtime_enable_xformers,
+            "text_encoder_quantize": self.text_encoder_quantize,
             "negative_prompt_templates": self.negative_prompt_templates,
             "default_negative_prompt_template": self.default_negative_prompt_template,
             "allow_custom_negative_prompt": self.allow_custom_negative_prompt,
@@ -367,8 +369,11 @@ class DiffusersDetector(BaseDetector):
                     transformer_config = json.load(f)
                 # Transformer attention dims stay on the transformer; they must
                 # never populate the UNet cross_attention_dim field.
-                if transformer_config.get("_class_name") == "HunyuanDiT2DModel":
+                transformer_class = transformer_config.get("_class_name")
+                if transformer_class == "HunyuanDiT2DModel":
                     info.transformer_kind = "hunyuandit"
+                elif transformer_class == "ZImageTransformer2DModel":
+                    info.transformer_kind = "zimage"
 
         # Read UNet config
         unet_config_path = path_obj / "unet" / "config.json"

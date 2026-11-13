@@ -251,3 +251,69 @@ def test_model_info_to_dict_includes_recommended_size():
         recommended_size="896x1152",
     )
     assert model_info.to_dict()["recommended_size"] == "896x1152"
+
+
+def _resolved_with_te_quantize(profile, value):
+    info = ModelInfo(
+        path="/host/only",
+        variant=ModelVariant.SD15,
+        cross_attention_dim=768,
+        base_arch="unet",
+        loader_format="single_file",
+        checkpoint_variant="sd15",
+        scheduler_profile="native",
+        text_encoder_quantize=value,
+    )
+    return build_resolved(
+        model_ref=hub_ref("org/repo", None),
+        raw_info=info,
+        profile=profile,
+        info=info,
+    )
+
+
+def test_factory_refuses_text_encoder_quantize_for_other_family(fake_cuda_worker):
+    from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+    from backends.worker_factory import UnsupportedModeFieldError, create_bound_worker
+
+    with pytest.raises(UnsupportedModeFieldError, match="text_encoder_quantize.*sd15"):
+        create_bound_worker(
+            0,
+            _resolved_with_te_quantize(SD15_PROFILE, "int8"),
+            LocalModelBinding("/m"),
+            backend_id="cuda",
+            family_bindings=CUDA_FAMILY_BINDINGS,
+        )
+
+
+def test_factory_admits_text_encoder_quantize_for_zimage(fake_cuda_worker):
+    from backends.family_profiles import ZIMAGE_PROFILE
+    from backends.worker_factory import create_bound_worker
+
+    family_bindings = {
+        "zimage": FamilyPlatformBinding(
+            "backends.cuda_worker.DiffusersCudaWorker",
+            ExecutionCapabilities(True, False, False),
+        )
+    }
+    worker = create_bound_worker(
+        0,
+        _resolved_with_te_quantize(ZIMAGE_PROFILE, "int8"),
+        LocalModelBinding("/m"),
+        backend_id="cuda",
+        family_bindings=family_bindings,
+    )
+    assert worker is not None
+
+
+def test_unbound_family_is_refused_before_mode_field_check():
+    # Unsupported-family probes carry only the family identity, no info.
+    from types import SimpleNamespace
+
+    from backends.worker_factory import create_bound_worker
+
+    probe = SimpleNamespace(profile=SD15_PROFILE)
+    with pytest.raises(UnsupportedFamilyError, match="family 'sd15' has no MPS platform binding"):
+        create_bound_worker(
+            0, probe, LocalModelBinding("/m"), backend_id="mps", family_bindings={}
+        )

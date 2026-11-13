@@ -1,0 +1,7 @@
+docs/superpowers/plans/2026-04-11-gallery-advisor.md	server/mode_config.py (changed after doc)
+docs/superpowers/plans/2026-04-16-chat-connection-decoupling.md	server/mode_config.py (changed after doc)
+docs/superpowers/plans/2026-07-10-pluggable-prompt-conditioning.md	server/mode_config.py (changed after doc)
+docs/superpowers/specs/2026-04-16-chat-connection-decoupling-design.md	server/mode_config.py (changed after doc)
+docs/superpowers/specs/2026-07-09-long-prompt-compel-design.md	server/mode_config.py (changed after doc)
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md	server/mode_config.py (changed after doc)
+docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md	utils/model_detector.py (changed after doc)
