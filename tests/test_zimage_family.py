@@ -47,3 +47,18 @@ def test_zimage_predicate_rejects_other_families():
     detect = next(r.detect for r in FAMILY_REGISTRY if r.profile is ZIMAGE_PROFILE)
     assert not detect(ModelInfo(path="x", base_arch="transformer", transformer_kind="hunyuandit"))
     assert not detect(ModelInfo(path="x", base_arch="unet", cross_attention_dim=2048))
+
+
+def test_cuda_binding_for_zimage():
+    from backends.platforms.base import ExecutionCapabilities
+    from backends.platforms.cuda_bindings import CUDA_FAMILY_BINDINGS
+
+    cell = CUDA_FAMILY_BINDINGS["zimage"]
+    assert cell.worker_ref == "backends.zimage_cuda_worker.DiffusersZImageCudaWorker"
+    assert cell.execution_capabilities == ExecutionCapabilities(True, False, False)
+
+
+def test_mps_has_no_zimage_binding():
+    from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
+
+    assert "zimage" not in MPS_FAMILY_BINDINGS
