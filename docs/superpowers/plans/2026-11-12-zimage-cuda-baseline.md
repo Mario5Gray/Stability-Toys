@@ -877,7 +877,7 @@ Slice 2 adds a `controlnet_policy` to these modes. That change makes strict star
 
 Add one line to the worker list near line 29: `DiffusersZImageCudaWorker` for family `zimage` (Z-Image-Turbo, Z-Image base), module `backends.zimage_cuda_worker`. State that MPS has no `zimage` binding. Then relink only this doc: `drift link docs/WORKER_SELECTION.md`. Read the whole doc first. Do not relink if another statement in it is wrong.
 
-- [ ] **Step 5: Run the full verification**
+- [x] **Step 5: Run the full verification** (reviewed exception, not a pass: the container suite exits 1 with 19 baseline failures. See `docs/superpowers/plans/2026-11-12-zimage-cuda-container/exception.md`.)
 
 ```bash
 python -m pytest tests/test_zimage_family.py tests/test_zimage_text_encoder.py tests/test_zimage_worker.py \
@@ -904,7 +904,7 @@ Drift pass rule:
 - The second `comm` prints only pairs from the exception list. Report them in the review request.
 - The third `comm` prints only pairs for `docs/WORKER_SELECTION.md`, or nothing. Another resolved pair means an unplanned relink. Find the cause.
 
-- [ ] **Step 6: Commit and request review**
+- [x] **Step 6: Commit and request review** (review requested on FP. Approval is pending.)
 
 ```bash
 git add conf/modes.yml docs/WORKER_SELECTION.md drift.lock tests/
