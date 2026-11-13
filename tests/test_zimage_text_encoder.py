@@ -452,3 +452,35 @@ def test_module_imports_without_torch():
         [sys.executable, "-c", code], cwd=REPO_ROOT, capture_output=True, text=True, timeout=60
     )
     assert proc.returncode == 0, proc.stderr
+
+
+def test_regular_file_at_entry_path_is_an_error_not_a_rebuild(tmp_path, seams):
+    model = _model(tmp_path)
+    store = tmp_path / "store"
+    store.mkdir()
+    entry = store / _key(model)
+    entry.write_text("not a folder")
+    with pytest.raises(ZImageEncoderStoreError, match=str(entry)):
+        load_int8_text_encoder(str(model), device="cuda", dtype="bf16", store_root=store)
+    assert seams.bf16 == 0
+    assert seams.quant == 0
+    assert entry.read_text() == "not a folder"
+
+
+@pytest.mark.parametrize(
+    "manifest_text",
+    ["[]", '"text"', "null", '{"key_inputs": []}', "{}"],
+    ids=["list", "string", "null", "key_inputs-list", "no-key_inputs"],
+)
+def test_malformed_manifest_shape_is_an_error_not_a_rebuild(tmp_path, seams, manifest_text):
+    model = _model(tmp_path)
+    store = tmp_path / "store"
+    load_int8_text_encoder(str(model), device="cuda", dtype="bf16", store_root=store)
+    entry = store / _key(model)
+    (entry / "store_manifest.json").write_text(manifest_text)
+    seams.bf16 = 0
+    seams.load = 0
+    with pytest.raises(ZImageEncoderStoreError, match=str(entry)):
+        load_int8_text_encoder(str(model), device="cuda", dtype="bf16", store_root=store)
+    assert seams.bf16 == 0
+    assert seams.load == 0

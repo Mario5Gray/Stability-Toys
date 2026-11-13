@@ -181,7 +181,11 @@ def _load_hit(entry: Path, manifest: dict, key: str, device: str) -> Any:
         raise ZImageEncoderStoreError(
             f"store entry {entry} has an unreadable manifest: {exc}"
         ) from exc
-    if stored.get("key_inputs") != manifest["key_inputs"]:
+    if not isinstance(stored, dict) or not isinstance(stored.get("key_inputs"), dict):
+        raise ZImageEncoderStoreError(
+            f"store entry {entry} has a malformed manifest: expected an object with key_inputs"
+        )
+    if stored["key_inputs"] != manifest["key_inputs"]:
         raise ZImageEncoderStoreError(
             f"store entry {entry} manifest key_inputs differ from the model folder; "
             f"remove the entry to rebuild it"
@@ -246,6 +250,11 @@ def load_int8_text_encoder(
             entry = root / key
             if entry.is_dir():
                 return _load_hit(entry, manifest, key, device)
+            if os.path.lexists(entry):
+                # A file or a broken link at the entry path is not a miss.
+                raise ZImageEncoderStoreError(
+                    f"store entry {entry} exists but is not a directory; remove it to rebuild"
+                )
             return _build_entry(root, entry, manifest, key, encoder_dir, device, dtype)
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
