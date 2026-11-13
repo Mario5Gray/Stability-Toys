@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class UnsupportedModeFieldError(ValueError):
+    """A mode field is set for a family that does not support it."""
+
+
 def _resolve_worker_class(worker_ref: str):
     module_path, class_name = worker_ref.rsplit(".", 1)
     module = importlib.import_module(module_path)
@@ -45,6 +49,11 @@ def create_bound_worker(
     if cell is None:
         raise UnsupportedFamilyError(
             f"family {family_id!r} has no {backend_id.upper()} platform binding"
+        )
+
+    if resolved.info.text_encoder_quantize is not None and family_id != "zimage":
+        raise UnsupportedModeFieldError(
+            f"text_encoder_quantize is valid only for family 'zimage'; got family {family_id!r}"
         )
 
     worker_class = _resolve_worker_class(cell.worker_ref)

@@ -328,3 +328,22 @@ def test_merge_mode_capabilities_is_importable_from_resolution_and_pool():
     from backends.worker_pool import merge_mode_capabilities as pool_merge
 
     assert mr_merge is pool_merge
+
+
+def test_mode_overlay_carries_text_encoder_quantize():
+    from backends.model_resolution import merge_mode_capabilities
+
+    mode = SimpleNamespace(text_encoder_quantize="int8")
+    assert merge_mode_capabilities(_info(), mode).text_encoder_quantize == "int8"
+
+
+def test_snapshot_wire_round_trip_keeps_text_encoder_quantize():
+    info = _info(text_encoder_quantize="int8")
+    resolved = build_resolved(
+        model_ref=hub_ref("org/repo", None),
+        raw_info=info,
+        profile=SD15_PROFILE,
+        info=info,
+    )
+    wire = resolved_model_to_json_dict(resolved)
+    assert resolved_model_from_json_dict(wire).info.text_encoder_quantize == "int8"

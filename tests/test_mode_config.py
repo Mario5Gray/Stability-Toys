@@ -1308,3 +1308,52 @@ def test_production_hunyuandit_mode_is_native_controlnet_txt2img_1024():
     assert policy.allowed_control_types["canny"].default_model_id == "hunyuandit-canny"
     assert policy.allowed_control_types["depth"].default_model_id == "hunyuandit-depth"
     assert policy.allowed_control_types["pose"].default_model_id == "hunyuandit-pose"
+
+
+def _write_te_quantize_modes(tmp_path, extra_line):
+    cfg = tmp_path / "modes.yml"
+    text = (
+        "model_root: /models\n"
+        "lora_root: /models/loras\n"
+        "default_mode: Z\n"
+        "resolution_sets:\n"
+        "  default:\n"
+        "    - size: 512x512\n"
+        "      aspect_ratio: \"1:1\"\n"
+        "modes:\n"
+        "  Z:\n"
+        "    model: zimage/Z-Image-Turbo-BF16\n"
+        + extra_line
+    )
+    cfg.write_text(text)
+    return tmp_path
+
+
+def test_text_encoder_quantize_parses(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    root = _write_te_quantize_modes(tmp_path, "    text_encoder_quantize: int8\n")
+    assert ModeConfigManager(str(root)).get_mode("Z").text_encoder_quantize == "int8"
+
+
+def test_text_encoder_quantize_defaults_to_none(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    root = _write_te_quantize_modes(tmp_path, "")
+    assert ModeConfigManager(str(root)).get_mode("Z").text_encoder_quantize is None
+
+
+def test_text_encoder_quantize_rejects_unknown(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    root = _write_te_quantize_modes(tmp_path, "    text_encoder_quantize: fp8\n")
+    with pytest.raises(ValueError, match="text_encoder_quantize"):
+        ModeConfigManager(str(root))
+
+
+def test_text_encoder_quantize_round_trips(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    root = _write_te_quantize_modes(tmp_path, "    text_encoder_quantize: none\n")
+    dumped = ModeConfigManager(str(root)).to_dict()
+    assert dumped["modes"]["Z"]["text_encoder_quantize"] == "none"
