@@ -14,14 +14,19 @@ The worker accepts a Diffusers folder only. It never downloads a model file.
 
 from __future__ import annotations
 
+import io
+import json
 import logging
 import os
 from typing import Any
 
 import torch
+from PIL import Image, PngImagePlugin
 
+from backends.conditioning.artifacts import DelegatedConditioning
 from backends.cuda_worker import CudaWorkerBase, _import_attr
 from backends.family_profiles import ZIMAGE_PROFILE, FamilyProfile
+from backends.step_progress import inject_step_progress
 from backends.zimage_text_encoder import load_int8_text_encoder
 
 logger = logging.getLogger(__name__)
@@ -30,6 +35,9 @@ _ADMITTED_LOADER_FORMAT = ("diffusers_dir", "unknown")
 _ADMITTED_OFFLOAD = ("none",)
 _ADMITTED_QUANTIZE = ("none",)
 _ADMITTED_TEXT_ENCODER_QUANTIZE = ("int8", "none")
+
+_DEFAULT_IMG2IMG_STRENGTH = 0.75
+_GIB = 2**30
 
 
 class ZImageDependencyError(RuntimeError):
@@ -178,3 +186,190 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
         raise ZImageUnsupportedRuntimeError(
             "Z-Image does not support runtime transformer quantization"
         )
+
+    # --- Peak memory --------------------------------------------------------
+
+    def _reset_peak_memory(self) -> None:
+        torch.cuda.synchronize(self.device)
+        torch.cuda.reset_peak_memory_stats(self.device)
+
+    def _read_peak_memory(self) -> tuple[int, int]:
+        """Return peak (allocated, reserved) bytes for the worker device."""
+
+        torch.cuda.synchronize(self.device)
+        return (
+            int(torch.cuda.max_memory_allocated(self.device)),
+            int(torch.cuda.max_memory_reserved(self.device)),
+        )
+
+    def _try_reset_peak_memory(self) -> None:
+        try:
+            self._reset_peak_memory()
+        except Exception as exc:
+            logger.warning("[%s] peak memory reset failed: %r", self.log_tag, exc)
+
+    def _try_read_peak_memory(self) -> tuple[int, int] | None:
+        try:
+            return self._read_peak_memory()
+        except Exception as exc:
+            logger.warning("[%s] peak memory read failed: %r", self.log_tag, exc)
+            return None
+
+    def _log_job(
+        self, job_id: Any, op: str, width: int, height: int, steps: int,
+        peak: tuple[int, int] | None,
+    ) -> None:
+        if peak is None:
+            allocated = reserved = allocated_gib = reserved_gib = "unavailable"
+        else:
+            allocated, reserved = peak
+            allocated_gib = f"{allocated / _GIB:.2f}"
+            reserved_gib = f"{reserved / _GIB:.2f}"
+        logger.info(
+            "[%s] job=%s op=%s size=%sx%s steps=%s peak_allocated_bytes=%s "
+            "peak_reserved_bytes=%s peak_allocated_gib=%s peak_reserved_gib=%s",
+            self.log_tag, job_id, op, width, height, steps,
+            allocated, reserved, allocated_gib, reserved_gib,
+        )
+
+    # --- Request rules ------------------------------------------------------
+
+    def _mode_permits_negative_prompt(self) -> bool:
+        info = self.model_info
+        return bool(
+            getattr(info, "allow_custom_negative_prompt", False)
+            or getattr(info, "negative_prompt_templates", None)
+        )
+
+    @staticmethod
+    def _img2img_strength(req: Any, steps: int) -> tuple[float, int]:
+        """Return (strength, effective steps). Refuse a value the pipe cannot run."""
+
+        raw = getattr(req, "denoise_strength", None)
+        strength = _DEFAULT_IMG2IMG_STRENGTH if raw is None else float(raw)
+        if not (0 < strength <= 1):
+            raise ValueError(
+                f"Z-Image img2img needs 0 < denoise_strength <= 1; got {strength}"
+            )
+        effective = min(int(steps * strength), steps)
+        if effective < 1:
+            raise ValueError(
+                f"Z-Image img2img has no effective step: steps={steps}, "
+                f"denoise_strength={strength}, effective_steps={effective}"
+            )
+        return strength, effective
+
+    def _ensure_img2img_pipe(self) -> Any:
+        # Build one time. from_pipe shares the base components and the scheduler.
+        # torch_dtype=None keeps the bf16 weights as they are.
+        if self._img2img_pipe is None:
+            self._img2img_pipe = _zimage_img2img_pipeline_cls().from_pipe(
+                self.pipe, torch_dtype=None
+            )
+        return self._img2img_pipe
+
+    # --- Execution ----------------------------------------------------------
+
+    def run_job(self, job: Any, progress: Any = None, should_cancel: Any = None) -> tuple[bytes, int]:
+        req = job.req
+        init_image = getattr(job, "init_image", None)
+
+        if getattr(job, "controlnet_bindings", None) or getattr(req, "controlnets", None):
+            raise RuntimeError("Z-Image does not support ControlNet")
+
+        try:
+            w_str, h_str = str(req.size).lower().split("x")
+            width, height = int(w_str), int(h_str)
+        except Exception:
+            raise RuntimeError(f"Invalid size '{req.size}', expected 'WIDTHxHEIGHT'")
+
+        steps = int(req.num_inference_steps)
+        strength: float | None = None
+        effective_steps = steps
+        if init_image is not None:
+            strength, effective_steps = self._img2img_strength(req, steps)
+
+        seed = int(req.seed) if req.seed is not None else int(torch.randint(0, 100_000_000, (1,)).item())
+        gen = torch.Generator(device=self.device)
+        gen.manual_seed(seed)
+
+        scheduler_id = self._apply_request_scheduler(req)
+
+        job_id = getattr(job, "job_id", "unknown")
+        out = None
+        artifact = None
+        pipe_kwargs: dict[str, Any] | None = None
+        init_pil = None
+        try:
+            artifact = self._conditioning_artifact_for_request(req)
+            if not isinstance(artifact, DelegatedConditioning):
+                raise ValueError("Z-Image supports native conditioning only")
+
+            pipe_kwargs = {"prompt": artifact.prompt}
+            negative = artifact.negative_prompt
+            if negative and negative.strip() and self._mode_permits_negative_prompt():
+                pipe_kwargs["negative_prompt"] = negative
+            pipe_kwargs.update(
+                width=width,
+                height=height,
+                num_inference_steps=steps,
+                guidance_scale=float(req.guidance_scale),
+                generator=gen,
+            )
+
+            if init_image is not None:
+                op = "img2img"
+                try:
+                    init_pil = Image.open(io.BytesIO(init_image)).convert("RGB")
+                except Exception as e:
+                    raise RuntimeError(f"invalid init image bytes: {e!r}")
+                pipe_kwargs["image"] = init_pil.resize((width, height))
+                pipe_kwargs["strength"] = strength
+                pipe = self._ensure_img2img_pipe()
+                logger.info(
+                    "[%s] img2img job=%s denoise_strength=%s effective_steps=%s requested_steps=%s",
+                    self.log_tag, job_id, strength, effective_steps, steps,
+                )
+            else:
+                op = "txt2img"
+                pipe = self.pipe
+
+            self._try_reset_peak_memory()
+            try:
+                with torch.inference_mode():
+                    # img2img runs the effective steps only, so progress counts those.
+                    inject_step_progress(
+                        pipe, pipe_kwargs, progress, effective_steps,
+                        should_cancel=should_cancel,
+                    )
+                    out = pipe(**pipe_kwargs)
+            finally:
+                self._log_job(
+                    job_id, op, width, height, effective_steps, self._try_read_peak_memory()
+                )
+
+            img: Image.Image = out.images[0]  # type: ignore[union-attr]
+
+            meta: dict[str, Any] = {
+                "prompt": req.prompt,
+                "seed": seed,
+                "size": req.size,
+                "steps": steps,
+                "cfg": float(req.guidance_scale),
+                # Record the value the pipe received. A dropped prompt reads as None.
+                "negative_prompt": pipe_kwargs.get("negative_prompt"),
+                "scheduler_id": scheduler_id,
+            }
+            if strength is not None:
+                meta["denoise_strength"] = strength
+            pnginfo = PngImagePlugin.PngInfo()
+            pnginfo.add_text("lcm", json.dumps(meta))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", pnginfo=pnginfo)
+            return buf.getvalue(), seed
+        finally:
+            out = None
+            artifact = None
+            pipe_kwargs = None
+            init_pil = None
+            self.execution_policy.release_cache()

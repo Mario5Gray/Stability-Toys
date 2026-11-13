@@ -691,7 +691,7 @@ Rules for `run_job`:
 - PNG `lcm` text chunk: the same keys as the HunyuanDiT worker. img2img adds `denoise_strength`.
 - `finally`: clear local references and call `self.execution_policy.release_cache()`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_txt2img_kwargs()
@@ -760,19 +760,19 @@ def test_release_cache_runs_after_failure()
 
 The fake pipe must return a real small `PIL.Image` so that PNG encode works.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `python -m pytest tests/test_zimage_worker.py -q -k "txt2img or img2img or negative or controlnet or size or conditioning or png or release or scheduler or cancel or peak"`
 Expected: FAIL. The base-class `run_job` is absent or raises `NotImplementedError`.
 
-- [ ] **Step 3: Implement `run_job`**
+- [x] **Step 3: Implement `run_job`**
 
-- [ ] **Step 4: Run and confirm pass**
+- [x] **Step 4: Run and confirm pass**
 
 Run: `python -m pytest tests/test_zimage_worker.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/zimage_cuda_worker.py tests/test_zimage_worker.py
