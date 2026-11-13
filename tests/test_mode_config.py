@@ -1357,3 +1357,139 @@ def test_text_encoder_quantize_round_trips(tmp_path):
     root = _write_te_quantize_modes(tmp_path, "    text_encoder_quantize: none\n")
     dumped = ModeConfigManager(str(root)).to_dict()
     assert dumped["modes"]["Z"]["text_encoder_quantize"] == "none"
+
+
+# --- Z-Image modes in the repo conf/modes.yml (STABL-tzctkzmz) ---------------
+
+
+def _repo_conf_dir():
+    from pathlib import Path
+
+    return str(Path(__file__).resolve().parents[1] / "conf")
+
+
+def test_zimage_modes_are_defined():
+    from server.mode_config import ModeConfigManager
+
+    config = ModeConfigManager(_repo_conf_dir())
+    turbo, base = config.get_mode("ZImage-Turbo"), config.get_mode("ZImage-Base")
+    assert (turbo.default_steps, turbo.default_guidance) == (9, 0.0)
+    assert (base.default_steps, base.default_guidance) == (30, 4.0)
+    for m in (turbo, base):
+        assert m.allowed_scheduler_ids == ["flow_match_euler"]
+        assert m.default_scheduler_id == "flow_match_euler"
+        assert m.default_size == "1024x1024"
+        assert m.text_encoder_quantize == "int8"
+    assert turbo.allow_custom_negative_prompt is False
+    assert turbo.negative_prompt_templates == {}
+    assert base.allow_custom_negative_prompt is True
+    assert base.negative_prompt_templates == {"default": "blurry, low quality, watermark"}
+    assert base.default_negative_prompt_template == "default"
+
+
+def test_default_mode_is_unchanged_by_zimage_modes():
+    from server.mode_config import ModeConfigManager
+
+    # The value on main when the Z-Image modes were added.
+    assert ModeConfigManager(_repo_conf_dir()).config.default_mode == "lcm-general"
+
+
+_ABSENT_ZIMAGE_CONFIG = """
+model_root: {root}
+lora_root: {root}/loras
+default_mode: Existing
+resolution_sets:
+  default:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+  sdxl:
+    - size: 1024x1024
+      aspect_ratio: "1:1"
+modes:
+  Existing:
+    model: repos/existing
+    default_size: 1024x1024
+    controlnet_policy:
+      enabled: true
+      max_attachments: 1
+      allowed_control_types:
+        canny:
+          default_model_id: sdxl-canny
+  ZImage-Turbo:
+    model: repos/absent-turbo
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    default_steps: 9
+    default_guidance: 0.0
+    allowed_scheduler_ids: [flow_match_euler]
+    default_scheduler_id: flow_match_euler
+    text_encoder_quantize: int8
+  ZImage-Base:
+    model: repos/absent-base
+    scheduler_profile: native
+    resolution_set: sdxl
+    default_size: 1024x1024
+    default_steps: 30
+    default_guidance: 4.0
+    allowed_scheduler_ids: [flow_match_euler]
+    default_scheduler_id: flow_match_euler
+    text_encoder_quantize: int8
+"""
+
+
+def _absent_zimage_manager(tmp_path):
+    from server.mode_config import ModeConfigManager
+
+    root = tmp_path / "models"
+    (root / "repos" / "existing").mkdir(parents=True)
+    conf = tmp_path / "conf"
+    conf.mkdir()
+    (conf / "modes.yml").write_text(_ABSENT_ZIMAGE_CONFIG.format(root=root))
+    return ModeConfigManager(str(conf)), root
+
+
+def test_absent_zimage_folders_do_not_break_mode_config_load(tmp_path, caplog):
+    with caplog.at_level("WARNING"):
+        manager, root = _absent_zimage_manager(tmp_path)
+    assert manager.get_mode("Existing").model_path == str(root / "repos" / "existing")
+    assert manager.get_mode("ZImage-Turbo").model_path == str(root / "repos" / "absent-turbo")
+    assert manager.get_mode("ZImage-Base").model_path == str(root / "repos" / "absent-base")
+    warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert str(root / "repos" / "absent-turbo") in warnings
+    assert str(root / "repos" / "absent-base") in warnings
+
+
+def test_absent_zimage_folders_do_not_fail_strict_controlnet_startup_validation(
+    tmp_path, monkeypatch
+):
+    from server.controlnet_registry import (
+        load_controlnet_registry,
+        validate_controlnet_mode_references,
+    )
+    from utils.model_detector import ModelInfo, ModelVariant
+
+    manager, root = _absent_zimage_manager(tmp_path)
+    canny_dir = tmp_path / "controlnets" / "sdxl-canny"
+    canny_dir.mkdir(parents=True)
+    registry_file = tmp_path / "controlnets.yaml"
+    registry_file.write_text(
+        "models:\n"
+        "  sdxl-canny:\n"
+        f"    path: {canny_dir}\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sdxl]\n"
+    )
+    registry = load_controlnet_registry(config_path=str(registry_file), validation_mode="strict")
+
+    detected = []
+
+    def _detect(path):
+        detected.append(path)
+        return ModelInfo(
+            path=path, variant=ModelVariant.SDXL_BASE, cross_attention_dim=2048, base_arch="unet"
+        )
+
+    monkeypatch.setattr("utils.model_detector.detect_model", _detect)
+    validate_controlnet_mode_references(mode_config=manager, registry=registry)
+    assert detected == [str(root / "repos" / "existing")]
