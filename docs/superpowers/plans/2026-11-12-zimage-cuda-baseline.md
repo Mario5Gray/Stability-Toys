@@ -792,7 +792,7 @@ git commit -m "feat(zimage): add txt2img and img2img execution (STABL-wpnyattk) 
 
 Do the Task 0 review result for `conf/modes.yml` before the edit.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Find the test that loads the real `conf/modes.yml`. Add:
 
@@ -827,11 +827,11 @@ def test_default_mode_is_unchanged_by_zimage_modes()
     # repo conf/modes.yml: default_mode equals its value on main
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Expected: `test_zimage_modes_are_defined` FAILS with `KeyError: 'ZImage-Turbo'`. The absent-folder tests must pass after step 3. A failure there is the stop condition above.
 
-- [ ] **Step 3: Add the two modes at the end of the `modes:` block**
+- [x] **Step 3: Add the two modes at the end of the `modes:` block**
 
 ```yaml
   ZImage-Turbo:
@@ -873,7 +873,7 @@ Step 1 pins both facts with the regression tests below. If one of them fails, st
 
 Slice 2 adds a `controlnet_policy` to these modes. That change makes strict startup resolve the model path. Slice 2 must handle it.
 
-- [ ] **Step 4: Update `docs/WORKER_SELECTION.md`**
+- [x] **Step 4: Update `docs/WORKER_SELECTION.md`**
 
 Add one line to the worker list near line 29: `DiffusersZImageCudaWorker` for family `zimage` (Z-Image-Turbo, Z-Image base), module `backends.zimage_cuda_worker`. State that MPS has no `zimage` binding. Then relink only this doc: `drift link docs/WORKER_SELECTION.md`. Read the whole doc first. Do not relink if another statement in it is wrong.
 
