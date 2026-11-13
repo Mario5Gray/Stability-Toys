@@ -115,8 +115,9 @@ git commit -m "docs(zimage): add family design, slice 1 plan, encoder spike (STA
 Stale anchors are compared as (document, target) pairs. A bare `STALE` line does not identify the document.
 
 ```bash
+export LC_ALL=C   # byte order for sort and comm. The committed pair files use it.
 drift_pairs() {  # $1 = raw log, prints "document<TAB>target and reason", sorted
-  awk '/^[^ \t]/ {doc=$0; next} /^[ \t]+STALE/ {sub(/^[ \t]+STALE[ \t]+/, ""); print doc "\t" $0}' "$1" | sort -u
+  awk '/^[^ \t]/ {doc=$0; next} /^[ \t]+STALE/ {sub(/^[ \t]+STALE[ \t]+/, ""); print doc "\t" $0}' "$1" | LC_ALL=C sort -u
 }
 drift check > /tmp/zimage-drift-baseline.log 2>&1; echo "exit=$?"
 drift_pairs /tmp/zimage-drift-baseline.log > /tmp/zimage-drift-baseline.pairs
@@ -129,7 +130,7 @@ If the target text carries an anchor or symbol id, the pair keeps it, because th
 
 Stop and report when: the exit code is not 0 or 1, the log has no document line, or the log has a line that starts with `error`. Such a result is a command failure, not a baseline.
 
-Result on 2026-11-12, branch base `81cd3df`: `exit=1`, 34 pairs, 23 documents. The 37 pairs above came from the `main` checkout at a later state. That set is a superset: two `Makefile` pairs from `main` commit `c43ccce` and one `conf/controlnets.yaml` pair from uncommitted `main` state. The branch baseline is 34. It is stored in `docs/superpowers/plans/2026-11-12-zimage-cuda-drift/baseline.pairs`. Later steps read that file, not `/tmp`.
+Result on 2026-11-12, branch base `81cd3df`: `exit=1`, 34 pairs, 23 documents. The 37 pairs above came from the `main` checkout at a later state. That set is a superset: two `Makefile` pairs from `main` commit `c43ccce` and one `conf/controlnets.yaml` pair from uncommitted `main` state. The branch baseline is 34. It is stored in `docs/superpowers/plans/2026-11-12-zimage-cuda-drift/baseline.pairs`. Later steps read that file, not `/tmp`. Both committed pair files are sorted with `LC_ALL=C sort -u`. Each `sort` and `comm` on them must run under `LC_ALL=C`, or `comm` reports false pairs.
 
 - [ ] **Step 4: Review each bound doc for the four files in the table**
 
@@ -882,6 +883,7 @@ python -m pytest tests/test_zimage_family.py tests/test_zimage_text_encoder.py t
   tests/test_worker_factory.py tests/test_hunyuandit_worker.py tests/test_family_profiles.py -q
 docker compose -f docker-compose.test.yml build test
 docker compose -f docker-compose.test.yml run --rm test > /tmp/zimage-test-full.log 2>&1; echo "exit=$?"; tail -5 /tmp/zimage-test-full.log
+export LC_ALL=C   # comm needs the same byte order as the committed pair files
 drift check > /tmp/zimage-drift-after.log 2>&1; echo "exit=$?"
 drift_pairs /tmp/zimage-drift-after.log > /tmp/zimage-drift-after.pairs     # function from Task 0 step 3
 D=docs/superpowers/plans/2026-11-12-zimage-cuda-drift
