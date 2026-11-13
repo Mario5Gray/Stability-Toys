@@ -110,7 +110,7 @@ git add docs/superpowers/specs/2026-11-12-zimage-family-design.md \
 git commit -m "docs(zimage): add family design, slice 1 plan, encoder spike (STABL-kbzlfbts) — next: Task 0 step 3 drift baseline"
 ```
 
-- [ ] **Step 3: Record the drift baseline**
+- [x] **Step 3: Record the drift baseline**
 
 Stale anchors are compared as (document, target) pairs. A bare `STALE` line does not identify the document.
 
@@ -132,7 +132,7 @@ Stop and report when: the exit code is not 0 or 1, the log has no document line,
 
 Result on 2026-11-12, branch base `81cd3df`: `exit=1`, 34 pairs, 23 documents. The 37 pairs above came from the `main` checkout at a later state. That set is a superset: two `Makefile` pairs from `main` commit `c43ccce` and one `conf/controlnets.yaml` pair from uncommitted `main` state. The branch baseline is 34. It is stored in `docs/superpowers/plans/2026-11-12-zimage-cuda-drift/baseline.pairs`. Later steps read that file, not `/tmp`. Both committed pair files are sorted with `LC_ALL=C sort -u`. Each `sort` and `comm` on them must run under `LC_ALL=C`, or `comm` reports false pairs.
 
-- [ ] **Step 4: Review each bound doc for the four files in the table**
+- [x] **Step 4: Review each bound doc for the four files in the table**
 
 For each file: run `drift refs <path>`. For each doc it prints, read the section that names the file. Sort the doc into one class:
 
@@ -142,7 +142,7 @@ For each file: run `drift refs <path>`. For each doc it prints, read the section
 
 `docs/WORKER_SELECTION.md` is a living doc. Task 7 updates it.
 
-- [ ] **Step 5: Record the review in FP**
+- [x] **Step 5: Record the review in FP**
 
 `fp comment STABL-kbzlfbts "<one line for each bound doc: path, class, action>"`. The comment must also state the baseline count and the next step, Task 1.
 
@@ -327,7 +327,7 @@ Do the Task 0 review result for `server/mode_config.py` and `backends/worker_fac
 - Produces: `ModelInfo.text_encoder_quantize: Optional[str] = None`, carried through the snapshot and the wire form.
 - Produces: `backends.worker_factory.UnsupportedModeFieldError(ValueError)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Follow the fixture style of each test file. The assertions:
 
@@ -361,12 +361,12 @@ def test_factory_admits_text_encoder_quantize_for_zimage():
 
 The analysis-test fixture in this repo is `dedent`-ed. A `.replace()` on a base YAML needs 4-space targets. Assert that the replacement landed before you trust a RED result.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `python -m pytest tests/test_mode_config.py tests/test_model_resolution.py tests/test_worker_factory.py -q -k "text_encoder_quantize"`
 Expected: FAIL with `AttributeError` or `TypeError` on the new field.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - Add the field to `ModeConfig`, `ModelInfo`, and `ModelInfoSnapshot`. Add its name to each of the four field lists.
 - In mode parse: accept `None`, `"int8"`, `"none"`. Raise `ValueError(f"Mode '{name}' has invalid text_encoder_quantize '{value}'. Use int8 or none.")` for other values.
@@ -379,12 +379,12 @@ if resolved.info.text_encoder_quantize is not None and family_id != "zimage":
     )
 ```
 
-- [ ] **Step 4: Run and confirm pass**
+- [x] **Step 4: Run and confirm pass**
 
 Run: `python -m pytest tests/test_mode_config.py tests/test_model_resolution.py tests/test_worker_factory.py tests/test_analysis_mode_config.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/mode_config.py utils/model_detector.py backends/model_resolution.py backends/worker_factory.py tests/
@@ -462,7 +462,7 @@ Lock file rules:
 
 A second loader that waits on the lock sees a hit at step 4. One key is quantized one time, so two loaders do not hold two bf16 encoders on the GPU.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Each test uses `tmp_path`, small fake shard files, and `monkeypatch` on the four private seams. `quanto_version` is the literal `"0.2.7"` in key tests.
 
@@ -523,19 +523,19 @@ def test_module_imports_without_torch()
     # subprocess: python -c "import sys; sys.modules['torch']=None; import backends.zimage_text_encoder"
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `python -m pytest tests/test_zimage_text_encoder.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'backends.zimage_text_encoder'`.
 
-- [ ] **Step 3: Implement the module to the interface above**
+- [x] **Step 3: Implement the module to the interface above**
 
-- [ ] **Step 4: Run and confirm pass**
+- [x] **Step 4: Run and confirm pass**
 
 Run: `python -m pytest tests/test_zimage_text_encoder.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/zimage_text_encoder.py tests/test_zimage_text_encoder.py
@@ -596,7 +596,7 @@ Binding row in `backends/platforms/cuda_bindings.py`:
 ),
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Copy the stub preamble and `_FakePipelineBase` pattern from `tests/test_hunyuandit_worker.py` (lines 22 to 100). Patch the lazy resolvers and `load_int8_text_encoder` in `backends.zimage_cuda_worker`, where the call happens.
 
@@ -638,19 +638,19 @@ def test_mps_has_no_zimage_binding():
 
 Check the attribute name of the capabilities on `FamilyPlatformBinding` with the language server.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `python -m pytest tests/test_zimage_worker.py tests/test_zimage_family.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'backends.zimage_cuda_worker'`.
 
-- [ ] **Step 3: Implement the worker constructor and the binding row**
+- [x] **Step 3: Implement the worker constructor and the binding row**
 
-- [ ] **Step 4: Run and confirm pass**
+- [x] **Step 4: Run and confirm pass**
 
 Run: `python -m pytest tests/test_zimage_worker.py tests/test_zimage_family.py tests/test_hunyuandit_worker.py tests/test_platform_registry.py -q`
 Expected: all pass. Run the two worker test files together and in both orders. An order-dependent failure means a split `torch` binding: patch where the call happens.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/zimage_cuda_worker.py backends/platforms/cuda_bindings.py tests/test_zimage_worker.py tests/test_zimage_family.py
