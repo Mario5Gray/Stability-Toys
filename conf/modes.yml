@@ -259,7 +259,7 @@ modes:
           min_strength: 0.0
           max_strength: 2.0
   ZImage-Turbo:
-    model: repos/Z-Image-Turbo-BF16
+    model: diffusers/Z-Image-Turbo-BF16
     scheduler_profile: native
     resolution_set: sdxl
     default_size: 1024x1024
@@ -271,7 +271,7 @@ modes:
     default_scheduler_id: flow_match_euler
     text_encoder_quantize: int8
   ZImage-Base:
-    model: repos/Z-Image-Base
+    model: diffusers/Z-Image-Base
     scheduler_profile: native
     resolution_set: sdxl
     default_size: 1024x1024
