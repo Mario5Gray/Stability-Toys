@@ -556,29 +556,45 @@ def test_img2img_strength_one_is_admitted(env):
 
 
 def test_img2img_zero_effective_steps_is_refused(env):
+    # Only a strength below float resolution gives zero steps with the
+    # diffusers formula: 9 - int(9 - 9e-17) == 0.
     with pytest.raises(ValueError) as info:
-        _run(env, _job(_req(denoise_strength=0.1), init_image=_png_bytes()))
+        _run(env, _job(_req(denoise_strength=1e-17), init_image=_png_bytes()))
     message = str(info.value)
-    assert "9" in message and "0.1" in message and "0" in message
+    assert "9" in message and "1e-17" in message and "effective_steps=0" in message
     assert env.i2i.from_pipe_calls == []
 
 
-def test_img2img_smallest_valid_strength_runs(env):
-    _run(env, _job(_req(denoise_strength=0.12), init_image=_png_bytes()))
-    assert env.worker._img2img_pipe.calls[0]["strength"] == 0.12
+def test_img2img_low_strength_runs(env):
+    # Diffusers gives 1 step for steps 9 and strength 0.1. A floor formula refused it.
+    _run(env, _job(_req(denoise_strength=0.1), init_image=_png_bytes()))
+    assert env.worker._img2img_pipe.calls[0]["strength"] == 0.1
+
+
+@pytest.mark.parametrize(
+    "steps,strength,expected",
+    [(9, 0.6, 6), (9, 0.12, 2), (9, 0.1, 1), (9, 1.0, 9), (9, 0.75, 7), (4, 0.5, 2)],
+)
+def test_effective_steps_match_diffusers_get_timesteps(zw, steps, strength, expected):
+    # Reference: ZImageImg2ImgPipeline.get_timesteps returns
+    # num_inference_steps - int(max(steps - min(steps * strength, steps), 0)).
+    req = SimpleNamespace(denoise_strength=strength)
+    got_strength, effective = zw.DiffusersZImageCudaWorker._img2img_strength(req, steps)
+    assert got_strength == strength
+    assert effective == expected
 
 
 def test_img2img_logs_effective_step_count(env, caplog):
     with caplog.at_level("INFO", logger=env.zw.logger.name):
         _run(env, _img_job())
-    # int(9 * 0.6) == 5
-    assert any("effective_steps=5" in r.getMessage() for r in caplog.records)
+    # diffusers: 9 - int(9 - 9 * 0.6) == 6
+    assert any("effective_steps=6" in r.getMessage() for r in caplog.records)
 
 
 def test_img2img_progress_total_is_effective_steps(env):
     progress = Mock()
     _run(env, _img_job(), progress=progress)
-    progress.assert_called_once_with(1, 5, "denoise")
+    progress.assert_called_once_with(1, 6, "denoise")
 
 
 def test_txt2img_progress_total_is_requested_steps(env):
@@ -638,7 +654,7 @@ def test_img2img_job_line_names_op_and_effective_steps(env, caplog):
         _run(env, _img_job())
     (line,) = _job_lines(caplog)
     assert "op=img2img" in line
-    assert "steps=5" in line
+    assert "steps=6" in line
 
 
 def test_peak_is_reset_before_and_read_after_the_pipe_call(env):
@@ -689,11 +705,34 @@ def test_memory_read_failure_does_not_fail_the_job(env, caplog):
     env.worker.execution_policy.release_cache.assert_called_once()
 
 
-def test_memory_reset_failure_does_not_fail_the_job(env):
+def test_memory_reset_failure_does_not_fail_the_job(env, caplog):
     env.worker._reset_peak_memory = Mock(side_effect=RuntimeError("no cuda"))
-    png, _ = _run(env, _job())
+    env.worker._read_peak_memory = Mock(return_value=(7 * 2**30, 8 * 2**30))
+    with caplog.at_level("INFO", logger=env.zw.logger.name):
+        png, _ = _run(env, _job())
     assert png.startswith(b"\x89PNG")
     assert len(env.worker.pipe.calls) == 1
+    env.worker.execution_policy.release_cache.assert_called_once()
+    # Counters that were not reset are not the peaks of this job.
+    (line,) = _job_lines(caplog)
+    assert "peak_allocated_bytes=unavailable" in line
+    assert "peak_reserved_bytes=unavailable" in line
+    assert "peak_allocated_gib=unavailable" in line
+    assert str(7 * 2**30) not in line
+    env.worker._read_peak_memory.assert_not_called()
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+
+
+def test_memory_reset_failure_does_not_mask_a_generation_error(env, caplog):
+    env.worker._reset_peak_memory = Mock(side_effect=RuntimeError("no cuda"))
+    with patch.object(type(env.worker.pipe), "__call__", side_effect=ValueError("boom")):
+        with caplog.at_level("INFO", logger=env.zw.logger.name):
+            with pytest.raises(ValueError, match="boom"):
+                _run(env, _job())
+    (line,) = _job_lines(caplog)
+    assert "peak_allocated_bytes=unavailable" in line
+    env.worker.execution_policy.release_cache.assert_called_once()
 
 
 def test_memory_read_failure_does_not_mask_a_generation_error(env):

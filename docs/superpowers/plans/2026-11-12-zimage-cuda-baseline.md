@@ -680,13 +680,14 @@ Rules for `run_job`:
 - img2img: decode the init image as RGB and resize it to the request size. Invalid bytes raise `RuntimeError(f"invalid init image bytes: {e!r}")`. Build the pipe one time and keep it in `self._img2img_pipe`: `ZImageImg2ImgPipeline.from_pipe(self.pipe, torch_dtype=None)`. Use that exact attribute. The base-class scheduler helpers update `self._img2img_pipe.scheduler` with the base pipe.
 - `strength`: read `getattr(req, "denoise_strength", None)`. Use 0.75 only when the value is `None`. Do not use `or`.
 - A strength that is not in the range `0 < strength <= 1` raises `ValueError(f"Z-Image img2img needs 0 < denoise_strength <= 1; got {strength}")`. Zero is refused, not replaced.
-- Effective steps are `min(int(num_inference_steps * strength), num_inference_steps)`. A result below 1 raises `ValueError` that names the steps, the strength, and the result. The pipe is not called.
+- Effective steps are `steps - int(max(steps - min(steps * strength, steps), 0))`. This is the formula of `ZImageImg2ImgPipeline.get_timesteps`. A result below 1 raises `ValueError` that names the steps, the strength, and the result. The pipe is not called.
 - img2img logs the effective step count.
 - Add kwargs `image` and `strength`.
 - Peak memory: the worker has a method `_reset_peak_memory()` and a method `_read_peak_memory() -> tuple[int, int]` (allocated bytes, reserved bytes). On CUDA they call `torch.cuda.synchronize`, `torch.cuda.reset_peak_memory_stats`, `torch.cuda.max_memory_allocated`, and `torch.cuda.max_memory_reserved` for the worker device. `run_job` resets immediately before the pipe call and reads after it, in `finally`, before `release_cache`.
 - Each job logs one info line: `[zimage-cuda] job=<job_id> op=<txt2img|img2img> size=<WxH> steps=<n> peak_allocated_bytes=<int> peak_reserved_bytes=<int> peak_allocated_gib=<x.xx> peak_reserved_gib=<x.xx>`. Task 8 reads this line. The byte values are exact. The GiB values are for a person to read.
 - Memory instrumentation must not change the result of a job. `_reset_peak_memory` and `_read_peak_memory` calls are each in their own `try`. A failure logs one warning, and the job line shows `peak_allocated_bytes=unavailable`.
 - A failed memory read must not replace a generation error, and must not stop `release_cache`.
+- A failed reset makes the counters stale. The job line then shows `unavailable` for all four peak values, and the read is skipped.
 - Call `inject_step_progress(pipe, pipe_kwargs, progress, req.num_inference_steps, should_cancel=should_cancel)` before the pipe call, inside `torch.inference_mode()`.
 - PNG `lcm` text chunk: the same keys as the HunyuanDiT worker. img2img adds `denoise_strength`.
 - `finally`: clear local references and call `self.execution_policy.release_cache()`.
@@ -716,9 +717,10 @@ def test_img2img_zero_strength_is_refused_not_defaulted()
 @pytest.mark.parametrize("strength", [-0.1, 1.5])
 def test_img2img_out_of_range_strength_is_refused(strength)
 def test_img2img_zero_effective_steps_is_refused()
-    # steps 9, strength 0.1 -> int(0.9) == 0 -> ValueError that names 9, 0.1, and 0; pipe not called
+    # steps 9, strength 1e-17 -> 9 - int(9 - 9e-17) == 0 -> ValueError that names 9, 1e-17, and 0; pipe not called
+    # steps 9, strength 0.1 -> effective 1 -> the pipe runs (test_img2img_low_strength_runs)
 def test_img2img_smallest_valid_strength_runs()
-    # steps 9, strength 0.12 -> effective 1 -> pipe called with strength 0.12
+    # steps 9: strength 0.6 -> 6, 0.12 -> 2, 0.1 -> 1, 1.0 -> 9 (test_effective_steps_match_diffusers_get_timesteps)
 def test_scheduler_stays_in_step_over_mixed_jobs()
     # txt2img, img2img, txt2img, img2img in one worker, each with scheduler_id flow_match_euler ->
     # after each job worker._img2img_pipe.scheduler is worker.pipe.scheduler (once the img2img pipe exists)

@@ -202,11 +202,15 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
             int(torch.cuda.max_memory_reserved(self.device)),
         )
 
-    def _try_reset_peak_memory(self) -> None:
+    def _try_reset_peak_memory(self) -> bool:
+        """Return True when the reset worked. A failed reset makes later reads stale."""
+
         try:
             self._reset_peak_memory()
         except Exception as exc:
             logger.warning("[%s] peak memory reset failed: %r", self.log_tag, exc)
+            return False
+        return True
 
     def _try_read_peak_memory(self) -> tuple[int, int] | None:
         try:
@@ -251,7 +255,9 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
             raise ValueError(
                 f"Z-Image img2img needs 0 < denoise_strength <= 1; got {strength}"
             )
-        effective = min(int(steps * strength), steps)
+        # The same formula as ZImageImg2ImgPipeline.get_timesteps.
+        # It skips int(max(steps - min(steps * strength, steps), 0)) steps.
+        effective = steps - int(max(steps - min(steps * strength, steps), 0))
         if effective < 1:
             raise ValueError(
                 f"Z-Image img2img has no effective step: steps={steps}, "
@@ -334,7 +340,7 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
                 op = "txt2img"
                 pipe = self.pipe
 
-            self._try_reset_peak_memory()
+            reset_ok = self._try_reset_peak_memory()
             try:
                 with torch.inference_mode():
                     # img2img runs the effective steps only, so progress counts those.
@@ -344,9 +350,9 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
                     )
                     out = pipe(**pipe_kwargs)
             finally:
-                self._log_job(
-                    job_id, op, width, height, effective_steps, self._try_read_peak_memory()
-                )
+                # Without a reset the counters hold older peaks. Report unavailable.
+                peak = self._try_read_peak_memory() if reset_ok else None
+                self._log_job(job_id, op, width, height, effective_steps, peak)
 
             img: Image.Image = out.images[0]  # type: ignore[union-attr]
 
