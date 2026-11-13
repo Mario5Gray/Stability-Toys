@@ -170,7 +170,7 @@ The list is closed. A new pair that is not in it fails the gate. Do not add a pa
 **Interfaces:**
 - Produces: `info.transformer_kind == "zimage"`. `backends.family_profiles.ZIMAGE_PROFILE`. `resolve_family(info).profile.family_id == "zimage"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_zimage_family.py
@@ -227,22 +227,22 @@ def test_zimage_predicate_rejects_other_families():
 
 Check the `ModelInfo` constructor and the `resolve_family` signature with the language server before you run the tests. Adapt the two calls if a required argument differs.
 
-- [ ] **Step 2: Run the tests and confirm that they fail**
+- [x] **Step 2: Run the tests and confirm that they fail**
 
 Run: `python -m pytest tests/test_zimage_family.py -q`
 Expected: FAIL with `ImportError: cannot import name 'ZIMAGE_PROFILE'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - In `utils/model_detector.py`: where `_class_name == "HunyuanDiT2DModel"` sets the kind, add the `ZImageTransformer2DModel` case that sets `"zimage"`.
 - In `backends/family_profiles.py`: add `ZIMAGE_PROFILE` with the values in the test, `_is_zimage(info)` that reads only `info.transformer_kind == "zimage"`, and one `FamilyRegistration` row at the end of `FAMILY_REGISTRY`.
 
-- [ ] **Step 4: Run the tests and confirm that they pass**
+- [x] **Step 4: Run the tests and confirm that they pass**
 
 Run: `python -m pytest tests/test_zimage_family.py tests/test_family_profiles.py tests/test_model_detector.py tests/test_hunyuandit_detector.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add utils/model_detector.py backends/family_profiles.py tests/test_zimage_family.py
@@ -260,7 +260,7 @@ git commit -m "feat(zimage): detect Z-Image folders and add the zimage family pr
 **Interfaces:**
 - Produces: scheduler id `flow_match_euler`. `build_scheduler("flow_match_euler", config)` returns a `FlowMatchEulerDiscreteScheduler`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import pytest
@@ -282,12 +282,12 @@ def test_flow_match_euler_keeps_checkpoint_shift(shift):
 
 If `tests/test_scheduler_registry.py` stubs `diffusers`, put the `shift` test behind `pytest.importorskip("diffusers")` in a way that still runs in the conda env.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `python -m pytest tests/test_scheduler_registry.py -q -k flow_match`
 Expected: FAIL with `Unknown scheduler_id 'flow_match_euler'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `SCHEDULER_SPECS`:
 
@@ -297,12 +297,12 @@ Add to `SCHEDULER_SPECS`:
 ),
 ```
 
-- [ ] **Step 4: Run and confirm pass**
+- [x] **Step 4: Run and confirm pass**
 
 Run: `python -m pytest tests/test_scheduler_registry.py -q`
 Expected: all pass. A test that asserts the exact id list needs the new id.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/scheduler_registry.py tests/test_scheduler_registry.py
