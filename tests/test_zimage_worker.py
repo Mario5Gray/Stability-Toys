@@ -114,17 +114,26 @@ def zw():
 
 
 @pytest.fixture
-def fake_load(zw):
+def model_dir(tmp_path):
+    """A minimal valid Diffusers folder: a directory with model_index.json."""
+    root = tmp_path / "repos" / "Z-Image-Turbo-BF16"
+    root.mkdir(parents=True)
+    (root / "model_index.json").write_text('{"_class_name": "ZImagePipeline"}')
+    return str(root)
+
+
+@pytest.fixture
+def fake_load(zw, model_dir):
     """Patch the pipeline resolvers and the encoder store. Yield the handles."""
     pipe_cls = _fake_pipeline_cls()
     encoder = object()
     with patch.object(zw, "_zimage_pipeline_cls", return_value=pipe_cls), \
          patch.object(zw, "_zimage_img2img_pipeline_cls", return_value=MagicMock()), \
          patch.object(zw, "load_int8_text_encoder", return_value=encoder) as store:
-        yield SimpleNamespace(pipe_cls=pipe_cls, encoder=encoder, store=store)
+        yield SimpleNamespace(pipe_cls=pipe_cls, encoder=encoder, store=store, model_dir=model_dir)
 
 
-def _build(zw, model_path="/models/repos/Z-Image-Turbo-BF16", **info):
+def _build(zw, model_path, **info):
     return zw.DiffusersZImageCudaWorker(
         worker_id=0, model_path=model_path, model_info=_model_info(**info)
     )
@@ -168,11 +177,11 @@ def test_selecting_sd_family_does_not_import_zimage_worker(monkeypatch):
 # --- Dependency preflight --------------------------------------------------
 
 
-def test_preflight_failure_reports_versions(zw):
+def test_preflight_failure_reports_versions(zw, model_dir):
     with patch.object(zw, "_zimage_pipeline_cls", side_effect=ImportError("no ZImagePipeline")), \
          patch.object(zw, "load_int8_text_encoder") as store:
         with pytest.raises(zw.ZImageDependencyError) as info:
-            _build(zw)
+            _build(zw, model_dir)
     message = str(info.value)
     assert "diffusers" in message
     assert "transformers" in message
@@ -180,28 +189,73 @@ def test_preflight_failure_reports_versions(zw):
     store.assert_not_called()
 
 
-def test_preflight_checks_img2img_class(zw):
+def test_preflight_checks_img2img_class(zw, model_dir):
     with patch.object(zw, "_zimage_pipeline_cls", return_value=_fake_pipeline_cls()), \
          patch.object(zw, "_zimage_img2img_pipeline_cls", side_effect=ImportError("no img2img")), \
          patch.object(zw, "load_int8_text_encoder"):
         with pytest.raises(zw.ZImageDependencyError, match="no img2img"):
-            _build(zw)
+            _build(zw, model_dir)
 
 
 # --- Admission -------------------------------------------------------------
 
 
-def test_non_folder_path_is_refused(zw, fake_load):
-    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="Diffusers"):
-        _build(zw, model_path="/x/model.safetensors", loader_format="single_file")
+def _assert_no_load(fake_load):
     assert fake_load.pipe_cls.load_calls == []
     fake_load.store.assert_not_called()
+
+
+@pytest.mark.parametrize("hint", ["diffusers_dir", "unknown"])
+def test_missing_path_is_refused_whatever_the_hint(zw, fake_load, tmp_path, hint):
+    missing = tmp_path / "missing" / "model.safetensors"
+    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="Diffusers folder"):
+        _build(zw, str(missing), loader_format=hint)
+    _assert_no_load(fake_load)
+
+
+@pytest.mark.parametrize("hint", ["diffusers_dir", "unknown"])
+def test_regular_file_path_is_refused_whatever_the_hint(zw, fake_load, tmp_path, hint):
+    single = tmp_path / "model.safetensors"
+    single.write_bytes(b"weights")
+    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="Diffusers folder"):
+        _build(zw, str(single), loader_format=hint)
+    _assert_no_load(fake_load)
+
+
+@pytest.mark.parametrize("hint", ["diffusers_dir", "unknown"])
+def test_folder_without_model_index_is_refused_whatever_the_hint(zw, fake_load, tmp_path, hint):
+    folder = tmp_path / "Z-Image-Turbo-BF16"
+    (folder / "transformer").mkdir(parents=True)
+    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="model_index.json"):
+        _build(zw, str(folder), loader_format=hint)
+    _assert_no_load(fake_load)
+
+
+def test_model_index_that_is_a_folder_is_refused(zw, fake_load, tmp_path):
+    folder = tmp_path / "Z-Image-Turbo-BF16"
+    (folder / "model_index.json").mkdir(parents=True)
+    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="model_index.json"):
+        _build(zw, str(folder))
+    _assert_no_load(fake_load)
+
+
+@pytest.mark.parametrize("hint", ["single_file", "gguf"])
+def test_valid_folder_with_other_format_hint_is_refused(zw, fake_load, hint):
+    with pytest.raises(zw.ZImageUnsupportedRuntimeError, match=f"loader_format={hint}"):
+        _build(zw, fake_load.model_dir, loader_format=hint)
+    _assert_no_load(fake_load)
+
+
+@pytest.mark.parametrize("hint", ["unknown", None])
+def test_valid_folder_with_absent_hint_is_admitted(zw, fake_load, hint):
+    _build(zw, fake_load.model_dir, loader_format=hint)
+    assert len(fake_load.pipe_cls.load_calls) == 1
 
 
 @pytest.mark.parametrize("offload", ["model", "sequential"])
 def test_offload_is_refused_before_load(zw, fake_load, offload):
     with pytest.raises(zw.ZImageUnsupportedRuntimeError) as info:
-        _build(zw, runtime_offload=offload)
+        _build(zw, fake_load.model_dir, runtime_offload=offload)
     assert str(info.value) == f"Z-Image does not support offload={offload}. Admitted: none."
     assert fake_load.pipe_cls.load_calls == []
     fake_load.store.assert_not_called()
@@ -210,14 +264,14 @@ def test_offload_is_refused_before_load(zw, fake_load, offload):
 def test_env_offload_is_refused_before_load(zw, fake_load, monkeypatch):
     monkeypatch.setenv("CUDA_OFFLOAD", "model")
     with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="offload=model"):
-        _build(zw)
+        _build(zw, fake_load.model_dir)
     assert fake_load.pipe_cls.load_calls == []
     fake_load.store.assert_not_called()
 
 
 def test_runtime_quantize_is_refused_before_load(zw, fake_load):
     with pytest.raises(zw.ZImageUnsupportedRuntimeError) as info:
-        _build(zw, runtime_quantize="fp8")
+        _build(zw, fake_load.model_dir, runtime_quantize="fp8")
     assert str(info.value) == "Z-Image does not support quantize=fp8. Admitted: none."
     assert fake_load.pipe_cls.load_calls == []
     fake_load.store.assert_not_called()
@@ -226,14 +280,14 @@ def test_runtime_quantize_is_refused_before_load(zw, fake_load):
 def test_env_quantize_is_refused_before_load(zw, fake_load, monkeypatch):
     monkeypatch.setenv("CUDA_QUANTIZE", "fp8")
     with pytest.raises(zw.ZImageUnsupportedRuntimeError, match="quantize=fp8"):
-        _build(zw)
+        _build(zw, fake_load.model_dir)
     assert fake_load.pipe_cls.load_calls == []
     fake_load.store.assert_not_called()
 
 
 def test_unknown_text_encoder_quantize_is_refused_before_load(zw, fake_load):
     with pytest.raises(zw.ZImageUnsupportedRuntimeError) as info:
-        _build(zw, text_encoder_quantize="fp8")
+        _build(zw, fake_load.model_dir, text_encoder_quantize="fp8")
     assert str(info.value) == (
         "Z-Image does not support text_encoder_quantize=fp8. Admitted: int8, none."
     )
@@ -246,7 +300,7 @@ def test_unknown_text_encoder_quantize_is_refused_before_load(zw, fake_load):
 
 def test_dtype_is_bf16_even_when_env_asks_fp16(zw, fake_load, monkeypatch):
     monkeypatch.setenv("CUDA_DTYPE", "fp16")
-    worker = _build(zw)
+    worker = _build(zw, fake_load.model_dir)
     (_, kwargs), = fake_load.pipe_cls.load_calls
     assert kwargs["torch_dtype"] is zw.torch.bfloat16
     assert worker.dtype is zw.torch.bfloat16
@@ -257,41 +311,41 @@ def test_dtype_is_bf16_even_when_env_asks_fp16(zw, fake_load, monkeypatch):
 def test_dtype_override_logs_a_warning(zw, fake_load, monkeypatch, caplog):
     monkeypatch.setenv("CUDA_DTYPE", "fp16")
     with caplog.at_level("WARNING", logger=zw.logger.name):
-        _build(zw)
+        _build(zw, fake_load.model_dir)
     assert any("CUDA_DTYPE" in r.getMessage() for r in caplog.records)
 
 
 def test_default_uses_int8_store(zw, fake_load):
-    worker = _build(zw)
+    worker = _build(zw, fake_load.model_dir)
     fake_load.store.assert_called_once()
     args, kwargs = fake_load.store.call_args
-    assert args == ("/models/repos/Z-Image-Turbo-BF16",)
+    assert args == (fake_load.model_dir,)
     assert kwargs["device"] == worker.device
     (_, load_kwargs), = fake_load.pipe_cls.load_calls
     assert load_kwargs["text_encoder"] is fake_load.encoder
 
 
 def test_explicit_int8_uses_store(zw, fake_load):
-    _build(zw, text_encoder_quantize="int8")
+    _build(zw, fake_load.model_dir, text_encoder_quantize="int8")
     fake_load.store.assert_called_once()
 
 
 def test_none_loads_native_encoder(zw, fake_load):
-    _build(zw, text_encoder_quantize="none")
+    _build(zw, fake_load.model_dir, text_encoder_quantize="none")
     fake_load.store.assert_not_called()
     (_, kwargs), = fake_load.pipe_cls.load_calls
     assert "text_encoder" not in kwargs
 
 
 def test_from_pretrained_is_offline(zw, fake_load):
-    _build(zw)
+    _build(zw, fake_load.model_dir)
     (path, kwargs), = fake_load.pipe_cls.load_calls
-    assert path == "/models/repos/Z-Image-Turbo-BF16"
+    assert path == fake_load.model_dir
     assert kwargs["local_files_only"] is True
 
 
 def test_worker_state_after_load(zw, fake_load):
-    worker = _build(zw)
+    worker = _build(zw, fake_load.model_dir)
     assert isinstance(worker.pipe, fake_load.pipe_cls)
     assert worker._style_api == "none"
     assert worker.family_profile.family_id == "zimage"
@@ -301,12 +355,12 @@ def test_worker_state_after_load(zw, fake_load):
 def test_attention_swaps_are_skipped(zw, fake_load, monkeypatch):
     monkeypatch.setenv("CUDA_ATTENTION_SLICING", "1")
     monkeypatch.setenv("CUDA_ENABLE_XFORMERS", "1")
-    worker = _build(zw)
+    worker = _build(zw, fake_load.model_dir)
     swap_calls = [c for c in worker.pipe.calls if isinstance(c, tuple)]
     assert swap_calls == []
 
 
 def test_quantization_targets_raises(zw, fake_load):
-    worker = _build(zw)
+    worker = _build(zw, fake_load.model_dir)
     with pytest.raises(zw.ZImageUnsupportedRuntimeError):
         worker._quantization_targets(worker.pipe)

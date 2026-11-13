@@ -26,6 +26,7 @@ from backends.zimage_text_encoder import load_int8_text_encoder
 
 logger = logging.getLogger(__name__)
 
+_ADMITTED_LOADER_FORMAT = ("diffusers_dir", "unknown")
 _ADMITTED_OFFLOAD = ("none",)
 _ADMITTED_QUANTIZE = ("none",)
 _ADMITTED_TEXT_ENCODER_QUANTIZE = ("int8", "none")
@@ -145,16 +146,18 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
     def _admit(self, model_path: str) -> str:
         """Refuse unadmitted settings before any weight load. Return the encoder mode."""
 
-        format_hint = self._loader_format
-        is_diffusers_dir = format_hint == "diffusers_dir" or (
-            format_hint == "unknown"
-            and os.path.isdir(model_path)
-            and os.path.exists(os.path.join(model_path, "model_index.json"))
-        )
-        if not is_diffusers_dir:
+        # Format policy: the hint may be absent, but it must not name another format.
+        format_hint = self._loader_format or "unknown"
+        if format_hint not in _ADMITTED_LOADER_FORMAT:
+            raise _refuse("loader_format", format_hint, _ADMITTED_LOADER_FORMAT)
+        # The path itself must be a Diffusers folder. A hint is never enough.
+        if not os.path.isdir(model_path):
             raise ZImageUnsupportedRuntimeError(
-                "Z-Image requires a Diffusers folder (model_index.json); "
-                f"got {model_path!r}"
+                f"Z-Image requires a Diffusers folder; {model_path!r} is not a directory"
+            )
+        if not os.path.isfile(os.path.join(model_path, "model_index.json")):
+            raise ZImageUnsupportedRuntimeError(
+                f"Z-Image requires a Diffusers folder; {model_path!r} has no model_index.json file"
             )
         if self._offload not in _ADMITTED_OFFLOAD:
             raise _refuse("offload", self._offload, _ADMITTED_OFFLOAD)
