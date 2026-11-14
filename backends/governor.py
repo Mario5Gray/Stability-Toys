@@ -581,7 +581,8 @@ class Governor:
             logger.info(f"[Governor] VRAM after load: allocated={vram_allocated/1024**3:.2f}GB")
 
             if mode.loras:
-                logger.info(f"[Governor] Loading {len(mode.loras)} LoRAs for mode {mode_name}")
+                # The worker merged them inside handle.start() (STABL-ykowysrg).
+                logger.info("[Governor] Mode %s merged %d LoRA(s) at load", mode_name, len(mode.loras))
 
             self._registry.register_model(
                 name=mode_name,

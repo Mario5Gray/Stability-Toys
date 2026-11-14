@@ -130,7 +130,7 @@ git commit -m "feat(hunyuandit): Tencent LoRA validate + merge module (STABL-yko
   - Worker hook signature (Task 3 implements it): `configure_loras(self, specs: Sequence[LoraSpec]) -> None`.
   - `tests/_fault_worker.py`: `make_lora_recording_worker(worker_id, resolved, binding)`. Its `configure_loras` stores the specs. Its `run_job` returns `(b"LORAS:" + ";".join(f"{s.path}@{s.strength}").encode(), 0)` in the return shape `RecordingWorker` uses.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `tests/test_mode_loras.py`:
     - `test_specs_pair_paths_and_strength` — `SimpleNamespace(loras=[SimpleNamespace(path="a.safetensors", strength=0.8)], lora_paths=["/models/loras/a.safetensors"])` gives `[LoraSpec("/models/loras/a.safetensors", 0.8)]`.
     - `test_mock_mode_yields_no_specs` — `lora_specs_for_mode(Mock()) == []`.
@@ -143,21 +143,21 @@ git commit -m "feat(hunyuandit): Tencent LoRA validate + merge module (STABL-yko
   - `tests/test_worker_handle.py`: `test_start_applies_mode_loras` — a factory worker with `configure_loras`, and a `_Mode` class with `conditioning`, `loras`, `lora_paths`. The hook gets one `LoraSpec` after `start`. Also `test_start_refuses_loras_without_hook` — `pytest.raises(RuntimeError, match="does not support LoRAs")`.
   - `tests/test_subprocess_worker_handle.py`: `test_subprocess_handle_applies_mode_loras_in_child` — `SubprocessWorkerHandle("tests._fault_worker.make_lora_recording_worker")` with `SimpleNamespace(model_path=None, conditioning=ConditioningConfig(), loras=[SimpleNamespace(path="j", strength=0.8)], lora_paths=["/m/j"])`. One job returns `b"LORAS:/m/j@0.8"`. Use `loras` entries that pickle (`SimpleNamespace` pickles).
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m pytest tests/test_mode_loras.py tests/test_worker_handle.py tests/test_subprocess_worker_handle.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'backends.mode_loras'`. The handle tests fail on the missing hook call.
 
-- [ ] **Step 3: Implement `backends/mode_loras.py`**, then call `apply_mode_loras(worker, mode)` in both handles right after the conditioning block. In the subprocess child, the call goes inside the existing `try`, so a refusal reaches the parent as a start failure.
+- [x] **Step 3: Implement `backends/mode_loras.py`**, then call `apply_mode_loras(worker, mode)` in both handles right after the conditioning block. In the subprocess child, the call goes inside the existing `try`, so a refusal reaches the parent as a start failure.
 
-- [ ] **Step 4: Fix the governor log line** at `backends/governor.py:583-584`. It runs after `start` succeeds. New text: `"[Governor] Mode %s merged %d LoRA(s) at load"`, with `mode_name` and `len(mode.loras)`. Use lazy `%` arguments.
+- [x] **Step 4: Fix the governor log line** at `backends/governor.py:583-584`. It runs after `start` succeeds. New text: `"[Governor] Mode %s merged %d LoRA(s) at load"`, with `mode_name` and `len(mode.loras)`. Use lazy `%` arguments.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `python -m pytest tests/test_mode_loras.py tests/test_worker_handle.py tests/test_subprocess_worker_handle.py tests/test_governor.py tests/test_worker_pool.py -q`
 Expected: all pass. The existing `Mock()` mode stubs keep passing, because `lora_specs_for_mode(Mock())` returns `[]`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/mode_loras.py backends/worker_handle.py backends/worker_handle_subprocess.py backends/governor.py tests/_fault_worker.py tests/test_mode_loras.py tests/test_worker_handle.py tests/test_subprocess_worker_handle.py

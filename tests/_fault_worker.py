@@ -172,3 +172,29 @@ class LogLineWorker:
 
 def make_log_line_worker(worker_id, resolved, binding):
     return LogLineWorker()
+
+
+class LoraRecordingWorker:
+    """Records the LoRA specs from configure_loras (STABL-ykowysrg).
+
+    run_job reports the specs it received, so a spec lost or mangled at the
+    spawn boundary is visible to the parent.
+    """
+
+    def __init__(self, worker_id, resolved, binding):
+        self.specs = None
+
+    def configure_conditioning(self, config):
+        pass
+
+    def configure_loras(self, specs):
+        self.specs = list(specs)
+
+    def run_job(self, job, progress=None, should_cancel=None):
+        if self.specs is None:
+            raise RuntimeError("configure_loras was not called in child")
+        return b"LORAS:" + ";".join(f"{s.path}@{s.strength}" for s in self.specs).encode()
+
+
+def make_lora_recording_worker(worker_id, resolved, binding):
+    return LoraRecordingWorker(worker_id, resolved, binding)

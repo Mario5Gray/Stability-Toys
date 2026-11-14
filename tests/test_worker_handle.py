@@ -215,3 +215,29 @@ def test_double_unload_closes_once():
     h.unload()
     h.unload()
     registration.close.assert_called_once()  # handle guards re-close
+
+
+class _LoraMode:
+    conditioning = Mock(requires_configurable_worker=lambda: False)
+    loras = [Mock(path="jade", strength=0.8)]
+    lora_paths = ["/models/loras/jade"]
+
+
+def test_start_applies_mode_loras():
+    from backends.mode_loras import LoraSpec
+
+    got = {}
+
+    class _W:
+        def configure_loras(self, specs):
+            got["specs"] = specs
+
+    h = InProcessWorkerHandle(lambda **kw: _W(), device_memory=_stub_dm())
+    h.start(resolved_mode=Mock(), binding=Mock(), mode=_LoraMode())
+    assert got["specs"] == [LoraSpec("/models/loras/jade", 0.8)]
+
+
+def test_start_refuses_loras_without_hook():
+    h = InProcessWorkerHandle(lambda **kw: object(), device_memory=_stub_dm())
+    with pytest.raises(RuntimeError, match="does not support LoRAs"):
+        h.start(resolved_mode=Mock(), binding=Mock(), mode=_LoraMode())
