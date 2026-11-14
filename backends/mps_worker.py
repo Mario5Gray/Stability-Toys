@@ -37,6 +37,7 @@ from backends.cuda_worker import (
     _validate_control_image_aspect_ratio,
 )
 from backends.family_profiles import FamilyProfile
+from backends.unet_mode_loras import UNetModeLoraMixin
 from backends.platforms.mps_policy import MPS_TORCH_POLICY
 from backends.step_progress import inject_step_progress
 
@@ -45,7 +46,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["DiffusersMpsWorker"]
 
 
-class DiffusersMpsWorker(CudaWorkerBase):
+class DiffusersMpsWorker(UNetModeLoraMixin, CudaWorkerBase):
     """Apple MPS Diffusers worker for SD1.5 LCM text-to-image and img2img.
 
     Supports two formats:

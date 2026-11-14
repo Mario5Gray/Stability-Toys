@@ -89,17 +89,17 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 - Worker: `DiffusersCudaWorker.__new__`, then set `pipe`, `worker_id=0`, `_quantize="none"`, `_checkpoint_precision="unknown"`, `_offload="none"`, `_style_loaded={}`, `_img2img_pipe=None`.
 - LoRA: diffusers keys `unet.<module>.lora_A.weight` / `.lora_B.weight` and `text_encoder.<module>...`. Modules: `down_blocks.1.attentions.0.transformer_blocks.0.attn2.to_q` and `text_model.encoder.layers.0.self_attn.q_proj`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_unet_mode_loras.py`:
+- [x] **Step 1: Write the failing tests** in `tests/test_unet_mode_loras.py`:
   - `test_sd_unet_and_text_encoder_fuse_math`: strength 0.5. Both weights equal `W + 0.5 * (B @ A)` (`atol=1e-5`). No `BaseTunerLayer` remains in `unet` or `text_encoder`.
   - `test_sdxl_text_encoder_2_fuses`: a LoRA on `text_encoder_2.text_model.encoder.layers.0.self_attn.q_proj` changes that weight by `1.0 * (B @ A)`.
   - `test_fp8_refuses`, `test_sequential_offload_refuses`, `test_style_adapters_loaded_refuses`: raise `UNetLoraError` with `fp8`, `sequential`, `style`.
   - `test_partial_fit_refuses`: one real unet module plus `unet.not_a_module`. Raise `UNetLoraError` with the file name.
   - `test_workers_have_configure_loras`: `DiffusersCudaWorker`, `DiffusersSDXLCudaWorker`, `DiffusersMpsWorker` each have `configure_loras` from `UNetModeLoraMixin`.
   - `test_img2img_shares_fused_unet`: after `configure_loras`, `StableDiffusionImg2ImgPipeline(**worker.pipe.components).unet is worker.pipe.unet`. (The SD workers build img2img with `**self.pipe.components`, `backends/cuda_worker.py:1151` and `:1545`.)
-- [ ] **Step 2: Run** `python -m tests.run tests/test_unet_mode_loras.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'backends.unet_mode_loras'`.
-- [ ] **Step 3: Implement** the mixin and add it to the three workers.
-- [ ] **Step 4: Run** `python -m tests.run tests/test_unet_mode_loras.py tests/test_mode_loras.py tests/test_zimage_lora_worker.py tests/test_hunyuandit_lora_worker.py -- -q`. Expected: all pass.
-- [ ] **Step 5: Commit** `feat(lora): SD1.5/SDXL configure_loras via diffusers fuse (STABL-fvwsvjvn) — next: Task 3 request LoRA validation`.
+- [x] **Step 2: Run** `python -m tests.run tests/test_unet_mode_loras.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'backends.unet_mode_loras'`.
+- [x] **Step 3: Implement** the mixin and add it to the three workers.
+- [x] **Step 4: Run** `python -m tests.run tests/test_unet_mode_loras.py tests/test_mode_loras.py tests/test_zimage_lora_worker.py tests/test_hunyuandit_lora_worker.py -- -q`. Expected: all pass.
+- [x] **Step 5: Commit** `feat(lora): SD1.5/SDXL configure_loras via diffusers fuse (STABL-fvwsvjvn) — next: Task 3 request LoRA validation`.
 
 ---
 
