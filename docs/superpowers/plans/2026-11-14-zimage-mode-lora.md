@@ -88,7 +88,7 @@ git commit -m "feat(zimage): load + fuse mode LoRAs in configure_loras (STABL-gf
 
 Steps 2-6 restart the enigma server. **Wait for the user's go before step 2.**
 
-- [ ] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
+- [x] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 
 - [ ] **Step 2: Push the branch. On enigma, switch to it and add a mode `ZImage-Turbo-j80z`** (copy of `ZImage-Turbo` plus `loras: [{path: ZiT/j80z.safetensors, strength: 1.0}]`). Back up `conf/modes.yml` to `/tmp/stabl-gftujmyi/modes.yml.bak` first. Do not commit.
 
