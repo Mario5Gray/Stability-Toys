@@ -69,7 +69,7 @@ Mapping (module constant). Source keys are `<src>.lora_A.weight` and `<src>.lora
 | `attn2.out_proj` | `attn2.to_out.0` |
 | `pooler.q_proj` (once) | `time_extra_emb.pooler.q_proj` |
 
-The block count is `len(transformer.blocks)`. The expected key count is `10 * blocks + 2`. The changed-target count is `7 * blocks + 1`.
+The block count is `len(transformer.blocks)`. The expected key count is `10 * blocks + 2`. The changed-target count is `8 * blocks + 1`.
 
 Validation rules, each a `HunyuanDiTLoraError` with the key name in the message:
 - The key set equals the expected set. Report up to 5 missing and 5 extra keys.
@@ -77,33 +77,33 @@ Validation rules, each a `HunyuanDiTLoraError` with the key name in the message:
 - `A.shape[1]` equals the target `in_features`.
 - `B.shape[0]` equals the sum of the target `out_features`. Each target has the same `out_features`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_hunyuandit_lora.py`:
+- [x] **Step 1: Write the failing tests** in `tests/test_hunyuandit_lora.py`:
   - `test_resolve_lora_file_accepts_dir_and_file` — a dir with `adapter_model.safetensors` resolves to that file. A file path resolves to itself.
   - `test_resolve_lora_file_missing_raises` — `pytest.raises(HunyuanDiTLoraError)`.
   - `test_read_strips_tencent_prefix` — save `make_fake_lora(prefix=True)` with `safetensors.torch.save_file`. Every returned key starts with `blocks.` or `pooler.`.
   - `test_read_adapter_config_optional` — no sibling file gives `{}`. A sibling with `{"r": 64, "lora_alpha": 64}` gives that dict.
   - `test_merge_matches_tencent_reference` — clone the state dict, run `tencent_reference_merge(..., scale=1.0, num_layers=2)`, run `merge_tencent_lora(t, lora, 1.0)`. Every tensor is `torch.allclose(atol=1e-6)`.
   - `test_strength_scales_delta` — with strength 0.5, `W_after - W_before` equals half the strength-1.0 delta (`atol=1e-6`).
-  - `test_merge_returns_target_count` — returns `7 * 2 + 1 == 15`.
+  - `test_merge_returns_target_count` — returns `8 * 2 + 1 == 17`.
   - `test_fp16_weight_merge_computes_in_fp32` — a transformer with `dtype=torch.float16`. The result equals `(W.float() + delta).half()` exactly.
   - `test_validate_rejects_missing_key` — drop one key. Raises. All weights equal the clone.
   - `test_validate_rejects_extra_key` — add `blocks.0.mlp.fc1.lora_A.weight`. Raises.
   - `test_validate_rejects_wrong_shape` — replace one `lora_A` with rank-mismatched shape. Raises. No weight changed.
   - `test_validate_rejects_sdxl_style_keys` — a dict with only `lora_unet_down_blocks_0_attentions_0.lora_down.weight`. Raises. The message names a missing `blocks.0.attn1.Wqkv` key.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m pytest tests/test_hunyuandit_lora.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'backends.hunyuandit_lora'`.
 
-- [ ] **Step 3: Implement `backends/hunyuandit_lora.py`** with the interfaces above. Use `safetensors.torch.load_file(path, device="cpu")`. Use `torch.no_grad()` and `param.data.copy_(...)` for the in-place write. Look up targets with `transformer.get_submodule(name).weight`.
+- [x] **Step 3: Implement `backends/hunyuandit_lora.py`** with the interfaces above. Use `safetensors.torch.load_file(path, device="cpu")`. Use `torch.no_grad()` and `param.data.copy_(...)` for the in-place write. Look up targets with `transformer.get_submodule(name).weight`.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python -m pytest tests/test_hunyuandit_lora.py -q`
 Expected: 12 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/hunyuandit_lora.py tests/hunyuandit_lora_fakes.py tests/test_hunyuandit_lora.py
@@ -190,7 +190,7 @@ Order inside `configure_loras`:
   - `test_checkpoint_fp8_refuses` — `_checkpoint_precision = "fp8"`. Raises.
   - `test_non_finite_strength_refuses` — strength `float("nan")`. Raises. No weight changed.
   - `test_second_bad_lora_changes_no_weight` — first LoRA valid, second has a missing key. Raises. All weights equal the clone.
-  - `test_configure_loras_logs_rank_and_alpha` — with `adapter_config.json` `{"r": 2, "lora_alpha": 2}`, `caplog` has `"r=2 alpha=2 targets=15"`.
+  - `test_configure_loras_logs_rank_and_alpha` — with `adapter_config.json` `{"r": 2, "lora_alpha": 2}`, `caplog` has `"r=2 alpha=2 targets=17"`.
   - `test_mps_worker_inherits_configure_loras` — `DiffusersHunyuanDiTMpsWorker.configure_loras is DiffusersHunyuanDiTCudaWorker.configure_loras`.
   - `test_controlnet_pipe_reuses_base_pipe` — patch `backends.cuda_worker._hunyuandit_controlnet_pipeline_cls` with a fake class whose `from_pipe(pipe, **kw)` records `pipe`. `worker._build_controlnet_pipe(object())` passes `worker.pipe`. diffusers `from_pipe` reuses the component objects, so the merged transformer reaches the ControlNet path.
 
@@ -301,7 +301,7 @@ Expected: `jade-0.8.png` differs from `plain-1.png` and shows the jade style. `p
 - [ ] **Step 7: Check the server log**
 
 Run: `ssh enigma.lan 'docker logs stability-toys 2>&1 | grep -E "merged LoRA|merged [0-9]+ LoRA" | tail -5'`
-Expected: `merged LoRA ... strength=0.8 r=64 alpha=64 targets=281` and `Mode HunyuanDiT merged 1 LoRA(s) at load`.
+Expected: `merged LoRA ... strength=0.8 r=64 alpha=64 targets=321` and `Mode HunyuanDiT merged 1 LoRA(s) at load`.
 
 - [ ] **Step 8: Record evidence and close out**
 
