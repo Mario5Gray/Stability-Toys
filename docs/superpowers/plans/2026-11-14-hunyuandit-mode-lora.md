@@ -261,12 +261,12 @@ Steps 3 to 8 change the running enigma server. **Wait for the user's go before s
 - Modify: this plan (checkboxes, evidence notes)
 - Evidence: images under `<output_directory>/stabl-ykowysrg/` on the host that runs `st`, and their paths in the FP comment
 
-- [ ] **Step 1: Run the CPU test container**
+- [x] **Step 1: Run the CPU test container**
 
 Run: `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test > /private/tmp/claude-501/stabl-ykowysrg-suite.log 2>&1; tail -5 /private/tmp/claude-501/stabl-ykowysrg-suite.log`
 Expected: the pytest summary shows no new failures against `main`. Record pass and fail counts.
 
-- [ ] **Step 2: Run drift**
+- [x] **Step 2: Run drift**
 
 Run: `drift check`
 Expected: no stale anchors. If stale, update the prose first, then `drift link`.
