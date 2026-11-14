@@ -237,18 +237,18 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 - `applyExplicitFlags` rules (spec section 9): `Loras != nil` sets `p["loras"] = *Loras`. `Loras == nil` and `Mode != nil` delete `p["loras"]`. Both nil keep the inherited value.
 - Help text: `LoRA for this request: path[:strength], repeatable. Needs a mode without loras:. A LoRA for the wrong model family fails the job and unloads the model.`
 
-- [ ] **Step 1: Write the failing Go tests:**
+- [x] **Step 1: Write the failing Go tests:**
   - `TestParseLoraFlag`: `ZiT/j80z.safetensors:0.8` gives (`ZiT/j80z.safetensors`, 0.8). `a.safetensors` gives 1.0. `dir:with:colon` gives path `dir:with:colon`, 1.0. `:0.5` is an error.
   - `TestGenLoraFlagShipsInParams`: two `--lora` flags give two entries in order in the submitted params. No flag and no inherited params give no `loras` key.
   - `precedence_test.go::TestLoraFlagReplacesInheritedLoras`: baked and baseline `loras` both set, `Loras` set. Result is the flag list.
   - `::TestExplicitModeDropsInheritedLoras`: baked `loras` set, `Mode` set, `Loras` nil. Result has no `loras` key.
   - `::TestBaselineLorasDroppedByExplicitMode`: the same with baseline `loras`.
   - `::TestInheritedLorasKeptWithoutModeOrLora`: baked `loras` set, `Mode` and `Loras` nil. The baked list stays.
-- [ ] **Step 2: Run** `cd cli/go && ST_SERVER= go test ./cmd/st/ ./internal/config/ -run 'TestParseLoraFlag|TestGenLoraFlag|Loras'`. Expected: FAIL (undefined `parseLoraFlag`, unknown field `Loras`).
-- [ ] **Step 3: Implement** the flag.
-- [ ] **Step 4: Run** `cd cli/go && ST_SERVER= go test ./...`. Expected: ok for every package.
-- [ ] **Step 5: Update `docs/WORKER_SELECTION.md` step 4.** Add: SD1.5 and SDXL workers fuse diffusers LoRAs. A request `loras` list loads on a mode without `loras:`, and a changed set reloads the worker. A request LoRA for the wrong family fails the load, and the server has no model until the next valid request. Run `drift check`. Relink only after a prose review.
-- [ ] **Step 6: Commit** `feat(st): gen --lora; docs for request LoRAs (STABL-fvwsvjvn) — next: Task 7 suite + enigma live proof`.
+- [x] **Step 2: Run** `cd cli/go && ST_SERVER= go test ./cmd/st/ ./internal/config/ -run 'TestParseLoraFlag|TestGenLoraFlag|Loras'`. Expected: FAIL (undefined `parseLoraFlag`, unknown field `Loras`).
+- [x] **Step 3: Implement** the flag.
+- [x] **Step 4: Run** `cd cli/go && ST_SERVER= go test ./...`. Expected: ok for every package.
+- [x] **Step 5: Update `docs/WORKER_SELECTION.md` step 4.** Add: SD1.5 and SDXL workers fuse diffusers LoRAs. A request `loras` list loads on a mode without `loras:`, and a changed set reloads the worker. A request LoRA for the wrong family fails the load, and the server has no model until the next valid request. Run `drift check`. Relink only after a prose review.
+- [x] **Step 6: Commit** `feat(st): gen --lora; docs for request LoRAs (STABL-fvwsvjvn) — next: Task 7 suite + enigma live proof`.
 
 ---
 

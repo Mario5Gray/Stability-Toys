@@ -14,6 +14,9 @@ type Flags struct {
 	Scheduler       *string
 	Mode            *string
 	SRLevel         *int
+	// Loras is nil when --lora is not given. A non-nil list replaces inherited
+	// loras (STABL-fvwsvjvn).
+	Loras *[]any
 }
 
 // ResolveParams layers generation parameters by precedence — config defaults <
@@ -94,6 +97,14 @@ func applyExplicitFlags(p map[string]any, f Flags) {
 	}
 	if f.Mode != nil {
 		p["mode"] = *f.Mode
+	}
+	// Request LoRAs: --lora replaces inherited loras. An explicit --mode without
+	// --lora means the mode as configured, so inherited loras go. Neither keeps
+	// them, so a recipe replay keeps its LoRAs.
+	if f.Loras != nil {
+		p["loras"] = *f.Loras
+	} else if f.Mode != nil {
+		delete(p, "loras")
 	}
 	if f.SRLevel != nil {
 		delete(p, "superres")
