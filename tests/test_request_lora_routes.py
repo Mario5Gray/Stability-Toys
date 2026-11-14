@@ -225,3 +225,38 @@ async def test_models_status_has_current_loras():
         data = await model_routes.get_models_status(request)
 
     assert data["current_loras"] == [{"path": "/l/a.safetensors", "strength": 0.8}]
+
+
+# ------------------------------------------------- runtimes without the mode system
+# A runtime with no mode system cannot load LoRAs. Request LoRAs must be refused,
+# never dropped: a job must not run on a LoRA set other than the one it named.
+
+
+def test_http_loras_without_mode_system_is_400(root):
+    runtime = MagicMock(spec=["submit_generate"])
+    test_app = FastAPI()
+    test_app.post("/generate")(srv.generate)
+    mock_app = MagicMock()
+    mock_app.state.generation_runtime = runtime
+    with patch.object(srv, "app", mock_app):
+        client = TestClient(test_app, raise_server_exceptions=False)
+        r = client.post("/generate", json={"prompt": "p", "loras": [{"path": "a.safetensors"}]})
+
+    assert r.status_code == 400
+    assert "mode system" in r.json()["detail"]
+    runtime.submit_generate.assert_not_called()
+
+
+def test_ws_loras_without_mode_system_is_job_error():
+    app = FastAPI()
+    app.include_router(ws_router)
+    app.state.use_mode_system = False
+    app.state.service = MagicMock()
+    app.state.sr_service = None
+    app.state.storage = None
+    with TestClient(app) as client:
+        frame = _ws_submit(client, {"prompt": "p", "loras": [{"path": "a.safetensors"}]})
+
+    assert frame["type"] == "job:error"
+    assert "mode system" in frame["error"]
+    app.state.service.submit.assert_not_called()

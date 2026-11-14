@@ -17,6 +17,19 @@ from backends.mode_loras import LoraSpec, RequestLoraError
 ADAPTER_MODEL = "adapter_model.safetensors"
 
 
+def ensure_request_loras_supported(req: Any) -> None:
+    """Refuse request LoRAs on a runtime without the mode system.
+
+    Only the mode system can load LoRAs. A dropped list would run the job on a
+    LoRA set other than the one the request named.
+    """
+    if getattr(req, "loras", None):
+        raise RequestLoraError(
+            "request LoRAs need the mode system (CUDA or MPS backend with modes); "
+            "this runtime cannot load them"
+        )
+
+
 def select_weight_file(path: Path) -> Path:
     """Return the weight file for a request path.
 

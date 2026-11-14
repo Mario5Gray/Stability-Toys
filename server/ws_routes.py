@@ -22,7 +22,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backends.chat_client import ChatCompletionsClient, ChatConfig
 from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
-from server.request_loras import resolve_request_loras
+from server.request_loras import ensure_request_loras_supported, resolve_request_loras
 from server.ws_hub import hub
 from server import log_context
 from server.tracing import get_tracer
@@ -706,6 +706,7 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
 
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
+        ensure_request_loras_supported(req)
 
         # Resolve optional init image reference
         init_image_bytes = None

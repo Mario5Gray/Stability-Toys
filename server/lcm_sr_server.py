@@ -90,7 +90,7 @@ import signal
 
 # Mode system imports
 from server.mode_config import get_mode_config, reload_mode_config
-from server.request_loras import resolve_request_loras
+from server.request_loras import ensure_request_loras_supported, resolve_request_loras
 from backends.mode_loras import RequestLoraError
 from server.model_routes import router as model_router
 from server.analysis_routes import router as analysis_router
@@ -653,6 +653,10 @@ def generate(req: GenerateRequest):
                 detail=f"Admission failed: {e}"
             )
     else:
+        try:
+            ensure_request_loras_supported(req)
+        except RequestLoraError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         snapshot = (
             runtime.get_active_model_snapshot()
             if supports_modes and hasattr(runtime, "get_active_model_snapshot")
