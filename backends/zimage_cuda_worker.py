@@ -17,8 +17,11 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 import os
-from typing import Any
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import torch
 from PIL import Image, PngImagePlugin
@@ -28,6 +31,9 @@ from backends.cuda_worker import CudaWorkerBase, _import_attr
 from backends.family_profiles import ZIMAGE_PROFILE, FamilyProfile
 from backends.step_progress import inject_step_progress
 from backends.zimage_text_encoder import load_int8_text_encoder
+
+if TYPE_CHECKING:
+    from backends.mode_loras import LoraSpec
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +52,54 @@ class ZImageDependencyError(RuntimeError):
 
 class ZImageUnsupportedRuntimeError(RuntimeError):
     """A runtime setting or model format is not admitted for Z-Image."""
+
+
+class ZImageLoraError(ValueError):
+    """A mode LoRA cannot be applied to the Z-Image transformer."""
+
+
+def _resolve_zimage_lora_file(path: str | Path) -> Path:
+    """Return the LoRA file. A directory must hold exactly one .safetensors file."""
+
+    p = Path(path)
+    if p.is_dir():
+        files = sorted(p.glob("*.safetensors"))
+        if len(files) != 1:
+            raise ZImageLoraError(
+                f"LoRA directory {p} must hold exactly one .safetensors file; found {len(files)}"
+            )
+        return files[0]
+    if not p.is_file():
+        raise ZImageLoraError(f"LoRA file not found: {p}")
+    return p
+
+
+_TEXT_ENCODER_KEY_PREFIXES = ("text_encoder.", "lora_te")
+
+
+def _count_lora_down_tensors(state_dict: dict[str, torch.Tensor]) -> int:
+    """Count the transformer LoRA down (A) tensors in a LoRA file."""
+
+    return sum(
+        1
+        for key in state_dict
+        if key.endswith((".lora_A.weight", ".lora_down.weight"))
+        and not key.startswith(_TEXT_ENCODER_KEY_PREFIXES)
+    )
+
+
+def _count_adapter_modules(transformer: torch.nn.Module, adapter_name: str) -> int:
+    """Count the PEFT LoRA layers in the transformer that hold the adapter."""
+
+    from peft.tuners.tuners_utils import BaseTunerLayer
+
+    count = 0
+    for module in transformer.modules():
+        if isinstance(module, BaseTunerLayer):
+            lora_a = getattr(module, "lora_A", None)
+            if lora_a is not None and adapter_name in lora_a:
+                count += 1
+    return count
 
 
 # The resolvers keep the Z-Image pipeline classes out of module import.
@@ -142,7 +196,8 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
 
         self.pipe = pipe
         self._capture_baseline_scheduler(self.pipe)
-        # Z-Image does not load SD or SDXL style LoRAs.
+        # Z-Image has no per-request style LoRA API.
+        # Mode LoRAs are fused at mode load by configure_loras.
         self._style_api = "none"
 
         logger.info(
@@ -150,6 +205,61 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
             self.log_tag, self.worker_id, os.path.basename(model_path.rstrip("/")),
             self.device, self.dtype_str, encoder_mode,
         )
+
+    def configure_loras(self, specs: Sequence[LoraSpec]) -> None:
+        """Load, fuse, and unload the mode LoRAs. The fused weights stay.
+
+        Strength is fixed at mode load. A failure raises, and the handle
+        fails the mode load.
+        """
+
+        specs = list(specs)
+        if not specs:
+            return
+        for spec in specs:
+            if not math.isfinite(float(spec.strength)):
+                raise ZImageLoraError(
+                    f"LoRA {spec.path} strength must be finite; got {spec.strength}"
+                )
+        files = [_resolve_zimage_lora_file(spec.path) for spec in specs]
+
+        from safetensors.torch import load_file
+
+        names: list[str] = []
+        counts: list[int] = []
+        for i, lora_file in enumerate(files):
+            name = f"mode_lora_{i}"
+            state_dict = load_file(str(lora_file))
+            expected = _count_lora_down_tensors(state_dict)
+            try:
+                self.pipe.load_lora_weights(state_dict, adapter_name=name)
+            except ValueError as exc:
+                raise ZImageLoraError(
+                    f"LoRA {lora_file} does not fit the Z-Image transformer: {exc}"
+                ) from exc
+            names.append(name)
+            count = _count_adapter_modules(self.pipe.transformer, name)
+            if count == 0:
+                raise ZImageLoraError(
+                    f"LoRA {lora_file} targets no Z-Image transformer module"
+                )
+            if count < expected:
+                raise ZImageLoraError(
+                    f"LoRA {lora_file} fits only {count} of {expected} modules "
+                    "of the Z-Image transformer"
+                )
+            counts.append(count)
+
+        strengths = [float(spec.strength) for spec in specs]
+        self.pipe.set_adapters(names, adapter_weights=strengths)
+        self.pipe.fuse_lora(components=["transformer"], adapter_names=names, lora_scale=1.0)
+        self.pipe.unload_lora_weights()
+
+        for lora_file, strength, count in zip(files, strengths, counts):
+            logger.info(
+                "[%s] worker %s merged LoRA %s strength=%s modules=%d",
+                self.log_tag, self.worker_id, lora_file, strength, count,
+            )
 
     def _admit(self, model_path: str) -> str:
         """Refuse unadmitted settings before any weight load. Return the encoder mode."""
