@@ -161,3 +161,30 @@ func TestCloneParamsAndNormalizeExitCodes(t *testing.T) {
 		t.Fatalf("NormalizeExitCodes() = %#v, want %#v", got, want)
 	}
 }
+
+// Request LoRAs render as --lora path:strength, in order (STABL-fvwsvjvn).
+// The strength is always written, so a path with ':' parses back unchanged.
+func TestCanonicalGenArgvRendersLoras(t *testing.T) {
+	params := map[string]any{
+		"prompt": "owl",
+		"mode":   "plain",
+		"loras": []any{
+			map[string]any{"path": "b.safetensors", "strength": 0.5},
+			map[string]any{"path": "dir:with:colon", "strength": 1.0},
+		},
+	}
+	want := "st gen --prompt owl --mode plain --lora b.safetensors:0.5 --lora dir:with:colon:1"
+	if got := CanonicalGenDisplay(params); got != want {
+		t.Fatalf("display = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalGenArgvRendersTypedLoraMaps(t *testing.T) {
+	params := map[string]any{
+		"prompt": "owl",
+		"loras":  []map[string]any{{"path": "a.safetensors", "strength": 0.8}},
+	}
+	if got := CanonicalGenDisplay(params); got != "st gen --prompt owl --lora a.safetensors:0.8" {
+		t.Fatalf("display = %q", got)
+	}
+}

@@ -47,6 +47,12 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
    runs with no reload. A request LoRA for the wrong family fails the load, and
    the server has no model until the next valid request.
 
+   A request that names a mode and no LoRAs loads that mode as configured. `st
+   gen` sends the config default mode on every request. So without conflate, a
+   plain `st gen` after a LoRA run reloads the mode without the LoRAs. A
+   conflated `st gen` takes `mode` and `loras` from its baseline run, so the set
+   stays loaded. `--mode` without `--lora` drops the baseline LoRAs.
+
 A known family without a selected backend cell raises `UnsupportedFamilyError`.
 An unresolvable model raises `FamilyResolutionError`. Binding reads and rejected
 requests do not import CUDA worker code. `create_cuda_worker` remains a

@@ -961,7 +961,9 @@ func printGenResult(cmd *cobra.Command, path string, res *stclient.Result) error
 }
 
 const loraFlagHelp = "LoRA for this request: path[:strength], repeatable. Needs a mode without loras:. " +
-	"A LoRA for the wrong model family fails the job and unloads the model."
+	"A LoRA for the wrong model family fails the job and unloads the model. " +
+	"Conflate keeps the LoRAs of its baseline run. Without conflate, a plain st gen " +
+	"sends the config default mode and no LoRAs, so the server reloads that mode as configured."
 
 // parseLoraFlag reads one --lora value as path[:strength] (STABL-fvwsvjvn). The
 // part after the last ':' is the strength when it parses as a float. Otherwise

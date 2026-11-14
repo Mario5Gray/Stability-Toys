@@ -65,6 +65,36 @@ func CanonicalGenArgv(params map[string]any) []string {
 	appendStr("--scheduler", "scheduler_id")
 	appendStr("--mode", "mode")
 	argv = appendCanonicalControlnets(argv, params["controlnets"])
+	argv = appendCanonicalLoras(argv, params["loras"])
+	return argv
+}
+
+// appendCanonicalLoras renders request LoRAs as --lora path:strength, in order
+// (STABL-fvwsvjvn). The strength is always written, so st gen --lora reads a
+// path that holds ':' back unchanged.
+func appendCanonicalLoras(argv []string, raw any) []string {
+	var entries []map[string]any
+	switch list := raw.(type) {
+	case []any:
+		for _, item := range list {
+			if entry, ok := item.(map[string]any); ok {
+				entries = append(entries, entry)
+			}
+		}
+	case []map[string]any:
+		entries = list
+	}
+	for _, entry := range entries {
+		path, ok := entry["path"].(string)
+		if !ok || path == "" {
+			continue
+		}
+		strength := 1.0
+		if s, ok := entry["strength"].(float64); ok {
+			strength = s
+		}
+		argv = append(argv, "--lora", path+":"+strconv.FormatFloat(strength, 'f', -1, 64))
+	}
 	return argv
 }
 

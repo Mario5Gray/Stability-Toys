@@ -862,3 +862,61 @@ func TestGenLoraFlagBadValueErrors(t *testing.T) {
 		t.Fatalf("expected a --lora error, got %v", err)
 	}
 }
+
+// A conflated plain st gen after a --lora run keeps the baseline mode and LoRAs,
+// so the server sees the same authority key and does not reload. The config
+// default mode must not win over the baseline (STABL-fvwsvjvn).
+func conflateLoraBaseline(t *testing.T) (history.Store, *config.Config) {
+	t.Helper()
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	baseID, _ := store.ReserveID(context.Background())
+	_ = store.Append(context.Background(), history.Entry{
+		SchemaVersion: 1,
+		ID:            baseID,
+		Family:        history.FamilyGen,
+		Raw:           history.CommandView{Argv: []string{"st", "gen"}, Display: "st gen"},
+		Effective: &history.CommandView{
+			Params: map[string]any{
+				"prompt": "owl", "mode": "plain",
+				"loras": []any{map[string]any{"path": "ZiT/j80z.safetensors", "strength": 0.8}},
+			},
+		},
+		ExitCode: 0,
+	})
+	runCmdWithStateRoot(t, root, "conflate", "history:1")
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.Mode = "m"
+	return store, cfg
+}
+
+func TestConflatedGenKeepsBaselineLoras(t *testing.T) {
+	store, cfg := conflateLoraBaseline(t)
+	patch, err := parseRootGenPatch([]string{"--seed", "7", "--prompt", "owl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, _, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loras, _ := params["loras"].([]any)
+	if params["mode"] != "plain" || len(loras) != 1 || loras[0].(map[string]any)["path"] != "ZiT/j80z.safetensors" {
+		t.Fatalf("params = %#v", params)
+	}
+}
+
+func TestConflatedGenExplicitModeDropsBaselineLoras(t *testing.T) {
+	store, cfg := conflateLoraBaseline(t)
+	patch, err := parseRootGenPatch([]string{"--mode", "plain", "--prompt", "owl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, _, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := params["loras"]; ok || params["mode"] != "plain" {
+		t.Fatalf("explicit --mode must drop baseline loras: %#v", params)
+	}
+}
