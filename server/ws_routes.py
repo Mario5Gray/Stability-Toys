@@ -295,6 +295,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             try:
                 init_image_bytes = resolve_file_ref(init_image_ref)
             except KeyError as e:
+                logger.warning("job:submit rejected (init_image_ref): %s", e)
                 await hub.send(client_id, _error(str(e), corr_id))
                 return
 
@@ -360,6 +361,7 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
         t = asyncio.create_task(_run_chat(ws, client_id, job_id, params))
         _track_task(job_id, t)
     else:
+        logger.warning("job:submit rejected: unknown jobType %r", job_type)
         await hub.send(client_id, _error(f"Unknown jobType: {job_type}", corr_id))
 
 
