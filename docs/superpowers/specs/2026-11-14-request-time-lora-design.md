@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`)
+Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance.
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -71,12 +71,19 @@ Absent `loras` and `loras: []` mean "no request LoRAs".
 
 ### 2. Path and strength validation
 
-Validation runs before admission. A failure returns HTTP 400 or WS `job:error`. No switch is queued.
+Validation runs before admission. No switch is queued after a failure.
+
+Error contract (revision 4, plan review 2026-11-14):
+- A malformed entry (wrong type, missing `path`, non-numeric `strength`) fails the request schema. HTTP returns 422, the FastAPI default. WS returns `job:error`.
+- A well-formed entry that fails a rule below returns HTTP 400 or WS `job:error`.
 
 - A relative path resolves against `lora_root`.
 - An absolute path is admitted only when it resolves inside `lora_root`.
 - Both sides use `Path.resolve()`, so a symlink cannot escape the root.
 - The path must exist as a file or a directory.
+- A directory selects one weight file: `adapter_model.safetensors` when present, else the only `*.safetensors` file. Zero or several candidates are refused.
+- The selected weight file is resolved with `Path.resolve()`. The containment check and the duplicate check run on that resolved file, not on the directory. So a `.safetensors` symlink in an admitted directory cannot escape the root, and a directory plus its own file count as a duplicate.
+- The LoRA spec carries the resolved weight file path. Workers receive a file, never a directory.
 - The strength must be finite.
 - Two request entries must not resolve to the same file.
 - The target base mode (section 4) must have no `loras:` list. Otherwise the request is refused with a message that names the mode and says to use a mode without `loras:`. (Operator decision, 2026-11-14.)
@@ -145,6 +152,11 @@ Move the shared diffusers logic into one helper that the Z-Image worker also use
 `--lora <path>[:<strength>]`, repeatable.
 The part after the last `:` is the strength when it parses as a float. Otherwise the whole value is the path and the strength is 1.0.
 The flag maps to `GenParams.Loras` and the WS `loras` field.
+
+`st gen` layers params: config defaults, then a PNG recipe, then a history baseline, then explicit flags (`cli/go/internal/config/precedence.go`). Recipe and history params can carry `loras`. Rules (revision 4):
+- `--lora` given: the flag list replaces any inherited `loras`.
+- `--mode` given and no `--lora`: inherited `loras` are removed. An explicit mode means the mode as configured.
+- Neither given: inherited `loras` stay, so a recipe replay keeps its LoRAs.
 
 ### 10. Failure behavior
 

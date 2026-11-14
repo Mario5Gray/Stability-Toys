@@ -19,7 +19,9 @@
 - Every commit message names STABL-fvwsvjvn and the exact next step.
 - `modes.yml` is never written.
 - Request LoRAs run only on a mode with no `loras:`. Otherwise refuse before any switch, with a message that names the mode and says to use a mode without `loras:`.
-- Request paths resolve inside `lora_root` after `Path.resolve()` on both sides. The path exists. The strength is finite. No two entries resolve to the same file.
+- Request paths resolve inside `lora_root` after `Path.resolve()` on both sides. The path exists. The strength is finite. No two entries resolve to the same file. A directory selects one weight file first, and every check runs on that resolved file.
+- Error contract: a malformed entry gives HTTP 422 or WS `job:error`. A rule failure gives HTTP 400 or WS `job:error`.
+- `st gen` inheritance: `--lora` replaces inherited `loras`. `--mode` without `--lora` removes them. Neither keeps them.
 - Absent `loras` and `loras: []` mean "no request LoRAs".
 - Authority key equality: same base mode name, and equal `tuple[LoraSpec, ...]` (order, resolved path, exact float).
 - Run `drift refs <path>` before editing a file. Run `drift check` before each task commit. Relink only after a prose review.
@@ -28,7 +30,7 @@
 ## Review Focus
 
 1. A no-mode request with `loras` while a mode with `loras:` is loaded. Expect a refusal and the loaded model untouched. Task 4 test `test_no_mode_request_loras_on_lora_mode_refused`.
-2. A request path with `..` that leaves `lora_root`, or a symlink inside the root that points outside. Expect a refusal. Task 3 tests `test_dotdot_escape_refused` and `test_symlink_escape_refused`.
+2. A request path with `..` that leaves `lora_root`, a symlink inside the root that points outside, or an admitted directory whose weight file is such a symlink. Expect a refusal. Task 3 tests `test_dotdot_escape_refused`, `test_symlink_escape_refused`, `test_directory_symlink_escape_refused`.
 3. Idle eviction after a request-LoRA job, then a demand reload. Expect the request LoRAs to load again. Task 4 test `test_demand_reload_keeps_request_loras`.
 4. A `PUT /api/modes` config reload while request LoRAs are loaded. Expect the reload to keep them. Task 4 test `test_reload_current_mode_keeps_request_loras`.
 5. An SDXL kohya LoRA with `lora_te1_`/`lora_te2_` keys. Expect the text encoder parts to fuse and to count toward the fit check. Task 2 test `test_sdxl_text_encoder_2_fuses` and Task 1 test `test_includes_text_encoder_keys_when_fused`.
@@ -112,7 +114,8 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `class RequestLoraError(ValueError)`.
   - `derive_request_mode(mode, specs: tuple[LoraSpec, ...])`: mutates and returns the given (already deep-copied) mode. With `specs` empty, it returns the mode unchanged. With `specs` set and `mode.loras` non-empty, it raises `RequestLoraError` naming `mode.name`. Otherwise it sets `mode.loras = [LoRAConfig(path=s.path, strength=s.strength) for s in specs]` and `mode.lora_paths = [s.path for s in specs]`.
 - Produces in `server/request_loras.py`:
-  - `resolve_request_loras(entries: Sequence[Any] | None, lora_root: str) -> tuple[LoraSpec, ...]`. Each entry has `.path` and `.strength`, or keys `path` and `strength` (default 1.0). Returns specs with absolute resolved paths. Raises `RequestLoraError`.
+  - `select_weight_file(path: Path) -> Path`: a file returns itself. A directory returns `adapter_model.safetensors` when present, else its only `*.safetensors`. Zero or several candidates raise `RequestLoraError`.
+  - `resolve_request_loras(entries: Sequence[Any] | None, lora_root: str) -> tuple[LoraSpec, ...]`. Each entry has `.path` and `.strength`, or keys `path` and `strength` (default 1.0). Order: join with the root, `select_weight_file`, `resolve()`, containment check, duplicate check. All checks use the resolved weight file. Returns specs with that file path. Raises `RequestLoraError`.
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_request_loras.py` (`tmp_path` as `lora_root`):
   - `test_none_and_empty_give_empty_tuple`.
@@ -124,6 +127,11 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `test_missing_path_refused`.
   - `test_non_finite_strength_refused`: `inf` and `nan`, message has `strength`.
   - `test_duplicate_file_refused`: `a.safetensors` and `./a.safetensors`.
+  - `test_directory_symlink_escape_refused`: directory `d/` inside the root holds `w.safetensors`, a symlink to a file outside. Refused.
+  - `test_directory_and_its_file_duplicate_refused`: entries `d` and `d/w.safetensors`. Refused.
+  - `test_directory_selects_adapter_model`: `d/` holds `adapter_model.safetensors` and `other.safetensors`. The spec path is `d/adapter_model.safetensors` resolved.
+  - `test_directory_with_two_candidates_refused`: `d/` holds `a.safetensors` and `b.safetensors`, no `adapter_model.safetensors`.
+  - `test_spec_path_is_a_file`: every returned path is a file.
   - `test_default_strength_is_one`.
   - `test_derive_sets_loras_and_paths_in_order`.
   - `test_derive_refuses_mode_with_loras`: message has the mode name and `without loras`.
@@ -190,6 +198,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 - Produces: `class RequestLora(BaseModel)` with `path: str`, `strength: float = 1.0`. `GenerateRequest.loras: Optional[List[RequestLora]] = None`.
 - Spec section 8 names `st status`. That command does not exist. `st models` prints `/api/models/status` as JSON, so the `current_loras` field reaches the operator with no Go change.
 - Both routes call `resolve_request_loras(req.loras, get_mode_config().config.lora_root)` before admission. A `RequestLoraError` from validation or from admission gives HTTP 400 with the message, or WS `job:error` with the message. Admission is not called after a validation error.
+- Spec error contract: a malformed entry fails the pydantic schema. HTTP gives 422 (FastAPI default). WS gives `job:error`. Neither calls admission.
 
 - [ ] **Step 1: Write the failing tests:**
   - `tests/test_ws_build_generate_request.py::test_loras_pass_through`: params `loras=[{"path": "a.safetensors", "strength": 0.8}]` give `req.loras[0].path == "a.safetensors"` and `.strength == 0.8`.
@@ -198,6 +207,8 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `::test_http_admission_request_lora_error_is_400`.
   - `::test_ws_outside_root_is_job_error_and_not_admitted`.
   - `::test_models_status_has_current_loras`.
+  - `::test_http_malformed_entries_are_422_and_not_admitted`: parametrize `{"path": "a", "strength": "abc"}`, `{"strength": 0.5}`, and `loras: "a.safetensors"`.
+  - `::test_ws_malformed_entry_is_job_error_and_not_admitted`: `{"path": "a", "strength": "abc"}`.
   Patch `get_mode_config` to a stub whose `config.lora_root` is `tmp_path`. Use `tests/snapshot_test_helpers.py` `install_mode_backed` for the pool.
 - [ ] **Step 2: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py -- -q`. Expected: FAIL (no `loras` field).
 - [ ] **Step 3: Implement** the model, the field, and both admission paths.
@@ -211,18 +222,24 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 
 **Files:**
 - Modify: `cli/go/cmd/st/gen.go` (flag next to the `--controlnet` flags at :193)
-- Test: `cli/go/cmd/st/gen_test.go`
+- Modify: `cli/go/internal/config/precedence.go` (`Flags.Loras`, `applyExplicitFlags`)
+- Test: `cli/go/cmd/st/gen_test.go`, `cli/go/internal/config/precedence_test.go`
 - Modify: `docs/WORKER_SELECTION.md` step 4
 
 **Interfaces:**
 - Produces: `parseLoraFlag(v string) (map[string]any, error)` in `gen.go`. It splits at the last `:` when the suffix parses as a float. Otherwise the whole value is the path and strength is 1.0. An empty path is an error.
-- `params["loras"] = []any{map[string]any{"path": p, "strength": s}, ...}`, only when the flag is given.
+- `config.Flags.Loras *[]any`: nil when `--lora` is not given. `gen.go` sets it from the parsed flags.
+- `applyExplicitFlags` rules (spec section 9): `Loras != nil` sets `p["loras"] = *Loras`. `Loras == nil` and `Mode != nil` delete `p["loras"]`. Both nil keep the inherited value.
 - Help text: `LoRA for this request: path[:strength], repeatable. Needs a mode without loras:. A LoRA for the wrong model family fails the job and unloads the model.`
 
 - [ ] **Step 1: Write the failing Go tests:**
   - `TestParseLoraFlag`: `ZiT/j80z.safetensors:0.8` gives (`ZiT/j80z.safetensors`, 0.8). `a.safetensors` gives 1.0. `dir:with:colon` gives path `dir:with:colon`, 1.0. `:0.5` is an error.
-  - `TestGenLoraFlagShipsInParams`: two `--lora` flags give two entries in order in the submitted params. No flag gives no `loras` key.
-- [ ] **Step 2: Run** `cd cli/go && ST_SERVER= go test ./cmd/st/ -run 'TestParseLoraFlag|TestGenLoraFlag'`. Expected: FAIL (undefined `parseLoraFlag`).
+  - `TestGenLoraFlagShipsInParams`: two `--lora` flags give two entries in order in the submitted params. No flag and no inherited params give no `loras` key.
+  - `precedence_test.go::TestLoraFlagReplacesInheritedLoras`: baked and baseline `loras` both set, `Loras` set. Result is the flag list.
+  - `::TestExplicitModeDropsInheritedLoras`: baked `loras` set, `Mode` set, `Loras` nil. Result has no `loras` key.
+  - `::TestBaselineLorasDroppedByExplicitMode`: the same with baseline `loras`.
+  - `::TestInheritedLorasKeptWithoutModeOrLora`: baked `loras` set, `Mode` and `Loras` nil. The baked list stays.
+- [ ] **Step 2: Run** `cd cli/go && ST_SERVER= go test ./cmd/st/ ./internal/config/ -run 'TestParseLoraFlag|TestGenLoraFlag|Loras'`. Expected: FAIL (undefined `parseLoraFlag`, unknown field `Loras`).
 - [ ] **Step 3: Implement** the flag.
 - [ ] **Step 4: Run** `cd cli/go && ST_SERVER= go test ./...`. Expected: ok for every package.
 - [ ] **Step 5: Update `docs/WORKER_SELECTION.md` step 4.** Add: SD1.5 and SDXL workers fuse diffusers LoRAs. A request `loras` list loads on a mode without `loras:`, and a changed set reloads the worker. A request LoRA for the wrong family fails the load, and the server has no model until the next valid request. Run `drift check`. Relink only after a prose review.
@@ -232,16 +249,17 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 
 ### Task 7: Suite and enigma live proof
 
-Steps 2-5 restart the enigma server. **Wait for the user's go before step 2.**
+Steps 2-6 restart or use the enigma server. **Wait for the user's go before step 2.**
 
 - [ ] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 - [ ] **Step 2: Push the branch. On enigma, check it out and run `docker restart stability-toys-dev`.** The dev compose bind-mounts the source. Expected: container healthy. `/api/modes` lists `ZImage-Turbo` and `ZImage-Turbo-j80z`.
-- [ ] **Step 3: Generate with the branch-built `st`**, prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`, output under `<output_directory>/stabl-fvwsvjvn/`:
+- [ ] **Step 3: Generate with the branch-built `st`.** First record `T0=$(ssh enigma.lan date -u +%Y-%m-%dT%H:%M:%SZ)`. Prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`, outfiles `run1.png`..`run4.png` under `<output_directory>/stabl-fvwsvjvn/`:
   1. `--mode ZImage-Turbo` (plain).
   2. `--mode ZImage-Turbo --lora ZiT/j80z.safetensors:0.8`.
   3. The same as 2. Expected: no reload (no new `merged LoRA` line).
-  4. `--mode ZImage-Turbo` again. Expected: a reload, and the image matches 1.
+  4. `--mode ZImage-Turbo` again. Expected: a reload.
   5. `--mode ZImage-Turbo-j80z --lora ZiT/j80z.safetensors`. Expected: refused, and the loaded model stays loaded.
-- [ ] **Step 4: Check the logs.** `docker logs stability-toys-dev 2>&1 | grep -E "merged LoRA|request LoRA"`. Expected: one `merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240` for runs 2-3, and `Mode ZImage-Turbo with 1 request LoRA(s)`.
-- [ ] **Step 5: SDXL check.** List `/models/loras` on enigma. If an SDXL LoRA and an SDXL mode without `loras:` exist, repeat runs 1-2 with them. Otherwise record "no SDXL LoRA on enigma" in FP.
-- [ ] **Step 6: Record evidence.** FP comment with counts, SHAs, image paths, and the log lines. Restore enigma to `main` only after the user decides on the PR.
+- [ ] **Step 4: Compare decoded pixels.** A scratchpad script loads each PNG with PIL as `uint8` arrays and prints the mean absolute difference (MAD) and `array_equal`. Expected: run 2 vs run 1 MAD > 5. Run 3 vs run 2 `array_equal` true. Run 4 vs run 1 `array_equal` true. If run 4 vs run 1 is not bit-equal, record the MAD. Stop and report it, and do not claim the plain image came back.
+- [ ] **Step 5: Check the logs in the experiment window only.** `docker logs --since "$T0" stability-toys-dev 2>&1 | grep -E "merged LoRA|request LoRA|Loading mode"`. Expected: exactly one `merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240`, exactly one `Mode ZImage-Turbo with 1 request LoRA(s)`, and no load between runs 2 and 3.
+- [ ] **Step 6: SDXL check.** List `/models/loras` on enigma. If an SDXL LoRA and an SDXL mode without `loras:` exist, repeat runs 1-2 and the step 4 run-2-vs-run-1 MAD check with them. Otherwise record "no SDXL LoRA on enigma" in FP.
+- [ ] **Step 7: Record evidence.** FP comment with counts, SHAs, image paths, MAD values, `T0`, and the log lines. Restore enigma to `main` only after the user decides on the PR.
