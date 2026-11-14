@@ -115,6 +115,13 @@ export function generateViaWs(payload, signal) {
         return;
       }
 
+      // Pre-ack rejection: server replies {type:'error', id: corrId} with no
+      // jobId. Without this branch the frame is dropped and we hang until timeout.
+      if (msg.type === 'error' && msg.id === corrId) {
+        settle(reject, new Error(msg.error || 'Generate request rejected'));
+        return;
+      }
+
       // After ack, match by jobId
       if (!jobId || msg.jobId !== jobId) return;
 
