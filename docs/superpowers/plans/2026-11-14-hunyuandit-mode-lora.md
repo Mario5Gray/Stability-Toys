@@ -183,7 +183,7 @@ Order inside `configure_loras`:
 4. For every spec: resolve, read, read config, validate against `self.pipe.transformer`. Keep the results.
 5. For every spec, in order: merge. Log one line: `"[%s] worker %s merged LoRA %s strength=%s r=%s alpha=%s targets=%d"` with `self.log_tag`, `self.worker_id`, the file path, strength, `cfg.get("r")`, `cfg.get("lora_alpha")`, and the merge count.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_hunyuandit_lora_worker.py`. Build the worker with `DiffusersHunyuanDiTCudaWorker.__new__(...)`. Set `pipe = SimpleNamespace(transformer=make_fake_transformer())`, `_quantize = None`, `_checkpoint_precision = "fp16"`, `worker_id = 0`. Write LoRA files with `safetensors.torch.save_file` under `tmp_path`.
+- [x] **Step 1: Write the failing tests** in `tests/test_hunyuandit_lora_worker.py`. Build the worker with `DiffusersHunyuanDiTCudaWorker.__new__(...)`. Set `pipe = SimpleNamespace(transformer=make_fake_transformer())`, `_quantize = None`, `_checkpoint_precision = "fp16"`, `worker_id = 0`. Write LoRA files with `safetensors.torch.save_file` under `tmp_path`.
   - `test_configure_loras_merges_two_specs_additively` — two LoRAs at 1.0 and 0.5. The final weights equal two sequential `merge_tencent_lora` calls on a clone.
   - `test_configure_loras_accepts_directory_path` — the spec path is the directory.
   - `test_quantized_transformer_refuses_before_read` — `_quantize = "fp8"`, spec path does not exist. Raises `HunyuanDiTLoraError` with `"quantized"` in the message, not a missing-file error.
@@ -194,19 +194,19 @@ Order inside `configure_loras`:
   - `test_mps_worker_inherits_configure_loras` — `DiffusersHunyuanDiTMpsWorker.configure_loras is DiffusersHunyuanDiTCudaWorker.configure_loras`.
   - `test_controlnet_pipe_reuses_base_pipe` — patch `backends.cuda_worker._hunyuandit_controlnet_pipeline_cls` with a fake class whose `from_pipe(pipe, **kw)` records `pipe`. `worker._build_controlnet_pipe(object())` passes `worker.pipe`. diffusers `from_pipe` reuses the component objects, so the merged transformer reaches the ControlNet path.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m pytest tests/test_hunyuandit_lora_worker.py -q`
 Expected: FAIL with `AttributeError: ... has no attribute 'configure_loras'`. The MPS and ControlNet tests may already pass.
 
-- [ ] **Step 3: Implement `configure_loras`** in `DiffusersHunyuanDiTCudaWorker` per the order above.
+- [x] **Step 3: Implement `configure_loras`** in `DiffusersHunyuanDiTCudaWorker` per the order above.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python -m pytest tests/test_hunyuandit_lora_worker.py tests/test_hunyuandit_lora.py tests/test_hunyuan_mps_worker.py tests/test_cuda_worker_capabilities.py -q`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backends/cuda_worker.py tests/test_hunyuandit_lora_worker.py
