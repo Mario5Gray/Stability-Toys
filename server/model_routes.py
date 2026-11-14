@@ -524,7 +524,9 @@ async def save_all_modes(request: ModesBulkSaveRequest):
         try:
             old_cfg = config.get_mode(current_mode)
             old_model = old_cfg.model
-            old_loras = [lora.path for lora in old_cfg.loras]
+            # (path, strength): mode LoRAs merge at load, so a strength change
+            # needs a reload too (STABL-ykowysrg).
+            old_loras = [(lora.path, float(lora.strength)) for lora in old_cfg.loras]
         except Exception:
             pass
 
@@ -550,7 +552,8 @@ async def save_all_modes(request: ModesBulkSaveRequest):
         else:
             new_model = new_mode_data.get("model", "")
             new_loras = [
-                (lora["path"] if isinstance(lora, dict) else lora)
+                (lora["path"], float(lora.get("strength", 1.0)))
+                if isinstance(lora, dict) else (lora, 1.0)
                 for lora in new_mode_data.get("loras", [])
             ]
             if new_model != old_model or new_loras != old_loras:

@@ -268,6 +268,10 @@ def _worker_main(conn, factory_ref, wire_resolved, binding, mode, control_conn=N
                     f"mode configures conditioning but worker {type(worker).__name__} "
                     "does not support conditioning"
                 )
+            # Mode LoRAs merge at load (STABL-ykowysrg), the same as the in-process handle.
+            from backends.mode_loras import apply_mode_loras
+
+            apply_mode_loras(worker, mode)
     except BaseException:       # noqa: BLE001 — reported to the parent, then re-raised
         import traceback
         try:

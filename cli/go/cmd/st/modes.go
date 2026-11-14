@@ -77,6 +77,13 @@ func runModes(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "  schedulers: %s\n", strings.Join(labeled, ", "))
 		}
+		if len(m.Loras) > 0 {
+			loras := make([]string, len(m.Loras))
+			for i, l := range m.Loras {
+				loras[i] = fmt.Sprintf("%s(%g)", l.Path, l.Strength)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  loras: %s\n", strings.Join(loras, ", "))
+		}
 	}
 	return nil
 }

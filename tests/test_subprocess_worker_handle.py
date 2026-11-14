@@ -775,3 +775,24 @@ def test_a_cancel_that_arrives_before_the_job_starts_still_reaps_it():
         assert bridge.terminal_error_code is BackplaneErrorCode.CANCELLED
     finally:
         h.stop()
+
+
+def test_subprocess_handle_applies_mode_loras_in_child():
+    """The spawn child passes the mode LoRA specs to configure_loras (STABL-ykowysrg)."""
+    from backends.conditioning.contracts import ConditioningConfig
+
+    h = SubprocessWorkerHandle("tests._fault_worker.make_lora_recording_worker")
+    mode = SimpleNamespace(
+        model_path=None,  # test bypass: child skips real resolve_model
+        conditioning=ConditioningConfig(),
+        loras=[SimpleNamespace(path="j", strength=0.8)],
+        lora_paths=["/m/j"],
+    )
+    h.start(None, None, mode)
+
+    job = GenerationJob(req=_req("loras"), resolution_epoch=0)
+    pub = h.submit(job)
+    fut = Future()
+    pub.subscribe(_SubprocessFutureBridge(fut))
+    assert fut.result(timeout=15) == b"LORAS:/m/j@0.8"
+    h.stop()

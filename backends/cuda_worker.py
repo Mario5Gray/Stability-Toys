@@ -4,13 +4,14 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 import os
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -23,6 +24,15 @@ from backends.conditioning.artifacts import (
 )
 from backends.conditioning.contracts import ModelContext, ModelContextDescriptor
 from backends.step_progress import inject_step_progress
+from backends.hunyuandit_lora import (
+    HunyuanDiTLoraError,
+    merge_tencent_lora,
+    read_adapter_config,
+    read_tencent_lora,
+    resolve_lora_file,
+    validate_tencent_lora,
+)
+from backends.mode_loras import LoraSpec
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
 from backends.family_profiles import (
@@ -1770,6 +1780,7 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
         self.pipe = pipe
         self._capture_baseline_scheduler(self.pipe)
         # HunyuanDiT does not load SD/SDXL style LoRAs (different denoiser + CAD).
+        # Mode LoRAs (Tencent format) merge through configure_loras (STABL-ykowysrg).
         self._style_api = "none"
 
         logger.info(
@@ -1778,6 +1789,40 @@ class DiffusersHunyuanDiTCudaWorker(CudaWorkerBase):
             self.worker_id, os.path.basename(ckpt_path), self.device,
             self.dtype_str, self._quantize, self._offload,
         )
+
+    def configure_loras(self, specs: Sequence[LoraSpec]) -> None:
+        """Merge mode LoRAs (Tencent HunyuanDiT PEFT format) into the transformer.
+
+        Called once by the worker handle at mode load (STABL-ykowysrg). Every
+        LoRA is read and validated before the first weight write, so a failure
+        changes no weight. Strength is fixed until the next mode load. Alpha is
+        logged but not applied, the same as Tencent's reference merge.
+        """
+        if not specs:
+            return
+        if self._quantize == "fp8" or self._checkpoint_precision == "fp8":
+            raise HunyuanDiTLoraError(
+                "cannot merge LoRAs into a quantized (fp8) HunyuanDiT transformer"
+            )
+        for spec in specs:
+            if not math.isfinite(spec.strength):
+                raise HunyuanDiTLoraError(f"LoRA {spec.path}: strength {spec.strength} is not finite")
+
+        transformer = self.pipe.transformer
+        loaded = []
+        for spec in specs:
+            lora_file = resolve_lora_file(spec.path)
+            lora = read_tencent_lora(lora_file)
+            validate_tencent_lora(transformer, lora)
+            loaded.append((spec, lora_file, lora, read_adapter_config(lora_file)))
+
+        for spec, lora_file, lora, cfg in loaded:
+            targets = merge_tencent_lora(transformer, lora, spec.strength)
+            logger.info(
+                "[%s] worker %s merged LoRA %s strength=%s r=%s alpha=%s targets=%d",
+                self.log_tag, self.worker_id, lora_file, spec.strength,
+                cfg.get("r"), cfg.get("lora_alpha"), targets,
+            )
 
     def _build_controlnet_pipe(self, controlnet_obj: Any) -> Any:
         # Compose via from_pipe (shares the base components at zero extra VRAM).

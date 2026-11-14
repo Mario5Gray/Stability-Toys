@@ -21,6 +21,7 @@ import torch
 
 from backends.backplane.inproc import InProcBackplane
 from backends.backplane.blob import InProcBlob
+from backends.mode_loras import apply_mode_loras
 from backends.backplane.frames import BackplaneError
 from backends.backplane.reactivestreams import Publisher
 from backends.base import PipelineWorker
@@ -127,6 +128,8 @@ class InProcessWorkerHandle(WorkerHandle):
                 f"mode configures conditioning but worker "
                 f"{type(worker).__name__} does not support conditioning"
             )
+        # Mode LoRAs merge at load (STABL-ykowysrg). Refuses a worker without the hook.
+        apply_mode_loras(worker, mode)
         self._worker = worker
         self._state = "ready"
         # Register with DeviceMemory AFTER the worker is live so pool_stats() is

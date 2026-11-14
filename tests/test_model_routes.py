@@ -1130,3 +1130,75 @@ async def test_models_status_reports_execution_capabilities_false_without_the_sn
     assert caps["supports_img2img_and_controlnet"] is False
     assert "controlnet_scope" in caps
     assert caps["controlnet_scope"] is None
+
+
+async def test_save_all_modes_reloads_current_mode_on_lora_strength_change():
+    """Mode LoRAs merge at load (STABL-ykowysrg), so a strength-only edit to the
+    current mode must reload it. Otherwise the worker keeps the old strength."""
+    from types import SimpleNamespace
+
+    config = Mock()
+    config.to_dict.return_value = {"chat": {}}
+    config.get_mode.return_value = SimpleNamespace(
+        model="diffusers/HunyuanDiT-v1.2-Diffusers",
+        loras=[SimpleNamespace(path="HYDiT-LoRA/jade", strength=0.8)],
+    )
+    pool = Mock()
+    pool.get_current_mode.return_value = "HunyuanDiT"
+    pool.reload_if_current.return_value = True
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/models/loras",
+        "default_mode": "HunyuanDiT",
+        "resolution_sets": {"sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}]},
+        "modes": {
+            "HunyuanDiT": {
+                "model": "diffusers/HunyuanDiT-v1.2-Diffusers",
+                "loras": [{"path": "HYDiT-LoRA/jade", "strength": 0.5}],
+                "default_size": "1024x1024",
+                "default_steps": 50,
+                "default_guidance": 6.0,
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        result = await model_routes.save_all_modes(request)
+
+    pool.reload_if_current.assert_called_once_with("HunyuanDiT")
+    assert result["reload_queued"] is True
+
+
+async def test_save_all_modes_skips_reload_when_loras_unchanged():
+    from types import SimpleNamespace
+
+    config = Mock()
+    config.to_dict.return_value = {"chat": {}}
+    config.get_mode.return_value = SimpleNamespace(
+        model="diffusers/HunyuanDiT-v1.2-Diffusers",
+        loras=[SimpleNamespace(path="HYDiT-LoRA/jade", strength=1.0)],
+    )
+    pool = Mock()
+    pool.get_current_mode.return_value = "HunyuanDiT"
+    request = model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models",
+        "lora_root": "/models/loras",
+        "default_mode": "HunyuanDiT",
+        "resolution_sets": {"sdxl": [{"size": "1024x1024", "aspect_ratio": "1:1"}]},
+        "modes": {
+            "HunyuanDiT": {
+                "model": "diffusers/HunyuanDiT-v1.2-Diffusers",
+                "loras": ["HYDiT-LoRA/jade"],  # string form means strength 1.0
+                "default_size": "1024x1024",
+                "default_steps": 50,
+                "default_guidance": 6.0,
+            },
+        },
+    })
+
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(request)
+
+    pool.reload_if_current.assert_not_called()
