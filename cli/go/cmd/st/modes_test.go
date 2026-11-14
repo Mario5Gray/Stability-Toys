@@ -141,3 +141,29 @@ func TestModesSwitchCmdHitsEndpoint(t *testing.T) {
 		t.Errorf("expected mode name in output, got: %q", out)
 	}
 }
+
+func TestModesListRendersLoras(t *testing.T) {
+	body := `{"default_mode":"HunyuanDiT","modes":{
+	  "HunyuanDiT":{"model":"diffusers/HunyuanDiT-v1.2-Diffusers","default_size":"1024x1024","default_steps":50,
+	                "default_guidance":6.0,
+	                "loras":[{"path":"HYDiT-LoRA/jade/adapter_model.safetensors","strength":0.8}]},
+	  "HunyuanDiT-plain":{"model":"diffusers/HunyuanDiT-v1.2-Diffusers","default_size":"1024x1024",
+	                      "default_steps":50,"default_guidance":6.0}
+	}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	out, err := runCmdMayFail(t, "--server", srv.URL, "modes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "loras: HYDiT-LoRA/jade/adapter_model.safetensors(0.8)") {
+		t.Errorf("expected rendered loras line, got:\n%s", out)
+	}
+	// A mode without LoRAs must not emit a loras line.
+	if strings.Count(out, "loras:") != 1 {
+		t.Errorf("mode without loras should omit the line, got:\n%s", out)
+	}
+}

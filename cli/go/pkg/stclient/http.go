@@ -16,16 +16,24 @@ import (
 // IsDefault is true when the mode matches the top-level default_mode field.
 // ControlNetEnabled is extracted from controlnet_policy.enabled.
 type Mode struct {
-	Name                string   `json:"name"`
-	IsDefault           bool     `json:"is_default,omitempty"`
-	Model               string   `json:"model"`
-	DefaultSize         string   `json:"default_size"`
-	DefaultSteps        int      `json:"default_steps"`
-	DefaultGuidance     float64  `json:"default_guidance"`
-	DefaultSchedulerID  string   `json:"default_scheduler_id,omitempty"`
-	AllowedSchedulerIDs []string `json:"allowed_scheduler_ids,omitempty"`
-	ControlNetEnabled   bool     `json:"controlnet_enabled"`
-	ChatEnabled         bool     `json:"chat_enabled"`
+	Name                string     `json:"name"`
+	IsDefault           bool       `json:"is_default,omitempty"`
+	Model               string     `json:"model"`
+	DefaultSize         string     `json:"default_size"`
+	DefaultSteps        int        `json:"default_steps"`
+	DefaultGuidance     float64    `json:"default_guidance"`
+	DefaultSchedulerID  string     `json:"default_scheduler_id,omitempty"`
+	AllowedSchedulerIDs []string   `json:"allowed_scheduler_ids,omitempty"`
+	ControlNetEnabled   bool       `json:"controlnet_enabled"`
+	ChatEnabled         bool       `json:"chat_enabled"`
+	Loras               []ModeLora `json:"loras,omitempty"`
+}
+
+// ModeLora is one entry of a mode's loras list. The server merges these at
+// mode load, so Strength is fixed until the next mode load (STABL-ykowysrg).
+type ModeLora struct {
+	Path     string  `json:"path"`
+	Strength float64 `json:"strength"`
 }
 
 // ModelsStatus is the untyped GET /api/models/status payload (backend, vram,
@@ -78,7 +86,8 @@ func (c *Client) Modes(ctx context.Context) ([]Mode, error) {
 			ControlNetPolicy    struct {
 				Enabled bool `json:"enabled"`
 			} `json:"controlnet_policy"`
-			ChatEnabled bool `json:"chat_enabled"`
+			ChatEnabled bool       `json:"chat_enabled"`
+			Loras       []ModeLora `json:"loras"`
 		}
 		_ = json.Unmarshal(body.Modes[name], &cfg)
 		modes = append(modes, Mode{
@@ -92,6 +101,7 @@ func (c *Client) Modes(ctx context.Context) ([]Mode, error) {
 			AllowedSchedulerIDs: cfg.AllowedSchedulerIDs,
 			ControlNetEnabled:   cfg.ControlNetPolicy.Enabled,
 			ChatEnabled:         cfg.ChatEnabled,
+			Loras:               cfg.Loras,
 		})
 	}
 	return modes, nil

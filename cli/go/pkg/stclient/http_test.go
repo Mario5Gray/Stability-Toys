@@ -181,3 +181,28 @@ func TestReloadModesPostsToEndpoint(t *testing.T) {
 		t.Fatal("POST /api/modes/reload not called")
 	}
 }
+
+func TestModesDecodesLoras(t *testing.T) {
+	body := `{
+	  "default_mode": "HunyuanDiT",
+	  "modes": {
+	    "HunyuanDiT": {"model": "diffusers/HunyuanDiT-v1.2-Diffusers", "default_size": "1024x1024",
+	                   "default_steps": 50, "default_guidance": 6.0,
+	                   "loras": [{"path": "HYDiT-LoRA/jade/adapter_model.safetensors", "strength": 0.8,
+	                              "adapter_name": "lora_adapter_model"}]}
+	  }
+	}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	modes, err := New(srv.URL).Modes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ModeLora{Path: "HYDiT-LoRA/jade/adapter_model.safetensors", Strength: 0.8}
+	if len(modes) != 1 || len(modes[0].Loras) != 1 || modes[0].Loras[0] != want {
+		t.Fatalf("expected one LoRA %+v, got %+v", want, modes)
+	}
+}

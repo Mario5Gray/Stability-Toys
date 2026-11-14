@@ -228,23 +228,23 @@ git commit -m "feat(hunyuandit): merge mode LoRAs in configure_loras (STABL-ykow
 
 The server already sends `loras` per mode in `GET /api/modes` (`server/mode_config.py:1095-1102`). No OpenAPI regeneration.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `http_test.go`: `TestModesDecodesLoras` — body mode `"loras":[{"path":"HYDiT-LoRA/jade/adapter_model.safetensors","strength":0.8,"adapter_name":"lora_adapter_model"}]`. Decoded `Loras[0]` equals `ModeLora{Path: "HYDiT-LoRA/jade/adapter_model.safetensors", Strength: 0.8}`.
   - `modes_test.go`: `TestModesListRendersLoras` — output contains `loras: HYDiT-LoRA/jade/adapter_model.safetensors(0.8)`. A second mode without LoRAs: `strings.Count(out, "loras:") == 1`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd cli/go && go test ./pkg/stclient/ ./cmd/st/ -run 'Loras' -v`
 Expected: FAIL. Compile error `unknown field Loras`, or a missing `loras:` line.
 
-- [ ] **Step 3: Implement** the type, the decode field, and the render line.
+- [x] **Step 3: Implement** the type, the decode field, and the render line.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd cli/go && go test ./...`
 Expected: `ok` for every package.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cli/go/pkg/stclient/http.go cli/go/pkg/stclient/http_test.go cli/go/cmd/st/modes.go cli/go/cmd/st/modes_test.go
