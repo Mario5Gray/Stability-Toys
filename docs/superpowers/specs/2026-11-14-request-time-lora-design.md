@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: draft 2026-11-14, revision 3 (request LoRAs only on modes without `loras:`), waiting for operator approval
+Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`)
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
