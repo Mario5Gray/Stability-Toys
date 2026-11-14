@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance.
+Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance. Revision 5 adds sidecar containment.
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -84,6 +84,7 @@ Error contract (revision 4, plan review 2026-11-14):
 - A directory selects one weight file: `adapter_model.safetensors` when present, else the only `*.safetensors` file. Zero or several candidates are refused.
 - The selected weight file is resolved with `Path.resolve()`. The containment check and the duplicate check run on that resolved file, not on the directory. So a `.safetensors` symlink in an admitted directory cannot escape the root, and a directory plus its own file count as a duplicate.
 - The LoRA spec carries the resolved weight file path. Workers receive a file, never a directory.
+- Sidecar files that a family reader opens are checked too. Today that is `adapter_config.json` next to the weight file (`backends/hunyuandit_lora.py` `read_adapter_config`). When the sidecar exists, its resolved path must be inside `lora_root`. A missing sidecar is allowed. (Revision 5, plan review 2026-11-14.)
 - The strength must be finite.
 - Two request entries must not resolve to the same file.
 - The target base mode (section 4) must have no `loras:` list. Otherwise the request is refused with a message that names the mode and says to use a mode without `loras:`. (Operator decision, 2026-11-14.)

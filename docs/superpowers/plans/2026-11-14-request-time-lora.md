@@ -31,9 +31,10 @@
 
 1. A no-mode request with `loras` while a mode with `loras:` is loaded. Expect a refusal and the loaded model untouched. Task 4 test `test_no_mode_request_loras_on_lora_mode_refused`.
 2. A request path with `..` that leaves `lora_root`, a symlink inside the root that points outside, or an admitted directory whose weight file is such a symlink. Expect a refusal. Task 3 tests `test_dotdot_escape_refused`, `test_symlink_escape_refused`, `test_directory_symlink_escape_refused`.
-3. Idle eviction after a request-LoRA job, then a demand reload. Expect the request LoRAs to load again. Task 4 test `test_demand_reload_keeps_request_loras`.
-4. A `PUT /api/modes` config reload while request LoRAs are loaded. Expect the reload to keep them. Task 4 test `test_reload_current_mode_keeps_request_loras`.
-5. An SDXL kohya LoRA with `lora_te1_`/`lora_te2_` keys. Expect the text encoder parts to fuse and to count toward the fit check. Task 2 test `test_sdxl_text_encoder_2_fuses` and Task 1 test `test_includes_text_encoder_keys_when_fused`.
+3. An in-root HunyuanDiT weight file whose `adapter_config.json` sidecar is a symlink outside the root. Expect a refusal before admission. Task 3 test `test_sidecar_symlink_outside_root_refused`, Task 5 test `test_http_sidecar_escape_is_400_and_not_admitted`.
+4. Idle eviction after a request-LoRA job, then a demand reload. Expect the request LoRAs to load again. Task 4 test `test_demand_reload_keeps_request_loras`.
+5. A `PUT /api/modes` config reload while request LoRAs are loaded. Expect the reload to keep them. Task 4 test `test_reload_current_mode_keeps_request_loras`.
+6. An SDXL kohya LoRA with `lora_te1_`/`lora_te2_` keys. Expect the text encoder parts to fuse and to count toward the fit check. Task 2 test `test_sdxl_text_encoder_2_fuses` and Task 1 test `test_includes_text_encoder_keys_when_fused`.
 
 ---
 
@@ -115,7 +116,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `derive_request_mode(mode, specs: tuple[LoraSpec, ...])`: mutates and returns the given (already deep-copied) mode. With `specs` empty, it returns the mode unchanged. With `specs` set and `mode.loras` non-empty, it raises `RequestLoraError` naming `mode.name`. Otherwise it sets `mode.loras = [LoRAConfig(path=s.path, strength=s.strength) for s in specs]` and `mode.lora_paths = [s.path for s in specs]`.
 - Produces in `server/request_loras.py`:
   - `select_weight_file(path: Path) -> Path`: a file returns itself. A directory returns `adapter_model.safetensors` when present, else its only `*.safetensors`. Zero or several candidates raise `RequestLoraError`.
-  - `resolve_request_loras(entries: Sequence[Any] | None, lora_root: str) -> tuple[LoraSpec, ...]`. Each entry has `.path` and `.strength`, or keys `path` and `strength` (default 1.0). Order: join with the root, `select_weight_file`, `resolve()`, containment check, duplicate check. All checks use the resolved weight file. Returns specs with that file path. Raises `RequestLoraError`.
+  - `resolve_request_loras(entries: Sequence[Any] | None, lora_root: str) -> tuple[LoraSpec, ...]`. Each entry has `.path` and `.strength`, or keys `path` and `strength` (default 1.0). Order: join with the root, `select_weight_file`, `resolve()`, containment check, sidecar check, duplicate check. All checks use the resolved weight file. Sidecar check: `sidecar = weight.with_name(ADAPTER_CONFIG)` (import `ADAPTER_CONFIG` from `backends.hunyuandit_lora`). When `sidecar.exists()`, `sidecar.resolve()` must be inside the root, else `RequestLoraError` naming the sidecar. A missing sidecar passes. Returns specs with that file path. Raises `RequestLoraError`.
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_request_loras.py` (`tmp_path` as `lora_root`):
   - `test_none_and_empty_give_empty_tuple`.
@@ -132,6 +133,9 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `test_directory_selects_adapter_model`: `d/` holds `adapter_model.safetensors` and `other.safetensors`. The spec path is `d/adapter_model.safetensors` resolved.
   - `test_directory_with_two_candidates_refused`: `d/` holds `a.safetensors` and `b.safetensors`, no `adapter_model.safetensors`.
   - `test_spec_path_is_a_file`: every returned path is a file.
+  - `test_sidecar_symlink_outside_root_refused`: `d/adapter_model.safetensors` is a real file in the root. `d/adapter_config.json` is a symlink to a file outside. Refused, and the message names `adapter_config.json`.
+  - `test_missing_sidecar_allowed`: a weight file with no `adapter_config.json` passes.
+  - `test_in_root_sidecar_allowed`: a real `adapter_config.json` next to the weight passes.
   - `test_default_strength_is_one`.
   - `test_derive_sets_loras_and_paths_in_order`.
   - `test_derive_refuses_mode_with_loras`: message has the mode name and `without loras`.
@@ -208,6 +212,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `::test_ws_outside_root_is_job_error_and_not_admitted`.
   - `::test_models_status_has_current_loras`.
   - `::test_http_malformed_entries_are_422_and_not_admitted`: parametrize `{"path": "a", "strength": "abc"}`, `{"strength": 0.5}`, and `loras: "a.safetensors"`.
+  - `::test_http_sidecar_escape_is_400_and_not_admitted`: the Task 3 sidecar layout under the patched root. HTTP 400, and `admit_generation` is not called.
   - `::test_ws_malformed_entry_is_job_error_and_not_admitted`: `{"path": "a", "strength": "abc"}`.
   Patch `get_mode_config` to a stub whose `config.lora_root` is `tmp_path`. Use `tests/snapshot_test_helpers.py` `install_mode_backed` for the pool.
 - [ ] **Step 2: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py -- -q`. Expected: FAIL (no `loras` field).
@@ -259,7 +264,7 @@ Steps 2-6 restart or use the enigma server. **Wait for the user's go before step
   3. The same as 2. Expected: no reload (no new `merged LoRA` line).
   4. `--mode ZImage-Turbo` again. Expected: a reload.
   5. `--mode ZImage-Turbo-j80z --lora ZiT/j80z.safetensors`. Expected: refused, and the loaded model stays loaded.
-- [ ] **Step 4: Compare decoded pixels.** A scratchpad script loads each PNG with PIL as `uint8` arrays and prints the mean absolute difference (MAD) and `array_equal`. Expected: run 2 vs run 1 MAD > 5. Run 3 vs run 2 `array_equal` true. Run 4 vs run 1 `array_equal` true. If run 4 vs run 1 is not bit-equal, record the MAD. Stop and report it, and do not claim the plain image came back.
+- [ ] **Step 4: Compare decoded pixels.** A scratchpad script loads each PNG with PIL as arrays and prints the mean absolute difference (MAD) and `array_equal`. Cast to `int16` or `float32` before the subtraction, because `uint8` subtraction wraps. Expected: run 2 vs run 1 MAD > 5. Run 3 vs run 2 `array_equal` true. Run 4 vs run 1 `array_equal` true. If run 4 vs run 1 is not bit-equal, record the MAD. Stop and report it, and do not claim the plain image came back.
 - [ ] **Step 5: Check the logs in the experiment window only.** `docker logs --since "$T0" stability-toys-dev 2>&1 | grep -E "merged LoRA|request LoRA|Loading mode"`. Expected: exactly one `merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240`, exactly one `Mode ZImage-Turbo with 1 request LoRA(s)`, and no load between runs 2 and 3.
 - [ ] **Step 6: SDXL check.** List `/models/loras` on enigma. If an SDXL LoRA and an SDXL mode without `loras:` exist, repeat runs 1-2 and the step 4 run-2-vs-run-1 MAD check with them. Otherwise record "no SDXL LoRA on enigma" in FP.
 - [ ] **Step 7: Record evidence.** FP comment with counts, SHAs, image paths, MAD values, `T0`, and the log lines. Restore enigma to `main` only after the user decides on the PR.
