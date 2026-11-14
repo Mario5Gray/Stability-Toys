@@ -49,7 +49,7 @@ Test fixture (in the test file):
 - `_comfy_lora(module_names, rank=4, seed=0) -> dict` with keys `diffusion_model.<module>.lora_A.weight` `[rank, in]` and `.lora_B.weight` `[out, rank]`, values `randn * 0.1`. Save with `safetensors.torch.save_file`.
 - Target module for single-module tests: `layers.0.attention.to_q`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_zimage_lora_worker.py`:
+- [x] **Step 1: Write the failing tests** in `tests/test_zimage_lora_worker.py`:
   - `test_fused_weight_matches_lora_math` — one LoRA at strength 0.7. `layers.0.attention.to_q.weight` equals `W + 0.7 * (B @ A)` (`atol=1e-5`).
   - `test_two_loras_add` — two LoRAs on the same module, 1.0 and 0.5. The weight equals `W + B1@A1 + 0.5 * B2@A2` (`atol=1e-5`).
   - `test_no_adapter_layers_remain` — after `configure_loras`, no module in the transformer is a `peft.tuners.tuners_utils.BaseTunerLayer`.
@@ -61,21 +61,21 @@ Test fixture (in the test file):
   - `test_logs_targeted_module_count` — `caplog` has `"strength=0.7 modules=1"`.
   - `test_img2img_pipe_shares_fused_transformer` — patch `backends.zimage_cuda_worker._zimage_img2img_pipeline_cls` to return `ZImageImg2ImgPipeline`. After `configure_loras`, `worker._ensure_img2img_pipe().transformer is worker.pipe.transformer`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python -m tests.run tests/test_zimage_lora_worker.py -- -q`
 Expected: FAIL with `ImportError: cannot import name 'ZImageLoraError'`.
 
-- [ ] **Step 3: Implement** `ZImageLoraError` and `configure_loras` per the spec Design steps 1-8. Count targeted modules per adapter before the fuse: `BaseTunerLayer` instances in `self.pipe.transformer` whose `lora_A` holds the adapter name. Log: `"[%s] worker %s merged LoRA %s strength=%s modules=%d"`.
+- [x] **Step 3: Implement** `ZImageLoraError` and `configure_loras` per the spec Design steps 1-8. Count targeted modules per adapter before the fuse: `BaseTunerLayer` instances in `self.pipe.transformer` whose `lora_A` holds the adapter name. Log: `"[%s] worker %s merged LoRA %s strength=%s modules=%d"`.
 
-- [ ] **Step 4: Update `docs/WORKER_SELECTION.md` step 4.** New text: the HunyuanDiT worker merges Tencent-format LoRAs, and the Z-Image worker loads diffusers, kohya, and ComfyUI LoRAs through diffusers and fuses them. Run `drift check` and confirm the doc stays `ok`. Relink only after a prose review.
+- [x] **Step 4: Update `docs/WORKER_SELECTION.md` step 4.** New text: the HunyuanDiT worker merges Tencent-format LoRAs, and the Z-Image worker loads diffusers, kohya, and ComfyUI LoRAs through diffusers and fuses them. Run `drift check` and confirm the doc stays `ok`. Relink only after a prose review.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `python -m tests.run tests/test_zimage_lora_worker.py tests/test_zimage_worker.py tests/test_mode_loras.py -- -q`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backends/zimage_cuda_worker.py tests/test_zimage_lora_worker.py docs/WORKER_SELECTION.md drift.lock
