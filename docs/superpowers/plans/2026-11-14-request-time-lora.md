@@ -256,7 +256,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 
 Steps 2-6 restart or use the enigma server. **Wait for the user's go before step 2.**
 
-- [ ] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
+- [x] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 - [ ] **Step 2: Push the branch. On enigma, check it out and run `docker restart stability-toys-dev`.** The dev compose bind-mounts the source. Expected: container healthy. `/api/modes` lists `ZImage-Turbo` and `ZImage-Turbo-j80z`.
 - [ ] **Step 3: Generate with the branch-built `st`.** First record `T0=$(ssh enigma.lan date -u +%Y-%m-%dT%H:%M:%SZ)`. Prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`, outfiles `run1.png`..`run4.png` under `<output_directory>/stabl-fvwsvjvn/`:
   1. `--mode ZImage-Turbo` (plain).
