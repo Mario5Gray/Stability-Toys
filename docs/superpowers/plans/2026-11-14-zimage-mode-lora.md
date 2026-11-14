@@ -90,12 +90,13 @@ Steps 2-6 restart the enigma server. **Wait for the user's go before step 2.**
 
 - [x] **Step 1: Run the CPU test container.** `docker compose -f docker-compose.test.yml build test && docker compose -f docker-compose.test.yml run --rm test`. Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 
-- [ ] **Step 2: Push the branch. On enigma, switch to it and add a mode `ZImage-Turbo-j80z`** (copy of `ZImage-Turbo` plus `loras: [{path: ZiT/j80z.safetensors, strength: 1.0}]`). Back up `conf/modes.yml` to `/tmp/stabl-gftujmyi/modes.yml.bak` first. Do not commit.
+- [x] **Step 2: Push the branch. On enigma, switch to it and add a mode `ZImage-Turbo-j80z`** (copy of `ZImage-Turbo` plus `loras: [{path: ZiT/j80z.safetensors, strength: 1.0}]`). Back up `conf/modes.yml` to `/tmp/stabl-gftujmyi/modes.yml.bak` first. Do not commit.
 
-- [ ] **Step 3: Rebuild and restart** with `MODELS_HOST_PATH=/media/cold1/ComfyUI/models FS_HOST_PATH=/media/creative/creative/dreamers WORKFLOW_HOST_PATH=/home/hdd/workspace/Stability-Toys/comfyui-workflows docker compose -f docker-cuda.yml build`, then `up -d` with the same variables. Expected: container healthy, mounts match.
+- [x] **Step 3: Rebuild and restart** with `MODELS_HOST_PATH=/media/cold1/ComfyUI/models FS_HOST_PATH=/media/creative/creative/dreamers WORKFLOW_HOST_PATH=/home/hdd/workspace/Stability-Toys/comfyui-workflows docker compose -f docker-cuda.yml build`, then `up -d` with the same variables. Expected: container healthy, mounts match.
 
 - [ ] **Step 4: Generate A/B/A** with the branch-built `st`, prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`. Order: `ZImage-Turbo` → `ZImage-Turbo-j80z` → `ZImage-Turbo`. Use `st modes switch` before each `st gen`. Output under `<output_directory>/stabl-gftujmyi/`. Expected: plain-1 and plain-2 match, plain and j80z differ.
 
-- [ ] **Step 5: Check the log.** `docker logs stability-toys 2>&1 | grep "merged LoRA"`. Expected: `merged LoRA /models/loras/ZiT/j80z.safetensors strength=1.0 modules=240` (8 modules × 30 layers).
+- [x] **Step 5: Check the log.** `docker logs stability-toys 2>&1 | grep "merged LoRA"`. Expected: `merged LoRA /models/loras/ZiT/j80z.safetensors strength=1.0 modules=240` (8 modules × 30 layers).
+  - Evidence 2026-11-14 19:57:06: `[zimage-cuda] worker 0 merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240`. The operator deployed the branch (a64f7b5) and set strength 0.8. The operator reported the j80z image a success. A/B/A (step 4) not run yet.
 
 - [ ] **Step 6: Record evidence and restore enigma.** FP comment with counts, SHAs, image paths, and the log line. Restore enigma to `main` and the backed-up `conf/modes.yml` only after the user decides on the PR.
