@@ -919,6 +919,23 @@ Use `superpowers:requesting-code-review` with no sub-agent, or hand the branch t
 
 This task is a later gate. Do not start it without a go from the user. It writes no product code.
 
+**Waiver (2026-11-13, user decision, STABL-vnakbitb):** The user waived the frozen P1 to P5 runs and the written-text gate. Reason: the user saw Base and Turbo-Ref generations come out as expected. This is a waiver. It is not a pass. Steps 2, 5 and 6 did not run as written. No frozen score exists. No certification peak is claimed.
+
+Evidence from user-driven runs on enigma, from the server log:
+
+- Base store hit key `9c63985c7c62d81c6d0b9102eab1b5009a0de6564274470d69e041ae04239326`. The same key appeared in three loads. Load took about 60 s.
+- Turbo store hit key `c3f5b248f8443c224d969b9dc01a5a4c38ce37bec3635767844eb69449d967ec`.
+- Base and Turbo loaded at 15.73 GB. Turbo-Ref registered 19.11 GB.
+- Base job `c185b9bd44bb`, 768x768, steps 15, peak allocated 17.08 GiB.
+- Turbo-Ref job `bd894c62a0d1`, 768x768, steps 15, peak allocated 20.46 GiB.
+
+Server script: `scripts/zimage-cert-enigma.sh`. Faults found and fixed during setup:
+
+- The script used the dev `uvicorn --log-config` command. Fix: `python -m server.run`. No image defect existed (STABL-zdunylvk, STABL-mddzcbtb).
+- UID 1000 has no passwd entry in the image. Fix: set `USER`, `LOGNAME`, `HOME` (STABL-jawvoxyb).
+- `st` config defaults `steps: 8` and `cfg: 4.5` overrode the mode defaults. No CLI bug (STABL-olmenkfw).
+- The conf `model_root` was a Mac path. Related runtime and development separation: STABL-igbtlave.
+
 Host facts: `ssh enigma.lan`, repo `/home/hdd/workspace/Stability-Toys`, GPU RTX 3090. The live container `stability-toys-dev` shares the GPU. Mounts need `--security-opt label=disable` or `:z`. Agree with the user how the branch reaches the server before the first run.
 
 - [ ] **Step 1: Prepare the certification config**
