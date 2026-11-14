@@ -118,7 +118,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `select_weight_file(path: Path) -> Path`: a file returns itself. A directory returns `adapter_model.safetensors` when present, else its only `*.safetensors`. Zero or several candidates raise `RequestLoraError`.
   - `resolve_request_loras(entries: Sequence[Any] | None, lora_root: str) -> tuple[LoraSpec, ...]`. Each entry has `.path` and `.strength`, or keys `path` and `strength` (default 1.0). Order: join with the root, `select_weight_file`, `resolve()`, containment check, sidecar check, duplicate check. All checks use the resolved weight file. Sidecar check: `sidecar = weight.with_name(ADAPTER_CONFIG)` (import `ADAPTER_CONFIG` from `backends.hunyuandit_lora`). When `sidecar.exists()`, `sidecar.resolve()` must be inside the root, else `RequestLoraError` naming the sidecar. A missing sidecar passes. Returns specs with that file path. Raises `RequestLoraError`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_request_loras.py` (`tmp_path` as `lora_root`):
+- [x] **Step 1: Write the failing tests** in `tests/test_request_loras.py` (`tmp_path` as `lora_root`):
   - `test_none_and_empty_give_empty_tuple`.
   - `test_relative_path_resolves_under_root`: returns `(LoraSpec(str((root/"a.safetensors").resolve()), 0.8),)`.
   - `test_absolute_path_inside_root_admitted`.
@@ -140,10 +140,10 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `test_derive_sets_loras_and_paths_in_order`.
   - `test_derive_refuses_mode_with_loras`: message has the mode name and `without loras`.
   - `test_derive_with_no_specs_keeps_mode_loras`.
-- [ ] **Step 2: Run** `python -m tests.run tests/test_request_loras.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'server.request_loras'`.
-- [ ] **Step 3: Implement** both functions.
-- [ ] **Step 4: Run** `python -m tests.run tests/test_request_loras.py tests/test_mode_loras.py -- -q`. Expected: all pass.
-- [ ] **Step 5: Commit** `feat(lora): request LoRA validation and derived mode (STABL-fvwsvjvn) — next: Task 4 governor authority key`.
+- [x] **Step 2: Run** `python -m tests.run tests/test_request_loras.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'server.request_loras'`.
+- [x] **Step 3: Implement** both functions.
+- [x] **Step 4: Run** `python -m tests.run tests/test_request_loras.py tests/test_mode_loras.py -- -q`. Expected: all pass.
+- [x] **Step 5: Commit** `feat(lora): request LoRA validation and derived mode (STABL-fvwsvjvn) — next: Task 4 governor authority key`.
 
 ---
 
