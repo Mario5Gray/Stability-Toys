@@ -204,7 +204,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
 - Both routes call `resolve_request_loras(req.loras, get_mode_config().config.lora_root)` before admission. A `RequestLoraError` from validation or from admission gives HTTP 400 with the message, or WS `job:error` with the message. Admission is not called after a validation error.
 - Spec error contract: a malformed entry fails the pydantic schema. HTTP gives 422 (FastAPI default). WS gives `job:error`. Neither calls admission.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `tests/test_ws_build_generate_request.py::test_loras_pass_through`: params `loras=[{"path": "a.safetensors", "strength": 0.8}]` give `req.loras[0].path == "a.safetensors"` and `.strength == 0.8`.
   - `tests/test_request_lora_routes.py::test_http_outside_root_is_400_and_not_admitted`.
   - `::test_http_valid_loras_reach_admission`: `admit_generation` gets `(mode, (LoraSpec(<resolved>, 0.8),))`.
@@ -215,11 +215,11 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `::test_http_sidecar_escape_is_400_and_not_admitted`: the Task 3 sidecar layout under the patched root. HTTP 400, and `admit_generation` is not called.
   - `::test_ws_malformed_entry_is_job_error_and_not_admitted`: `{"path": "a", "strength": "abc"}`.
   Patch `get_mode_config` to a stub whose `config.lora_root` is `tmp_path`. Use `tests/snapshot_test_helpers.py` `install_mode_backed` for the pool.
-- [ ] **Step 2: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py -- -q`. Expected: FAIL (no `loras` field).
-- [ ] **Step 3: Implement** the model, the field, and both admission paths.
-- [ ] **Step 4: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py tests/test_ws_routes.py tests/test_generaterequest_serialization.py -- -q`. Expected: all pass.
-- [ ] **Step 5: Regenerate** the Go OpenAPI snapshot only if a Go test compares it to the server schema. Check `cli/go` for the snapshot test before editing.
-- [ ] **Step 6: Commit** `feat(server): request loras on /generate and WS (STABL-fvwsvjvn) — next: Task 6 st gen --lora + docs`.
+- [x] **Step 2: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py -- -q`. Expected: FAIL (no `loras` field).
+- [x] **Step 3: Implement** the model, the field, and both admission paths.
+- [x] **Step 4: Run** `python -m tests.run tests/test_request_lora_routes.py tests/test_ws_build_generate_request.py tests/test_ws_routes.py tests/test_generaterequest_serialization.py -- -q`. Expected: all pass.
+- [x] **Step 5: Regenerate** the Go OpenAPI snapshot only if a Go test compares it to the server schema. Check `cli/go` for the snapshot test before editing.
+- [x] **Step 6: Commit** `feat(server): request loras on /generate and WS (STABL-fvwsvjvn) — next: Task 6 st gen --lora + docs`.
 
 ---
 

@@ -90,6 +90,8 @@ import signal
 
 # Mode system imports
 from server.mode_config import get_mode_config, reload_mode_config
+from server.request_loras import resolve_request_loras
+from backends.mode_loras import RequestLoraError
 from server.model_routes import router as model_router
 from server.analysis_routes import router as analysis_router
 from server.advisor_routes import router as advisor_router
@@ -137,6 +139,12 @@ class StyleLoraRequest(BaseModel):
 # -----------------------------
 # Request schema (HTTP)
 # -----------------------------
+class RequestLora(BaseModel):
+    """One request LoRA (STABL-fvwsvjvn). The path is relative to lora_root, or absolute inside it."""
+    path: str
+    strength: float = 1.0
+
+
 class GenerateRequest(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = Field(default=None, description="Optional negative prompt passed through to the diffusion pipeline.")
@@ -167,6 +175,10 @@ class GenerateRequest(BaseModel):
     controlnets: Optional[List[ControlNetAttachment]] = Field(
         default=None,
         description="Optional list of ControlNet attachments; validated against the active mode's controlnet_policy.",
+    )
+    loras: Optional[List[RequestLora]] = Field(
+        default=None,
+        description="Optional request LoRAs. Needs a mode without loras:. A changed set reloads the worker.",
     )
     _controlnet_artifacts: List[ControlNetArtifactRef] = PrivateAttr(default_factory=list)
 
@@ -617,8 +629,18 @@ def generate(req: GenerateRequest):
     # blocking switch_mode(...).result(30s) — the switch is now queued ahead of the
     # job and the job is stamped against the authority that switch will publish.
     if supports_modes and hasattr(runtime, "admit_generation"):
+        # Request LoRAs are checked before admission, so a bad path queues no switch.
         try:
-            snapshot = runtime.admit_generation(req.mode)
+            request_loras = resolve_request_loras(req.loras, get_mode_config().config.lora_root) if req.loras else ()
+        except RequestLoraError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        try:
+            snapshot = (
+                runtime.admit_generation(req.mode, request_loras)
+                if request_loras else runtime.admit_generation(req.mode)
+            )
+        except RequestLoraError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except KeyError:
             raise HTTPException(
                 status_code=404,

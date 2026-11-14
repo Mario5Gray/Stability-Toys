@@ -128,6 +128,14 @@ def _active_family_binding(runtime: Any, provider: Any) -> FamilyPlatformBinding
     return provider.family_binding(snapshot.resolved.profile.family_id)
 
 
+def _current_loras(runtime) -> list:
+    get_loras = getattr(runtime, "get_current_loras", None)
+    if not callable(get_loras):
+        return []
+    loras = get_loras()
+    return loras if isinstance(loras, list) else []
+
+
 @router.get("/models/status")
 async def get_models_status(request: Request):
     """
@@ -175,6 +183,8 @@ async def get_models_status(request: Request):
         ),
         "is_loaded": runtime.is_model_loaded(),
         "queue_size": runtime.get_queue_size(),
+        # Mode LoRAs plus request LoRAs of the loaded authority (STABL-fvwsvjvn).
+        "current_loras": _current_loras(runtime),
         "capabilities": {
             "supports_generation": caps.supports_generation,
             "supports_modes": caps.supports_modes,
