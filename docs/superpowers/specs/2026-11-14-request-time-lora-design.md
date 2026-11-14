@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: draft 2026-11-14, revision 2 (no stacking on mode LoRAs, failure limitation documented), waiting for operator approval
+Status: draft 2026-11-14, revision 3 (request LoRAs only on modes without `loras:`), waiting for operator approval
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -16,7 +16,8 @@ The feature applies to every family: SD1.5, SDXL, HunyuanDiT, and Z-Image.
 ## Goals
 
 - A generate request carries a `loras` list. Each entry has `path` and `strength`.
-- The server adds the request LoRAs to the LoRAs of the named mode.
+- Request LoRAs run only on a mode that has no `loras:` list. A request with LoRAs for a mode with `loras:` is refused.
+- The operator makes a plain mode with no `loras:` for request-time LoRAs.
 - If the resulting LoRA set differs from the loaded set, the server reloads the worker, then runs the job.
 - If the set is the same, the job runs with no reload.
 - The loaded set stays loaded after the job ("what you name is what you get").
@@ -78,6 +79,7 @@ Validation runs before admission. A failure returns HTTP 400 or WS `job:error`. 
 - The path must exist as a file or a directory.
 - The strength must be finite.
 - Two request entries must not resolve to the same file.
+- The target base mode (section 4) must have no `loras:` list. Otherwise the request is refused with a message that names the mode and says to use a mode without `loras:`. (Operator decision, 2026-11-14.)
 
 ### 3. Authority key
 
@@ -95,7 +97,7 @@ The authority identity becomes the pair (base mode name, request LoRAs).
 |---|---|---|
 | absent | absent or empty | The terminal authority, unchanged (today's behavior). Request LoRAs stay. |
 | absent | set | (terminal base mode name, request LoRAs) |
-| set | absent or empty | (`req.mode`, ()). A loaded request-LoRA set causes a reload to the plain mode. |
+| set | absent or empty | (`req.mode`, ()). A loaded request-LoRA set causes a reload to the mode as configured. |
 | set | set | (`req.mode`, request LoRAs) |
 
 With no terminal authority and no `req.mode`, a request with `loras` targets the default mode.
@@ -105,15 +107,11 @@ With no terminal authority and no `req.mode`, a request with `loras` targets the
 ### 5. Derived mode
 
 `_resolve_target(mode_name, request_loras)` deep-copies the mode as today.
-Then it appends each request LoRA to `mode.loras` (a `LoRAConfig`) and to `mode.lora_paths` (the absolute path).
-Mode LoRAs come first, then request LoRAs in request order.
+With request LoRAs, the base mode has no `loras:` (section 2).
+The copy gets the request LoRAs as `mode.loras` (`LoRAConfig` entries) and `mode.lora_paths` (absolute paths), in request order.
 The handle hook applies the derived mode with no change.
 
-A request LoRA does not stack on a mode LoRA for the same file.
-Two entries name the same file when their resolved absolute paths are equal.
-The request entry replaces that mode entry, at the mode entry's position, with the request strength.
-The file is applied one time. (Operator decision, 2026-11-14.)
-Two request entries for the same file are refused in validation (section 2).
+Request LoRAs never mix with mode LoRAs. (Operator decision, 2026-11-14.)
 
 Idle eviction keeps the snapshot. A demand reload restores the request LoRAs.
 
@@ -166,11 +164,11 @@ The implementation documents the limitation in `docs/WORKER_SELECTION.md` step 4
 
 - Unit tests first (TDD):
   - Path validation: relative, absolute inside, absolute outside, symlink escape, missing, non-finite strength.
-  - Authority key: equal sets do not reload. A different strength reloads. A no-mode request keeps the set. A mode-without-loras request reloads plain.
+  - Authority key: equal sets do not reload. A different strength reloads. A no-mode request keeps the set. A request that names a mode and no LoRAs reloads that mode as configured.
   - Idle eviction plus demand reload keeps the request LoRAs.
   - Config reload keeps the request LoRAs.
-  - The derived mode appends request LoRAs after mode LoRAs.
-  - A request LoRA for a mode LoRA file replaces that entry with the request strength. It is applied one time.
+  - The derived mode holds exactly the request LoRAs, in request order.
+  - A request with LoRAs for a mode with `loras:` is refused before any switch. This includes a no-mode request while such a mode is loaded.
   - Two request entries for the same file are refused.
   - SD1.5 and SDXL `configure_loras` with tiny real pipelines: fused weight math, text encoder fuse, refusals.
   - Z-Image tests still pass on the shared helper.
@@ -180,6 +178,7 @@ The implementation documents the limitation in `docs/WORKER_SELECTION.md` step 4
   - `st gen --mode ZImage-Turbo --lora ZiT/j80z.safetensors:0.8` with the same seed as a plain run. The images differ. The log shows the merge line.
   - A second request with the same LoRA set does not reload.
   - A request for plain `ZImage-Turbo` reloads and matches the plain image.
+  - `st gen --mode ZImage-Turbo-j80z --lora ZiT/j80z.safetensors` is refused, and the loaded model stays loaded.
   - SDXL: the same check if enigma has an SDXL LoRA. The builder lists `/models/loras` first.
 
 ## Left to the builder
