@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: draft 2026-11-14, waiting for operator approval
+Status: draft 2026-11-14, revision 2 (no stacking on mode LoRAs, failure limitation documented), waiting for operator approval
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -77,6 +77,7 @@ Validation runs before admission. A failure returns HTTP 400 or WS `job:error`. 
 - Both sides use `Path.resolve()`, so a symlink cannot escape the root.
 - The path must exist as a file or a directory.
 - The strength must be finite.
+- Two request entries must not resolve to the same file.
 
 ### 3. Authority key
 
@@ -108,7 +109,11 @@ Then it appends each request LoRA to `mode.loras` (a `LoRAConfig`) and to `mode.
 Mode LoRAs come first, then request LoRAs in request order.
 The handle hook applies the derived mode with no change.
 
-A request LoRA that is also a mode LoRA is applied twice. The deltas add. (Builder note: this is my call. The operator asked to add the request LoRA object.)
+A request LoRA does not stack on a mode LoRA for the same file.
+Two entries name the same file when their resolved absolute paths are equal.
+The request entry replaces that mode entry, at the mode entry's position, with the request strength.
+The file is applied one time. (Operator decision, 2026-11-14.)
+Two request entries for the same file are refused in validation (section 2).
 
 Idle eviction keeps the snapshot. A demand reload restores the request LoRAs.
 
@@ -150,6 +155,13 @@ The old worker is already gone, so the server has no model until the next reques
 This matches a bad mode today. Validation (section 2) catches path errors before the switch.
 A wrong-family LoRA is found only at load.
 
+This is a known limitation. It gets no FP issue. Reasons:
+- A bad mode in `modes.yml` has the same behavior today.
+- The next request that names a valid set loads a model again.
+- A fix needs a per-family fit check before teardown, or a fallback reload of the old authority. Both cost more than the limitation.
+
+The implementation documents the limitation in `docs/WORKER_SELECTION.md` step 4. The `st gen --lora` help text says that a LoRA for the wrong family fails the job and unloads the model.
+
 ## Verification
 
 - Unit tests first (TDD):
@@ -158,6 +170,8 @@ A wrong-family LoRA is found only at load.
   - Idle eviction plus demand reload keeps the request LoRAs.
   - Config reload keeps the request LoRAs.
   - The derived mode appends request LoRAs after mode LoRAs.
+  - A request LoRA for a mode LoRA file replaces that entry with the request strength. It is applied one time.
+  - Two request entries for the same file are refused.
   - SD1.5 and SDXL `configure_loras` with tiny real pipelines: fused weight math, text encoder fuse, refusals.
   - Z-Image tests still pass on the shared helper.
   - Go: `--lora` parse and the WS payload.
