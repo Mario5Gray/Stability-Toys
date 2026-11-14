@@ -74,6 +74,20 @@ def _resolve_zimage_lora_file(path: str | Path) -> Path:
     return p
 
 
+_TEXT_ENCODER_KEY_PREFIXES = ("text_encoder.", "lora_te")
+
+
+def _count_lora_down_tensors(state_dict: dict[str, torch.Tensor]) -> int:
+    """Count the transformer LoRA down (A) tensors in a LoRA file."""
+
+    return sum(
+        1
+        for key in state_dict
+        if key.endswith((".lora_A.weight", ".lora_down.weight"))
+        and not key.startswith(_TEXT_ENCODER_KEY_PREFIXES)
+    )
+
+
 def _count_adapter_modules(transformer: torch.nn.Module, adapter_name: str) -> int:
     """Count the PEFT LoRA layers in the transformer that hold the adapter."""
 
@@ -215,8 +229,10 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
         counts: list[int] = []
         for i, lora_file in enumerate(files):
             name = f"mode_lora_{i}"
+            state_dict = load_file(str(lora_file))
+            expected = _count_lora_down_tensors(state_dict)
             try:
-                self.pipe.load_lora_weights(load_file(str(lora_file)), adapter_name=name)
+                self.pipe.load_lora_weights(state_dict, adapter_name=name)
             except ValueError as exc:
                 raise ZImageLoraError(
                     f"LoRA {lora_file} does not fit the Z-Image transformer: {exc}"
@@ -226,6 +242,11 @@ class DiffusersZImageCudaWorker(CudaWorkerBase):
             if count == 0:
                 raise ZImageLoraError(
                     f"LoRA {lora_file} targets no Z-Image transformer module"
+                )
+            if count < expected:
+                raise ZImageLoraError(
+                    f"LoRA {lora_file} fits only {count} of {expected} modules "
+                    "of the Z-Image transformer"
                 )
             counts.append(count)
 

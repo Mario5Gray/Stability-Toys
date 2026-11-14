@@ -94,9 +94,9 @@ Steps 2-6 restart the enigma server. **Wait for the user's go before step 2.**
 
 - [x] **Step 3: Rebuild and restart** with `MODELS_HOST_PATH=/media/cold1/ComfyUI/models FS_HOST_PATH=/media/creative/creative/dreamers WORKFLOW_HOST_PATH=/home/hdd/workspace/Stability-Toys/comfyui-workflows docker compose -f docker-cuda.yml build`, then `up -d` with the same variables. Expected: container healthy, mounts match.
 
-- [ ] **Step 4: Generate A/B/A** with the branch-built `st`, prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`. Order: `ZImage-Turbo` → `ZImage-Turbo-j80z` → `ZImage-Turbo`. Use `st modes switch` before each `st gen`. Output under `<output_directory>/stabl-gftujmyi/`. Expected: plain-1 and plain-2 match, plain and j80z differ.
+- [x] **Step 4: Generate A/B/A** with the branch-built `st`, prompt `j80z, portrait photo, soft window light`, `--seed 1234 --steps 9 --cfg 0 --size 1024x1024`. Order: `ZImage-Turbo` → `ZImage-Turbo-j80z` → `ZImage-Turbo`. Use `st modes switch` before each `st gen`. Output under `<output_directory>/stabl-gftujmyi/`. Expected: plain-1 and plain-2 match, plain and j80z differ.
 
 - [x] **Step 5: Check the log.** `docker logs stability-toys 2>&1 | grep "merged LoRA"`. Expected: `merged LoRA /models/loras/ZiT/j80z.safetensors strength=1.0 modules=240` (8 modules × 30 layers).
-  - Evidence 2026-11-14 19:57:06: `[zimage-cuda] worker 0 merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240`. The operator deployed the branch (a64f7b5) and set strength 0.8. The operator reported the j80z image a success. A/B/A (step 4) not run yet.
+  - Evidence 2026-11-14 19:57:06: `[zimage-cuda] worker 0 merged LoRA /models/loras/ZiT/j80z.safetensors strength=0.8 modules=240`. The operator deployed the branch (a64f7b5) and set strength 0.8. The operator reported the j80z image a success. Step 4: the operator ran the comparison and reported it "spot on". Log jobs: j80z `bf674e717431` (19:39), j80z `0df630cc589e` (19:57), plain `ZImage-Turbo` `eed95d2ae1d0` (20:21). Operator visual check only. No pixel diff was taken.
 
 - [ ] **Step 6: Record evidence and restore enigma.** FP comment with counts, SHAs, image paths, and the log line. Restore enigma to `main` and the backed-up `conf/modes.yml` only after the user decides on the PR.

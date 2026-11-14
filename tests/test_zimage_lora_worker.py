@@ -194,3 +194,17 @@ def test_img2img_pipe_shares_fused_transformer(tmp_path):
 
     assert img2img.transformer is w.pipe.transformer
     assert not torch.equal(img2img.transformer.get_submodule(TARGET).weight, base)
+
+
+def test_partial_fit_lora_refuses(tmp_path):
+    w = _worker()
+    base = _module(w, TARGET).weight.detach().clone()
+    lora = _comfy_lora(w, [TARGET])
+    lora["diffusion_model.not_a_module.lora_A.weight"] = torch.randn(4, 64)
+    lora["diffusion_model.not_a_module.lora_B.weight"] = torch.randn(64, 4)
+    path = _save(tmp_path / "partial.safetensors", lora)
+
+    with pytest.raises(ZImageLoraError, match="partial.safetensors"):
+        w.configure_loras([LoraSpec(path, 1.0)])
+
+    torch.testing.assert_close(_module(w, TARGET).weight, base, atol=0, rtol=0)
