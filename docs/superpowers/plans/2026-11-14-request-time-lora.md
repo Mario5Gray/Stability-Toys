@@ -54,15 +54,15 @@
   - `fuse_diffusers_loras(pipe, specs: Sequence[LoraSpec], *, components: Sequence[str], log_tag: str, worker_id: Any, error_cls: type[DiffusersLoraError] = DiffusersLoraError) -> None`. Same steps and log line as the Z-Image `configure_loras` today. `include_text_encoder` is true when a component name starts with `text_encoder`. The module count runs over every named component.
   - `class ZImageLoraError(DiffusersLoraError)` in `backends/zimage_cuda_worker.py`. `configure_loras` calls the helper with `components=("transformer",)` and `error_cls=ZImageLoraError`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_diffusers_lora_fuse.py`:
+- [x] **Step 1: Write the failing tests** in `tests/test_diffusers_lora_fuse.py`:
   - `test_counts_old_diffusers_dot_keys`: `{"unet.x.lora.down.weight", "unet.x.lora.up.weight"}` counts 1.
   - `test_excludes_text_encoder_keys_when_not_fused`: one `diffusion_model.` A key and one `lora_te1_` down key. `include_text_encoder=False` counts 1.
   - `test_includes_text_encoder_keys_when_fused`: the same dict with `include_text_encoder=True` counts 2.
   - `test_alpha_keys_not_counted`: a `.alpha` key adds 0.
-- [ ] **Step 2: Run** `python -m tests.run tests/test_diffusers_lora_fuse.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'backends.diffusers_lora_fuse'`.
-- [ ] **Step 3: Implement** the helper and move Z-Image onto it.
-- [ ] **Step 4: Run** `python -m tests.run tests/test_diffusers_lora_fuse.py tests/test_zimage_lora_worker.py tests/test_zimage_worker.py -- -q`. Expected: all pass.
-- [ ] **Step 5: Commit** `refactor(lora): shared diffusers LoRA fuse helper, Z-Image on it (STABL-fvwsvjvn) — next: Task 2 SD/SDXL configure_loras`.
+- [x] **Step 2: Run** `python -m tests.run tests/test_diffusers_lora_fuse.py -- -q`. Expected: FAIL with `ModuleNotFoundError: No module named 'backends.diffusers_lora_fuse'`.
+- [x] **Step 3: Implement** the helper and move Z-Image onto it.
+- [x] **Step 4: Run** `python -m tests.run tests/test_diffusers_lora_fuse.py tests/test_zimage_lora_worker.py tests/test_zimage_worker.py -- -q`. Expected: all pass.
+- [x] **Step 5: Commit** `refactor(lora): shared diffusers LoRA fuse helper, Z-Image on it (STABL-fvwsvjvn) — next: Task 2 SD/SDXL configure_loras`.
 
 ---
 
