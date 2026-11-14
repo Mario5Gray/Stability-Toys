@@ -130,3 +130,15 @@ def test_validate_rejects_sdxl_style_keys():
     lora = {"lora_unet_down_blocks_0_attentions_0.lora_down.weight": torch.zeros(2, 8)}
     with pytest.raises(HunyuanDiTLoraError, match=r"blocks\.0\.attn1\.Wqkv"):
         validate_tencent_lora(t, lora)
+
+
+def test_merge_refuses_meta_weights():
+    """Sequential CPU offload leaves module weights on meta. A merge there would
+    change nothing and the mode would load without its LoRA (STABL-ykowysrg)."""
+    t = make_fake_transformer()
+    lora = make_fake_lora(t, prefix=False)
+    t.blocks[1].attn2.to_v.to("meta")
+    before = t.blocks[0].attn1.to_q.weight.detach().clone()
+    with pytest.raises(HunyuanDiTLoraError, match="meta"):
+        merge_tencent_lora(t, lora, 1.0)
+    assert torch.equal(t.blocks[0].attn1.to_q.weight, before)  # no partial write

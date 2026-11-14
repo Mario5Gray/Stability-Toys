@@ -139,9 +139,19 @@ def merge_tencent_lora(
     the weight's dtype. Return the number of target weights changed.
     """
     validate_tencent_lora(transformer, lora)
+    pairs = _pairs(transformer)
+    # Sequential CPU offload keeps the real weights in accelerate hooks and
+    # leaves meta tensors on the modules. A write there changes nothing.
+    meta = [t for _, targets in pairs for t in targets
+            if transformer.get_submodule(t).weight.is_meta]
+    if meta:
+        raise HunyuanDiTLoraError(
+            f"cannot merge into meta weights ({_short(meta)}); "
+            "sequential CPU offload is not supported with mode LoRAs"
+        )
     changed = 0
     with torch.no_grad():
-        for src, targets in _pairs(transformer):
+        for src, targets in pairs:
             a_key, b_key = _ab(src)
             weights = [transformer.get_submodule(t).weight for t in targets]
             device = weights[0].device
