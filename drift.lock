@@ -19,7 +19,8 @@ docs/TESTING_IN_DOCKER.md -> tests/conftest.py sig:b6aba2380d06bf2e
 docs/TESTING_IN_DOCKER.md -> tests/isolation.py sig:c49fd5130e90718e
 docs/TESTING_IN_DOCKER.md -> tests/python_env.py sig:5c440c4d5f43437d
 docs/TESTING_IN_DOCKER.md -> tests/run.py sig:06fd8c6db0d1ec6a
-docs/WORKER_SELECTION.md -> backends/governor.py sig:658758c666641b0f
+docs/WORKER_SELECTION.md -> backends/governor.py sig:9a1084096310fad1
+docs/WORKER_SELECTION.md -> backends/mode_loras.py sig:01b6bb28cc24e063
 docs/WORKER_SELECTION.md -> backends/platforms/cuda.py sig:37d819e8bdc7af1c
 docs/WORKER_SELECTION.md -> backends/platforms/mps.py sig:a78d4ec0dc127558
 docs/WORKER_SELECTION.md -> backends/platforms/mps_bindings.py sig:4f5478641d57e2d1

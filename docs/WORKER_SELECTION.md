@@ -30,6 +30,11 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
    - `DiffusersHunyuanDiTCudaWorker` for family `hunyuandit`
    - `DiffusersZImageCudaWorker` for family `zimage` (Z-Image-Turbo, Z-Image base),
      module `backends.zimage_cuda_worker`
+4. The worker handle calls `configure_conditioning`, then
+   `backends.mode_loras.apply_mode_loras`. A mode `loras:` list goes to the worker
+   method `configure_loras`. Only the HunyuanDiT worker has that method. It merges
+   Tencent-format LoRAs into the transformer at load. A mode with `loras:` on any
+   other worker fails the mode load (STABL-ykowysrg).
 
 A known family without a selected backend cell raises `UnsupportedFamilyError`.
 An unresolvable model raises `FamilyResolutionError`. Binding reads and rejected
