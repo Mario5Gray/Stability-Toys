@@ -271,7 +271,7 @@ Expected: the pytest summary shows no new failures against `main`. Record pass a
 Run: `drift check`
 Expected: no stale anchors. If stale, update the prose first, then `drift link`.
 
-- [ ] **Step 3: Push the branch and check it out on enigma** (after user go)
+- [x] **Step 3: Push the branch and check it out on enigma** (after user go)
 
 ```bash
 git push -u origin feat/stabl-ykowysrg-hunyuandit-mode-lora
@@ -279,16 +279,16 @@ ssh enigma.lan 'cd ~/workspace/Stability-Toys && git fetch && git switch feat/st
 ```
 Expected: `M conf/modes.yml` stays. The branch does not touch `conf/modes.yml`.
 
-- [ ] **Step 4: Add a plain mode on enigma only**
+- [x] **Step 4: Add a plain mode on enigma only**
 
 Copy the `HunyuanDiT` block in enigma `conf/modes.yml` to `HunyuanDiT-plain`, without `loras:`. Do not commit.
 
-- [ ] **Step 5: Rebuild and restart the server**
+- [x] **Step 5: Rebuild and restart the server**
 
 Run: `ssh enigma.lan 'cd ~/workspace/Stability-Toys && docker compose -f docker-cuda.yml build && docker compose -f docker-cuda.yml up -d'`
 Expected: container `stability-toys` healthy.
 
-- [ ] **Step 6: Generate the A/B/A images** with one prompt and one seed. `st` must target the enigma server (config `server`, or `--server`). Use `st modes switch`, not `st gen --mode` (STABL-eqyjwfdh). Relative `--outfile` paths join under `output_directory`. Prompt: `玉石绘画风格，一只猫在追蝴蝶`. Seed: `1234`.
+- [x] **Step 6: Generate the A/B/A images** with one prompt and one seed. `st` must target the enigma server (config `server`, or `--server`). Use `st modes switch`, not `st gen --mode` (STABL-eqyjwfdh). Relative `--outfile` paths join under `output_directory`. Prompt: `玉石绘画风格，一只猫在追蝴蝶`. Seed: `1234`.
 
 ```bash
 st modes switch HunyuanDiT-plain && st gen '玉石绘画风格，一只猫在追蝴蝶' --seed 1234 --outfile stabl-ykowysrg/plain-1.png
@@ -298,11 +298,18 @@ st modes
 ```
 Expected: `jade-0.8.png` differs from `plain-1.png` and shows the jade style. `plain-2.png` matches `plain-1.png` in content (renders may not be bit-identical). `st modes` shows `loras: HYDiT-LoRA/jade/adapter_model.safetensors(0.8)` under `HunyuanDiT`.
 
-- [ ] **Step 7: Check the server log**
+- [x] **Step 7: Check the server log**
 
 Run: `ssh enigma.lan 'docker logs stability-toys 2>&1 | grep -E "merged LoRA|merged [0-9]+ LoRA" | tail -5'`
 Expected: `merged LoRA ... strength=0.8 r=64 alpha=64 targets=321` and `Mode HunyuanDiT merged 1 LoRA(s) at load`.
 
-- [ ] **Step 8: Record evidence and close out**
+- [x] **Step 8: Record evidence and close out**
 
 Post one FP comment with the test counts, commit SHAs, image paths and log lines. Link each commit with `fp issue assign STABL-ykowysrg --rev <sha>`. Show the three images to the user. The user decides on the PR and on the enigma branch state.
+
+**Task 5 live evidence (2026-11-14, enigma, branch 304ca8c):**
+- Log: `[hunyuandit-cuda] worker 0 merged LoRA /models/loras/HYDiT-LoRA/jade/adapter_model.safetensors strength=0.8 r=64 alpha=64 targets=321` and `[Governor] Mode HunyuanDiT merged 1 LoRA(s) at load`.
+- `st modes` (branch build) shows `loras: HYDiT-LoRA/jade/adapter_model.safetensors(0.8)` under `HunyuanDiT` only.
+- Images in `/Users/darkbit1001/generations/stabl-ykowysrg/` (seed 1234, 50 steps, cfg 6, 1024x1024): `plain-1.png` vs `jade-0.8.png` mean absolute pixel difference 25.2. `plain-1.png` and `plain-2.png` are bit-identical, so a switch away from the LoRA mode restores the base weights.
+- The base model already renders jade for this prompt, because the prompt carries the trigger phrase. The LoRA changes pose and composition, carves the butterfly in translucent stone, and deepens the jade veining.
+- Deviation: the compose file needs `MODELS_HOST_PATH`, `FS_HOST_PATH`, `WORKFLOW_HOST_PATH` exported. Without them the container mounts `./model` and fails startup on the ControlNet registry check.
