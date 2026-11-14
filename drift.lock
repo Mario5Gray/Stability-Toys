@@ -27,7 +27,7 @@ docs/WORKER_SELECTION.md -> backends/platforms/mps_bindings.py sig:4f5478641d57e
 docs/WORKER_SELECTION.md -> backends/platforms/pool_runtime.py sig:714d2e7f31ddc85c
 docs/WORKER_SELECTION.md -> backends/worker_factory.py sig:d8b63dd726dc1e0e
 docs/WORKER_SELECTION.md -> backends/worker_pool.py sig:d749ed00eb1090b8
-docs/WORKER_SELECTION.md -> server/model_routes.py sig:1ad21a5a2b468993
+docs/WORKER_SELECTION.md -> server/model_routes.py sig:74cf310ac5f2914c
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/chat_client.py sig:a351234f15bc6e73
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> backends/worker_pool.py sig:9f737cc5971aeb81
 docs/superpowers/plans/2026-04-11-gallery-advisor.md -> lcm-sr-ui/src/components/options/AdvisorPanel.jsx sig:1f2760883985be21

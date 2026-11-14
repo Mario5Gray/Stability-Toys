@@ -80,6 +80,11 @@ export MODE_CONFIG_PATH=conf        # directory containing modes.yml
 Switch modes at runtime through the mode API (`/api/modes/switch`); the pool
 re-resolves and republishes one active snapshot per load.
 
+A save through `PUT /api/modes` reloads the current mode when its model, LoRA
+paths, or LoRA strengths change. `POST /api/modes/reload` (`st modes reload`)
+rereads the config only. It does not reload the loaded worker. Mode LoRAs are
+merged at load, so a new strength takes effect at the next mode load.
+
 ## Example Configuration
 
 ### Docker with the mode config mounted
