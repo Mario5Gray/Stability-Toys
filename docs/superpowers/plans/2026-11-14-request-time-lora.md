@@ -167,7 +167,7 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - Log on reservation with request LoRAs: `"[Governor] Mode %s with %d request LoRA(s)"`.
   - Leave `vram_bytes=0` in `_reload_from_snapshot`. That site has no measured value (spec section 8 condition not met).
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_governor_request_loras.py`. Use `patch("backends.governor.resolve_model", side_effect=_resolve_by_path)`. Specs: `S1 = (LoraSpec("/l/a.safetensors", 0.8),)`, `S2 = (LoraSpec("/l/a.safetensors", 1.0),)`.
+- [x] **Step 1: Write the failing tests** in `tests/test_governor_request_loras.py`. Use `patch("backends.governor.resolve_model", side_effect=_resolve_by_path)`. Specs: `S1 = (LoraSpec("/l/a.safetensors", 0.8),)`, `S2 = (LoraSpec("/l/a.safetensors", 1.0),)`.
   - `test_same_request_loras_do_not_reserve_again`: admit `("mode-a", S1)` two times while dispatch is frozen. The epoch rises one time.
   - `test_different_strength_reserves_new_authority`: `S1` then `S2`. Two reservations, the last has `request_loras == S2`.
   - `test_no_mode_request_keeps_request_loras`: after `("mode-a", S1)`, `admit_generation(None)` returns an authority with `request_loras == S1`.
@@ -182,10 +182,10 @@ Test fixtures (verified to construct on diffusers 0.39, 2026-11-14):
   - `test_reload_current_mode_keeps_request_loras`: after a load of `("mode-a", S1)`, `reload_current_mode()` makes `StubHandle.start_calls[-1]` get a mode with `lora_paths == ["/l/a.safetensors"]`.
   - `test_demand_reload_keeps_request_loras`: after a load of `("mode-a", S1)`, unload the worker as the idle path does, then call `_reload_from_snapshot()`. `start_calls[-1]` mode has the same `lora_paths`.
   - `test_runtime_status_reports_current_loras`: `[{"path": "/l/a.safetensors", "strength": 0.8}]`.
-- [ ] **Step 2: Run** `python -m tests.run tests/test_governor_request_loras.py -- -q`. Expected: FAIL (`TypeError` on the `request_loras` argument).
-- [ ] **Step 3: Implement** the key through every listed governor site and the pool pass-throughs.
-- [ ] **Step 4: Run** `python -m tests.run tests/test_governor_request_loras.py tests/test_governor.py tests/test_governor_metrics.py tests/test_governor_tracing.py tests/test_governor_log_context.py -- -q`. Expected: all pass.
-- [ ] **Step 5: Commit** `feat(governor): authority key = mode + request LoRAs (STABL-fvwsvjvn) — next: Task 5 HTTP/WS routes`.
+- [x] **Step 2: Run** `python -m tests.run tests/test_governor_request_loras.py -- -q`. Expected: FAIL (`TypeError` on the `request_loras` argument).
+- [x] **Step 3: Implement** the key through every listed governor site and the pool pass-throughs.
+- [x] **Step 4: Run** `python -m tests.run tests/test_governor_request_loras.py tests/test_governor.py tests/test_governor_metrics.py tests/test_governor_tracing.py tests/test_governor_log_context.py -- -q`. Expected: all pass.
+- [x] **Step 5: Commit** `feat(governor): authority key = mode + request LoRAs (STABL-fvwsvjvn) — next: Task 5 HTTP/WS routes`.
 
 ---
 

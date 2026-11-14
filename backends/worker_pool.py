@@ -113,8 +113,11 @@ class WorkerPool:
     def current_resolution_epoch(self) -> int:
         return self._governor.current_resolution_epoch()
 
-    def admit_generation(self, target_mode):
-        return self._governor.admit_generation(target_mode)
+    def admit_generation(self, target_mode, request_loras=()):
+        return self._governor.admit_generation(target_mode, request_loras)
+
+    def get_current_loras(self) -> list[dict]:
+        return self._governor.get_current_loras()
 
     def get_pending_mode(self):
         return self._governor.get_pending_mode()
