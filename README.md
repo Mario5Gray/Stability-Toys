@@ -777,6 +777,53 @@ control-map provenance (`controlnet_map`) — one JSON key per chunk found.
 
 ---
 
+## Server install
+
+`make install-server` puts the Docker server runtime in an install directory outside the checkout.
+Edit conf and env files there. Those edits do not dirty the git tree.
+
+```bash
+make install-server                          # PREFIX=/opt/stability-toys
+make install-server PREFIX=/srv/stability-toys
+make install-server FORCE=1                  # proceed past a block
+```
+
+`/opt` is root-owned on macOS and Fedora. Before the first install, run this once:
+
+```bash
+sudo mkdir -p /opt/stability-toys && sudo chown "$USER" /opt/stability-toys
+```
+
+The install records the checkout commit in `$PREFIX/VERSION`.
+
+| Install path | Rule |
+|---|---|
+| `compose.yaml` (from `docker-cuda.yml`) | Copied only when absent. |
+| `conf/<file>` (tracked files in `conf/`) | Copied only when absent. |
+| `env.custom` | Created empty only when absent. |
+| `env.prod`, `env.cuda` | Copied on every install. |
+| `store/`, `model/`, `workflows/` | Created empty only when absent. |
+| `VERSION` | Written last on every install. |
+
+Two conditions block an install. A blocked install copies nothing and exits 0.
+
+- A tracked file in the checkout has a change. Untracked files do not count.
+- The checkout commit equals `$PREFIX/VERSION`.
+
+`FORCE=1` proceeds past both blocks. The install then runs as usual.
+The install refuses a `PREFIX` inside the checkout, and a source that is not a git checkout (exit 2).
+
+Before the first start, edit the host paths in `$PREFIX/compose.yaml` by hand.
+Configuration templating is tracked as STABL-vhyfdvmt.
+The install does not start the server, and it does not pull or build an image.
+Build images in the checkout with `make prod-build`.
+
+```bash
+cd /opt/stability-toys && docker compose up -d
+```
+
+---
+
 ## References & Credits
 
 ### Base Models
