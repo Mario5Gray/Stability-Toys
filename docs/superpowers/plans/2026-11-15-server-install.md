@@ -170,12 +170,12 @@ git commit -m "feat(install): make install-server to /opt/stability-toys (STABL-
 - Consumes: Task 1 target and its output lines.
 - Produces: none.
 
-- [ ] **Step 1: Check drift bindings**
+- [x] **Step 1: Check drift bindings**
 
 Run: `drift refs README.md` and `drift refs Makefile`
 Expected: list of bound docs. Update any bound prose that describes the `install` targets.
 
-- [ ] **Step 2: Write the README section**
+- [x] **Step 2: Write the README section**
 
 Content, in STE style, one instruction per sentence:
 - What `make install-server` copies, and the copy-rule table from the spec (always, only when absent).
@@ -184,17 +184,17 @@ Content, in STE style, one instruction per sentence:
 - Edit `compose.yaml` host paths by hand before the first `docker compose up -d`. Templating is STABL-vhyfdvmt.
 - Image builds stay in the checkout (`make prod-build`).
 
-- [ ] **Step 3: Run the install on this host into a scratch prefix**
+- [x] **Step 3: Run the install on this host into a scratch prefix**
 
 Run: `make install-server PREFIX="$TMPDIR/st-install"` twice.
 Expected: first run prints `copied` lines and `installed <sha>`. Second run prints `already installed`. `git status --porcelain --untracked-files=no` in the checkout is empty.
 
-- [ ] **Step 4: Run drift check and the full CPU suite**
+- [x] **Step 4: Run drift check and the full CPU suite**
 
 Run: `drift check` (stale count must not rise above the pre-change count) and `docker compose -f docker-compose.test.yml run --rm test`.
 Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-11-15-server-install.md

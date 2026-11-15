@@ -11,7 +11,10 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_FILES = ("Makefile", "Makefile.test", "docker-cuda.yml", "env.prod", "env.cuda")
+SOURCE_FILES = ("Makefile", "Makefile.test", "docker-cuda.yml")
+# The test image has no env.* files (STABL-yztmgiec container run), so the
+# fixture writes its own.
+ENV_FILES = {"env.prod": "STAGE=prod\n", "env.cuda": "BACKEND=cuda\n"}
 CONF_FILES = ("controlnets.yaml", "keymap.yml", "modes-test.yml", "modes.yml")
 
 
@@ -31,6 +34,8 @@ def source_repo(tmp_path: Path) -> Path:
     (src / "conf").mkdir(parents=True)
     for name in SOURCE_FILES:
         shutil.copy2(REPO_ROOT / name, src / name)
+    for name, text in ENV_FILES.items():
+        (src / name).write_text(text)
     for name in CONF_FILES:
         shutil.copy2(REPO_ROOT / "conf" / name, src / "conf" / name)
     _git(src, "init", "-q")
@@ -199,6 +204,23 @@ def test_install_server_failed_copy_keeps_old_version(tmp_path):
     r = run_install(src, prefix)
     assert r.returncode != 0
     assert (prefix / "VERSION").read_text() == old
+
+
+def test_install_server_ignores_prefix_from_environment(tmp_path):
+    # Some shells export PREFIX (Nix, conda-build). Only a command-line PREFIX counts.
+    src = source_repo(tmp_path)
+    stray = tmp_path / "stray"
+    r = subprocess.run(
+        ["make", "-s", "--dry-run", "install-server"],
+        cwd=src,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "PREFIX": str(stray), "GIT_CEILING_DIRECTORIES": str(src.parent)},
+    )
+    assert r.returncode == 0, _out(r)
+    assert "p='/opt/stability-toys'" in r.stdout
+    assert str(stray) not in r.stdout
 
 
 def test_install_server_not_in_aggregate_install():

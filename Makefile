@@ -34,7 +34,8 @@ install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-m
 # Server install (STABL-yztmgiec). Spec: docs/superpowers/specs/2026-11-15-server-install-design.md
 # Blocks (dirty tracked tree, same version) exit 0. FORCE=1 proceeds past them.
 # Refusals (not a git checkout, PREFIX inside the checkout) exit 2.
-PREFIX ?= /opt/stability-toys
+# Plain '=' on purpose: a command-line PREFIX= overrides it, an exported PREFIX does not.
+PREFIX = /opt/stability-toys
 
 .PHONY: install-server
 install-server: ## Install the Docker server runtime to PREFIX (default /opt/stability-toys; FORCE=1 proceeds past blocks)
