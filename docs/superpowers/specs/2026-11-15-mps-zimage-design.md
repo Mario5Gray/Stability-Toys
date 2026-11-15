@@ -4,7 +4,7 @@ FP parent: STABL-zubknmov.
 Planning task: STABL-eudrdkpt.
 Source baseline: 6c3466050de8432a9ab174bcdacb46bdfe1fb93b.
 Scope authorized: user requested both variants and a plan on 2026-11-15.
-Status: proposed design for implementation-plan review. Implementation has not started.
+Status: revised design. Reviewed at 78c7e48. Revisions recorded in ../reports/2026-11-15-mps-zimage-plan-review.md. Implementation has not started.
 
 ## Outcome
 
@@ -21,7 +21,7 @@ ControlNet remains unsupported.
 | Scheduler | flow_match_euler | flow_match_euler |
 | Text encoder | int8 default, none explicit | int8 default, none explicit |
 | Mode and request LoRAs | Required | Required |
-| Negative prompts | Preserve mode policy | Preserve templates and custom prompts |
+| Negative prompts | Preserve mode policy | Preserve configured templates and custom prompts |
 
 ## Architecture
 
@@ -133,6 +133,17 @@ Full-model execution has a separate operator-go checkpoint.
 Existing PNG mode/LoRA recreate work remains STABL-puwnngfo.
 Keep that limitation visible.
 No new API schema, CLI flag, MLX backend, ControlNet or quantized denoiser is included.
+
+No generation path applies a mode default negative-prompt template at this baseline.
+The mode configuration holds the templates.
+A worker applies a custom negative prompt only when the mode permits it.
+Acceptance records the prompt fields.
+Acceptance does not claim template substitution.
+
+Exact pixel equality gate:
+Repeat each equality case three times before a product defect claim.
+Record every output.
+A changed tolerance requires operator review.
 
 agent-policy.rdf was absent from the installed root and source root during scoping.
 Recheck before implementation.

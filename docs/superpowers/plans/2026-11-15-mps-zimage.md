@@ -13,10 +13,11 @@ Keep the shared encoder store, LoRA fuse, governor, routes and CLI contracts.
 **Tech stack:** Python, Torch MPS, Diffusers Z-Image, Transformers Qwen3, Quanto qint8, PEFT, existing Go CLI.
 
 **Design:** ../specs/2026-11-15-mps-zimage-design.md.
+**Review record:** ../reports/2026-11-15-mps-zimage-plan-review.md.
 **Parent:** STABL-zubknmov.
 **Planning issue:** STABL-eudrdkpt.
 **Baseline:** 6c3466050de8432a9ab174bcdacb46bdfe1fb93b.
-**Status:** Ready for plan review. No implementation task started.
+**Status:** Revised after review at 78c7e48. No implementation task started.
 
 ## Authorization and execution
 
@@ -54,7 +55,7 @@ Expected interpreter: /Users/darkbit1001/miniforge3/envs/stability-toys/bin/pyth
 | Task | FP issue | Depends on | State |
 |---|---|---|---|
 | 1. Policy and worker hooks | STABL-lcfvhjog | Plan approval | todo |
-| 2. Encoder-store parity | STABL-mbhlhinl | Task 1 | todo |
+| 2. Encoder-store parity | STABL-mbhlhinl | Plan approval | todo |
 | 3. Binding and LoRA contracts | STABL-vklkdewe | Tasks 1, 2 | todo |
 | 4. Turbo acceptance | STABL-nxonrqlm | Task 3, operator go | todo |
 | 5. Base acceptance | STABL-hrlcjzvh | Task 3, operator go | todo |
@@ -79,7 +80,6 @@ Parent completion requires all six tasks and reviewed evidence.
 | tests/test_zimage_text_encoder.py | Existing content-key and store regression contracts. |
 | tests/test_zimage_mps_encoder.py, new | Tiny local-Qwen filesystem store proof on native MPS. |
 | tests/test_mps_registration.py | Both factory paths, lazy imports and family set. |
-| tests/test_backend_runtimes.py | Existing zimage-no-MPS assertion becomes positive binding assertion. |
 | docs/MPS_BACKEND.md | Accepted family, dtype, telemetry and native evidence. |
 | docs/WORKER_SELECTION.md | Selection and unchanged LoRA behavior. |
 
@@ -135,7 +135,6 @@ Add cases with exact expected results:
 | MPS not built or unavailable | RuntimeError before bf16 check |
 | bf16 check raises | RuntimeError before encoder/pipeline load |
 | CUDA_DTYPE absent, fp16, bf16, fp32 | bf16 family dtype |
-| Non-bf16 explicit CUDA_DTYPE | Existing constructor warning |
 | CUDA_DEVICE=cuda:3 | Ignored, device remains mps |
 | CUDA_OFFLOAD=model or sequential | ValueError, offload |
 | CUDA_QUANTIZE=fp8 | ValueError, quantize |
@@ -183,8 +182,14 @@ Complete new backends/platforms/zimage_mps_policy.py:
 
 from __future__ import annotations
 
+import os
 from typing import Any
-from backends.platforms.mps_policy import MpsTorchPolicy, _bool_env
+from backends.platforms.mps_policy import MpsTorchPolicy
+
+
+def _bool_env(name: str) -> bool:
+    return os.environ.get(name, "0").lower() in ("1", "true", "yes", "on")
+
 
 def _check_bf16_available() -> None:
     import torch
@@ -226,6 +231,7 @@ Required constructor assertion:
 ```python
 def test_mps_constructor_loads_int8_on_mps(zw, fake_load, monkeypatch):
     from backends.zimage_mps_worker import DiffusersZImageMpsWorker
+    from backends.platforms.zimage_mps_policy import ZIMAGE_MPS_TORCH_POLICY
 
     monkeypatch.setattr(
         "backends.platforms.zimage_mps_policy._check_bf16_available",
@@ -238,6 +244,7 @@ def test_mps_constructor_loads_int8_on_mps(zw, fake_load, monkeypatch):
     )
     assert worker.device == "mps"
     assert worker.dtype == zw.torch.bfloat16
+    assert worker.execution_policy is ZIMAGE_MPS_TORCH_POLICY
     fake_load.store.assert_called_once_with(
         fake_load.model_dir, device="mps", dtype=zw.torch.bfloat16,
     )
@@ -245,6 +252,7 @@ def test_mps_constructor_loads_int8_on_mps(zw, fake_load, monkeypatch):
 ```
 
 Patch CUDA availability, synchronization and peak-counter calls to raise in MPS job tests.
+Add one case with CUDA_DTYPE=fp16. Assert the ignored-value constructor warning.
 Cover txt2img and img2img, cancellation, error cleanup and explicit encoder none.
 Assert the generator receives device mps.
 Assert policy.release_cache runs after success and error.
@@ -351,7 +359,7 @@ def test_mps_encoder_filesystem_hit(tmp_path):
         num_key_value_heads=2, head_dim=8,
         max_position_embeddings=64, dtype="bfloat16",
     )
-    encoder = AutoModel.from_config(cfg, torch_dtype=torch.bfloat16)
+    encoder = AutoModel.from_config(cfg, dtype=torch.bfloat16)
     encoder.save_pretrained(encoder_dir, safe_serialization=True)
     del encoder
     store = tmp_path / "encoder-store"
@@ -417,12 +425,24 @@ Next: Task 3.
 ## Task 3: binding and CUDA LoRA contracts
 
 FP: STABL-vklkdewe.
-Files: mps_bindings.py, test_mps_registration.py, test_backend_runtimes.py,
+Files: mps_bindings.py, test_mps_registration.py,
 test_zimage_lora_worker.py, related request/governor tests only if a contract fails.
 
 ### Step 1: Add binding RED assertions
 
 Extend existing family-set assertion to include zimage.
+Add `zimage` to WORKER_REF_FAMILIES at tests/test_mps_registration.py:142.
+The guard at line 175 requires the list to equal the binding set.
+
+The subprocess case asserts the policy identity at line 164.
+Z-Image uses a different policy object.
+Replace the assertion with a backend identity check:
+```python
+"assert cls.execution_policy.backend_id == 'mps', cls"
+```
+Remove the now-unused MPS_TORCH_POLICY import from the subprocess command.
+Keep the subclass assertion.
+
 Add:
 
 ```python
@@ -435,7 +455,6 @@ def test_mps_zimage_binding():
     assert cell.execution_capabilities == ExecutionCapabilities(True, False, False)
 ```
 
-Update test_backend_runtimes.py only where it expects the old missing zimage MPS binding.
 Keep SDXL as the unbound-family negative case.
 Test both configured variant modes resolve to the same zimage binding.
 Retain lazy-import assertions: binding reads must not import Torch or either Z-Image worker.
@@ -518,7 +537,7 @@ Do not modify authority-key semantics or error mappings to pass an MPS test.
 ### Step 5: Verify GREEN
 
 ```bash
-python -m tests.run tests/test_mps_registration.py tests/test_backend_runtimes.py tests/test_zimage_lora_worker.py tests/test_diffusers_lora_fuse.py tests/test_mode_loras.py tests/test_request_loras.py tests/test_request_lora_routes.py tests/test_governor_request_loras.py -- -q --no-cov -p no:cacheprovider
+python -m tests.run tests/test_mps_registration.py tests/test_zimage_lora_worker.py tests/test_diffusers_lora_fuse.py tests/test_mode_loras.py tests/test_request_loras.py tests/test_request_lora_routes.py tests/test_governor_request_loras.py -- -q --no-cov -p no:cacheprovider
 python -m tests.run tests/test_progress_bar_suppression.py -- -q --no-cov -p no:cacheprovider
 git diff --check
 ```
@@ -543,10 +562,14 @@ Require these explicit inputs before proceeding:
 - ZIMAGE_LORA_ROOT: native LoRA root.
 - ZIMAGE_TURBO_LORA and ZIMAGE_TURBO_LORA_2: two distinct compatible files beneath the LoRA root.
 - ZIMAGE_BASE_LORA and ZIMAGE_BASE_LORA_2: two distinct compatible files beneath the LoRA root.
+- ZIMAGE_WRONG_FAMILY_LORA: one file beneath the LoRA root that fails the fit check for both variants.
 - ZIMAGE_TURBO_TRIGGER and ZIMAGE_BASE_TRIGGER: approved proof prompts or trigger text.
 
 These are operator inputs, not inferred filenames.
 Check model_index.json, all required component files and LoRA containment.
+Resolve each model folder through detect_model.
+Require family_id zimage.
+A present folder with another family fails the inventory.
 Record SHA-256 hashes for model configs, weight shards and LoRA files.
 Record exact source revision, dirty state, runtime versions and host.
 Do not download or copy remote assets without authorization.
@@ -580,6 +603,9 @@ import os
 from pathlib import Path
 from ruamel.yaml import YAML
 
+from backends.family_profiles import resolve_family
+from utils.model_detector import detect_model
+
 proof = Path(os.environ["ZIMAGE_PROOF_DIR"])
 model_root = Path(os.environ["ZIMAGE_MODEL_ROOT"]).resolve(strict=True)
 lora_root = Path(os.environ["ZIMAGE_LORA_ROOT"]).resolve(strict=True)
@@ -593,6 +619,7 @@ for label, prefix in (("Turbo", "ZIMAGE_TURBO"), ("Base", "ZIMAGE_BASE")):
     model = os.environ[prefix + "_MODEL"]
     assert not Path(model).is_absolute()
     assert (model_root / model / "model_index.json").is_file()
+    assert resolve_family(detect_model(str(model_root / model))).family_id == "zimage"
     paths = []
     for suffix in ("_LORA", "_LORA_2"):
         weight = (lora_root / os.environ[prefix + suffix]).resolve(strict=True)
@@ -700,7 +727,9 @@ Use seed 4242 and size 1024x1024.
 Use each variant's approved trigger in the same prompt for all LoRA comparisons.
 Use fixed negative text "blurry, low quality, watermark" for Base.
 Pass --negative explicitly for custom-negative cases.
-For the default-template check, omit --negative and verify the resolved template in PNG metadata.
+No generation path applies a mode default template at this baseline.
+Omit --negative only to record that the negative field is absent.
+Do not claim template substitution.
 
 Common command shape:
 ```bash
@@ -726,10 +755,18 @@ Execute these cases for each isolation mode:
 | RI | Img2img with request LoRA and fixed init/strength | Different from matching plain img2img |
 | RZ | Request LoRA strength 0 | Decoded RGB equals P1 |
 | P3 | Explicit plain mode, no request LoRA | Empty current_loras, pixels equal P1 |
-| E | Wrong-family LoRA or known partial-fit file | Failed load and explicit error |
+| E | ZIMAGE_WRONG_FAMILY_LORA | Failed load and explicit error |
 | P4 | Valid explicit plain request after E | Recovery and pixels equal P1 |
 | N1/N2, Base only | Fixed positive prompt, custom negatives differ, cfg 4 | Effective negative metadata and different pixels |
 | F | Plain unquantized alias | Finite, non-flat output, no encoder-store loader call |
+
+Use these filenames per case:
+P1 plain-1.png, P2 plain-2.png, D defaults.png, I1 init-035.png, I2 init-090.png,
+M mode-lora.png, Z zero-mode-lora.png, R1 request-lora-07.png,
+R2 request-lora-07-repeat.png, R3 request-lora-10.png, R4 request-lora-two.png,
+RI request-lora-img2img.png, RZ request-lora-zero.png, P3 plain-restored.png,
+E wrong-lora.png, P4 plain-recovered.png, N1 negative-a.png, N2 negative-b.png,
+F encoder-none.png.
 
 Request-LoRA flags:
 ```bash
@@ -793,6 +830,9 @@ Save MAD values as measurements.
 No arbitrary MAD threshold establishes LoRA semantics.
 User reviews image quality and intended LoRA effect.
 A failed equality, flat output or wrong active set fails its case.
+Repeat each equality case three times before a product defect claim.
+Record every output.
+Report a repeated mismatch as an acceptance finding.
 Do not replace failure with a skip or quietly widen tolerance.
 
 ### Step 5: Restart hit and isolation proof
@@ -866,8 +906,9 @@ Keep STABL-puwnngfo PNG recreate limitation visible.
 Review each changed prose claim against code and artifacts.
 Only then refresh affected drift links.
 Run drift check.
-The planning baseline had 48 stale anchor rows.
-Compare exact document-target pairs rather than relying on that count.
+The review revision recorded 48 stale document-target pairs in
+docs/superpowers/reports/2026-11-15-mps-zimage-drift-baseline.txt.
+Compare exact document-target pairs against that file.
 Unrelated stale anchors must remain explicit baseline exceptions.
 
 ### Step 3: Final review and handoff
