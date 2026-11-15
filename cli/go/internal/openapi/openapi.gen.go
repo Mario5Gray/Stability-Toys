@@ -106,6 +106,9 @@ type GenerateRequest struct {
 	DenoiseStrength *float32 `json:"denoise_strength,omitempty"`
 	GuidanceScale   *float32 `json:"guidance_scale,omitempty"`
 
+	// Loras Optional request LoRAs. Needs a mode without loras:. A changed set reloads the worker.
+	Loras *[]RequestLora `json:"loras,omitempty"`
+
 	// Mode Optional mode to switch to before generation (e.g. 'sdxl-portrait')
 	Mode *string `json:"mode,omitempty"`
 
@@ -184,6 +187,12 @@ type OpenAIImagesRequest struct {
 	Steps             *int     `json:"steps,omitempty"`
 	Superres          *bool    `json:"superres,omitempty"`
 	SuperresMagnitude *int     `json:"superres_magnitude,omitempty"`
+}
+
+// RequestLora One request LoRA (STABL-fvwsvjvn). The path is relative to lora_root, or absolute inside it.
+type RequestLora struct {
+	Path     string   `json:"path"`
+	Strength *float32 `json:"strength,omitempty"`
 }
 
 // StyleLoraRequest Exclusive style LoRA selector.
@@ -512,6 +521,9 @@ type ClientInterface interface {
 
 	// HealthHealthGet request
 	HealthHealthGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MetricsEndpointMetricsGet request
+	MetricsEndpointMetricsGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SdapiV1OptionsSdapiV1OptionsGet request
 	SdapiV1OptionsSdapiV1OptionsGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -960,6 +972,18 @@ func (c *Client) GenerateGeneratePost(ctx context.Context, body GenerateGenerate
 
 func (c *Client) HealthHealthGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewHealthHealthGetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MetricsEndpointMetricsGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMetricsEndpointMetricsGetRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2022,6 +2046,33 @@ func NewHealthHealthGetRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewMetricsEndpointMetricsGetRequest generates requests for MetricsEndpointMetricsGet
+func NewMetricsEndpointMetricsGetRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/metrics")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSdapiV1OptionsSdapiV1OptionsGetRequest generates requests for SdapiV1OptionsSdapiV1OptionsGet
 func NewSdapiV1OptionsSdapiV1OptionsGetRequest(server string) (*http.Request, error) {
 	var err error
@@ -2604,6 +2655,9 @@ type ClientWithResponsesInterface interface {
 
 	// HealthHealthGetWithResponse request
 	HealthHealthGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthHealthGetResponse, error)
+
+	// MetricsEndpointMetricsGetWithResponse request
+	MetricsEndpointMetricsGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetricsEndpointMetricsGetResponse, error)
 
 	// SdapiV1OptionsSdapiV1OptionsGetWithResponse request
 	SdapiV1OptionsSdapiV1OptionsGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*SdapiV1OptionsSdapiV1OptionsGetResponse, error)
@@ -3446,6 +3500,36 @@ func (r HealthHealthGetResponse) ContentType() string {
 	return ""
 }
 
+type MetricsEndpointMetricsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *interface{}
+}
+
+// Status returns HTTPResponse.Status
+func (r MetricsEndpointMetricsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MetricsEndpointMetricsGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r MetricsEndpointMetricsGetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type SdapiV1OptionsSdapiV1OptionsGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4171,6 +4255,15 @@ func (c *ClientWithResponses) HealthHealthGetWithResponse(ctx context.Context, r
 		return nil, err
 	}
 	return ParseHealthHealthGetResponse(rsp)
+}
+
+// MetricsEndpointMetricsGetWithResponse request returning *MetricsEndpointMetricsGetResponse
+func (c *ClientWithResponses) MetricsEndpointMetricsGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetricsEndpointMetricsGetResponse, error) {
+	rsp, err := c.MetricsEndpointMetricsGet(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMetricsEndpointMetricsGetResponse(rsp)
 }
 
 // SdapiV1OptionsSdapiV1OptionsGetWithResponse request returning *SdapiV1OptionsSdapiV1OptionsGetResponse
@@ -5069,6 +5162,32 @@ func ParseHealthHealthGetResponse(rsp *http.Response) (*HealthHealthGetResponse,
 	}
 
 	response := &HealthHealthGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseMetricsEndpointMetricsGetResponse parses an HTTP response from a MetricsEndpointMetricsGetWithResponse call
+func ParseMetricsEndpointMetricsGetResponse(rsp *http.Response) (*MetricsEndpointMetricsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MetricsEndpointMetricsGetResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
