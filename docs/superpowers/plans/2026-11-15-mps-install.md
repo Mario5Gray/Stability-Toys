@@ -50,7 +50,7 @@ Test fixture additions in the new file:
 - `log_lines(tmp_path) -> list[str]`: lines of `conda.log`, or `[]`.
 - Every install call passes `f"CONDA={stub}"`.
 
-- [ ] **Step 1: Write the failing tests in `tests/test_make_install_mps.py`**
+- [x] **Step 1: Write the failing tests in `tests/test_make_install_mps.py`**
 
 ```python
 def test_install_mps_fresh_install_copies_app_and_files(tmp_path):
@@ -109,12 +109,12 @@ def test_install_mps_not_in_aggregate_install():
 
 The stub writes `cwd=$(pwd -P)` to the log on every `run` call, for the last test.
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run: `conda activate stability-toys && python -m tests.run tests/test_make_install_mps.py -- -q`
 Expected: 10 FAIL with `No rule to make target 'install-mps'`. `test_install_mps_not_in_aggregate_install` PASSES.
 
-- [ ] **Step 3: Extract `INSTALL_GATE` and add `install-mps` to `Makefile`**
+- [x] **Step 3: Extract `INSTALL_GATE` and add `install-mps` to `Makefile`**
 
 - `define INSTALL_GATE` holds the current `install-server` lines from `top=` through the same-version block, with `install-server:` messages replaced by `$(1):`. `install-server` becomes `@set -e; $(call INSTALL_GATE,install-server) <its copy lines>`.
 - `CONDA_ENV = stability-toys` and `CONDA = $(shell command -v conda 2>/dev/null)`. In the recipe: `[ -x "$(CONDA)" ] || { echo "install-mps: conda not found" >&2; exit 2; }`. If `command -v` returns a bare name (shell function), resolve it with `"$(CONDA)" info --base` + `/condabin/conda`.
@@ -124,12 +124,12 @@ Expected: 10 FAIL with `No rule to make target 'install-mps'`. `test_install_mps
 - `bin/run`: write with `printf` a `#!/bin/sh` script that does `cd "<p>"` and `exec "<conda>" run --no-capture-output -n "<env>" sh -c '<the three spec lines>'`. `chmod +x`.
 - `VERSION` last, then `installed` and `start:` lines.
 
-- [ ] **Step 4: Run the tests and confirm they pass**
+- [x] **Step 4: Run the tests and confirm they pass**
 
 Run: `python -m tests.run tests/test_make_install_mps.py tests/test_make_install_server.py tests/test_makefile_entrypoints.py -- -q`
 Expected: 32 passed (11 + 14 + 7).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Makefile tests/test_make_install_mps.py
@@ -147,27 +147,27 @@ git commit -m "feat(install): make install-mps with named conda env (STABL-hagbl
 - Consumes: Task 1 target and output lines.
 - Produces: none.
 
-- [ ] **Step 1: Review stale drift prose in `docs/MPS_BACKEND.md`**
+- [x] **Step 1: Review stale drift prose in `docs/MPS_BACKEND.md`**
 
 Run: `git show c43ccce -- Makefile` and read the `make mps` prose in `docs/MPS_BACKEND.md`.
 Expected: prose matches the `0.0.0.0` host default, or update it. Then add the `make install-mps` pointer.
 
-- [ ] **Step 2: Write the README MPS subsection**
+- [x] **Step 2: Write the README MPS subsection**
 
 STE style: what `install-mps` copies, the conda env rule, `CONDA_ENV=`, `bin/run`, `PORT=`, and that the UI is not served.
 
-- [ ] **Step 3: Live install into a scratch prefix with the real env**
+- [x] **Step 3: Live install into a scratch prefix with the real env**
 
 Run: `make install-mps PREFIX="<scratchpad>/mps-install"` (env `stability-toys` exists, so it is kept). Then:
 `conda run -n stability-toys python -c "import sys; sys.path.insert(0, '<prefix>/app'); import server.lcm_sr_server"` with cwd `<prefix>` and `PYTHONPATH` unset.
 Expected: install prints `kept conda env stability-toys` and `installed <sha>`. The import exits 0. A second install prints `already installed`.
 
-- [ ] **Step 4: Drift and suites**
+- [x] **Step 4: Drift and suites**
 
 Run: `drift check` (stale count not above the pre-change count, `docs/MPS_BACKEND.md` relinked only after Step 1 review). Run the CPU container suite.
 Expected: no `FAILED` ID outside `docs/superpowers/plans/2026-11-12-zimage-cuda-container/baseline-failures.txt`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md docs/MPS_BACKEND.md docs/superpowers/plans/2026-11-15-mps-install.md drift.lock
