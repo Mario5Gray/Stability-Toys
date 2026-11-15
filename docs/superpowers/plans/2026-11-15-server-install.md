@@ -57,7 +57,7 @@ Test fixture (in the test file, not shared):
 - `short_sha(src: Path) -> str`: `git rev-parse --short HEAD` in `src`.
 - `commit_change(src: Path, rel: str, text: str) -> None`: writes `text` to `src/rel`, then `git add -A` and commits.
 
-- [ ] **Step 1: Write the failing tests in `tests/test_make_install_server.py`**
+- [x] **Step 1: Write the failing tests in `tests/test_make_install_server.py`**
 
 Each test gets `prefix = tmp_path / "pre fix"` unless stated.
 
@@ -126,12 +126,12 @@ def test_install_server_not_in_aggregate_install():
     # make --dry-run install in REPO_ROOT: "install-server" text and "/opt/stability-toys" not in stdout
 ```
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run: `conda activate stability-toys && python -m tests.run tests/test_make_install_server.py -- -q`
 Expected: every test except `test_install_server_not_in_aggregate_install` FAILS with `No rule to make target 'install-server'`.
 
-- [ ] **Step 3: Add the `install-server` target to `Makefile`**
+- [x] **Step 3: Add the `install-server` target to `Makefile`**
 
 - `PREFIX ?= /opt/stability-toys` and a `## Install the Docker server runtime to $(PREFIX) (FORCE=1 ignores blocks)` help comment.
 - One recipe in one shell (`set -e`, lines joined with `; \`). Order:
@@ -145,7 +145,7 @@ Expected: every test except `test_install_server_not_in_aggregate_install` FAILS
   8. `printf '%s\n' "$$v" > "$$p/VERSION"`, then the `installed` and `start:` lines.
 - Do not add `install-server` to the `install:` prerequisites.
 
-- [ ] **Step 4: Run the tests and confirm they pass**
+- [x] **Step 4: Run the tests and confirm they pass**
 
 Run: `python -m tests.run tests/test_make_install_server.py -- -q`
 Expected: 13 passed.
@@ -153,7 +153,7 @@ Expected: 13 passed.
 Run: `python -m tests.run tests/test_makefile_entrypoints.py -- -q`
 Expected: all passed (no regression in existing make targets).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Makefile tests/test_make_install_server.py

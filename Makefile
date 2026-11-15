@@ -31,6 +31,41 @@ uninstall-qrng: ## Remove the qrng symlink from ~/.local/bin
 install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|vector|all])
 	pip install "./scripts[$(or $(EXTRAS),all)]"
 
+# Server install (STABL-yztmgiec). Spec: docs/superpowers/specs/2026-11-15-server-install-design.md
+# Blocks (dirty tracked tree, same version) exit 0. FORCE=1 proceeds past them.
+# Refusals (not a git checkout, PREFIX inside the checkout) exit 2.
+PREFIX ?= /opt/stability-toys
+
+.PHONY: install-server
+install-server: ## Install the Docker server runtime to PREFIX (default /opt/stability-toys; FORCE=1 proceeds past blocks)
+	@set -e; \
+	top=$$(git rev-parse --show-toplevel 2>/dev/null) || { echo "install-server: not a git checkout" >&2; exit 2; }; \
+	top=$$(cd "$$top" && pwd -P); \
+	p='$(PREFIX)'; p=$${p%/}; \
+	case "$$p" in /*) ;; *) p="$$PWD/$$p" ;; esac; \
+	a="$$p"; rest=""; \
+	while [ ! -d "$$a" ]; do rest="/$${a##*/}$$rest"; a=$${a%/*}; [ -n "$$a" ] || a=/; done; \
+	base=$$(cd "$$a" && pwd -P); [ "$$base" != / ] || base=""; p="$$base$$rest"; \
+	case "$$p/" in "$$top/"*) echo "install-server: PREFIX is inside the checkout: $$p" >&2; exit 2 ;; esac; \
+	v=$$(git rev-parse --short HEAD); \
+	if [ -z "$(FORCE)" ]; then \
+		if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
+			echo "install-server: checkout has tracked changes; use FORCE=1"; exit 0; \
+		fi; \
+		if [ -f "$$p/VERSION" ] && [ "$$(cat "$$p/VERSION")" = "$$v" ]; then \
+			echo "install-server: $$v already installed in $$p; use FORCE=1"; exit 0; \
+		fi; \
+	fi; \
+	mkdir -p "$$p/conf" "$$p/store" "$$p/model" "$$p/workflows"; \
+	seed() { if [ -e "$$2" ]; then echo "kept $$2"; else mkdir -p "$${2%/*}"; cp "$$1" "$$2"; echo "copied $$2"; fi; }; \
+	seed "$$top/docker-cuda.yml" "$$p/compose.yaml"; \
+	git -C "$$top" ls-files conf | while IFS= read -r f; do seed "$$top/$$f" "$$p/$$f"; done; \
+	if [ -e "$$p/env.custom" ]; then echo "kept $$p/env.custom"; else : > "$$p/env.custom"; echo "copied $$p/env.custom"; fi; \
+	for f in env.prod env.cuda; do cp "$$top/$$f" "$$p/$$f"; echo "copied $$p/$$f"; done; \
+	printf '%s\n' "$$v" > "$$p/VERSION"; \
+	echo "installed $$v to $$p"; \
+	echo "start: cd \"$$p\" && docker compose up -d"
+
 .PHONY: prod-build
 prod-build: ## Full prod image build (--no-cache; override: make prod-build BACKEND=cuda PLATFORM=amd64 IMAGE=foo:tag CACHE=1)
 	docker build -f Dockerfile \
