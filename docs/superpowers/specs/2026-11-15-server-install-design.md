@@ -55,7 +55,7 @@ make install-server [PREFIX=/opt/stability-toys] [FORCE=1]
 - The version is `git rev-parse --short HEAD` of the checkout.
 - The install records the version in `$(PREFIX)/VERSION`.
 - Two conditions block the install:
-  - The checkout is dirty (`git status --porcelain` is not empty).
+  - The checkout is dirty: a tracked file has a change (`git status --porcelain --untracked-files=no` is not empty). Untracked files do not count.
   - The version equals the content of `$(PREFIX)/VERSION`.
 - A blocked install prints the reason and exits 0. It copies nothing.
 - `FORCE=1` ignores every block.
@@ -66,7 +66,7 @@ make install-server [PREFIX=/opt/stability-toys] [FORCE=1]
 | Install path | Source | Rule |
 |---|---|---|
 | `compose.yaml` | `docker-cuda.yml` | Copy only when absent. |
-| `conf/<file>` | each file in `conf/` | Copy only when absent. |
+| `conf/<file>` | each tracked file in `conf/` (`git ls-files conf`) | Copy only when absent. |
 | `env.custom` | none | Create empty only when absent. Compose fails when an `env_file` is missing. |
 | `env.prod`, `env.cuda` | tracked files | Copy on every install. |
 | `store/`, `model/`, `workflows/` | none | Create empty only when absent. They match the compose defaults. |
@@ -98,3 +98,6 @@ It ends with the command to start the server from the prefix: `cd $(PREFIX) && d
 - Compose is copied only when absent. The operator answered "correct" to that proposal.
 - A blocked install exits 0, because a no-op is a success for an idempotent install.
 - `FORCE=1` does not overwrite conf, compose, or `env.custom`. The operator rule "conf is only copied when absent" has no force exception.
+- Only tracked changes make the checkout dirty, and only tracked conf files are copied. The operator checkout holds about 22 untracked files, so a plain `git status --porcelain` check would require `FORCE=1` on every install.
+- A `PREFIX` inside the checkout is refused, because the install never writes into the checkout.
+- A source that is not a git checkout is refused with a nonzero exit. The install cannot record a version without a commit.
