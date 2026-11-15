@@ -123,3 +123,34 @@ The plan sets `FP_AGENT_NAME='sigma'` for implementation commands.
 This Claude session is theta.
 sigma is a separate agent.
 The plan now uses `FP_AGENT_NAME='theta'`.
+
+
+## Follow-up audit of 25ae6a6
+
+Sigma verified the supplied review against code and existing revisions.
+Revisions 621ca7d and 25ae6a6 already cover both blocking findings and most factual/minor corrections.
+This follow-up preserves those edits.
+
+Remaining corrections:
+- Removed template application wording from the design table.
+- Validated the required wrong-family asset file and its LoRA-root containment.
+- Put exact filenames in the case table. Case E records an error and expects no PNG.
+- Corrected the img2img input path to ZIMAGE_CASE_DIR.
+- Made every equality comparison explicit, with a three-trial diagnostic procedure and preserved outputs.
+- Distinguished Sigma's planning attribution from Theta's designated implementation role.
+- Required runtime author confirmation before implementation.
+- Removed the stale Task 1 dependency from Task 2 in FP.
+- Copied all 48 exact drift document-target pairs to STABL-ryapqlom.
+- Kept implementation and full-model acceptance pending.
+
+No production or test source changed.
+Plan syntax checks do not establish the future GREEN commands.
+The plan remains subject to operator re-review.
+
+Follow-up verification:
+- 13 Python blocks compiled. 17 Bash blocks passed bash -n.
+- Review requirement checks passed. Task 3 covers policy backend identity and has no false runtime-test edit target.
+- git diff --check passed.
+- drift check exited 1. All 48 exact pairs matched the committed baseline and the FP snapshot.
+- FP Task 2 has no Task 1 dependency.
+- No project suite, implementation, native generation, push or deployment ran.

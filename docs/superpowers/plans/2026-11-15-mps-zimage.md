@@ -42,9 +42,13 @@ Before implementation:
 6. Record current native runtime and exact test baseline.
 7. Leave all live tasks pending until operator go.
 
-Prefix FP commands with FP_AGENT_NAME='theta'.
-theta is this implementing session.
-sigma is a separate agent and does not run these commands.
+Sigma owns this plan and its revisions.
+Theta is the designated implementation author.
+Before Task 1, confirm the active runtime identity is theta.
+Prefix implementation FP commands with FP_AGENT_NAME='theta' only after that check.
+If the implementation author differs, record the actual identity and revise command prefixes before claiming a task.
+Do not use another agent's name for attribution.
+This session performs planning only.
 Use the dedicated stability-toys environment:
 ```bash
 conda activate stability-toys
@@ -611,6 +615,9 @@ from utils.model_detector import detect_model
 proof = Path(os.environ["ZIMAGE_PROOF_DIR"])
 model_root = Path(os.environ["ZIMAGE_MODEL_ROOT"]).resolve(strict=True)
 lora_root = Path(os.environ["ZIMAGE_LORA_ROOT"]).resolve(strict=True)
+wrong_lora = (lora_root / os.environ["ZIMAGE_WRONG_FAMILY_LORA"]).resolve(strict=True)
+assert wrong_lora.is_file()
+assert lora_root in wrong_lora.parents
 yaml = YAML()
 path = proof / "conf" / "modes.yml"
 data = yaml.load(path.read_text())
@@ -744,31 +751,31 @@ Set an explicit plain mode for every plain restoration.
 
 Execute these cases for each isolation mode:
 
-| Case | Operation | Required evidence |
-|---|---|---|
-| P1/P2 | Plain txt2img twice | Exact decoded RGB equality |
-| D | Plain call with no step/cfg override | Correct variant mode defaults in PNG |
-| I1/I2 | P1 as init image, strengths 0.35 and 0.9 | Recorded strength, different decoded outputs |
-| M | Mode-LoRA alias, strength 0.7 | Merge target count, current_loras, image differs from P1 |
-| Z | Zero-mode-LoRA alias | Decoded RGB equals P1 |
-| R1/R2 | Plain mode plus first request LoRA at 0.7, twice | Same active set, no second worker load, equal pixels |
-| R3 | First request LoRA at 1.0 | Reload, correct active strength, changed image |
-| R4 | First LoRA at 0.7 plus second at 0.5 | Both merge counts and active entries |
-| RI | Img2img with request LoRA and fixed init/strength | Different from matching plain img2img |
-| RZ | Request LoRA strength 0 | Decoded RGB equals P1 |
-| P3 | Explicit plain mode, no request LoRA | Empty current_loras, pixels equal P1 |
-| E | ZIMAGE_WRONG_FAMILY_LORA | Failed load and explicit error |
-| P4 | Valid explicit plain request after E | Recovery and pixels equal P1 |
-| N1/N2, Base only | Fixed positive prompt, custom negatives differ, cfg 4 | Effective negative metadata and different pixels |
-| F | Plain unquantized alias | Finite, non-flat output, no encoder-store loader call |
+| Case | Operation | Output in ZIMAGE_CASE_DIR | Required evidence |
+|---|---|---|---|
+| P1 | Plain txt2img | plain-1.png | Baseline |
+| P2 | Repeat P1 | plain-2.png | Pixels equal P1 |
+| D | Plain call without step/cfg overrides | defaults.png | Variant defaults in PNG |
+| I1 | P1 init, strength 0.35 | init-035.png | Recorded strength |
+| I2 | Same init, strength 0.9 | init-090.png | Recorded strength, pixels differ from I1 |
+| M | Mode-LoRA alias at 0.7 | mode-lora.png | Targets and active set, pixels differ from P1 |
+| Z | Zero-mode-LoRA alias | zero-mode-lora.png | Pixels equal P1 |
+| R1 | First request LoRA at 0.7 | request-lora-07.png | Active set and merge targets |
+| R2 | Repeat R1 | request-lora-07-repeat.png | No reload, pixels equal R1 |
+| R3 | First request LoRA at 1.0 | request-lora-10.png | Reload and changed active strength/image |
+| R4 | First LoRA at 0.7, second at 0.5 | request-lora-two.png | Both targets and active entries |
+| RI | I1 parameters with first request LoRA at 0.7 | request-lora-img2img.png | Pixels differ from I1 |
+| RZ | First request LoRA at zero | request-lora-zero.png | Pixels equal P1 |
+| P3 | Explicit plain mode, no request LoRA | plain-restored.png | Empty active set, pixels equal P1 |
+| E | ZIMAGE_WRONG_FAMILY_LORA | wrong-lora-error.json | Failed load and explicit error. No PNG expected. |
+| P4 | Explicit plain after E | plain-recovered.png | Recovery, pixels equal P1 |
+| N1, Base | Custom negative "blurry, low quality, watermark", cfg 4 | negative-a.png | Effective negative metadata |
+| N2, Base | Custom negative "red apple, wooden table", cfg 4 | negative-b.png | Effective negative metadata, pixels differ from N1 |
+| F | Plain unquantized alias | encoder-none.png | Non-flat output, no store loader call |
 
-Use these filenames per case:
-P1 plain-1.png, P2 plain-2.png, D defaults.png, I1 init-035.png, I2 init-090.png,
-M mode-lora.png, Z zero-mode-lora.png, R1 request-lora-07.png,
-R2 request-lora-07-repeat.png, R3 request-lora-10.png, R4 request-lora-two.png,
-RI request-lora-img2img.png, RZ request-lora-zero.png, P3 plain-restored.png,
-E wrong-lora.png, P4 plain-recovered.png, N1 negative-a.png, N2 negative-b.png,
-F encoder-none.png.
+Pass --outfile with the table's exact PNG path for each successful CLI case.
+For E, preserve the error response and command exit instead of expecting a PNG.
+Keep stdout/stderr beside each output using its case ID.
 
 Request-LoRA flags:
 ```bash
@@ -778,7 +785,7 @@ Request-LoRA flags:
 
 Img2img flags:
 ```bash
---init-image "$ZIMAGE_PROOF_DIR/plain-1.png" --denoise-strength 0.35
+--init-image "$ZIMAGE_CASE_DIR/plain-1.png" --denoise-strength 0.35
 ```
 
 After each case, save /api/models/status and the exact request parameters.
@@ -817,14 +824,28 @@ def pixels(path: Path) -> np.ndarray:
     assert float(rgb.std()) >= 5.0
     return rgb
 
+import json
+
+equal_pairs = {
+    "P1=P2": ("plain-1.png", "plain-2.png"),
+    "Z=P1": ("zero-mode-lora.png", "plain-1.png"),
+    "R2=R1": ("request-lora-07-repeat.png", "request-lora-07.png"),
+    "RZ=P1": ("request-lora-zero.png", "plain-1.png"),
+    "P3=P1": ("plain-restored.png", "plain-1.png"),
+    "P4=P1": ("plain-recovered.png", "plain-1.png"),
+}
+equality = {
+    case: bool(np.array_equal(pixels(proof_dir / a), pixels(proof_dir / b)))
+    for case, (a, b) in equal_pairs.items()
+}
 plain = pixels(proof_dir / "plain-1.png")
-repeat = pixels(proof_dir / "plain-2.png")
-restored = pixels(proof_dir / "plain-restored.png")
-assert np.array_equal(plain, repeat)
-assert np.array_equal(plain, restored)
 lora = pixels(proof_dir / "request-lora-07.png")
-assert not np.array_equal(plain, lora)
+lora_changed = not np.array_equal(plain, lora)
 mad = float(np.abs(plain.astype(np.float32) - lora.astype(np.float32)).mean())
+report = {"equality": equality, "lora_changed": bool(lora_changed), "lora_mad": mad}
+(proof_dir / "pixel-checks.json").write_text(json.dumps(report, indent=2))
+assert all(equality.values()), "record mismatch and run three-trial diagnostics"
+assert lora_changed, "LoRA output did not change"
 ```
 
 Define proof_dir from ZIMAGE_CASE_DIR before executing this snippet.
@@ -832,9 +853,21 @@ Save MAD values as measurements.
 No arbitrary MAD threshold establishes LoRA semantics.
 User reviews image quality and intended LoRA effect.
 A failed equality, flat output or wrong active set fails its case.
-Repeat each equality case three times before a product defect claim.
-Record every output.
-Report a repeated mismatch as an acceptance finding.
+Before declaring a product defect, run this diagnostic sequence:
+1. Create equality-repeat-1, equality-repeat-2 and equality-repeat-3 beneath the current variant/isolation directory.
+2. Point ZIMAGE_CASE_DIR at one fresh trial directory.
+3. Run P1, P2, Z, R1, R2, RZ, P3, E and P4 with the original seed and parameters.
+4. Preserve each case's reload boundary, active-set snapshot, terminal response and output filename.
+5. Run the comparison snippet for that trial and preserve pixel-checks.json.
+6. Repeat Steps 2-5 for each remaining trial directory.
+7. Record all outcomes before attributing a product defect or requesting a tolerance change.
+
+Compare each trial only against its own P1 and R1.
+Never overwrite the original failed outputs.
+If all diagnostic trials pass, retain the original mismatch as an intermittent acceptance finding.
+Any unresolved mismatch keeps acceptance incomplete.
+Escalate the evidence and proposed diagnosis for review.
+A tolerance change still requires operator approval.
 Do not replace failure with a skip or quietly widen tolerance.
 
 ### Step 5: Restart hit and isolation proof

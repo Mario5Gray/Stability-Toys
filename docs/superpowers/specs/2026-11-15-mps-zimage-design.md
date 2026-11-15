@@ -21,7 +21,7 @@ ControlNet remains unsupported.
 | Scheduler | flow_match_euler | flow_match_euler |
 | Text encoder | int8 default, none explicit | int8 default, none explicit |
 | Mode and request LoRAs | Required | Required |
-| Negative prompts | Preserve mode policy | Preserve configured templates and custom prompts |
+| Negative prompts | Preserve mode permission checks | Custom negatives when permitted. No default-template application. |
 
 ## Architecture
 
@@ -114,7 +114,8 @@ Report cold build, warm generation and reload durations separately.
 Repeat each plain baseline with one fixed seed.
 Require exact decoded-pixel repeatability within the acceptance run.
 Require the restored plain output to equal the initial plain output.
-Stop and report a failed equality check.
+Record a failed equality check as an acceptance finding.
+Run the three-trial diagnostic procedure before attributing a product defect.
 A changed tolerance requires operator review before another acceptance claim.
 Do not require pixel equality between CUDA and MPS.
 Require LoRA output to differ from plain and match the selected active LoRA set.
@@ -141,8 +142,9 @@ Acceptance records the prompt fields.
 Acceptance does not claim template substitution.
 
 Exact pixel equality gate:
-Repeat each equality case three times before a product defect claim.
-Record every output.
+Repeat the complete equality sequence in three fresh trial directories before a product defect claim.
+Preserve seed, parameters and reload boundaries. Record every comparison and output.
+Intermittent mismatches still require review and do not silently pass.
 A changed tolerance requires operator review.
 
 agent-policy.rdf was absent from the installed root and source root during scoping.
