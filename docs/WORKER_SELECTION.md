@@ -101,7 +101,9 @@ A save through `PUT /api/modes` reloads the current mode when its model, LoRA
 paths, or LoRA strengths change. `POST /api/modes/reload` (`st modes reload`)
 rereads the config only. It does not reload the loaded worker. Mode LoRAs are
 merged at load, so a new strength takes effect at the next mode load.
-A `PUT /api/modes` reload keeps the active request LoRAs. `/api/models/status` reports
+A `PUT /api/modes` reload keeps the active request LoRAs. A save that gives the
+loaded mode its own `loras:` while request LoRAs are loaded is refused with HTTP
+409, and the config is not written. `/api/models/status` reports
 the active LoRA list as `current_loras`.
 
 ## Example Configuration

@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance. Revision 5 adds sidecar containment.
+Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance. Revision 5 adds sidecar containment. Revision 6 folds in the PR #163 review: row 1 of the section 4 table binds to the terminal authority, and a config save conflict is refused (section 6).
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -103,7 +103,7 @@ The authority identity becomes the pair (base mode name, request LoRAs).
 
 | `req.mode` | `req.loras` | Target |
 |---|---|---|
-| absent | absent or empty | The terminal authority, unchanged (today's behavior). Request LoRAs stay. |
+| absent | absent or empty | The terminal authority (the active snapshot, or the last queued switch). Request LoRAs stay. This reverses the STABL-ltefhpkk active-snapshot rule. A job stamped with the active epoch behind a queued switch always failed as stale. (Operator decision, 2026-11-14, PR #163 review.) |
 | absent | set | (terminal base mode name, request LoRAs) |
 | set | absent or empty | (`req.mode`, ()). A loaded request-LoRA set causes a reload to the mode as configured. |
 | set | set | (`req.mode`, request LoRAs) |
@@ -128,6 +128,8 @@ Idle eviction keeps the snapshot. A demand reload restores the request LoRAs.
 `reload_current_mode` and `reload_if_current` re-target the full current key.
 The base mode is reread from config. The request LoRAs stay.
 This is my call. It follows the anti-goal about config reloads.
+
+A save (`PUT /api/modes` or `POST /api/modes/{name}`) that gives the loaded base mode its own `loras:` while request LoRAs are loaded is refused with HTTP 409. The config is not written. The two LoRA kinds never mix, so that reload could not run. (Revision 6, PR #163 review.)
 
 ### 7. SD1.5 and SDXL workers
 

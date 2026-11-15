@@ -119,6 +119,9 @@ class WorkerPool:
     def get_current_loras(self) -> list[dict]:
         return self._governor.get_current_loras()
 
+    def get_current_request_loras(self):
+        return self._governor.get_current_request_loras()
+
     def get_pending_mode(self):
         return self._governor.get_pending_mode()
 

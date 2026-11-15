@@ -16,6 +16,7 @@ from backends.platforms.base import ExecutionCapabilities, FamilyPlatformBinding
 from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
+from backends.mode_loras import RequestLoraError
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,27 @@ def _active_family_binding(runtime: Any, provider: Any) -> FamilyPlatformBinding
     if snapshot is None:
         return None
     return provider.family_binding(snapshot.resolved.profile.family_id)
+
+
+def _refuse_mode_loras_under_request_loras(pool, mode_name: str, mode_data) -> None:
+    """Refuse a save that gives the loaded base mode its own loras: while request
+    LoRAs are loaded (PR #163 review). The two never mix, so the reload would fail.
+    Runs before the config is written."""
+    if not mode_data or not mode_data.get("loras"):
+        return
+    if pool.get_current_mode() != mode_name:
+        return
+    get_request_loras = getattr(pool, "get_current_request_loras", None)
+    active = get_request_loras() if callable(get_request_loras) else ()
+    if isinstance(active, tuple) and active:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"mode '{mode_name}' is loaded with {len(active)} request LoRA(s); "
+                "it cannot get its own loras: list now. Load the mode without "
+                "request LoRAs first, or save the loras: on another mode."
+            ),
+        )
 
 
 def _current_loras(runtime) -> list:
@@ -528,6 +550,8 @@ async def save_all_modes(request: ModesBulkSaveRequest):
 
     # Snapshot current mode config before saving so we can detect changes
     current_mode = pool.get_current_mode()
+    if current_mode:
+        _refuse_mode_loras_under_request_loras(pool, current_mode, data["modes"].get(current_mode))
     old_model = None
     old_loras = None
     if current_mode:
@@ -567,7 +591,11 @@ async def save_all_modes(request: ModesBulkSaveRequest):
                 for lora in new_mode_data.get("loras", [])
             ]
             if new_model != old_model or new_loras != old_loras:
-                reload_queued = pool.reload_if_current(current_mode)
+                try:
+                    reload_queued = pool.reload_if_current(current_mode)
+                except RequestLoraError as e:
+                    # The pre-save check covers this. A race can still reach it.
+                    raise HTTPException(status_code=409, detail=f"saved, but not reloaded: {e}")
 
     return {
         "status": "saved",
@@ -586,6 +614,7 @@ async def create_or_update_mode(name: str, request: ModeCreateRequest):
     updated_mode = dict(existing_mode)
     updated_mode.update(request.model_dump(exclude_unset=True))
     data["modes"][name] = updated_mode
+    _refuse_mode_loras_under_request_loras(pool, name, updated_mode)
 
     try:
         config.save_config(data)
@@ -594,7 +623,10 @@ async def create_or_update_mode(name: str, request: ModeCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
     # If this mode is currently loaded, reload the worker with the new config
-    reload_queued = pool.reload_if_current(name)
+    try:
+        reload_queued = pool.reload_if_current(name)
+    except RequestLoraError as e:
+        raise HTTPException(status_code=409, detail=f"saved, but not reloaded: {e}")
 
     return {"status": "saved", "mode": name, "reload_queued": reload_queued}
 

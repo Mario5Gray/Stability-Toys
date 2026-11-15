@@ -22,7 +22,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backends.chat_client import ChatCompletionsClient, ChatConfig
 from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
-from server.request_loras import ensure_request_loras_supported, resolve_request_loras
+from server.request_loras import admit_generation_request, ensure_request_loras_supported
 from server.ws_hub import hub
 from server import log_context
 from server.tracing import get_tracer
@@ -251,14 +251,8 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             # the active snapshot, exactly as get_active_model_snapshot() did.
             # Request LoRAs are checked before admission (STABL-fvwsvjvn). A failure
             # lands in pre_submit_job_error, so no switch is queued.
-            request_loras = (
-                resolve_request_loras(req.loras, get_mode_config().config.lora_root)
-                if getattr(req, "loras", None) else ()
-            )
-            snapshot = (
-                state.worker_pool.admit_generation(getattr(req, "mode", None), request_loras)
-                if request_loras
-                else state.worker_pool.admit_generation(getattr(req, "mode", None))
+            snapshot = admit_generation_request(
+                state.worker_pool, req, lambda: get_mode_config().config.lora_root
             )
             has_init_image = bool(params.get("init_image_ref"))
             if snapshot is not None:

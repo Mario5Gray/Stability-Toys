@@ -282,3 +282,71 @@ def test_request_lora_switch_logs_count(resolve, caplog):
         assert "Mode mode-a with 1 request LoRA(s)" in caplog.text
     finally:
         _shutdown(gov)
+
+
+# --------------------------------------------------------------- PR #163 review
+
+
+def test_concurrent_admission_returns_own_reservation(resolve):
+    """Review P1: a second admission that lands between the first admission's
+    enqueue and its return must not hand the first caller the second key."""
+    gov, _, _ = _gov("mode-a", "mode-b", default="mode-b")
+    try:
+        _freeze_dispatch(gov)
+        real_put = gov.q.put
+        injected = {}
+
+        def put_then_race(job, *args, **kwargs):
+            real_put(job, *args, **kwargs)
+            if not injected:
+                injected["other"] = gov.admit_generation("mode-a", S2)
+
+        gov.q.put = put_then_race
+        mine = gov.admit_generation("mode-a", S1)
+        assert injected["other"].request_loras == S2
+        assert mine.request_loras == S1
+        assert mine is not injected["other"]
+    finally:
+        _shutdown(gov)
+
+
+def test_no_mode_request_binds_to_queued_lora_switch(resolve):
+    """Review P2: a no-mode request behind a queued LoRA switch binds to that
+    switch, so it does not fail with StaleResolutionError."""
+    gov, _, _ = _gov("mode-a", default="mode-a")
+    try:
+        _wait_loaded(gov, "mode-a")
+        _freeze_dispatch(gov)
+        queued = gov.admit_generation("mode-a", S1)
+        assert gov.admit_generation(None) is queued
+    finally:
+        _shutdown(gov)
+
+
+def test_reload_if_current_raises_lora_conflict(resolve):
+    """Review P2: a config edit that gives the base mode its own loras: while
+    request LoRAs are loaded raises, and the loaded authority stays."""
+    gov, _, config = _gov("mode-a", default="mode-a")
+    try:
+        gov.admit_generation("mode-a", S1)
+        active = _wait_loaded(gov, "mode-a", S1)
+        _freeze_dispatch(gov)
+        config._modes["mode-a"].loras = [LoRAConfig(path="x.safetensors")]
+        config._modes["mode-a"].lora_paths = ["/l/x.safetensors"]
+        with pytest.raises(RequestLoraError, match="mode-a"):
+            gov.reload_if_current("mode-a")
+        assert gov._pending_authorities == []
+        assert gov.get_active_model_snapshot() is active
+    finally:
+        _shutdown(gov)
+
+
+def test_get_current_request_loras(resolve):
+    gov, _, _ = _gov("mode-a", default="mode-a")
+    try:
+        assert gov.get_current_request_loras() == ()
+        gov.admit_generation("mode-a", S1)
+        _wait_loaded(gov, "mode-a", S1)
+        assert gov.get_current_request_loras() == S1
+    finally:
+        _shutdown(gov)

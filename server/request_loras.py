@@ -7,7 +7,7 @@ directory. A failure raises RequestLoraError, and no switch is queued.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,20 @@ def ensure_request_loras_supported(req: Any) -> None:
             "request LoRAs need the mode system (CUDA or MPS backend with modes); "
             "this runtime cannot load them"
         )
+
+
+def admit_generation_request(runtime: Any, req: Any, lora_root: Callable[[], str]) -> Any:
+    """Check the request LoRAs, then admit the request. Return the authority.
+
+    HTTP and WS share this. Each transport formats the errors: RequestLoraError
+    (a rule failure), KeyError (an unknown mode), and others. lora_root is read
+    only when the request has LoRAs. A request without LoRAs keeps the one-argument
+    admit_generation call.
+    """
+    mode = getattr(req, "mode", None)
+    if not getattr(req, "loras", None):
+        return runtime.admit_generation(mode)
+    return runtime.admit_generation(mode, resolve_request_loras(req.loras, lora_root()))
 
 
 def select_weight_file(path: Path) -> Path:

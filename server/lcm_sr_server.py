@@ -90,7 +90,7 @@ import signal
 
 # Mode system imports
 from server.mode_config import get_mode_config, reload_mode_config
-from server.request_loras import ensure_request_loras_supported, resolve_request_loras
+from server.request_loras import admit_generation_request, ensure_request_loras_supported
 from backends.mode_loras import RequestLoraError
 from server.model_routes import router as model_router
 from server.analysis_routes import router as analysis_router
@@ -631,13 +631,8 @@ def generate(req: GenerateRequest):
     if supports_modes and hasattr(runtime, "admit_generation"):
         # Request LoRAs are checked before admission, so a bad path queues no switch.
         try:
-            request_loras = resolve_request_loras(req.loras, get_mode_config().config.lora_root) if req.loras else ()
-        except RequestLoraError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        try:
-            snapshot = (
-                runtime.admit_generation(req.mode, request_loras)
-                if request_loras else runtime.admit_generation(req.mode)
+            snapshot = admit_generation_request(
+                runtime, req, lambda: get_mode_config().config.lora_root
             )
         except RequestLoraError as e:
             raise HTTPException(status_code=400, detail=str(e))

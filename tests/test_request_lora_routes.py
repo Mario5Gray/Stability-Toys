@@ -260,3 +260,71 @@ def test_ws_loras_without_mode_system_is_job_error():
     assert frame["type"] == "job:error"
     assert "mode system" in frame["error"]
     app.state.service.submit.assert_not_called()
+
+
+# ------------------------------------------- PR #163 review: config save conflict
+# A save that gives the loaded base mode its own loras: while request LoRAs are
+# active is refused before the config is written.
+
+
+def _save_pool(current_request_loras):
+    pool = Mock()
+    pool.get_current_mode.return_value = "plain"
+    pool.get_current_request_loras.return_value = current_request_loras
+    return pool
+
+
+def _save_config():
+    config = Mock()
+    config.to_dict.return_value = {"chat": {}, "modes": {"plain": {"model": "m.safetensors", "loras": []}}}
+    config.get_mode.return_value = SimpleNamespace(model="m.safetensors", loras=[])
+    return config
+
+
+def _bulk(loras):
+    return model_routes.ModesBulkSaveRequest.model_validate({
+        "model_root": "/models", "lora_root": "/loras", "default_mode": "plain",
+        "resolution_sets": {"default": [{"size": "512x512", "aspect_ratio": "1:1"}]},
+        "modes": {"plain": {"model": "m.safetensors", "loras": loras, "default_size": "512x512",
+                            "default_steps": 4, "default_guidance": 1.0, "resolution_set": "default"}},
+    })
+
+
+async def test_bulk_save_refuses_mode_loras_under_request_loras():
+    from fastapi import HTTPException
+
+    config, pool = _save_config(), _save_pool((LoraSpec("/l/a.safetensors", 0.8),))
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        with pytest.raises(HTTPException) as exc:
+            await model_routes.save_all_modes(_bulk([{"path": "x.safetensors", "strength": 1.0}]))
+
+    assert exc.value.status_code == 409
+    assert "plain" in exc.value.detail and "request LoRA" in exc.value.detail
+    config.save_config.assert_not_called()
+    pool.reload_if_current.assert_not_called()
+
+
+async def test_bulk_save_allows_mode_loras_without_request_loras():
+    config, pool = _save_config(), _save_pool(())
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        await model_routes.save_all_modes(_bulk([{"path": "x.safetensors", "strength": 1.0}]))
+
+    config.save_config.assert_called_once()
+
+
+async def test_single_mode_save_refuses_mode_loras_under_request_loras():
+    from fastapi import HTTPException
+
+    config, pool = _save_config(), _save_pool((LoraSpec("/l/a.safetensors", 0.8),))
+    request = model_routes.ModeCreateRequest.model_validate(
+        {"model": "m.safetensors", "loras": [{"path": "x.safetensors", "strength": 1.0}]}
+    )
+    with patch("server.model_routes.get_mode_config", return_value=config), \
+            patch("server.model_routes.get_worker_pool", return_value=pool):
+        with pytest.raises(HTTPException) as exc:
+            await model_routes.create_or_update_mode("plain", request)
+
+    assert exc.value.status_code == 409
+    config.save_config.assert_not_called()
