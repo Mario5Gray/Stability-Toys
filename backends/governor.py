@@ -25,6 +25,7 @@ from concurrent.futures import Future, CancelledError
 from enum import Enum
 
 from server.mode_config import get_mode_config, ModeConfig, ModeConfigManager
+from backends.mode_loras import LoraSpec, RequestLoraError, derive_request_mode, lora_specs_for_mode
 from server.metrics import get_metrics
 from server import log_context, tracing
 from backends.model_registry import get_model_registry
@@ -76,6 +77,12 @@ class ActiveModelSnapshot:
     resolved: ResolvedModel
     binding: LocalModelBinding
     resolution_epoch: int
+    # Request LoRAs (STABL-fvwsvjvn). The authority key is (mode_name, request_loras).
+    request_loras: tuple[LoraSpec, ...] = ()
+
+    @property
+    def key(self) -> tuple[str, tuple[LoraSpec, ...]]:
+        return (self.mode_name, self.request_loras)
 
 
 # Type hints for dependency injection
@@ -302,10 +309,17 @@ class ModeSwitchJob(Job):
     # None for switches built outside the Governor (tests, legacy callers): _load_mode
     # then reserves inline.
     reservation: Optional["ActiveModelSnapshot"] = None
+    # With target_mode, the authority key this switch loads (STABL-fvwsvjvn).
+    request_loras: tuple[LoraSpec, ...] = ()
 
     def __post_init__(self):
         super().__post_init__()
         self.job_type = JobType.MODE_SWITCH
+
+    @property
+    def key(self) -> tuple[str, tuple[LoraSpec, ...]]:
+        """The authority key this switch loads: (mode name, request LoRAs)."""
+        return (self.target_mode, self.request_loras)
 
     def execute(self, worker: Optional[PipelineWorker], progress=None) -> Any:
         """
@@ -384,6 +398,7 @@ class Governor:
         self.q: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
         self._stop = threading.Event()
         self._current_mode: Optional[str] = None
+        self._current_request_loras: tuple[LoraSpec, ...] = ()
         self._active_snapshot: Optional[ActiveModelSnapshot] = None
         self._resolution_epoch: int = 0
         # Reservations: authority that a queued mode switch WILL publish. The
@@ -450,10 +465,13 @@ class Governor:
 
     # --- Authority reservation (spec §3.1-§3.3) ---
 
-    def _resolve_target(self, mode_name: str):
+    def _resolve_target(self, mode_name: str, request_loras: tuple[LoraSpec, ...] = ()):
         """Detect + resolve a target mode. Performs disk I/O (detect_model) and
-        therefore MUST NOT be called while holding _job_lock."""
-        mode = deepcopy(self._mode_config.get_mode(mode_name))
+        therefore MUST NOT be called while holding _job_lock.
+
+        Request LoRAs go on the deep copy (STABL-fvwsvjvn). A mode with its own
+        loras: raises RequestLoraError here, before any reservation."""
+        mode = derive_request_mode(deepcopy(self._mode_config.get_mode(mode_name)), request_loras)
         assert mode.model_path is not None
         resolved, binding = resolve_model(mode.model_path, mode)
         if os.environ.get("BACKEND", "").lower().strip() == "mps":
@@ -473,26 +491,52 @@ class Governor:
             return self._pending_authorities[-1]
         return self._active_snapshot
 
-    def _reserve_authority(self, mode_name: str) -> ActiveModelSnapshot:
+    def _reserve_authority(
+        self, mode_name: str, request_loras: tuple[LoraSpec, ...] = ()
+    ) -> ActiveModelSnapshot:
         """Reserve an epoch + resolved model.
 
         Used by callers that pair the reservation with their own enqueue, and by the
         reservation-less paths (_load_mode's __init__ / force-reload callers) where
         there is no enqueue to pair with at all.
         """
-        mode, resolved, binding = self._resolve_target(mode_name)
+        mode, resolved, binding = self._resolve_target(mode_name, request_loras)
         with self._job_lock:
-            self._resolution_epoch += 1
-            reservation = ActiveModelSnapshot(
-                mode_name=mode_name,
-                mode=mode,
-                resolved=resolved,
-                binding=binding,
-                resolution_epoch=self._resolution_epoch,
+            reservation = self._mint_reservation_locked(
+                mode_name, mode, resolved, binding, request_loras
             )
-            self._pending_authorities.append(reservation)
-            self._last_activity = time.monotonic()
-            return reservation
+        self._log_request_loras(reservation)
+        return reservation
+
+    def _mint_reservation_locked(
+        self, mode_name, mode, resolved, binding, request_loras: tuple[LoraSpec, ...]
+    ) -> ActiveModelSnapshot:
+        """Allocate the next epoch and append a reservation. Caller MUST hold
+        _job_lock. The one place that builds a reservation (PR #163 review)."""
+        self._resolution_epoch += 1
+        reservation = ActiveModelSnapshot(
+            mode_name=mode_name,
+            mode=mode,
+            resolved=resolved,
+            binding=binding,
+            resolution_epoch=self._resolution_epoch,
+            request_loras=request_loras,
+        )
+        self._pending_authorities.append(reservation)
+        self._last_activity = time.monotonic()
+        return reservation
+
+    def _current_key(self) -> tuple[Optional[str], tuple[LoraSpec, ...]]:
+        """The key of the loaded authority: (mode name, request LoRAs)."""
+        return (self._current_mode, self._current_request_loras)
+
+    @staticmethod
+    def _log_request_loras(reservation: ActiveModelSnapshot) -> None:
+        if reservation.request_loras:
+            logger.info(
+                "[Governor] Mode %s with %d request LoRA(s)",
+                reservation.mode_name, len(reservation.request_loras),
+            )
 
     def _drop_reservation(self, reservation: ActiveModelSnapshot, *, dead: bool) -> None:
         """Remove a reservation by IDENTITY. The epoch is never rolled back — epochs
@@ -512,7 +556,9 @@ class Governor:
                 return self._pending_authorities[-1].mode_name
             return None
 
-    def _switch_shortcircuit(self, mode_name: str, worker_ok: bool) -> Optional[dict]:
+    def _switch_shortcircuit(
+        self, mode_name: str, worker_ok: bool, request_loras: tuple[LoraSpec, ...] = ()
+    ) -> Optional[dict]:
         """The result to return INSTEAD of reserving, or None to proceed with a
         reservation (spec §3.3). Caller MUST hold _job_lock.
 
@@ -522,7 +568,7 @@ class Governor:
         reads it unlocked, so the same slight staleness already governs this decision.
         """
         terminal = self._terminal_authority()
-        if terminal is None or terminal.mode_name != mode_name:
+        if terminal is None or terminal.key != (mode_name, request_loras):
             return None
         if self._pending_authorities:
             # A switch to this mode is already queued — bind to it, reserve nothing.
@@ -537,7 +583,12 @@ class Governor:
 
     # --- Mode load / lifecycle (delegates worker build to handle.start) ---
 
-    def _load_mode(self, mode_name: str, reservation: Optional[ActiveModelSnapshot] = None):
+    def _load_mode(
+        self,
+        mode_name: str,
+        reservation: Optional[ActiveModelSnapshot] = None,
+        request_loras: tuple[LoraSpec, ...] = (),
+    ):
         """Load a mode: build the worker via handle.start(), then publish the
         reservation as the active snapshot.
 
@@ -549,7 +600,7 @@ class Governor:
             logger.info(f"[Governor] Loading mode: {mode_name}")
             _load_started = time.monotonic()
             if reservation is None:
-                reservation = self._reserve_authority(mode_name)
+                reservation = self._reserve_authority(mode_name, request_loras)
             mode = reservation.mode
             resolved, binding = reservation.resolved, reservation.binding
 
@@ -569,6 +620,7 @@ class Governor:
                 self._handle.unload()
                 with self._job_lock:
                     self._current_mode = None
+                    self._current_request_loras = ()
                     self._active_snapshot = None
                 self._drop_reservation(reservation, dead=True)
                 gc.collect()
@@ -598,6 +650,7 @@ class Governor:
 
             with self._job_lock:
                 self._current_mode = mode_name
+                self._current_request_loras = reservation.request_loras
                 self._active_snapshot = reservation
                 self._pending_authorities = [
                     r for r in self._pending_authorities if r is not reservation
@@ -1035,6 +1088,8 @@ class Governor:
             # unregistering the outgoing mode and registering the new one — which was
             # silent, and read as a spontaneous unload.
             "pending_mode": self.get_pending_mode(),
+            # Mode LoRAs plus request LoRAs of the loaded authority (STABL-fvwsvjvn).
+            "current_loras": self.get_current_loras(),
             "queue_size": self.get_queue_size(),
             "vram": {
                 "allocated_bytes": worker.allocated_bytes if worker else 0,
@@ -1135,11 +1190,20 @@ class Governor:
                     # Mode-switch fast-path: a live worker already holds the target mode.
                     # _worker_available() is required for subprocess handles, whose
                     # .worker is always None even when a live process is loaded.
-                    if self._worker_available() and self._current_mode == job.target_mode and not job.force:
+                    # The key is (mode, request LoRAs): a LoRA-set change reloads.
+                    if (
+                        self._worker_available()
+                        and self._current_key() == job.key
+                        and not job.force
+                    ):
                         result = {"mode": job.target_mode, "status": "already_loaded"}
                     else:
                         result = job.execute(self._handle.worker)
-                        self._load_mode(job.target_mode, reservation=job.reservation)
+                        self._load_mode(
+                            job.target_mode,
+                            reservation=job.reservation,
+                            request_loras=job.request_loras,
+                        )
                     if not job.fut.done():
                         job.fut.set_result(result)
                 else:
@@ -1404,24 +1468,49 @@ class Governor:
                     self._finalize_job_record(job.job_id)
                 raise queue.Full(f"Job queue full (max: {self.queue_max}).")
 
-    def switch_mode(self, mode_name: str, force: bool = False) -> Future:
+    def switch_mode(
+        self, mode_name: str, force: bool = False, request_loras: tuple[LoraSpec, ...] = ()
+    ) -> Future:
+        """Queue a switch to the key (mode_name, request_loras). `st modes switch`
+        passes no request LoRAs, so it loads the mode as configured."""
         logger.info(f"[Governor] Queueing mode switch to: {mode_name} (force={force})")
         self._mode_config.get_mode(mode_name)  # KeyError for unknown mode (unchanged)
 
         if not force:
             worker_ok = self._worker_available()  # handle call — NOT under _job_lock
             with self._job_lock:
-                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+                shortcircuit = self._switch_shortcircuit(mode_name, worker_ok, request_loras)
             if shortcircuit is not None:
                 fut: Future = Future()
                 fut.set_result(shortcircuit)
                 return fut
 
-        return self._reserve_and_enqueue_switch(mode_name, force=force)
+        return self._reserve_and_enqueue_switch(mode_name, force=force, request_loras=request_loras)
 
-    def _reserve_and_enqueue_switch(self, mode_name: str, *, force: bool = False) -> Future:
+    def _reserve_and_enqueue_switch(
+        self,
+        mode_name: str,
+        *,
+        force: bool = False,
+        request_loras: tuple[LoraSpec, ...] = (),
+    ) -> Future:
+        """Reserve and enqueue a switch; return its future. See _enqueue_switch."""
+        fut, _ = self._enqueue_switch(mode_name, force=force, request_loras=request_loras)
+        return fut
+
+    def _enqueue_switch(
+        self,
+        mode_name: str,
+        *,
+        force: bool = False,
+        request_loras: tuple[LoraSpec, ...] = (),
+    ) -> tuple[Future, ActiveModelSnapshot]:
         """Reserve the target's authority and enqueue its switch as ONE critical
-        section (spec §3.4).
+        section (spec §3.4). Return the switch future and the exact authority for
+        this key, read in that same critical section.
+
+        Admission returns that authority. A reread after the lock is released can
+        return another caller's key (PR #163 review P1).
 
         Holding _job_lock across the bounded q.put cannot deadlock: the dispatch loop
         never holds _job_lock while blocked on q.get. Splitting the two would let a
@@ -1434,7 +1523,7 @@ class Governor:
         """
         with self._span('governor.mode_switch') as _sp:
             _sp.set_attribute('mode', mode_name)
-            mode, resolved, binding = self._resolve_target(mode_name)  # disk I/O, no lock
+            mode, resolved, binding = self._resolve_target(mode_name, request_loras)  # disk I/O, no lock
             worker_ok = self._worker_available()  # handle call — NOT under _job_lock
             with self._job_lock:
                 if not force:
@@ -1442,24 +1531,25 @@ class Governor:
                     # published this target while we were resolving. Without it, a
                     # reservation could be minted for a mode the dispatch fast-path will
                     # short-circuit — never published, and doom for anything bound to it.
-                    shortcircuit = self._switch_shortcircuit(mode_name, worker_ok)
+                    shortcircuit = self._switch_shortcircuit(mode_name, worker_ok, request_loras)
                     if shortcircuit is not None:
                         fut: Future = Future()
                         fut.set_result(shortcircuit)
-                        return fut
+                        # A short-circuit means the terminal authority has this key.
+                        terminal = self._terminal_authority()
+                        assert terminal is not None
+                        return fut, terminal
 
-                self._resolution_epoch += 1
-                reservation = ActiveModelSnapshot(
-                    mode_name=mode_name,
-                    mode=mode,
-                    resolved=resolved,
-                    binding=binding,
-                    resolution_epoch=self._resolution_epoch,
+                reservation = self._mint_reservation_locked(
+                    mode_name, mode, resolved, binding, request_loras
                 )
-                self._pending_authorities.append(reservation)
-                self._last_activity = time.monotonic()
 
-                job = ModeSwitchJob(target_mode=mode_name, force=force, reservation=reservation)
+                job = ModeSwitchJob(
+                    target_mode=mode_name,
+                    force=force,
+                    reservation=reservation,
+                    request_loras=request_loras,
+                )
                 try:
                     if self.queue_timeout_s > 0:
                         self.q.put(job, timeout=self.queue_timeout_s)
@@ -1475,44 +1565,69 @@ class Governor:
                     f"[Governor] Mode switch queued: {mode_name} "
                     f"(epoch={reservation.resolution_epoch})"
                 )
+            self._log_request_loras(reservation)
             # Counted OUTSIDE the critical section (STABL-asawxgvp). Moving the return
             # past the `with` is behaviour-preserving — nothing else sits between — and
             # keeps a metrics write out of the one lock the dispatch loop contends on.
             # Labelled by TARGET only: a {from,to} pair squares the cardinality to buy a
             # transition matrix nobody asked for.
             self._metric(lambda met: met.mode_switch_total.labels(mode=mode_name).inc())
-            return job.fut
+            return job.fut, reservation
 
-    def admit_generation(self, target_mode: Optional[str]) -> Optional[ActiveModelSnapshot]:
+    def admit_generation(
+        self,
+        target_mode: Optional[str],
+        request_loras: tuple[LoraSpec, ...] = (),
+    ) -> Optional[ActiveModelSnapshot]:
         """The authority a generate admitted NOW will execute against (spec §3.4).
 
-        target_mode is None            -> the active snapshot (today's behavior). A
-                                          generate naming no mode means 'the current
-                                          mode'; binding it to a pending switch would
-                                          silently run it on the wrong model.
-        target_mode == terminal's mode -> the terminal authority (active OR a switch
+        The authority key is (base mode name, request LoRAs) (STABL-fvwsvjvn):
+
+        target_mode None, no LoRAs     -> the terminal authority (active OR the last
+                                          queued switch), with its request LoRAs.
+                                          Operator decision 2026-11-14 (PR #163
+                                          review). It reverses the STABL-ltefhpkk
+                                          active-snapshot rule: a job stamped with
+                                          the active epoch behind a queued switch
+                                          always failed as stale.
+        target_mode None, LoRAs        -> (terminal base mode, LoRAs); the default
+                                          mode when there is no terminal authority.
+        target_mode set                -> (target_mode, LoRAs). No LoRAs means the
+                                          mode as configured.
+        key == terminal's key          -> the terminal authority (active OR a switch
                                           to it already queued).
         anything else                  -> reserve + enqueue the switch; return the
                                           reservation.
 
+        Request LoRAs on a mode with its own loras: raise RequestLoraError before
+        any reservation.
+
         Side-effecting by design: reserve-and-enqueue must be atomic, and a split
         accessor-plus-switch API reintroduces the interleave window this closes.
         """
-        if target_mode is None:
-            return self.get_active_model_snapshot()
+        request_loras = tuple(request_loras)
         with self._job_lock:
             terminal = self._terminal_authority()
-            if terminal is not None and terminal.mode_name == target_mode:
+            if target_mode is None and not request_loras:
                 return terminal
-        self._reserve_and_enqueue_switch(target_mode)
-        with self._job_lock:
-            return self._terminal_authority()
+            if target_mode is None:
+                target_mode = (
+                    terminal.mode_name if terminal is not None
+                    else self._mode_config.get_default_mode()
+                )
+            if terminal is not None and terminal.key == (target_mode, request_loras):
+                return terminal
+        _, authority = self._enqueue_switch(target_mode, request_loras=request_loras)
+        return authority
 
     def reload_current_mode(self) -> dict:
         if self._current_mode is None:
             raise RuntimeError("No active mode to reload")
         self.cancel_pending_generation_jobs(reason="reload_current_mode")
-        self.switch_mode(self._current_mode, force=True).result(timeout=30.0)
+        # Re-target the full key: the base mode is reread, request LoRAs stay.
+        self.switch_mode(
+            self._current_mode, force=True, request_loras=self._current_request_loras
+        ).result(timeout=30.0)
         return {"status": "reloaded", "mode": self._current_mode}
 
     def free_vram(self, reason: str) -> dict:
@@ -1526,6 +1641,7 @@ class Governor:
         with self._job_lock:
             self._active_snapshot = None
             self._current_mode = None
+            self._current_request_loras = ()
         gc.collect()
         self._dm.reclaim()  # soft trim; the worker's own pool was flushed inline at teardown
         return self._build_runtime_status(status="unloaded")
@@ -1538,13 +1654,33 @@ class Governor:
     def is_model_loaded(self) -> bool:
         return self._worker_available()
 
+    def get_current_request_loras(self) -> tuple[LoraSpec, ...]:
+        """The request LoRAs of the loaded authority; () for none."""
+        return self._current_request_loras
+
+    def get_current_loras(self) -> list[dict]:
+        """The LoRAs of the active authority, mode plus request, as path and strength."""
+        snap = self.get_active_model_snapshot()
+        if snap is None:
+            return []
+        return [
+            {"path": spec.path, "strength": spec.strength}
+            for spec in lora_specs_for_mode(snap.mode)
+        ]
+
     def reload_if_current(self, mode_name: str) -> bool:
         if self.get_current_mode() != mode_name:
             return False
         try:
-            self.switch_mode(mode_name, force=True)
+            # Re-target the full key: request LoRAs survive a config reload.
+            self.switch_mode(mode_name, force=True, request_loras=self._current_request_loras)
             return True
-        except Exception:
+        except RequestLoraError:
+            # The edited base mode now has its own loras: while request LoRAs are
+            # loaded. Raise, so the caller reports the conflict (PR #163 review).
+            raise
+        except Exception as e:
+            logger.warning("[Governor] Reload of mode %s not queued: %s", mode_name, e)
             return False
 
     def get_queue_size(self) -> int:

@@ -132,3 +132,42 @@ func TestResolveParamsWithBaselineRandomClearsInheritedSeed(t *testing.T) {
 
 func intp(i int) *int       { return &i }
 func strp(s string) *string { return &s }
+
+// Request LoRA inheritance (STABL-fvwsvjvn, spec section 9).
+func loraList(path string) []any {
+	return []any{map[string]any{"path": path, "strength": 1.0}}
+}
+
+func TestLoraFlagReplacesInheritedLoras(t *testing.T) {
+	flag := loraList("flag.safetensors")
+	got := ResolveParamsWithBaseline(nil,
+		map[string]any{"loras": loraList("baked.safetensors")},
+		map[string]any{"loras": loraList("baseline.safetensors")},
+		Flags{Loras: &flag})
+	l, _ := got["loras"].([]any)
+	if len(l) != 1 || l[0].(map[string]any)["path"] != "flag.safetensors" {
+		t.Fatalf("loras = %#v", got["loras"])
+	}
+}
+
+func TestExplicitModeDropsInheritedLoras(t *testing.T) {
+	got := ResolveParams(nil, map[string]any{"loras": loraList("baked.safetensors")}, Flags{Mode: strp("plain")})
+	if _, ok := got["loras"]; ok {
+		t.Fatalf("explicit --mode must drop inherited loras: %#v", got["loras"])
+	}
+}
+
+func TestBaselineLorasDroppedByExplicitMode(t *testing.T) {
+	got := ResolveParamsWithBaseline(nil, nil, map[string]any{"loras": loraList("baseline.safetensors")}, Flags{Mode: strp("plain")})
+	if _, ok := got["loras"]; ok {
+		t.Fatalf("explicit --mode must drop baseline loras: %#v", got["loras"])
+	}
+}
+
+func TestInheritedLorasKeptWithoutModeOrLora(t *testing.T) {
+	got := ResolveParams(nil, map[string]any{"loras": loraList("baked.safetensors")}, Flags{})
+	l, _ := got["loras"].([]any)
+	if len(l) != 1 || l[0].(map[string]any)["path"] != "baked.safetensors" {
+		t.Fatalf("loras = %#v", got["loras"])
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,7 @@ var (
 	genInitImage       string
 	genRecreate        string
 	genControlnets     []string
+	genLoras           []string
 	genControlnetFile  string
 	genControlRefs     []string
 	genControlImages   []string
@@ -71,6 +73,8 @@ type genArgs struct {
 	ControlImages   []string
 	ControlStrength *float64
 	Outfile         string
+	// Loras holds raw --lora values; nil when the flag is not given.
+	Loras []string
 }
 
 func (a genArgs) toFlags() config.Flags {
@@ -117,6 +121,7 @@ type genFlagValues struct {
 	Outfile         string
 	Stream          bool
 	Quiet           bool
+	Loras           []string
 }
 
 func parseRootGenPatch(argv []string) (genPatch, error) {
@@ -195,6 +200,7 @@ func bindGenFlags(f *pflag.FlagSet, v *genFlagValues) {
 	f.StringArrayVar(&v.ControlRefs, "control-ref", nil, "reuse a control map ref directly: type:<asset-ref> (repeatable)")
 	f.StringArrayVar(&v.ControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
 	f.Float64Var(&v.ControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-ref/--control-image attachments (0.0-2.0; unset = mode default)")
+	f.StringArrayVar(&v.Loras, "lora", nil, loraFlagHelp)
 	f.StringVar(&v.Outfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&v.Stream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&v.Quiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -249,6 +255,9 @@ func genArgsFromFlagSet(f *pflag.FlagSet, v genFlagValues, args []string) genArg
 	if f.Changed("control-strength") {
 		a.ControlStrength = &v.ControlStrength
 	}
+	if f.Changed("lora") {
+		a.Loras = v.Loras
+	}
 	return a
 }
 
@@ -259,7 +268,7 @@ func changedGenFlags(f *pflag.FlagSet) map[string]bool {
 	for _, name := range []string{
 		"prompt", "negative", "size", "steps", "skip-step", "cfg", "denoise-strength", "seed",
 		"scheduler", "mode", "sr", "init-image", "recreate", "controlnet",
-		"controlnet-file", "control-ref", "control-image", "control-strength", "outfile", "stream", "quiet",
+		"controlnet-file", "control-ref", "control-image", "control-strength", "lora", "outfile", "stream", "quiet",
 	} {
 		if f.Changed(name) {
 			changed[name] = true
@@ -341,6 +350,7 @@ func init() {
 	f.StringArrayVar(&genControlRefs, "control-ref", nil, "reuse a control map ref directly: type:<asset-ref> (repeatable)")
 	f.StringArrayVar(&genControlImages, "control-image", nil, "auto-upload a control image and attach it: type:<path> (repeatable)")
 	f.Float64Var(&genControlStrength, "control-strength", 0, "ControlNet conditioning strength for --control-ref/--control-image attachments (0.0-2.0; unset = mode default)")
+	f.StringArrayVar(&genLoras, "lora", nil, loraFlagHelp)
 	f.StringVar(&genOutfile, "outfile", "", "explicit output path (else auto out-####)")
 	f.BoolVar(&genStream, "stream", false, "stream progress as NDJSON to stdout (job_id, progress events, complete)")
 	f.BoolVar(&genQuiet, "quiet", false, "suppress progress and job_id output on stderr")
@@ -373,6 +383,7 @@ func genArgsFromFlags(cmd *cobra.Command, args []string) genArgs {
 		Outfile:         genOutfile,
 		Stream:          genStream,
 		Quiet:           genQuiet,
+		Loras:           genLoras,
 	}, args)
 }
 
@@ -462,7 +473,19 @@ func buildGenParamsWithBaseline(cfg *config.Config, a genArgs, baseline stclient
 	if changed == nil {
 		changed = map[string]bool{}
 	}
-	p := stclient.GenParams(config.ResolveParamsWithBaseline(cfg, baked, baseline, a.toFlags()))
+	flags := a.toFlags()
+	if a.Loras != nil {
+		loras := make([]any, 0, len(a.Loras))
+		for _, raw := range a.Loras {
+			entry, err := parseLoraFlag(raw)
+			if err != nil {
+				return nil, fmt.Errorf("--lora %q: %w", raw, err)
+			}
+			loras = append(loras, entry)
+		}
+		flags.Loras = &loras
+	}
+	p := stclient.GenParams(config.ResolveParamsWithBaseline(cfg, baked, baseline, flags))
 	if raw, ok := p["denoise_strength"]; ok {
 		strength, validType := raw.(float64)
 		if !validType || math.IsNaN(strength) || math.IsInf(strength, 0) || strength < 0.01 || strength > 1.0 {
@@ -935,4 +958,28 @@ func printGenResult(cmd *cobra.Command, path string, res *stclient.Result) error
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "wrote %s (seed %d)\n", path, res.Seed)
 	return nil
+}
+
+const loraFlagHelp = "LoRA for this request: path[:strength], repeatable. Needs a mode without loras:. " +
+	"A LoRA for the wrong model family fails the job and unloads the model. " +
+	"Conflate keeps the LoRAs of its baseline run. Without conflate, a plain st gen " +
+	"sends the config default mode and no LoRAs, so the server reloads that mode as configured."
+
+// parseLoraFlag reads one --lora value as path[:strength] (STABL-fvwsvjvn). The
+// part after the last ':' is the strength when it parses as a float. Otherwise
+// the whole value is the path and the strength is 1.0.
+func parseLoraFlag(v string) (map[string]any, error) {
+	path, strength := v, 1.0
+	if i := strings.LastIndex(v, ":"); i >= 0 {
+		if s, err := strconv.ParseFloat(v[i+1:], 64); err == nil {
+			path, strength = v[:i], s
+		}
+	}
+	if path == "" {
+		return nil, fmt.Errorf("LoRA path is empty")
+	}
+	if math.IsNaN(strength) || math.IsInf(strength, 0) {
+		return nil, fmt.Errorf("LoRA strength must be finite")
+	}
+	return map[string]any{"path": path, "strength": strength}, nil
 }

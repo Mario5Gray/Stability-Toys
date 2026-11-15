@@ -318,7 +318,7 @@ func resetCLIFlagState() {
 	genSteps, genSkipStep, genSR = 0, 0, 0
 	genCfg, genControlStrength, genDenoiseStrength = 0, 0, 0
 	genStream, genQuiet = false, false
-	genControlnets, genControlRefs, genControlImages = nil, nil, nil
+	genControlnets, genControlRefs, genControlImages, genLoras = nil, nil, nil, nil
 	conflateInclusive, conflateExitCodes = nil, nil
 	describeOpts = describeOptions{}
 
@@ -803,5 +803,120 @@ func TestGenDoesNotPreSwitchMode(t *testing.T) {
 	}
 	if params["mode"] != "mode-b" {
 		t.Errorf("params[mode] = %v, want mode-b (must still ship in the submit frame)", params["mode"])
+	}
+}
+
+// TestParseLoraFlag pins --lora path[:strength] parsing (STABL-fvwsvjvn).
+func TestParseLoraFlag(t *testing.T) {
+	cases := []struct {
+		in       string
+		path     string
+		strength float64
+	}{
+		{"ZiT/j80z.safetensors:0.8", "ZiT/j80z.safetensors", 0.8},
+		{"a.safetensors", "a.safetensors", 1.0},
+		{"dir:with:colon", "dir:with:colon", 1.0},
+	}
+	for _, c := range cases {
+		got, err := parseLoraFlag(c.in)
+		if err != nil {
+			t.Fatalf("%q: %v", c.in, err)
+		}
+		if got["path"] != c.path || got["strength"] != c.strength {
+			t.Fatalf("%q: got %#v, want path=%q strength=%v", c.in, got, c.path, c.strength)
+		}
+	}
+	for _, bad := range []string{":0.5", "", "a.safetensors:NaN", "a.safetensors:inf"} {
+		if _, err := parseLoraFlag(bad); err == nil {
+			t.Fatalf("%q: expected an error", bad)
+		}
+	}
+}
+
+func TestGenLoraFlagShipsInParams(t *testing.T) {
+	srv, captured := newScriptedGenServer(t, genReply{Seed: 1}, genReply{Seed: 1})
+	defer srv.Close()
+	cfgPath := writeTestConfig(t, t.TempDir())
+	runCmd(t, "--server", srv.URL, "--config", cfgPath, "gen",
+		"--lora", "b.safetensors:0.5", "--lora", "a.safetensors", "owl")
+	runCmd(t, "--server", srv.URL, "--config", cfgPath, "gen", "owl")
+
+	loras, ok := (*captured)[0]["loras"].([]any)
+	if !ok || len(loras) != 2 {
+		t.Fatalf("loras = %#v", (*captured)[0]["loras"])
+	}
+	first, _ := loras[0].(map[string]any)
+	second, _ := loras[1].(map[string]any)
+	if first["path"] != "b.safetensors" || first["strength"] != 0.5 ||
+		second["path"] != "a.safetensors" || second["strength"] != 1.0 {
+		t.Fatalf("loras order/values = %#v", loras)
+	}
+	if _, ok := (*captured)[1]["loras"]; ok {
+		t.Fatalf("no --lora should ship no loras key: %#v", (*captured)[1])
+	}
+}
+
+func TestGenLoraFlagBadValueErrors(t *testing.T) {
+	_, err := buildGenParams(nil, genArgs{Prompt: "x", Loras: []string{":0.5"}})
+	if err == nil || !strings.Contains(err.Error(), "--lora") {
+		t.Fatalf("expected a --lora error, got %v", err)
+	}
+}
+
+// A conflated plain st gen after a --lora run keeps the baseline mode and LoRAs,
+// so the server sees the same authority key and does not reload. The config
+// default mode must not win over the baseline (STABL-fvwsvjvn).
+func conflateLoraBaseline(t *testing.T) (history.Store, *config.Config) {
+	t.Helper()
+	root := t.TempDir()
+	store := history.NewFSStore(root)
+	baseID, _ := store.ReserveID(context.Background())
+	_ = store.Append(context.Background(), history.Entry{
+		SchemaVersion: 1,
+		ID:            baseID,
+		Family:        history.FamilyGen,
+		Raw:           history.CommandView{Argv: []string{"st", "gen"}, Display: "st gen"},
+		Effective: &history.CommandView{
+			Params: map[string]any{
+				"prompt": "owl", "mode": "plain",
+				"loras": []any{map[string]any{"path": "ZiT/j80z.safetensors", "strength": 0.8}},
+			},
+		},
+		ExitCode: 0,
+	})
+	runCmdWithStateRoot(t, root, "conflate", "history:1")
+	cfg := &config.Config{}
+	cfg.Defaults.Generation.Mode = "m"
+	return store, cfg
+}
+
+func TestConflatedGenKeepsBaselineLoras(t *testing.T) {
+	store, cfg := conflateLoraBaseline(t)
+	patch, err := parseRootGenPatch([]string{"--seed", "7", "--prompt", "owl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, _, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loras, _ := params["loras"].([]any)
+	if params["mode"] != "plain" || len(loras) != 1 || loras[0].(map[string]any)["path"] != "ZiT/j80z.safetensors" {
+		t.Fatalf("params = %#v", params)
+	}
+}
+
+func TestConflatedGenExplicitModeDropsBaselineLoras(t *testing.T) {
+	store, cfg := conflateLoraBaseline(t)
+	patch, err := parseRootGenPatch([]string{"--mode", "plain", "--prompt", "owl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, _, _, err := buildConflatedParams(context.Background(), store, patch, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := params["loras"]; ok || params["mode"] != "plain" {
+		t.Fatalf("explicit --mode must drop baseline loras: %#v", params)
 	}
 }

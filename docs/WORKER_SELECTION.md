@@ -35,8 +35,23 @@ Model selection is driven by the mode system (`conf/modes.yml`), not by ambient
    method `configure_loras`. The HunyuanDiT worker merges Tencent-format LoRAs
    into the transformer at load (STABL-ykowysrg). The Z-Image worker loads
    diffusers, kohya, and ComfyUI LoRAs through diffusers and fuses them into the
-   transformer (STABL-gftujmyi). A mode with `loras:` on any other worker fails
-   the mode load.
+   transformer (STABL-gftujmyi). The SD1.5 and SDXL workers fuse diffusers LoRAs
+   into the UNet and each text encoder through `backends.unet_mode_loras`
+   (STABL-fvwsvjvn). They refuse fp8, sequential CPU offload, and loaded style
+   adapters. A mode with `loras:` on any other worker fails the mode load.
+
+   A generate request can carry a `loras` list (`st gen --lora path[:strength]`).
+   Request LoRAs load only on a mode without `loras:`. The routes check each path
+   against `lora_root` before admission. The governor key is the base mode name
+   plus the request LoRA list. A changed list reloads the worker. The same list
+   runs with no reload. A request LoRA for the wrong family fails the load, and
+   the server has no model until the next valid request.
+
+   A request that names a mode and no LoRAs loads that mode as configured. `st
+   gen` sends the config default mode on every request. So without conflate, a
+   plain `st gen` after a LoRA run reloads the mode without the LoRAs. A
+   conflated `st gen` takes `mode` and `loras` from its baseline run, so the set
+   stays loaded. `--mode` without `--lora` drops the baseline LoRAs.
 
 A known family without a selected backend cell raises `UnsupportedFamilyError`.
 An unresolvable model raises `FamilyResolutionError`. Binding reads and rejected
@@ -86,6 +101,13 @@ A save through `PUT /api/modes` reloads the current mode when its model, LoRA
 paths, or LoRA strengths change. `POST /api/modes/reload` (`st modes reload`)
 rereads the config only. It does not reload the loaded worker. Mode LoRAs are
 merged at load, so a new strength takes effect at the next mode load.
+A `PUT /api/modes` reload keeps the active request LoRAs. A save that gives the
+loaded mode its own `loras:` while request LoRAs are loaded is refused with HTTP
+409, and the config is not written. A race can load request LoRAs after that
+check and before the reload. Then the 409 detail starts with
+`saved, but not reloaded:`. The config is written, and the loaded worker keeps
+its old LoRAs. `/api/models/status` reports
+the active LoRA list as `current_loras`.
 
 ## Example Configuration
 

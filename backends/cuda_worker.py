@@ -33,6 +33,7 @@ from backends.hunyuandit_lora import (
     validate_tencent_lora,
 )
 from backends.mode_loras import LoraSpec
+from backends.unet_mode_loras import UNetModeLoraMixin
 from backends.conditioning.contracts import ConditioningConfig, ConditioningRequest
 from backends.conditioning.registry import build_conditioning_chain
 from backends.family_profiles import (
@@ -957,7 +958,7 @@ class CudaWorkerBase:
         }
 
 
-class DiffusersCudaWorker(CudaWorkerBase):
+class DiffusersCudaWorker(UNetModeLoraMixin, CudaWorkerBase):
     """
     CUDA Diffusers worker for SD1.5 LCM models.
 
@@ -1311,7 +1312,7 @@ class DiffusersCudaWorker(CudaWorkerBase):
         return png_bytes, seed, lat_8.tobytes(order="C")
 
 
-class DiffusersSDXLCudaWorker(CudaWorkerBase):
+class DiffusersSDXLCudaWorker(UNetModeLoraMixin, CudaWorkerBase):
     """
     CUDA Diffusers worker for SDXL (Stable Diffusion XL) models.
 

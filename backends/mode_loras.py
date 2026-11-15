@@ -48,3 +48,27 @@ def apply_mode_loras(worker: Any, mode: Any) -> None:
             "does not support LoRAs"
         )
     hook(specs)
+
+
+class RequestLoraError(ValueError):
+    """A request LoRA list cannot run (STABL-fvwsvjvn)."""
+
+
+def derive_request_mode(mode: Any, specs: tuple[LoraSpec, ...]) -> Any:
+    """Put the request LoRAs on a deep-copied mode and return it.
+
+    No specs: the mode returns unchanged. Request LoRAs never mix with mode
+    LoRAs, so a mode with its own loras: list refuses request LoRAs.
+    """
+    if not specs:
+        return mode
+    if getattr(mode, "loras", None):
+        raise RequestLoraError(
+            f"mode {mode.name!r} has its own loras: list; "
+            "send request LoRAs to a mode without loras:"
+        )
+    from server.mode_config import LoRAConfig
+
+    mode.loras = [LoRAConfig(path=s.path, strength=s.strength) for s in specs]
+    mode.lora_paths = [s.path for s in specs]
+    return mode

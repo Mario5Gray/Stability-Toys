@@ -22,6 +22,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backends.chat_client import ChatCompletionsClient, ChatConfig
 from server.generation_constraints import finalize_mode_generate_request
 from server.mode_config import get_mode_config
+from server.request_loras import admit_generation_request, ensure_request_loras_supported
 from server.ws_hub import hub
 from server import log_context
 from server.tracing import get_tracer
@@ -248,7 +249,11 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             # Admit against the mode this request TARGETS, established atomically with
             # the switch (STABL-ltefhpkk / STABL-iuiwzthc). With no target this returns
             # the active snapshot, exactly as get_active_model_snapshot() did.
-            snapshot = state.worker_pool.admit_generation(getattr(req, "mode", None))
+            # Request LoRAs are checked before admission (STABL-fvwsvjvn). A failure
+            # lands in pre_submit_job_error, so no switch is queued.
+            snapshot = admit_generation_request(
+                state.worker_pool, req, lambda: get_mode_config().config.lora_root
+            )
             has_init_image = bool(params.get("init_image_ref"))
             if snapshot is not None:
                 mode = snapshot.mode
@@ -464,6 +469,7 @@ def _build_generate_request(params: dict):
         superres_magnitude=params.get("superres_magnitude", 2),
         denoise_strength=params.get("denoise_strength", 0.75),
         controlnets=params.get("controlnets"),
+        loras=params.get("loras"),
     )
 
 
@@ -694,6 +700,7 @@ async def _run_generate(ws: WebSocket, client_id: str, job_id: str, params: dict
 
         from server.controlnet_constraints import ensure_controlnet_dispatch_supported
         ensure_controlnet_dispatch_supported(req, supports_controlnet=False)
+        ensure_request_loras_supported(req)
 
         # Resolve optional init image reference
         init_image_bytes = None

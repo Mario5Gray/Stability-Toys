@@ -1053,16 +1053,17 @@ def test_dead_epochs_pruned_on_publish():
             gov.shutdown()
 
 
-def test_admit_generation_with_no_target_returns_active_snapshot():
-    """Spec §3.4: a generate naming no mode means 'the current mode'. It must NOT bind
-    to a pending switch — that is the wrong-model hazard."""
+def test_admit_generation_with_no_target_binds_to_terminal_authority():
+    """A generate naming no mode runs on the terminal authority (STABL-fvwsvjvn spec
+    section 4, operator decision 2026-11-14). This reverses the STABL-ltefhpkk pin
+    to the active snapshot: a job stamped with the active epoch behind a queued
+    switch always failed with StaleResolutionError."""
     with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
         gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
         try:
             _freeze_dispatch(gov)
-            active = gov.get_active_model_snapshot()
-            gov._reserve_authority("mode-b")  # a switch is pending
-            assert gov.admit_generation(None) is active
+            reservation = gov._reserve_authority("mode-b")  # a switch is pending
+            assert gov.admit_generation(None) is reservation
         finally:
             _drain_queue(gov)
             gov.shutdown()

@@ -45,3 +45,12 @@ def test_build_generate_request_passes_through_init_image_ref_and_controlnets_to
     # directly) — asserting its absence here documents that seam rather than
     # exercising a bug.
     assert not hasattr(req, "init_image_ref")
+
+
+def test_loras_pass_through():
+    req = _build_generate_request(
+        {"prompt": "p", "loras": [{"path": "a.safetensors", "strength": 0.8}]}
+    )
+
+    assert req.loras[0].path == "a.safetensors"
+    assert req.loras[0].strength == 0.8
