@@ -777,6 +777,87 @@ control-map provenance (`controlnet_map`) — one JSON key per chunk found.
 
 ---
 
+## Server install
+
+`make install-server` puts the Docker server runtime in an install directory outside the checkout.
+Edit conf and env files there. Those edits do not dirty the git tree.
+
+```bash
+make install-server                          # PREFIX=/opt/stability-toys
+make install-server PREFIX=/srv/stability-toys
+make install-server FORCE=1                  # proceed past a block
+```
+
+`/opt` is root-owned on macOS and Fedora. Before the first install, run this once:
+
+```bash
+sudo mkdir -p /opt/stability-toys && sudo chown "$USER" /opt/stability-toys
+```
+
+The install records the checkout commit in `$PREFIX/VERSION`.
+
+| Install path | Rule |
+|---|---|
+| `compose.yaml` (from `docker-cuda.yml`) | Copied only when absent. |
+| `conf/<file>` (tracked files in `conf/`) | Copied only when absent. |
+| `env.custom` | Created empty only when absent. |
+| `env.prod`, `env.cuda` | Copied on every install. |
+| `store/`, `model/`, `workflows/` | Created empty only when absent. |
+| `VERSION` | Written last on every install. |
+
+Two conditions block an install. A blocked install copies nothing and exits 0.
+
+- A tracked file in the checkout has a change. Untracked files do not count.
+- The checkout commit equals `$PREFIX/VERSION`.
+
+`FORCE=1` proceeds past both blocks. The install then runs as usual.
+The install refuses a `PREFIX` inside the checkout, and a source that is not a git checkout (exit 2).
+
+Before the first start, edit the host paths in `$PREFIX/compose.yaml` by hand.
+Configuration templating is tracked as STABL-vhyfdvmt.
+The install does not start the server, and it does not pull or build an image.
+Build images in the checkout with `make prod-build`.
+
+```bash
+cd /opt/stability-toys && docker compose up -d
+```
+
+## MPS install
+
+`make install-mps` puts the native MPS server in an install directory outside the checkout.
+MPS has no image, so the install copies the server code to `$PREFIX/app`.
+The installed `VERSION` is what runs. A branch switch in the checkout does not change it.
+
+```bash
+make install-mps                             # PREFIX=/opt/stability-toys, CONDA_ENV=stability-toys
+make install-mps CONDA_ENV=dreamer           # use another conda env name
+make install-mps FORCE=1                     # proceed past a block
+```
+
+The install finds `conda` on `PATH`. No `conda` exits 2 with `install-mps: conda not found`.
+Set `CONDA=/path/to/conda` to use another one.
+
+- Env absent: the install creates it with Python 3.12, then installs Torch, `requirements.txt`, `requirements-tracing.txt`, and `requirements-conditioning.txt`.
+- Env present: the install does not change it.
+- A failed create or pip step stops the install before it writes `VERSION`.
+
+| Install path | Rule |
+|---|---|
+| `app/` (tracked code from the checkout) | Replaced on every install. |
+| `conf/<file>` | Copied only when absent. |
+| `env.custom`, `store/`, `certs/` | Created empty only when absent. |
+| `env.mps`, `CONDA_ENV`, `bin/run` | Written on every install. |
+| `VERSION` | Written last on every install. |
+
+The two blocks and `FORCE=1` work as in "Server install".
+`FORCE=1` on a changed tree installs the working-tree content.
+
+Start the server with `$PREFIX/bin/run`. It changes into the prefix, so it works from any directory.
+Set `PORT=` to use a port other than 4200.
+The install does not start the server, does not serve the web UI, and does not sync an existing env to new requirements.
+
+---
+
 ## References & Credits
 
 ### Base Models

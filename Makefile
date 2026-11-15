@@ -31,6 +31,96 @@ uninstall-qrng: ## Remove the qrng symlink from ~/.local/bin
 install-controlnet-scripts: ## Install st-depth-map, st-pose-map, and st-canny-map console scripts (use EXTRAS=[depth|pose|canny|vector|all])
 	pip install "./scripts[$(or $(EXTRAS),all)]"
 
+# Server install (STABL-yztmgiec). Spec: docs/superpowers/specs/2026-11-15-server-install-design.md
+# Blocks (dirty tracked tree, same version) exit 0. FORCE=1 proceeds past them.
+# Refusals (not a git checkout, PREFIX inside the checkout) exit 2.
+# Plain '=' on purpose: a command-line PREFIX= overrides it, an exported PREFIX does not.
+PREFIX = /opt/stability-toys
+
+# Shared install gate. $(1) is the target name. Leaves shell vars top, p, v set.
+define INSTALL_GATE
+top=$$(git rev-parse --show-toplevel 2>/dev/null) || { echo "$(1): not a git checkout" >&2; exit 2; }; \
+	top=$$(cd "$$top" && pwd -P); \
+	p='$(PREFIX)'; p=$${p%/}; \
+	case "$$p" in /*) ;; *) p="$$PWD/$$p" ;; esac; \
+	a="$$p"; rest=""; \
+	while [ ! -d "$$a" ]; do rest="/$${a##*/}$$rest"; a=$${a%/*}; [ -n "$$a" ] || a=/; done; \
+	base=$$(cd "$$a" && pwd -P); [ "$$base" != / ] || base=""; p="$$base$$rest"; \
+	case "$$p/" in "$$top/"*) echo "$(1): PREFIX is inside the checkout: $$p" >&2; exit 2 ;; esac; \
+	v=$$(git rev-parse --short HEAD); \
+	if [ -z "$(FORCE)" ]; then \
+		if [ -n "$$(git status --porcelain --untracked-files=no)" ]; then \
+			echo "$(1): checkout has tracked changes; use FORCE=1"; exit 0; \
+		fi; \
+		if [ -f "$$p/VERSION" ] && [ "$$(cat "$$p/VERSION")" = "$$v" ]; then \
+			echo "$(1): $$v already installed in $$p; use FORCE=1"; exit 0; \
+		fi; \
+	fi
+endef
+
+.PHONY: install-server
+install-server: ## Install the Docker server runtime to PREFIX (default /opt/stability-toys; FORCE=1 proceeds past blocks)
+	@set -e; \
+	$(call INSTALL_GATE,install-server); \
+	mkdir -p "$$p/conf" "$$p/store" "$$p/model" "$$p/workflows"; \
+	seed() { if [ -e "$$2" ]; then echo "kept $$2"; else mkdir -p "$${2%/*}"; cp "$$1" "$$2"; echo "copied $$2"; fi; }; \
+	seed "$$top/docker-cuda.yml" "$$p/compose.yaml"; \
+	git -C "$$top" ls-files conf | while IFS= read -r f; do seed "$$top/$$f" "$$p/$$f"; done; \
+	if [ -e "$$p/env.custom" ]; then echo "kept $$p/env.custom"; else : > "$$p/env.custom"; echo "copied $$p/env.custom"; fi; \
+	for f in env.prod env.cuda; do cp "$$top/$$f" "$$p/$$f"; echo "copied $$p/$$f"; done; \
+	printf '%s\n' "$$v" > "$$p/VERSION"; \
+	echo "installed $$v to $$p"; \
+	echo "start: cd \"$$p\" && docker compose up -d"
+
+# MPS install (STABL-hagblcxg). Spec: docs/superpowers/specs/2026-11-15-mps-install-design.md
+# Plain '=' on purpose: only the command line overrides these.
+CONDA_ENV = stability-toys
+CONDA = $(shell command -v conda 2>/dev/null)
+
+.PHONY: install-mps
+install-mps: ## Install the native MPS server to PREFIX with a conda env (CONDA_ENV=name; FORCE=1 proceeds past blocks)
+	@set -e; \
+	$(call INSTALL_GATE,install-mps); \
+	c='$(CONDA)'; \
+	case "$$c" in /*) ;; ?*) c=$$("$$c" info --base)/condabin/conda ;; esac; \
+	[ -n "$$c" ] && [ -x "$$c" ] || { echo "install-mps: conda not found" >&2; exit 2; }; \
+	e='$(CONDA_ENV)'; \
+	if "$$c" env list | awk -v e="$$e" '$$1==e{f=1} END{exit !f}'; then \
+		echo "kept conda env $$e"; \
+	else \
+		"$$c" create -y -n "$$e" python=3.12; \
+		pip() { "$$c" run -n "$$e" python -m pip install "$$@"; }; \
+		pip torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0; \
+		pip -r "$$top/requirements.txt"; \
+		pip -r "$$top/requirements-tracing.txt"; \
+		pip --no-deps -r "$$top/requirements-conditioning.txt"; \
+		echo "created conda env $$e"; \
+	fi; \
+	mkdir -p "$$p/conf" "$$p/bin"; \
+	rm -rf "$$p/app"; mkdir -p "$$p/app"; \
+	git -C "$$top" ls-files -z server persistence backends invokers utils scripts ':(glob)*.py' ':(glob)*.sh' \
+		| (cd "$$top" && xargs -0 tar -cf -) | tar -xf - -C "$$p/app"; \
+	echo "copied $$p/app"; \
+	seed() { if [ -e "$$2" ]; then echo "kept $$2"; else mkdir -p "$${2%/*}"; cp "$$1" "$$2"; echo "copied $$2"; fi; }; \
+	git -C "$$top" ls-files conf | while IFS= read -r f; do seed "$$top/$$f" "$$p/$$f"; done; \
+	if [ -e "$$p/env.custom" ]; then echo "kept $$p/env.custom"; else : > "$$p/env.custom"; echo "copied $$p/env.custom"; fi; \
+	for d in store certs; do mkdir -p "$$p/$$d"; done; \
+	cp "$$top/env.mps" "$$p/env.mps"; echo "copied $$p/env.mps"; \
+	printf '%s\n' "$$e" > "$$p/CONDA_ENV"; \
+	{ \
+		echo '#!/bin/sh'; \
+		echo "cd \"$$p\" || exit 1"; \
+		echo "exec \"$$c\" run --no-capture-output -n $$e sh -c '"; \
+		echo 'set -a; . ./env.mps; . ./env.custom; set +a'; \
+		echo 'python app/scripts/check_mps_paths.py'; \
+		echo 'exec python -m uvicorn --app-dir app server.lcm_sr_server:app --host 0.0.0.0 --port "$${PORT:-4200}"'; \
+		echo "'"; \
+	} > "$$p/bin/run"; \
+	chmod +x "$$p/bin/run"; \
+	printf '%s\n' "$$v" > "$$p/VERSION"; \
+	echo "installed $$v to $$p"; \
+	echo "start: \"$$p/bin/run\""
+
 .PHONY: prod-build
 prod-build: ## Full prod image build (--no-cache; override: make prod-build BACKEND=cuda PLATFORM=amd64 IMAGE=foo:tag CACHE=1)
 	docker build -f Dockerfile \
