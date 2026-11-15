@@ -154,3 +154,13 @@ Follow-up verification:
 - drift check exited 1. All 48 exact pairs matched the committed baseline and the FP snapshot.
 - FP Task 2 has no Task 1 dependency.
 - No project suite, implementation, native generation, push or deployment ran.
+
+## Operator re-review of 23f1bbd
+
+Verdict: Pass. All six findings closed. No regressions reported.
+Two nonblocking wording nits applied after this verdict:
+- Implementation FP attribution is unconditionally theta.
+- Planning-only wording now describes the completed planning session.
+
+These edits change prose only. Fenced code blocks remain unchanged.
+Implementation remains unauthorized.

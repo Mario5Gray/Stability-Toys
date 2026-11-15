@@ -43,12 +43,8 @@ Before implementation:
 7. Leave all live tasks pending until operator go.
 
 Sigma owns this plan and its revisions.
-Theta is the designated implementation author.
-Before Task 1, confirm the active runtime identity is theta.
-Prefix implementation FP commands with FP_AGENT_NAME='theta' only after that check.
-If the implementation author differs, record the actual identity and revise command prefixes before claiming a task.
-Do not use another agent's name for attribution.
-This session performs planning only.
+Prefix implementation FP commands with FP_AGENT_NAME='theta'.
+The planning session performed planning only.
 Use the dedicated stability-toys environment:
 ```bash
 conda activate stability-toys
