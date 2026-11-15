@@ -822,6 +822,40 @@ Build images in the checkout with `make prod-build`.
 cd /opt/stability-toys && docker compose up -d
 ```
 
+## MPS install
+
+`make install-mps` puts the native MPS server in an install directory outside the checkout.
+MPS has no image, so the install copies the server code to `$PREFIX/app`.
+The installed `VERSION` is what runs. A branch switch in the checkout does not change it.
+
+```bash
+make install-mps                             # PREFIX=/opt/stability-toys, CONDA_ENV=stability-toys
+make install-mps CONDA_ENV=dreamer           # use another conda env name
+make install-mps FORCE=1                     # proceed past a block
+```
+
+The install finds `conda` on `PATH`. No `conda` exits 2 with `install-mps: conda not found`.
+Set `CONDA=/path/to/conda` to use another one.
+
+- Env absent: the install creates it with Python 3.12, then installs Torch, `requirements.txt`, `requirements-tracing.txt`, and `requirements-conditioning.txt`.
+- Env present: the install does not change it.
+- A failed create or pip step stops the install before it writes `VERSION`.
+
+| Install path | Rule |
+|---|---|
+| `app/` (tracked code from the checkout) | Replaced on every install. |
+| `conf/<file>` | Copied only when absent. |
+| `env.custom`, `store/`, `certs/` | Created empty only when absent. |
+| `env.mps`, `CONDA_ENV`, `bin/run` | Written on every install. |
+| `VERSION` | Written last on every install. |
+
+The two blocks and `FORCE=1` work as in "Server install".
+`FORCE=1` on a changed tree installs the working-tree content.
+
+Start the server with `$PREFIX/bin/run`. It changes into the prefix, so it works from any directory.
+Set `PORT=` to use a port other than 4200.
+The install does not start the server, does not serve the web UI, and does not sync an existing env to new requirements.
+
 ---
 
 ## References & Credits
