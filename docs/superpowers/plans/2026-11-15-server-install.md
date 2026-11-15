@@ -18,7 +18,7 @@
 - Version: `git rev-parse --short HEAD`, stored in `$(PREFIX)/VERSION`, written last.
 - Dirty means `git status --porcelain --untracked-files=no` is not empty.
 - A block (dirty, or version equal to `$(PREFIX)/VERSION`) prints the reason, copies nothing, and exits 0.
-- `FORCE=1` removes both blocks. It does not change any copy rule.
+- `FORCE=1` means "proceed to install". The install then runs as programmed. Force has no other behavior. Refusals (exit 2) are errors, not blocks, so force does not skip them.
 - Copy only when absent: `compose.yaml` (from `docker-cuda.yml`), `conf/<file>` for each `git ls-files conf` entry, empty `env.custom`.
 - Copy every install: `env.prod`, `env.cuda`.
 - Create empty when absent: `store/`, `model/`, `workflows/`.

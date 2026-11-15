@@ -72,7 +72,7 @@ make install-server [PREFIX=/opt/stability-toys] [FORCE=1]
 | `store/`, `model/`, `workflows/` | none | Create empty only when absent. They match the compose defaults. |
 | `VERSION` | `git rev-parse --short HEAD` | Write last on every install. |
 
-`FORCE=1` does not change the copy rules. It only removes the blocks.
+`FORCE=1` means "proceed to install". The install then runs as programmed. Force has no other behavior.
 
 ### Output
 
@@ -97,7 +97,7 @@ It ends with the command to start the server from the prefix: `cd $(PREFIX) && d
 
 - Compose is copied only when absent. The operator answered "correct" to that proposal.
 - A blocked install exits 0, because a no-op is a success for an idempotent install.
-- `FORCE=1` does not overwrite conf, compose, or `env.custom`. The operator rule "conf is only copied when absent" has no force exception.
+- The two refusals (PREFIX inside the checkout, no git checkout) are errors, not blocks. `FORCE=1` does not skip them.
 - Only tracked changes make the checkout dirty, and only tracked conf files are copied. The operator checkout holds about 22 untracked files, so a plain `git status --porcelain` check would require `FORCE=1` on every install.
 - A `PREFIX` inside the checkout is refused, because the install never writes into the checkout.
 - A source that is not a git checkout is refused with a nonzero exit. The install cannot record a version without a commit.
