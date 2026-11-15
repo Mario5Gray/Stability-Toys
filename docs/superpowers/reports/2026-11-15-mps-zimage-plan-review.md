@@ -117,8 +117,9 @@ Run each equality case three times and record every result.
 - `agent-policy.rdf` is absent from the installed root and the source root.
 - docs/WORKER_SELECTION.md:77 still says zimage has no MPS binding.
 
-## Open item
+## Resolved item
 
 The plan sets `FP_AGENT_NAME='sigma'` for implementation commands.
-FP comments currently record the user's email as author.
-Confirm the agent name for implementation comments before Task 1.
+This Claude session is theta.
+sigma is a separate agent.
+The plan now uses `FP_AGENT_NAME='theta'`.

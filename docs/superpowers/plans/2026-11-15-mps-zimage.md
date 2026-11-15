@@ -42,7 +42,9 @@ Before implementation:
 6. Record current native runtime and exact test baseline.
 7. Leave all live tasks pending until operator go.
 
-Prefix FP commands with FP_AGENT_NAME='sigma'.
+Prefix FP commands with FP_AGENT_NAME='theta'.
+theta is this implementing session.
+sigma is a separate agent and does not run these commands.
 Use the dedicated stability-toys environment:
 ```bash
 conda activate stability-toys
@@ -917,7 +919,7 @@ Unrelated stale anchors must remain explicit baseline exceptions.
 git diff --check
 git status --short
 git log -5 --oneline
-FP_AGENT_NAME='sigma' fp tree STABL-zubknmov
+FP_AGENT_NAME='theta' fp tree STABL-zubknmov
 ```
 
 Review the implementation against every design contract and acceptance case.
