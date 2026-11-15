@@ -1,7 +1,7 @@
 # Request-Time LoRA — Design
 
 FP issue: STABL-fvwsvjvn
-Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance. Revision 5 adds sidecar containment. Revision 6 folds in the PR #163 review: row 1 of the section 4 table binds to the terminal authority, and a config save conflict is refused (section 6).
+Status: approved 2026-11-14 (revision 3: request LoRAs only on modes without `loras:`). Revision 4 folds in the plan review: weight-file selection, error contract, CLI inheritance. Revision 5 adds sidecar containment. Revision 6 folds in the PR #163 review: row 1 of the section 4 table binds to the terminal authority, and a config save conflict is refused (section 6). Revision 7 states that a 409 from a race after the save means the config was written (section 6).
 Builds on: STABL-ykowysrg (HunyuanDiT mode LoRA, PR #161), STABL-gftujmyi (Z-Image mode LoRA, PR #162)
 Proven host: enigma (CUDA). Container `stability-toys-dev` runs `docker-compose.dev.yml` with source bind mounts.
 
@@ -129,7 +129,12 @@ Idle eviction keeps the snapshot. A demand reload restores the request LoRAs.
 The base mode is reread from config. The request LoRAs stay.
 This is my call. It follows the anti-goal about config reloads.
 
-A save (`PUT /api/modes` or `POST /api/modes/{name}`) that gives the loaded base mode its own `loras:` while request LoRAs are loaded is refused with HTTP 409. The config is not written. The two LoRA kinds never mix, so that reload could not run. (Revision 6, PR #163 review.)
+A save (`PUT /api/modes` or `POST /api/modes/{name}`) that gives the loaded base mode its own `loras:` while request LoRAs are loaded is refused with HTTP 409. The two LoRA kinds never mix, so that reload could not run. (Revision 6, PR #163 review.)
+
+The 409 has two states. (Revision 7, PR #163 re-review.)
+
+- A conflict found before the save gives a 409, and the config is not written.
+- A conflict that starts after the check and before the reload gives a 409 with detail `saved, but not reloaded: ...`. The config is written. The loaded worker keeps its old authority.
 
 ### 7. SD1.5 and SDXL workers
 
