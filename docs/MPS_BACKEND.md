@@ -56,6 +56,11 @@ For provider, factory, and family-binding flow, see
    filesystem storage paths before it starts the server. It stops if a required
    path does not exist. The target refuses the Miniforge base env, because that
    env drifts outside the project pins.
+   The target binds `0.0.0.0` on port 4200 (c43ccce). The manual command above
+   binds `127.0.0.1`. Change `--host` to match the target.
+
+   `make install-mps` copies the server code, conf, and env files to an install
+   directory and writes `bin/run`. See `README.md`, section "MPS install".
 
    `env.mps` uses filesystem storage at `./store` by default. Create that
    directory before startup. Export `FS_STORAGE_DIR` to use another location.
