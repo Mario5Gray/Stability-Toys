@@ -61,7 +61,7 @@ def test_mps_provider_binds_known_families_and_shares_runtime(mps_backend):
 
     provider = get_backend_provider()
     assert provider.backend_id == "mps"
-    assert set(MPS_FAMILY_BINDINGS) == {"sd15", "hunyuandit"}
+    assert set(MPS_FAMILY_BINDINGS) == {"sd15", "hunyuandit", "zimage"}
     cell = provider.family_binding("sd15")
     assert cell.worker_ref == "backends.mps_worker.DiffusersMpsWorker"
     # Text-to-image, img2img, ControlNet, and their combined operation.
@@ -139,7 +139,7 @@ def test_mps_factory_builds_the_bound_sd15_worker(mps_backend, monkeypatch):
     }
 
 
-WORKER_REF_FAMILIES = ("sd15", "hunyuandit")
+WORKER_REF_FAMILIES = ("sd15", "hunyuandit", "zimage")
 
 
 @pytest.mark.parametrize("family_id", WORKER_REF_FAMILIES)
@@ -147,7 +147,8 @@ def test_mps_worker_ref_resolves_in_a_fresh_interpreter(family_id):
     """The bound dotted ref must import and subclass the shared worker base.
 
     This runs in a subprocess because importing the worker pulls in Torch, which
-    the in-process import-cleanliness tests above forbid.
+    the in-process import-cleanliness tests above forbid. Z-Image runs a
+    different policy object, so the case checks the backend identity.
     """
     result = subprocess.run(
         [
@@ -156,15 +157,30 @@ def test_mps_worker_ref_resolves_in_a_fresh_interpreter(family_id):
             "from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS; "
             "from backends.worker_factory import _resolve_worker_class; "
             "from backends.cuda_worker import CudaWorkerBase; "
-            "from backends.platforms.mps_policy import MPS_TORCH_POLICY; "
             f"cls = _resolve_worker_class(MPS_FAMILY_BINDINGS['{family_id}'].worker_ref); "
             "assert issubclass(cls, CudaWorkerBase), cls; "
-            "assert cls.execution_policy is MPS_TORCH_POLICY",
+            "assert cls.execution_policy.backend_id == 'mps', cls",
         ],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_mps_zimage_binding():
+    """One zimage cell covers Z-Image-Turbo and Z-Image base.
+
+    The cell is development wiring until the Turbo and Base native acceptance
+    tasks pass.
+    """
+    from backends.platforms.base import ExecutionCapabilities
+    from backends.platforms.mps_bindings import MPS_FAMILY_BINDINGS
+
+    cell = MPS_FAMILY_BINDINGS["zimage"]
+    assert cell.worker_ref == "backends.zimage_mps_worker.DiffusersZImageMpsWorker"
+    # Text-to-image and plain img2img. ControlNet and the combined operation
+    # stay refused.
+    assert cell.execution_capabilities == ExecutionCapabilities(True, False, False)
 
 
 def test_the_worker_ref_cases_cover_every_mps_family():

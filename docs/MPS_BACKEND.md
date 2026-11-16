@@ -1,7 +1,7 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-It binds two families:
+It binds three families:
 
 - **`sd15` LCM**, for text-to-image, img2img, one Canny ControlNet attachment,
   and the combined img2img + ControlNet operation with that one attachment.
@@ -11,6 +11,10 @@ It binds two families:
   ControlNet attachment. The combined img2img + ControlNet operation stays
   unbound on MPS. `hunyuandit` accepts no second attachment and no timing
   window.
+- **`zimage`**, for text-to-image and plain img2img. One cell covers
+  Z-Image-Turbo and Z-Image base. ControlNet and the combined operation stay
+  refused. The binding is development wiring until the Turbo and Base native
+  acceptance tasks pass.
 
 No other family loads on MPS. `sdxl` is unbound.
 
@@ -167,7 +171,13 @@ The server starts without a model when the default mode has no MPS binding.
 - **No `run_job_with_latents`.** Production generation calls `run_job` only.
 - **Mode switch returns HTTP 422** for an unbound family, with that message
   as the detail.
-- **float16 only.** The policy always resolves `device="mps"` and `torch.float16`.
+- **float16 for the default policy.** SD1.5 and HunyuanDiT resolve
+  `device="mps"` and `torch.float16`.
+- **Z-Image resolves bf16.** `ZImageMpsTorchPolicy` selects `torch.bfloat16`.
+  It checks one small bf16 MPS operation before a weight load, and it refuses
+  `PYTORCH_ENABLE_MPS_FALLBACK`. `CUDA_DTYPE` does not select this dtype, and
+  the worker logs an ignored override. This binding is development wiring until
+  the Turbo and Base native acceptance tasks pass.
 - **The MPS policy reads the `CUDA_*` env names.** There are no `MPS_*` names.
   It raises on:
   - `CUDA_OFFLOAD` other than `none` (also a mode's `runtime_offload`)

@@ -18,7 +18,11 @@ from diffusers import ZImageImg2ImgPipeline, ZImagePipeline, ZImageTransformer2D
 from safetensors.torch import save_file  # noqa: E402
 
 from backends.mode_loras import LoraSpec  # noqa: E402
-from backends.zimage_cuda_worker import DiffusersZImageCudaWorker, ZImageLoraError  # noqa: E402
+from backends.zimage_cuda_worker import (  # noqa: E402
+    DiffusersZImageCudaWorker,
+    ZImageLoraError,
+)
+from backends.zimage_mps_worker import DiffusersZImageMpsWorker  # noqa: E402
 
 TARGET = "layers.0.attention.to_q"
 
@@ -37,8 +41,13 @@ def _tiny_transformer() -> ZImageTransformer2DModel:
     )
 
 
-def _worker() -> DiffusersZImageCudaWorker:
-    w = DiffusersZImageCudaWorker.__new__(DiffusersZImageCudaWorker)
+@pytest.fixture(params=[DiffusersZImageCudaWorker, DiffusersZImageMpsWorker])
+def worker_type(request):
+    return request.param
+
+
+def _worker(worker_type=DiffusersZImageCudaWorker):
+    w = worker_type.__new__(worker_type)
     w.pipe = ZImagePipeline(
         scheduler=None, vae=None, text_encoder=None, tokenizer=None, transformer=_tiny_transformer()
     )
@@ -76,8 +85,8 @@ def _clone(worker) -> dict[str, torch.Tensor]:
     return {k: v.detach().clone() for k, v in worker.pipe.transformer.state_dict().items()}
 
 
-def test_fused_weight_matches_lora_math(tmp_path):
-    w = _worker()
+def test_fused_weight_matches_lora_math(tmp_path, worker_type):
+    w = _worker(worker_type)
     base = _module(w, TARGET).weight.detach().clone()
     lora = _comfy_lora(w, [TARGET])
     path = _save(tmp_path / "a.safetensors", lora)
@@ -88,8 +97,8 @@ def test_fused_weight_matches_lora_math(tmp_path):
     torch.testing.assert_close(_module(w, TARGET).weight.float(), expected, atol=1e-5, rtol=0)
 
 
-def test_two_loras_add(tmp_path):
-    w = _worker()
+def test_two_loras_add(tmp_path, worker_type):
+    w = _worker(worker_type)
     base = _module(w, TARGET).weight.detach().clone()
     l1 = _comfy_lora(w, [TARGET], seed=1)
     l2 = _comfy_lora(w, [TARGET], seed=2)
@@ -102,10 +111,10 @@ def test_two_loras_add(tmp_path):
     torch.testing.assert_close(_module(w, TARGET).weight.float(), expected, atol=1e-5, rtol=0)
 
 
-def test_no_adapter_layers_remain(tmp_path):
+def test_no_adapter_layers_remain(tmp_path, worker_type):
     from peft.tuners.tuners_utils import BaseTunerLayer
 
-    w = _worker()
+    w = _worker(worker_type)
     path = _save(tmp_path / "a.safetensors", _comfy_lora(w, [TARGET, "layers.1.attention.to_k"]))
 
     w.configure_loras([LoraSpec(path, 1.0)])
@@ -114,8 +123,8 @@ def test_no_adapter_layers_remain(tmp_path):
     assert tuners == []
 
 
-def test_zero_strength_leaves_weights(tmp_path):
-    w = _worker()
+def test_zero_strength_leaves_weights(tmp_path, worker_type):
+    w = _worker(worker_type)
     before = _clone(w)
     path = _save(tmp_path / "a.safetensors", _comfy_lora(w, [TARGET]))
 
@@ -127,8 +136,8 @@ def test_zero_strength_leaves_weights(tmp_path):
         torch.testing.assert_close(after[k], v, atol=0, rtol=0)
 
 
-def test_foreign_lora_refuses(tmp_path):
-    w = _worker()
+def test_foreign_lora_refuses(tmp_path, worker_type):
+    w = _worker(worker_type)
     g = torch.Generator().manual_seed(0)
     sdxl = {
         "lora_unet_down_blocks_0_attentions_0_proj_in.lora_down.weight": torch.randn(4, 320, generator=g),
@@ -140,16 +149,16 @@ def test_foreign_lora_refuses(tmp_path):
         w.configure_loras([LoraSpec(path, 1.0)])
 
 
-def test_non_finite_strength_refuses_before_load(tmp_path):
-    w = _worker()
+def test_non_finite_strength_refuses_before_load(tmp_path, worker_type):
+    w = _worker(worker_type)
     missing = str(tmp_path / "does-not-exist.safetensors")
 
     with pytest.raises(ZImageLoraError, match="strength"):
         w.configure_loras([LoraSpec(missing, float("inf"))])
 
 
-def test_directory_with_one_file_loads(tmp_path):
-    w = _worker()
+def test_directory_with_one_file_loads(tmp_path, worker_type):
+    w = _worker(worker_type)
     base = _module(w, TARGET).weight.detach().clone()
     d = tmp_path / "lora_dir"
     d.mkdir()
@@ -160,8 +169,8 @@ def test_directory_with_one_file_loads(tmp_path):
     assert not torch.equal(_module(w, TARGET).weight, base)
 
 
-def test_directory_with_two_files_refuses(tmp_path):
-    w = _worker()
+def test_directory_with_two_files_refuses(tmp_path, worker_type):
+    w = _worker(worker_type)
     d = tmp_path / "lora_dir"
     d.mkdir()
     _save(d / "a.safetensors", _comfy_lora(w, [TARGET], seed=1))
@@ -171,18 +180,19 @@ def test_directory_with_two_files_refuses(tmp_path):
         w.configure_loras([LoraSpec(str(d), 1.0)])
 
 
-def test_logs_targeted_module_count(tmp_path, caplog):
-    w = _worker()
+def test_logs_targeted_module_count(tmp_path, caplog, worker_type):
+    w = _worker(worker_type)
     path = _save(tmp_path / "a.safetensors", _comfy_lora(w, [TARGET]))
 
     with caplog.at_level(logging.INFO, logger="backends.zimage_cuda_worker"):
         w.configure_loras([LoraSpec(path, 0.7)])
 
     assert "strength=0.7 modules=1" in caplog.text
+    assert f"[{worker_type.log_tag}]" in caplog.text
 
 
-def test_img2img_pipe_shares_fused_transformer(tmp_path):
-    w = _worker()
+def test_img2img_pipe_shares_fused_transformer(tmp_path, worker_type):
+    w = _worker(worker_type)
     base = _module(w, TARGET).weight.detach().clone()
     path = _save(tmp_path / "a.safetensors", _comfy_lora(w, [TARGET]))
 
@@ -196,8 +206,8 @@ def test_img2img_pipe_shares_fused_transformer(tmp_path):
     assert not torch.equal(img2img.transformer.get_submodule(TARGET).weight, base)
 
 
-def test_partial_fit_lora_refuses(tmp_path):
-    w = _worker()
+def test_partial_fit_lora_refuses(tmp_path, worker_type):
+    w = _worker(worker_type)
     base = _module(w, TARGET).weight.detach().clone()
     lora = _comfy_lora(w, [TARGET])
     lora["diffusion_model.not_a_module.lora_A.weight"] = torch.randn(4, 64)

@@ -39,4 +39,12 @@ MPS_FAMILY_BINDINGS: dict[str, FamilyPlatformBinding] = {
             allowed_control_types=("canny", "depth", "pose"), max_attachments=1
         ),
     ),
+    # Z-Image Turbo and base text-to-image and plain img2img. One cell covers
+    # both variants. ControlNet and the combined operation stay refused.
+    # Development wiring until the native Turbo and Base acceptance tasks pass
+    # (STABL-vklkdewe, STABL-nxonrqlm, STABL-hrlcjzvh).
+    "zimage": FamilyPlatformBinding(
+        "backends.zimage_mps_worker.DiffusersZImageMpsWorker",
+        ExecutionCapabilities(True, False, False),
+    ),
 }
