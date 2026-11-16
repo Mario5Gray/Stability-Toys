@@ -628,11 +628,18 @@ def generate(req: GenerateRequest):
     # request TARGETS, established atomically with the switch. Replaces the former
     # blocking switch_mode(...).result(30s) — the switch is now queued ahead of the
     # job and the job is stamped against the authority that switch will publish.
-    if supports_modes and hasattr(runtime, "admit_generation"):
+    # Pool runtimes (CUDA, MPS) hold admission on the worker pool, not on the
+    # runtime object. The WS route passes state.worker_pool (STABL-zlytrwcg);
+    # HTTP must use the same authority, or it silently skips the mode switch
+    # and refuses request LoRAs.
+    admission_runtime = runtime
+    if not hasattr(admission_runtime, "admit_generation"):
+        admission_runtime = getattr(app.state, "worker_pool", None)
+    if supports_modes and hasattr(admission_runtime, "admit_generation"):
         # Request LoRAs are checked before admission, so a bad path queues no switch.
         try:
             snapshot = admit_generation_request(
-                runtime, req, lambda: get_mode_config().config.lora_root
+                admission_runtime, req, lambda: get_mode_config().config.lora_root
             )
         except RequestLoraError as e:
             raise HTTPException(status_code=400, detail=str(e))
