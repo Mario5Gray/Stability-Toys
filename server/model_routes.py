@@ -194,6 +194,12 @@ async def get_models_status(request: Request):
         except Exception:
             supports_describe = False  # no config / unknown mode -> capability off
 
+    # Pool runtimes (CUDA, MPS) report LoRAs through the worker pool, not the
+    # runtime object (STABL-rsmwzdsg). Read the same authority admission uses.
+    loras_source = runtime
+    if not callable(getattr(loras_source, "get_current_loras", None)):
+        loras_source = getattr(request.app.state, "worker_pool", None)
+
     return {
         "backend": provider.backend_id,
         "backend_version": backend_version,
@@ -206,7 +212,7 @@ async def get_models_status(request: Request):
         "is_loaded": runtime.is_model_loaded(),
         "queue_size": runtime.get_queue_size(),
         # Mode LoRAs plus request LoRAs of the loaded authority (STABL-fvwsvjvn).
-        "current_loras": _current_loras(runtime),
+        "current_loras": _current_loras(loras_source),
         "capabilities": {
             "supports_generation": caps.supports_generation,
             "supports_modes": caps.supports_modes,

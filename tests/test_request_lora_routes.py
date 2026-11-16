@@ -258,10 +258,45 @@ async def test_models_status_has_current_loras():
     assert data["current_loras"] == [{"path": "/l/a.safetensors", "strength": 0.8}]
 
 
+async def test_models_status_reads_pool_when_runtime_lacks_current_loras():
+    """Pool runtimes (CUDA, MPS) report LoRAs through the worker pool.
+
+    PoolGenerationRuntime has no get_current_loras. The worker pool does.
+    Status must read the pool, or it reports [] while LoRAs are loaded
+    (STABL-rsmwzdsg).
+    """
+    runtime = Mock(spec=["get_active_model_snapshot", "get_current_mode",
+                         "is_model_loaded", "get_queue_size"])
+    runtime.get_active_model_snapshot.return_value = None
+    runtime.get_current_mode.return_value = "ZImage-Turbo"
+    runtime.is_model_loaded.return_value = True
+    runtime.get_queue_size.return_value = 0
+    pool = Mock()
+    pool.get_current_loras.return_value = [{"path": "/l/a.safetensors", "strength": 0.7}]
+    registry = Mock()
+    registry.get_vram_stats.return_value = {}
+    provider = Mock()
+    provider.backend_id = "mps"
+    provider.capabilities.return_value = SimpleNamespace(
+        supports_generation=True, supports_modes=True, supports_superres=True,
+        supports_model_registry_stats=True, supports_img2img=True,
+    )
+    request = SimpleNamespace(app=SimpleNamespace(
+        state=SimpleNamespace(generation_runtime=None, worker_pool=pool)))
+
+    with patch("server.model_routes.get_backend_provider", return_value=provider), \
+            patch("server.model_routes.get_generation_runtime", return_value=runtime), \
+            patch("server.model_routes.get_model_registry", return_value=registry), \
+            patch.dict(os.environ, {"BACKEND_VERSION": "dev"}, clear=False):
+        data = await model_routes.get_models_status(request)
+
+    assert not hasattr(runtime, "get_current_loras")
+    assert data["current_loras"] == [{"path": "/l/a.safetensors", "strength": 0.7}]
+
+
 # ------------------------------------------------- runtimes without the mode system
 # A runtime with no mode system cannot load LoRAs. Request LoRAs must be refused,
 # never dropped: a job must not run on a LoRA set other than the one it named.
-
 
 def test_http_loras_without_mode_system_is_400(root):
     runtime = MagicMock(spec=["submit_generate"])
