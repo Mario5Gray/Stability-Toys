@@ -93,6 +93,37 @@ def test_http_no_loras_admits_with_mode_only(http):
     runtime.admit_generation.assert_called_once_with("plain")
 
 
+def test_http_uses_worker_pool_when_runtime_lacks_admission(root):
+    """Pool runtimes (CUDA, MPS) hold admission; the HTTP route must use the pool.
+
+    app.state.generation_runtime is PoolGenerationRuntime, which has switch_mode
+    but no admit_generation. WebSocket passes state.worker_pool. HTTP must too,
+    or mode switching and request LoRAs never reach admission (STABL-zlytrwcg).
+    """
+    runtime = MagicMock(spec=["switch_mode", "get_current_mode",
+                             "get_active_model_snapshot", "submit_generate", "wait_for_result"])
+    pool = MagicMock(spec=["switch_mode", "get_current_mode", "admit_generation",
+                           "get_active_model_snapshot"])
+    pool.admit_generation.side_effect = _StopAfterAdmission("stop")
+    test_app = FastAPI()
+    test_app.post("/generate")(srv.generate)
+    mock_app = MagicMock()
+    mock_app.state.generation_runtime = runtime
+    mock_app.state.worker_pool = pool
+    with patch.object(srv, "app", mock_app), \
+            patch("server.lcm_sr_server.get_mode_config", return_value=_mode_config(root)):
+        client = TestClient(test_app, raise_server_exceptions=False)
+        client.post("/generate", json={
+            "prompt": "p", "mode": "plain",
+            "loras": [{"path": "a.safetensors", "strength": 0.8}],
+        })
+
+    assert hasattr(runtime, "admit_generation") is False
+    pool.admit_generation.assert_called_once_with(
+        "plain", (LoraSpec(str((root / "a.safetensors").resolve()), 0.8),)
+    )
+
+
 def test_http_admission_request_lora_error_is_400(http):
     client, runtime = http
     runtime.admit_generation.side_effect = RequestLoraError(
