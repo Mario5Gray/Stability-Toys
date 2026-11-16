@@ -441,6 +441,28 @@ def test_unwritable_store_root_raises(tmp_path, seams):
     assert seams.bf16 == 0
 
 
+def test_build_sees_the_requested_device_and_dtype(tmp_path, seams):
+    model = _model(tmp_path)
+    store = tmp_path / "store"
+    dtype = object()
+    result = load_int8_text_encoder(str(model), device="mps", dtype=dtype, store_root=store)
+    assert seams.bf16 == 1
+    assert result["device"] == "mps"
+    assert result["quantized"]["dtype"] is dtype
+
+
+def test_hit_loads_on_the_requested_device(tmp_path, seams):
+    model = _model(tmp_path)
+    store = tmp_path / "store"
+    load_int8_text_encoder(str(model), device="mps", dtype="bf16", store_root=store)
+    seams.bf16 = 0
+    result = load_int8_text_encoder(str(model), device="mps", dtype="bf16", store_root=store)
+    assert seams.bf16 == 0
+    assert seams.load == 1
+    assert result["device"] == "mps"
+    assert result["loaded"] == str(store / _key(model))
+
+
 def test_module_imports_without_torch():
     code = (
         "import sys\n"
