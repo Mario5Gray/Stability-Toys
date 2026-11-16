@@ -178,15 +178,18 @@ The server starts without a model when the default mode has no MPS binding.
   `PYTORCH_ENABLE_MPS_FALLBACK`. `CUDA_DTYPE` does not select this dtype, and
   the worker logs an ignored override. This binding is development wiring until
   the Turbo and Base native acceptance tasks pass.
-- **The MPS policy reads the `CUDA_*` env names.** There are no `MPS_*` names.
-  It raises on:
+- **The default policy (SD1.5 and HunyuanDiT) reads the `CUDA_*` env names.**
+  There are no `MPS_*` names. It raises on:
   - `CUDA_OFFLOAD` other than `none` (also a mode's `runtime_offload`)
   - `CUDA_QUANTIZE` other than `none`, so no fp8 quantization (also `runtime_quantize`)
   - `CUDA_ENABLE_XFORMERS` true (also `runtime_enable_xformers`)
-  - `CUDA_DTYPE` other than `fp16` (case-insensitive)
-  - an empty `CUDA_DTYPE`, `CUDA_OFFLOAD`, or `CUDA_QUANTIZE`. A set but
-    empty value is rejected, not defaulted. Only an unset name takes the
-    default (`fp16`, `none`, `none`)
+  - `CUDA_DTYPE` other than `fp16` (case-insensitive), or an empty
+    `CUDA_DTYPE`. A set but empty value is rejected, not defaulted. Only an
+    unset name takes the default (`fp16`, `none`, `none`)
+
+  The `zimage` policy reads the offload, quantize, xformers, and
+  attention-slicing rules through this same code. It does not read
+  `CUDA_DTYPE`: it always selects bf16.
 
   An empty `CUDA_ENABLE_XFORMERS` or `CUDA_ATTENTION_SLICING` reads as false.
   It ignores `CUDA_DEVICE`: the device is always `mps`. It honors
