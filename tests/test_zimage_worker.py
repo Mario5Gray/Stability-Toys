@@ -10,7 +10,7 @@ import importlib
 import io
 import sys
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 from PIL import Image as PILImage
@@ -819,3 +819,132 @@ def test_release_cache_runs_after_failure(env):
         with pytest.raises(ValueError):
             _run(env, _job())
     env.worker.execution_policy.release_cache.assert_called_once()
+
+
+# --- MPS worker (STABL-lcfvhjog) -------------------------------------------
+
+MPS_LOG_TAG_PREFIX = "[zimage-mps] job="
+
+
+def _fake_torch_mps():
+    # Every CUDA hook raises: an MPS job must never reach one.
+    fake = MagicMock()
+    fake.inference_mode = MagicMock
+    for hook in (
+        "synchronize",
+        "reset_peak_memory_stats",
+        "max_memory_allocated",
+        "max_memory_reserved",
+    ):
+        getattr(fake.cuda, hook).side_effect = AssertionError(f"CUDA {hook} on MPS")
+    fake.mps.synchronize.return_value = None
+    return fake
+
+
+def _mps_ready():
+    return (
+        patch("backends.platforms.zimage_mps_policy._check_bf16_available"),
+        patch("torch.backends.mps.is_built", return_value=True),
+        patch("torch.backends.mps.is_available", return_value=True),
+    )
+
+
+def test_mps_constructor_loads_int8_on_mps(zw, fake_load):
+    from backends.zimage_mps_worker import DiffusersZImageMpsWorker
+    from backends.platforms.zimage_mps_policy import ZIMAGE_MPS_TORCH_POLICY
+
+    bf16_check, is_built, is_available = _mps_ready()
+    with bf16_check as check, is_built, is_available:
+        worker = DiffusersZImageMpsWorker(
+            worker_id=0,
+            model_path=fake_load.model_dir,
+            model_info=_model_info(),
+        )
+    check.assert_called_once_with()
+    assert worker.device == "mps"
+    assert worker.dtype is zw.torch.bfloat16
+    assert worker.execution_policy is ZIMAGE_MPS_TORCH_POLICY
+    fake_load.store.assert_called_once_with(
+        fake_load.model_dir, device="mps", dtype=zw.torch.bfloat16,
+    )
+    assert worker._try_reset_peak_memory() is False
+    assert worker._try_read_peak_memory() is None
+
+
+@pytest.fixture
+def mps_env(zw, fake_load, monkeypatch):
+    from backends.conditioning.artifacts import DelegatedConditioning
+
+    monkeypatch.delenv("PYTORCH_ENABLE_MPS_FALLBACK", raising=False)
+    zmw = importlib.import_module("backends.zimage_mps_worker")
+    i2i = _fake_img2img_cls()
+    bf16_check, is_built, is_available = _mps_ready()
+    with bf16_check, is_built, is_available, \
+            patch.object(zw, "_zimage_img2img_pipeline_cls", return_value=i2i):
+        worker = zmw.DiffusersZImageMpsWorker(
+            worker_id=0, model_path=fake_load.model_dir, model_info=_model_info()
+        )
+        worker.execution_policy = MagicMock()
+        worker.execution_policy.memory_stats.return_value = (111, 222)
+        worker._conditioning_artifact_for_request = Mock(
+            side_effect=lambda req: DelegatedConditioning(
+                prompt=req.prompt, negative_prompt=req.negative_prompt
+            )
+        )
+        yield SimpleNamespace(
+            zw=zw, zmw=zmw, worker=worker, i2i=i2i, torch=_fake_torch_mps()
+        )
+
+
+def _run_mps(mps_env, job, **kwargs):
+    with patch.object(mps_env.zw, "torch", mps_env.torch), \
+            patch.object(mps_env.zmw, "torch", mps_env.torch):
+        return mps_env.worker.run_job(job, **kwargs)
+
+
+def _mps_job_lines(caplog):
+    return [
+        r.getMessage() for r in caplog.records
+        if r.getMessage().startswith(MPS_LOG_TAG_PREFIX)
+    ]
+
+
+def test_mps_txt2img_logs_current_and_driver_memory(mps_env, caplog):
+    with caplog.at_level("INFO", logger=mps_env.zmw.logger.name):
+        png, seed = _run_mps(mps_env, _job())
+    assert png.startswith(b"\x89PNG") and seed == 42
+    assert mps_env.torch.Generator.call_args == call(device="mps")
+    mps_env.torch.mps.synchronize.assert_called_once_with()
+    mps_env.worker.execution_policy.memory_stats.assert_called_once_with()
+    (line,) = _mps_job_lines(caplog)
+    assert "job=job-1" in line
+    assert "op=txt2img" in line
+    assert "current_allocated_bytes=111" in line
+    assert "driver_allocated_bytes=222" in line
+    assert "peak_allocated_bytes=unavailable" in line
+    assert "peak_reserved_bytes=unavailable" in line
+    mps_env.torch.cuda.reset_peak_memory_stats.assert_not_called()
+    mps_env.torch.cuda.max_memory_allocated.assert_not_called()
+
+
+def test_mps_img2img_runs_on_mps(mps_env, caplog):
+    with caplog.at_level("INFO", logger=mps_env.zmw.logger.name):
+        png, _ = _run_mps(mps_env, _img_job())
+    assert png.startswith(b"\x89PNG")
+    assert mps_env.torch.Generator.call_args == call(device="mps")
+    (line,) = _mps_job_lines(caplog)
+    assert "op=img2img" in line
+    assert "steps=6" in line
+
+
+def test_mps_telemetry_failure_keeps_the_generation_result(mps_env, caplog):
+    mps_env.torch.mps.synchronize.side_effect = RuntimeError("no mps stats")
+    with caplog.at_level("INFO", logger=mps_env.zmw.logger.name):
+        png, seed = _run_mps(mps_env, _job())
+    assert png.startswith(b"\x89PNG") and seed == 42
+    mps_env.worker.execution_policy.memory_stats.assert_not_called()
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    (line,) = _mps_job_lines(caplog)
+    assert "current_allocated_bytes=unavailable" in line
+    assert "driver_allocated_bytes=unavailable" in line

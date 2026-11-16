@@ -25,15 +25,23 @@ class MpsTorchPolicy:
 
         return int(torch.mps.current_allocated_memory()), int(torch.mps.driver_allocated_memory())
 
+    def _resolve_dtype(self) -> tuple[Any, str]:
+        """Return the MPS dtype and its name. Subclasses may select another dtype."""
+
+        import torch
+
+        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
+        if dtype_str != "fp16":
+            raise ValueError("MPS requires CUDA_DTYPE=fp16")
+        return torch.float16, "fp16"
+
     def resolve_settings(self, model_info: Any) -> TorchExecutionSettings:
         import torch
 
         if not torch.backends.mps.is_built() or not torch.backends.mps.is_available():
             raise RuntimeError("MPS runtime must be built and available")
 
-        dtype_str = os.environ.get("CUDA_DTYPE", "fp16").lower().strip()
-        if dtype_str != "fp16":
-            raise ValueError("MPS requires CUDA_DTYPE=fp16")
+        dtype, dtype_str = self._resolve_dtype()
 
         env_offload = os.environ.get("CUDA_OFFLOAD", "none").lower().strip()
         env_quantize = os.environ.get("CUDA_QUANTIZE", "none").lower().strip()
@@ -57,8 +65,8 @@ class MpsTorchPolicy:
         )
         return TorchExecutionSettings(
             device="mps",
-            dtype=torch.float16,
-            dtype_str="fp16",
+            dtype=dtype,
+            dtype_str=dtype_str,
             enable_xformers=False,
             attention_slicing=(
                 env_attention_slicing

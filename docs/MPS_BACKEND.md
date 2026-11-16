@@ -1,7 +1,7 @@
 # MPS Backend (Apple Silicon)
 
 `BACKEND=mps` runs the worker pool on a Mac with Torch's Metal (MPS) device.
-It binds two families:
+It binds three families:
 
 - **`sd15` LCM**, for text-to-image, img2img, one Canny ControlNet attachment,
   and the combined img2img + ControlNet operation with that one attachment.
@@ -11,6 +11,10 @@ It binds two families:
   ControlNet attachment. The combined img2img + ControlNet operation stays
   unbound on MPS. `hunyuandit` accepts no second attachment and no timing
   window.
+- **`zimage`**, for text-to-image and plain img2img. One cell covers
+  Z-Image-Turbo and Z-Image base. ControlNet and the combined operation stay
+  refused. The binding is development wiring until the Turbo and Base native
+  acceptance tasks pass.
 
 No other family loads on MPS. `sdxl` is unbound.
 
@@ -167,16 +171,25 @@ The server starts without a model when the default mode has no MPS binding.
 - **No `run_job_with_latents`.** Production generation calls `run_job` only.
 - **Mode switch returns HTTP 422** for an unbound family, with that message
   as the detail.
-- **float16 only.** The policy always resolves `device="mps"` and `torch.float16`.
-- **The MPS policy reads the `CUDA_*` env names.** There are no `MPS_*` names.
-  It raises on:
+- **float16 for the default policy.** SD1.5 and HunyuanDiT resolve
+  `device="mps"` and `torch.float16`.
+- **Z-Image resolves bf16.** `ZImageMpsTorchPolicy` selects `torch.bfloat16`.
+  It checks one small bf16 MPS operation before a weight load, and it refuses
+  `PYTORCH_ENABLE_MPS_FALLBACK`. `CUDA_DTYPE` does not select this dtype, and
+  the worker logs an ignored override. This binding is development wiring until
+  the Turbo and Base native acceptance tasks pass.
+- **The default policy (SD1.5 and HunyuanDiT) reads the `CUDA_*` env names.**
+  There are no `MPS_*` names. It raises on:
   - `CUDA_OFFLOAD` other than `none` (also a mode's `runtime_offload`)
   - `CUDA_QUANTIZE` other than `none`, so no fp8 quantization (also `runtime_quantize`)
   - `CUDA_ENABLE_XFORMERS` true (also `runtime_enable_xformers`)
-  - `CUDA_DTYPE` other than `fp16` (case-insensitive)
-  - an empty `CUDA_DTYPE`, `CUDA_OFFLOAD`, or `CUDA_QUANTIZE`. A set but
-    empty value is rejected, not defaulted. Only an unset name takes the
-    default (`fp16`, `none`, `none`)
+  - `CUDA_DTYPE` other than `fp16` (case-insensitive), or an empty
+    `CUDA_DTYPE`. A set but empty value is rejected, not defaulted. Only an
+    unset name takes the default (`fp16`, `none`, `none`)
+
+  The `zimage` policy reads the offload, quantize, xformers, and
+  attention-slicing rules through this same code. It does not read
+  `CUDA_DTYPE`: it always selects bf16.
 
   An empty `CUDA_ENABLE_XFORMERS` or `CUDA_ATTENTION_SLICING` reads as false.
   It ignores `CUDA_DEVICE`: the device is always `mps`. It honors

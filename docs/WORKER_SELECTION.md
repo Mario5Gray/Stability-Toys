@@ -74,7 +74,11 @@ ControlNet scope narrows ControlNet to one Canny attachment. It also binds
 `hunyuandit` to `backends.hunyuan_mps_worker.DiffusersHunyuanDiTMpsWorker` for
 text-to-image, img2img, and one Canny, Depth or Pose ControlNet attachment. The
 combined img2img + ControlNet operation stays unbound for `hunyuandit`. `sdxl`
-stays unbound. `zimage` has no MPS binding.
+stays unbound. It also binds `zimage` to
+`backends.zimage_mps_worker.DiffusersZImageMpsWorker` for text-to-image and
+plain img2img. One cell covers Z-Image-Turbo and Z-Image base. ControlNet and
+the combined operation stay refused. The binding is development wiring until
+the Turbo and Base native acceptance tasks pass.
 The provider reports generation support as true after live acceptance.
 It reports super-resolution and model-registry statistics as false.
 Server startup continues without a model when the default mode has no MPS binding.
@@ -154,7 +158,8 @@ python -m utils.model_detector /models/your-model.safetensors
 `hunyuandit`, `zimage`).
 MPS binds `sd15` for LCM text-to-image, LCM img2img, one Canny ControlNet, and
 the combined operation. It binds `hunyuandit` for text-to-image, img2img, and
-one Canny, Depth or Pose ControlNet. It does not bind `zimage`.
+one Canny, Depth or Pose ControlNet. It also binds `zimage` as development
+wiring for text-to-image and plain img2img, pending native acceptance.
 
 See [MODEL_DETECTOR_EXTENSIBLE.md](MODEL_DETECTOR_EXTENSIBLE.md) for the detection
 system and `docs/superpowers/specs/2026-07-16-hunyuandit-family-profile-design.md`
