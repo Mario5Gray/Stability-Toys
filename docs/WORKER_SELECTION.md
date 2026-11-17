@@ -100,6 +100,11 @@ export MODE_CONFIG_PATH=conf        # directory containing modes.yml
 
 Switch modes at runtime through the mode API (`/api/modes/switch`); the pool
 re-resolves and republishes one active snapshot per load.
+A mode whose model file is absent refuses the switch with HTTP 409.
+The error names the mode and the missing path.
+A generate request for that mode is also refused with HTTP 409.
+The server keeps the current mode.
+A switch to a mode with a present model resumes processing.
 
 A save through `PUT /api/modes` reloads the current mode when its model, LoRA
 paths, or LoRA strengths change. `POST /api/modes/reload` (`st modes reload`)

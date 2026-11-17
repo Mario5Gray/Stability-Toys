@@ -1202,3 +1202,26 @@ async def test_save_all_modes_skips_reload_when_loras_unchanged():
         await model_routes.save_all_modes(request)
 
     pool.reload_if_current.assert_not_called()
+
+
+async def test_switch_mode_absent_model_is_409():
+    from fastapi import HTTPException
+    from backends.model_resolution import ModelUnavailableError
+
+    pool = Mock()
+    pool.get_current_mode.return_value = "lcm-general"
+    pool.switch_mode.side_effect = ModelUnavailableError(
+        "Mode 'HunyuanDiT' model is missing: /models/absent"
+    )
+    config = Mock()
+    config.get_mode.return_value = SimpleNamespace(name="HunyuanDiT")
+
+    with patch("server.model_routes.get_worker_pool", return_value=pool), \
+            patch("server.model_routes.get_mode_config", return_value=config):
+        try:
+            await model_routes.switch_mode(model_routes.ModeSwitchRequest(mode="HunyuanDiT"))
+        except HTTPException as exc:
+            assert exc.status_code == 409
+            assert "HunyuanDiT" in exc.detail
+        else:
+            raise AssertionError("expected HTTPException for an absent model")

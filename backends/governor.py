@@ -33,6 +33,7 @@ from backends.base import PipelineWorker
 from backends.platforms.base import ModelRegistryProtocol
 from backends.model_resolution import (
     LocalModelBinding,
+    ModelUnavailableError,
     ResolvedModel,
     merge_mode_capabilities,
     resolve_model,
@@ -444,6 +445,12 @@ class Governor:
         default_mode = self._mode_config.get_default_mode()
         try:
             self._load_mode(default_mode)
+        except ModelUnavailableError as e:
+            # A missing model file is a warning, not a fatal. The server starts.
+            logger.warning(
+                "[Governor] %s Server will start without a loaded model.", e
+            )
+            self._start_dispatch_thread()
         except Exception as e:
             logger.error(
                 f"[Governor] Initial model load failed for mode '{default_mode}': {e}. "
@@ -473,7 +480,15 @@ class Governor:
         loras: raises RequestLoraError here, before any reservation."""
         mode = derive_request_mode(deepcopy(self._mode_config.get_mode(mode_name)), request_loras)
         assert mode.model_path is not None
-        resolved, binding = resolve_model(mode.model_path, mode)
+        try:
+            resolved, binding = resolve_model(mode.model_path, mode)
+        except FileNotFoundError as e:
+            # An absent model file refuses this target. The server keeps the
+            # current mode. A later switch to a present model resumes processing.
+            raise ModelUnavailableError(
+                f"Mode '{mode_name}' model is missing: {mode.model_path}. "
+                "Refusing processing until a switch lands on a mode with a present model."
+            ) from e
         if os.environ.get("BACKEND", "").lower().strip() == "mps":
             from backends.platform_registry import get_backend_provider
             from backends.platforms.base import UnsupportedFamilyError

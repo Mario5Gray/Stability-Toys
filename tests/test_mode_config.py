@@ -1493,3 +1493,60 @@ def test_absent_zimage_folders_do_not_fail_strict_controlnet_startup_validation(
     monkeypatch.setattr("utils.model_detector.detect_model", _detect)
     validate_controlnet_mode_references(mode_config=manager, registry=registry)
     assert detected == [str(root / "repos" / "existing")]
+
+
+def test_absent_mode_model_warns_and_skips_strict_controlnet_validation(
+    tmp_path, caplog
+):
+    """A missing model file warns and skips that mode; the server still starts."""
+    from server.controlnet_registry import (
+        load_controlnet_registry,
+        validate_controlnet_mode_references,
+    )
+    from server.mode_config import ModeConfigManager
+
+    root = tmp_path / "models"
+    (root / "present").mkdir(parents=True)
+    absent = root / "absent"
+    conf = tmp_path / "conf"
+    conf.mkdir()
+    (conf / "modes.yml").write_text(
+        f"""
+model_root: {root}
+default_mode: Missing
+resolution_sets:
+  default:
+    - size: 512x512
+      aspect_ratio: "1:1"
+modes:
+  Missing:
+    model: absent
+    controlnet_policy:
+      enabled: true
+      max_attachments: 1
+      allowed_control_types:
+        canny:
+          default_model_id: sd15-canny
+""",
+        encoding="utf-8",
+    )
+    manager = ModeConfigManager(str(conf))
+    canny_dir = tmp_path / "controlnets" / "sd15-canny"
+    canny_dir.mkdir(parents=True)
+    registry_file = tmp_path / "controlnets.yaml"
+    registry_file.write_text(
+        "models:\n"
+        "  sd15-canny:\n"
+        f"    path: {canny_dir}\n"
+        "    control_types: [canny]\n"
+        "    compatible_with: [sd15]\n",
+        encoding="utf-8",
+    )
+    registry = load_controlnet_registry(config_path=str(registry_file), validation_mode="strict")
+
+    with caplog.at_level("WARNING"):
+        validate_controlnet_mode_references(mode_config=manager, registry=registry)
+
+    warnings = "\n".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert str(absent) in warnings
+    assert "Missing" in warnings

@@ -394,3 +394,40 @@ async def test_single_mode_save_refuses_mode_loras_under_request_loras():
 
     assert exc.value.status_code == 409
     config.save_config.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# A missing model file refuses processing; a switch to a present mode resumes.
+
+
+def test_http_absent_model_is_409(http):
+    from backends.model_resolution import ModelUnavailableError
+
+    client, runtime = http
+    runtime.admit_generation.side_effect = ModelUnavailableError(
+        "Mode 'HunyuanDiT' model is missing: /models/absent"
+    )
+
+    r = client.post("/generate", json={"prompt": "p", "mode": "HunyuanDiT"})
+
+    assert r.status_code == 409
+    assert "HunyuanDiT" in r.json()["detail"]
+    assert "/models/absent" in r.json()["detail"]
+
+
+def test_http_no_loaded_model_refuses_before_submit(root):
+    runtime = MagicMock(spec=["switch_mode", "get_current_mode", "admit_generation",
+                              "get_active_model_snapshot", "submit_generate", "wait_for_result"])
+    runtime.admit_generation.return_value = None
+    test_app = FastAPI()
+    test_app.post("/generate")(srv.generate)
+    mock_app = MagicMock()
+    mock_app.state.generation_runtime = runtime
+    with patch.object(srv, "app", mock_app), \
+            patch("server.lcm_sr_server.get_mode_config", return_value=_mode_config(root)):
+        client = TestClient(test_app, raise_server_exceptions=False)
+        r = client.post("/generate", json={"prompt": "p"})
+
+    assert r.status_code == 409
+    assert "no model" in r.json()["detail"].lower()
+    runtime.submit_generate.assert_not_called()

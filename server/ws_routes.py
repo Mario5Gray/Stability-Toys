@@ -308,7 +308,10 @@ async def handle_job_submit(ws: WebSocket, msg: dict, client_id: str) -> None:
             # admit_generation returns None only when there is genuinely no model and
             # none was targeted. The current_resolution_epoch() fallback is gone: it
             # stamped the PRE-switch epoch, which is the STABL-ltefhpkk race.
-            pre_submit_job_error = "No model loaded"
+            pre_submit_job_error = (
+                "No model is loaded. Refusing processing until a switch lands on "
+                "a mode with a present model."
+            )
 
         if pre_submit_job_error is None:
             job = GenerationJob(

@@ -17,6 +17,7 @@ from server.mode_config import get_mode_config, reload_mode_config
 from backends.model_registry import get_model_registry
 from backends.worker_pool import get_worker_pool
 from backends.mode_loras import RequestLoraError
+from backends.model_resolution import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +332,8 @@ async def switch_mode(request: ModeSwitchRequest):
             "to_mode": request.mode,
             "message": f"Mode switch queued. Will switch after {pool.get_queue_size()} pending jobs.",
         }
+    except ModelUnavailableError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     except UnsupportedFamilyError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:

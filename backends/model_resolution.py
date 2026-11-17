@@ -43,6 +43,14 @@ class ResolutionCompatibilityError(Exception):
     """Raised when a traced ResolvedModel cannot be safely consumed/executed."""
 
 
+class ModelUnavailableError(Exception):
+    """Raised when a target mode's model file is absent on this host.
+
+    The server keeps running. The transport refuses the request with the
+    message, and processing resumes after a switch to a present model.
+    """
+
+
 # ---------------------------------------------------------------------------
 # JSON-safety
 # ---------------------------------------------------------------------------

@@ -92,6 +92,7 @@ import signal
 from server.mode_config import get_mode_config, reload_mode_config
 from server.request_loras import admit_generation_request, ensure_request_loras_supported
 from backends.mode_loras import RequestLoraError
+from backends.model_resolution import ModelUnavailableError
 from server.model_routes import router as model_router
 from server.analysis_routes import router as analysis_router
 from server.advisor_routes import router as advisor_router
@@ -643,6 +644,8 @@ def generate(req: GenerateRequest):
             )
         except RequestLoraError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except ModelUnavailableError as e:
+            raise HTTPException(status_code=409, detail=str(e))
         except KeyError:
             raise HTTPException(
                 status_code=404,
@@ -663,6 +666,17 @@ def generate(req: GenerateRequest):
             runtime.get_active_model_snapshot()
             if supports_modes and hasattr(runtime, "get_active_model_snapshot")
             else None
+        )
+
+    if supports_modes and snapshot is None:
+        # No model is loaded. The default mode's model file is likely absent.
+        # Refuse processing until a switch lands on a present model.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No model is loaded. Refusing processing until a switch lands on a "
+                "mode with a present model."
+            ),
         )
     emitted_artifacts: list = []
     controlnet_bindings: list = []

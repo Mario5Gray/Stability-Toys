@@ -57,8 +57,12 @@ For provider, factory, and family-binding flow, see
    is the one the live acceptance below used.
 
    `make mps` sources `env.mps` and lists required model, ControlNet, and
-   filesystem storage paths before it starts the server. It stops if a required
-   path does not exist. The target refuses the Miniforge base env, because that
+   filesystem storage paths before it starts the server.
+   A missing model file prints `WARN` and does not stop the server.
+   A missing configuration file or storage directory stops it.
+   The server refuses processing for a mode with a missing model.
+   A mode switch to a mode with a present model resumes processing.
+   The target refuses the Miniforge base env, because that
    env drifts outside the project pins.
    The target binds `0.0.0.0` on port 4200 (c43ccce). The manual command above
    binds `127.0.0.1`. Change `--host` to match the target.

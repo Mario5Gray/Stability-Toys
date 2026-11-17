@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
+import logging
 import os
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,16 @@ def validate_controlnet_mode_references(*, mode_config=None, registry: Optional[
         # (mode policy can overlay checkpoint_variant, so it is not authoritative).
         try:
             active_family = resolve_family(detect_model(mode.model_path)).family_id
+        except FileNotFoundError:
+            # A missing model file is a warning, not a fatal. The server starts.
+            # The mode refuses processing until a switch lands on a present model.
+            logger.warning(
+                "[ControlNet] Mode '%s' model not found at %s; skipping ControlNet "
+                "family checks for this mode",
+                mode.name,
+                mode.model_path,
+            )
+            continue
         except FamilyResolutionError as e:
             raise ValueError(
                 f"Mode '{mode.name}' model does not resolve to a supported ControlNet family"

@@ -1481,3 +1481,91 @@ def test_a_failure_inside_the_error_handler_does_not_wedge_the_dispatch_loop():
             )
         finally:
             gov.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# An absent model file refuses the target; it does not reserve or enqueue.
+# ---------------------------------------------------------------------------
+
+
+def test_switch_mode_absent_model_file_raises_model_unavailable():
+    """A missing model file is a refusal, not a fatal. The refusal names the
+    mode and the path, and it leaves the current mode and the epoch untouched."""
+    from backends.governor import ModelUnavailableError
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            before = gov._resolution_epoch
+            with patch(
+                "backends.governor.resolve_model",
+                side_effect=FileNotFoundError("Path not found: /models/absent"),
+            ):
+                with pytest.raises(ModelUnavailableError) as excinfo:
+                    gov.switch_mode("mode-b")
+            assert "mode-b" in str(excinfo.value)
+            assert "model is missing" in str(excinfo.value)
+            assert gov._resolution_epoch == before
+            assert gov._pending_authorities == []
+            assert gov.get_current_mode() == "mode-a"
+        finally:
+            gov.shutdown()
+
+
+def test_admit_generation_absent_model_file_raises_model_unavailable():
+    """Admission refuses before any reservation or queue write, so a generate
+    request cannot stamp a job against a mode that cannot load."""
+    from backends.governor import ModelUnavailableError
+
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            before = gov._resolution_epoch
+            with patch(
+                "backends.governor.resolve_model",
+                side_effect=FileNotFoundError("Path not found: /models/absent"),
+            ):
+                with pytest.raises(ModelUnavailableError):
+                    gov.admit_generation("mode-b")
+            assert gov._resolution_epoch == before
+            assert gov._pending_authorities == []
+            assert gov.q.qsize() == 0
+        finally:
+            gov.shutdown()
+
+
+def test_switch_after_absent_model_lands_on_present_model():
+    """Processing resumes after a switch that lands on a present model."""
+    with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+        gov = _reservation_governor("mode-a", "mode-b", default="mode-a")
+        try:
+            with patch(
+                "backends.governor.resolve_model",
+                side_effect=FileNotFoundError("Path not found: /models/absent"),
+            ):
+                with pytest.raises(Exception):
+                    gov.switch_mode("mode-b")
+            result = gov.switch_mode("mode-a", force=True).result(timeout=2.0)
+            assert result["status"] in {"already_loaded", "switched"}
+            assert gov.get_current_mode() == "mode-a"
+        finally:
+            gov.shutdown()
+
+
+def test_initial_load_with_absent_default_model_warns_and_starts(caplog):
+    """A missing default model warns. The server starts. A later switch to a
+    present model loads it and resumes processing."""
+    with patch(
+        "backends.governor.resolve_model",
+        side_effect=FileNotFoundError("Path not found: /models/absent"),
+    ):
+        with caplog.at_level("WARNING"):
+            gov = _reservation_governor("mode-a", default="mode-a")
+    try:
+        assert gov.get_current_mode() is None
+        assert "without a loaded model" in caplog.text
+        with patch("backends.governor.resolve_model", side_effect=_resolve_by_path):
+            gov.switch_mode("mode-a", force=True).result(timeout=2.0)
+        assert gov.get_current_mode() == "mode-a"
+    finally:
+        gov.shutdown()
